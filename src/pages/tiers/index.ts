@@ -1,0 +1,1 @@
+export { TierSystemPage } from './TierSystemPage'

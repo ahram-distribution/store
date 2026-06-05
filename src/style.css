@@ -1,0 +1,204 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #0052cc;
+  --color-primary-dark: #003d99;
+  --color-primary-light: #1a6bff;
+  --color-secondary: #0F2B5B;
+  --color-brand: #0F2B5B;
+  --color-accent: #f59e0b;
+  --color-accent-light: #fbbf24;
+  --color-success: #22c55e;
+  --color-warning: #eab308;
+  --color-danger: #ef4444;
+  --color-surface: #f3f4f6;
+  --color-bg: #f8fafc;
+  --color-border: #e5e7eb;
+  --color-text: #111827;
+  --color-text-secondary: #6b7280;
+  --color-text-muted: #9ca3af;
+  --color-muted: #9ca3af;
+  --color-card: #ffffff;
+  --color-gold: #C9A227;
+  --color-gold-light: #E0B85A;
+}
+
+html, body, #app {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background: #f8fafc;
+  color: #111827;
+}
+
+/* Glass card (auth screens only) */
+.glass-card {
+  background: linear-gradient(135deg, rgba(11, 61, 145, 0.6) 0%, rgba(7, 27, 77, 0.8) 100%);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(201, 162, 39, 0.15);
+  border-radius: 22px;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(201, 162, 39, 0.08);
+}
+
+/* Gold input (auth screens only) */
+.gold-input {
+  width: 100%;
+  padding: 14px 18px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(201, 162, 39, 0.12);
+  color: #ffffff;
+  font-size: 15px;
+  outline: none;
+  transition: all 0.2s ease;
+  -webkit-appearance: none;
+}
+
+.gold-input:focus {
+  border-color: #C9A227;
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 0 0 3px rgba(201, 162, 39, 0.15);
+}
+
+.gold-input::placeholder {
+  color: rgba(255, 255, 255, 0.35);
+}
+
+/* Gold primary button (auth screens only) */
+.btn-gold {
+  width: 100%;
+  padding: 16px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #C9A227 0%, #E0B85A 100%);
+  color: #071B4D;
+  font-size: 15px;
+  font-weight: 700;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  -webkit-appearance: none;
+}
+
+.btn-gold:active {
+  transform: scale(0.98);
+  opacity: 0.9;
+}
+
+.btn-gold:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Gold outline button (auth screens only) */
+.btn-outline {
+  width: 100%;
+  padding: 16px;
+  border-radius: 16px;
+  background: transparent;
+  color: #C9A227;
+  font-size: 15px;
+  font-weight: 600;
+  border: 1.5px solid rgba(201, 162, 39, 0.3);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  -webkit-appearance: none;
+}
+
+.btn-outline:active {
+  background: rgba(201, 162, 39, 0.08);
+}
+
+/* Gold spinner (auth/splash screens only) */
+.gold-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid rgba(201, 162, 39, 0.15);
+  border-top-color: #C9A227;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Gold progress line (splash only) */
+.gold-progress {
+  width: 120px;
+  height: 2px;
+  background: rgba(201, 162, 39, 0.15);
+  border-radius: 2px;
+  overflow: hidden;
+  position: relative;
+}
+
+.gold-progress::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -40%;
+  width: 40%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, #C9A227, transparent);
+  border-radius: 2px;
+  animation: progress-sweep 1.8s ease-in-out infinite;
+}
+
+@keyframes progress-sweep {
+  0% { left: -40%; }
+  100% { left: 100%; }
+}
+
+/* Mobile container */
+.mobile-container {
+  max-width: 480px;
+  margin: 0 auto;
+  min-height: 100vh;
+}
+
+@media (min-width: 768px) {
+  .mobile-container {
+    max-width: 100%;
+    padding: 0 2rem;
+  }
+}
+
+.safe-top {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+header .mobile-container,
+nav .mobile-container {
+  min-height: 0;
+}
+
+.glass-card-solid {
+  background: linear-gradient(135deg, rgba(11, 61, 145, 0.7) 0%, rgba(7, 27, 77, 0.9) 100%);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(201, 162, 39, 0.12);
+  border-radius: 20px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+}
+
+@keyframes slide-up {
+  from { transform: translateY(100%); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.animate-slide-up {
+  animation: slide-up 0.4s ease-out;
+}
+
+.duration-600 {
+  transition-duration: 600ms;
+}

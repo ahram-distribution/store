@@ -1,0 +1,10 @@
+-- Ahram Distribution - Database Schema
+-- Placeholder: Schema will be populated after Technical Blueprint approval.
+-- Expected tables:
+--   employees, customers, products, addresses
+--   orders, order_items, order_revisions
+--   visits, visit_logs
+--   collections, collection_items
+--   returns, return_items, credit_notes
+--   deals, deal_items, auction_items, auction_bids
+--   code_sequences
