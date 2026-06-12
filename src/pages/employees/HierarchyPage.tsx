@@ -22,7 +22,7 @@ interface TreeNode {
   _depth: number
 }
 
-export function HierarchyPage() {
+export function HierarchyPage({ embedded }: { embedded?: boolean }) {
   const navigate = useNavigate()
   const [employees, setEmployees] = useState<any[]>([])
   const [roles, setRoles] = useState<any[]>([])
@@ -212,7 +212,7 @@ export function HierarchyPage() {
 
           <div className={`w-2 h-2 rounded-full shrink-0 ${node.is_active ? 'bg-success' : 'bg-danger'}`} />
 
-          <span className="text-xs font-semibold text-text truncate">{node.full_name}</span>
+          <span className="text-xs font-semibold text-text whitespace-nowrap">{node.full_name}</span>
           <span className="text-[10px] text-text-secondary shrink-0">{node.code}</span>
           {node.role_names && (
             <span className="text-[10px] text-primary shrink-0 hidden sm:inline">{node.role_names}</span>
@@ -332,14 +332,16 @@ export function HierarchyPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3">
-        <button onClick={() => navigate('/dashboard')} className="text-text-secondary text-lg">&larr;</button>
-        <h1 className="text-lg font-bold text-text">الهيكل البيعي</h1>
-        <span className="text-[11px] text-text-secondary">({employees.length} موظف)</span>
-        <button onClick={() => navigate('/employees')} className="mr-auto bg-surface border border-border text-text text-xs px-3 py-1.5 rounded-lg font-semibold">
-          عرض الموظفين
-        </button>
-      </div>
+      {!embedded && (
+        <div className="flex items-center gap-3">
+          <button onClick={() => navigate('/dashboard')} className="text-text-secondary text-lg">&larr;</button>
+          <h1 className="text-lg font-bold text-text">الهيكل البيعي</h1>
+          <span className="text-[11px] text-text-secondary">({employees.length} موظف)</span>
+          <button onClick={() => navigate('/employees')} className="mr-auto bg-surface border border-border text-text text-xs px-3 py-1.5 rounded-lg font-semibold">
+            عرض الموظفين
+          </button>
+        </div>
+      )}
 
       {loading ? (
         <div className="text-center py-12 text-text-secondary text-sm">جاري التحميل...</div>

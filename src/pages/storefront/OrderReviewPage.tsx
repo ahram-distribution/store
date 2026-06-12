@@ -4,9 +4,10 @@ import { useCartStore } from '../../store/cart'
 import { useAuthStore } from '../../store/auth'
 import { formatCurrencyShort } from '../../utils/format'
 import { supabase } from '../../lib/supabase'
-import { sendFullOrderToWhatsApp } from '../../lib/whatsapp'
-import { locationService } from '../../services/location'
+import { sendWhatsAppFromDisplay } from '../../lib/whatsapp'
+import { buildOrderDisplayData, UNIT_LABELS } from '../../types/order-display'
 import toast from 'react-hot-toast'
+import { creditService } from '../../services/credit'
 
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
@@ -24,12 +25,6 @@ export function OrderReviewPage() {
   if (items.length === 0 && dealItems.length === 0 && flashOfferItems.length === 0) {
     navigate('/cart')
     return null
-  }
-
-  const unitLabels: Record<string, string> = {
-    piece: 'قطعة',
-    dozen: 'دستة',
-    carton: 'كرتونة',
   }
 
   const handleSubmit = async () => {
@@ -67,8 +62,7 @@ export function OrderReviewPage() {
 
     setSubmitting(true)
 
-    const { locationId, gps } = await locationService.captureAndStoreLocation()
-
+    let order: any = null
     try {
       const orderItems = items.map((item) => ({
         product_id: item.productId,
@@ -78,89 +72,78 @@ export function OrderReviewPage() {
         unit_price: Math.round(item.unitPrice * 100) / 100,
         total_price: Math.round(item.totalPrice * 100) / 100,
       }))
-
-      const { data: order, error: createError } = await supabase.rpc('governed_create_order', {
+      const { data: created, error: createError } = await supabase.rpc('governed_create_order', {
         p_token: token,
         p_customer_id: customerId,
         p_tier_id: selectedTier?.id || null,
         p_notes: null,
         p_items: orderItems,
-        p_execution_location_id: locationId,
-        p_execution_latitude: gps?.latitude || null,
-        p_execution_longitude: gps?.longitude || null,
-        p_execution_accuracy_meters: gps?.accuracy || null,
-        p_execution_captured_at: gps?.capturedAt || null,
+        p_execution_location_id: null,
+        p_execution_latitude: null,
+        p_execution_longitude: null,
+        p_execution_accuracy_meters: null,
+        p_execution_captured_at: null,
       })
+      if (createError) { toast.error('فشل إنشاء الطلب: ' + createError.message); setSubmitting(false); return }
+      if (!created) { toast.error('فشل إنشاء الطلب'); setSubmitting(false); return }
+      order = created
 
-      if (createError) {
-        toast.error('فشل إنشاء الطلب: ' + createError.message)
-        setSubmitting(false)
-        return
-      }
-
-      if (!order) {
-        toast.error('فشل إنشاء الطلب')
-        setSubmitting(false)
-        return
-      }
-
-      const orderId = (order as any).id
-
-      // Add flash offers to the order if any
+      // flash offers (best-effort)
       if (flashOfferItems.length > 0) {
-        const offerPayload = flashOfferItems.map((d) => ({
-          offer_id: d.dealId,
-          quantity: d.quantity,
-        }))
-        const { error: foError } = await supabase.rpc('governed_add_order_flash_offers', {
-          p_token: token,
-          p_order_id: orderId,
-          p_offers: offerPayload,
-        })
-        if (foError) {
-          toast.error('تم إنشاء الطلب ولكن فشل إضافة عروض الساعة: ' + foError.message)
-          setSubmitting(false)
-          return
-        }
+        const offerPayload = flashOfferItems.map((d) => ({ offer_id: d.dealId, quantity: d.quantity }))
+        await supabase.rpc('governed_add_order_flash_offers', { p_token: token, p_order_id: order.id, p_offers: offerPayload })
+          .catch(() => {})
       }
 
-      // Add daily deals to the order if any
+      // daily deals (best-effort)
       if (dealItems.length > 0) {
-        const dealPayload = dealItems.map((d) => ({
-          deal_id: d.dealId,
-          quantity: d.quantity,
-        }))
-        const { error: dealError } = await supabase.rpc('governed_add_order_daily_deals', {
-          p_token: token,
-          p_order_id: orderId,
-          p_deals: dealPayload,
-        })
-        if (dealError) {
-          toast.error('تم إنشاء الطلب ولكن فشل إضافة العروض: ' + dealError.message)
-          setSubmitting(false)
-          return
-        }
+        const dealPayload = dealItems.map((d) => ({ deal_id: d.dealId, quantity: d.quantity }))
+        await supabase.rpc('governed_add_order_daily_deals', { p_token: token, p_order_id: order.id, p_deals: dealPayload })
+          .catch(() => {})
       }
 
       const { error: submitError } = await supabase.rpc('governed_submit_order', {
         p_token: token,
-        p_id: orderId,
+        p_id: order.id,
       })
-
       if (submitError) {
         toast.error('تم إنشاء الطلب كمسودة ولكن فشل الإرسال: ' + submitError.message)
         setSubmitting(false)
         return
       }
-
       toast.success('تم إرسال الطلب بنجاح!')
-      sendFullOrderToWhatsApp(order, { name: (user as any)?.user_metadata?.full_name || '' }, null, null, items)
-      clearCart()
-      navigate('/orders')
+
+      // ── CREDIT RESERVE — best-effort, only for customers with active credit ──
+      const creditResult = await creditService.reserveCreditForOrder(order.id).catch(() => null)
+      if (creditResult?.over_limit) {
+        toast('الطلب يتجاوز الحد الائتماني وسيتم مراجعته من الإدارة العليا', { icon: '⚠️', duration: 5000 })
+      }
     } catch (err: any) {
       toast.error('حدث خطأ أثناء إنشاء الطلب')
       setSubmitting(false)
+      return
     }
+
+    // ── OPEN WHATSAPP — uses snapshot data from RPC only ──
+    try {
+      const orderRes = await supabase.rpc('get_governed_order', { p_token: token, p_id: order.id })
+      if (orderRes.error || !orderRes.data || orderRes.data?.error) throw orderRes.error || new Error('no order')
+      const fullOrder = orderRes.data
+
+      let itemsRes;
+      try { itemsRes = await supabase.rpc('get_governed_order_items', { p_token: token, p_order_id: order.id }); } catch { itemsRes = null; }
+      const orderItems = (itemsRes?.data && Array.isArray(itemsRes.data))
+        ? itemsRes.data.map((i: any) => ({ ...i, products: { product_name: i.product_name, legacy_code: i.legacy_code, image_url: i.image_url, companies: { company_name: i.company_name } } }))
+        : []
+
+      const display = buildOrderDisplayData({ order: fullOrder, items: orderItems })
+      console.log('ORDER_REVIEW_DISPLAY_DATA', display)
+      sendWhatsAppFromDisplay(display)
+    } catch (e) { console.error('WHATSAPP_OPEN_FAILED', e) }
+
+    setSubmitting(false)
+    clearCart()
+    navigate('/orders')
   }
 
   return (
@@ -192,7 +175,7 @@ export function OrderReviewPage() {
               <div className="flex-1 min-w-0">
                 <span className="text-sm text-text truncate block">{item.productName}</span>
                 <span className="text-xs text-text-secondary">
-                  {item.unitQuantity} {unitLabels[item.unitType]} &middot;
+                  {item.unitQuantity} {UNIT_LABELS[item.unitType]} &middot;
                   {formatCurrencyShort(item.unitPrice)} للوحدة
                 </span>
               </div>

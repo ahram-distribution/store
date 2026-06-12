@@ -45,15 +45,10 @@ export interface RegisterParams {
 }
 
 async function rpc<T>(fn: string, args: Record<string, unknown>): Promise<T> {
-  console.log(`[rpc] calling ${fn} with args:`, JSON.stringify(args))
   const { data, error } = await supabase.rpc(fn, args)
   if (error) {
     console.error(`[rpc] ${fn} FAILED — Supabase error:`, JSON.stringify(error))
     throw error
-  }
-  console.log(`[rpc] ${fn} response:`, JSON.stringify(data))
-  if (data && typeof data === 'object' && 'error' in data && typeof (data as any).error === 'string') {
-    console.log(`[rpc] ${fn} error field char codes:`, Array.from((data as any).error).map((c: string) => c.codePointAt(0)))
   }
   return data as T
 }

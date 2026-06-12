@@ -118,6 +118,10 @@ export function AccountPage() {
                     <span className="text-sm font-semibold text-text">طلب جديد</span>
                     <span className="text-xs text-text-secondary block mt-0.5">تصفح المنتجات وإنشاء طلب</span>
                   </button>
+                  <button onClick={() => navigate('/returns')} className="w-full bg-white border border-border rounded-lg p-3 text-right">
+                    <span className="text-sm font-semibold text-text">المرتجعات</span>
+                    <span className="text-xs text-text-secondary block mt-0.5">إنشاء ومتابعة المرتجعات</span>
+                  </button>
                   <div className="w-full bg-white border border-border rounded-lg p-3 text-right">
                     <span className="text-sm font-semibold text-text">كشف الحساب</span>
                     <span className="text-xs text-text-secondary block mt-0.5">عرض الحركات والرصيد</span>

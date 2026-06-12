@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
+import { formatCurrencyShort } from '../../utils/format'
 
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
@@ -68,7 +69,7 @@ export function SalesDirectorWorkspace() {
             {pendingApproval.slice(0, 5).map((o: any) => (
               <button key={o.id} onClick={() => navigate(`/orders/${o.id}`)} className="w-full flex justify-between items-center text-xs py-1.5 border-b border-border last:border-0 text-right">
                 <span className="text-text font-semibold">{o.order_number || o.id?.slice(0, 8)}</span>
-                <span className="text-text-secondary">{Number(o.total_amount || 0).toLocaleString('ar-EG')} ج</span>
+                <span className="text-text-secondary">{formatCurrencyShort(Number(o.total_amount || 0))}</span>
               </button>
             ))}
           </div>

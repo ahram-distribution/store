@@ -1,24 +1,14 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
+import { targetService } from '../../services/targets'
+import { useAuthStore } from '../../store/auth'
+import { formatCurrencyShort } from '../../utils/format'
 
 interface DashboardData {
-  new_orders: number
-  pending_orders: number
-  active_visits: number
-  today_visits: number
-  new_customers: number
-  stagnant_customers: number
-  daily_sales: number
-  monthly_sales: number
-  best_rep: { id: string; code: string; name: string; total_sales: number } | null
-  weakest_rep: { id: string; code: string; name: string; total_sales: number } | null
-  total_customers: number
-  total_reps: number
-}
-
-interface StatusCount {
-  status: string; count: number
+  new_orders: number; pending_orders: number; active_visits: number; today_visits: number
+  new_customers: number; stagnant_customers: number; daily_sales: number; monthly_sales: number
+  total_customers: number; total_reps: number
 }
 
 interface DashMgmt {
@@ -27,38 +17,44 @@ interface DashMgmt {
   pending_returns: number; today_orders: number; today_visits: number
 }
 
-const STATUS_LABELS: Record<string, string> = {
-  draft: 'مسودة', submitted: 'مقدم', reviewing: 'قيد المراجعة',
-  returned_for_revision: 'معاد للتعديل', approved: 'معتمد',
-  preparing: 'قيد التجهيز', prepared: 'تم التجهيز',
-  ready_for_dispatch: 'بانتظار القرار', sent_to_delivery: 'أرسل للتوصيل',
-  dispatched: 'تم الشحن', deferred: 'مؤجل', cancelled: 'ملغي', delivered: 'تم التسليم',
-}
-
-const STATUS_COLORS: Record<string, string> = {
-  draft: 'bg-gray-200 text-gray-700', submitted: 'bg-blue-100 text-blue-700',
-  reviewing: 'bg-yellow-100 text-yellow-700', returned_for_revision: 'bg-orange-100 text-orange-700',
-  approved: 'bg-green-100 text-green-700', preparing: 'bg-amber-100 text-amber-700',
-  prepared: 'bg-teal-100 text-teal-700', ready_for_dispatch: 'bg-indigo-100 text-indigo-700',
-  sent_to_delivery: 'bg-cyan-100 text-cyan-700', dispatched: 'bg-purple-100 text-purple-700',
-  deferred: 'bg-slate-100 text-slate-700', cancelled: 'bg-red-100 text-red-700',
-  delivered: 'bg-emerald-100 text-emerald-700',
+interface AttendanceOverview {
+  active_count: number
+  on_break_count: number
+  on_visit_count: number
+  connection_loss_count: number
+  no_start_count: number
+  ended_count: number
+  employees?: unknown[]
+  no_start_employees?: unknown[]
+  ended_employees?: unknown[]
 }
 
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
 }
 
-function fmt(n: number): string {
-  return n.toLocaleString('ar-EG')
+const now = new Date()
+const CUR_MONTH = now.getMonth() + 1
+const CUR_YEAR = now.getFullYear()
+const MONTHS = ['يناير', 'فبراير', 'مارس', 'إبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر']
+
+interface LauncherGroup {
+  icon: string
+  label: string
+  path: string
+  isSubLauncher?: boolean
+  badge?: string | number
 }
 
 export default function UpperManagementDashboard() {
   const nav = useNavigate()
+  const user = useAuthStore((s) => s.user)
   const [data, setData] = useState<DashboardData | null>(null)
   const [dashMgmt, setDashMgmt] = useState<DashMgmt | null>(null)
-  const [statusCounts, setStatusCounts] = useState<StatusCount[]>([])
+  const [companyPerf, setCompanyPerf] = useState<{ sales_target: number; overall_achievement_pct: number } | null>(null)
+  const [attendance, setAttendance] = useState<AttendanceOverview | null>(null)
   const [loading, setLoading] = useState(true)
+  const [searchQuery, setSearchQuery] = useState('')
 
   useEffect(() => {
     const token = getToken()
@@ -66,143 +62,181 @@ export default function UpperManagementDashboard() {
     Promise.all([
       supabase.rpc('get_upper_management_dashboard', { p_token: token }),
       supabase.rpc('get_dashboard_management', { p_token: token }),
-      supabase.rpc('get_order_status_counts', { p_token: token }),
-    ]).then(([umd, mgmt, counts]) => {
+      targetService.getPerformance(CUR_MONTH, CUR_YEAR, token),
+      supabase.rpc('get_live_workday_overview', { p_token: token }),
+    ]).then(([umd, mgmt, perfResult, attResult]) => {
       if (!umd.error && umd.data) setData(umd.data as DashboardData)
       if (!mgmt.error && mgmt.data) setDashMgmt(mgmt.data as DashMgmt)
-      if (!counts.error && counts.data) setStatusCounts(counts.data as StatusCount[])
+      if (!perfResult.error && perfResult.data) {
+        const p = perfResult.data as any
+        if (p.company) setCompanyPerf({
+          sales_target: p.company.sales_target || 0,
+          overall_achievement_pct: p.company.overall_achievement_pct || 0,
+        })
+      }
+      if (!attResult.error && attResult.data) setAttendance(attResult.data as AttendanceOverview)
       setLoading(false)
     })
   }, [])
+
+  const totalOrders = dashMgmt?.total_orders ?? 0
+  const pendingOrders = (data?.pending_orders ?? 0) + (dashMgmt?.pending_orders ?? 0)
+  const achievementPct = companyPerf?.overall_achievement_pct ?? 0
+
+  const statItems = [
+    { label: 'مبيعات الشهر', value: data?.monthly_sales != null ? formatCurrencyShort(data.monthly_sales) : '0', color: 'text-success' },
+    { label: 'الطلبات', value: String(totalOrders), color: 'text-primary' },
+    { label: 'الإنجاز', value: achievementPct.toFixed(1) + '%', color: achievementPct >= 50 ? 'text-success' : 'text-warning' },
+    { label: 'عملاء جدد', value: String(data?.new_customers ?? 0), color: 'text-accent' },
+  ]
+
+  const groups: LauncherGroup[] = [
+    { icon: '📋', label: 'الطلبات', path: '/launcher/orders', isSubLauncher: true, badge: pendingOrders },
+    { icon: '📍', label: 'الزيارات', path: '/launcher/visits', isSubLauncher: true, badge: data?.active_visits },
+    { icon: '👥', label: 'العملاء', path: '/launcher/customers', isSubLauncher: true, badge: data?.total_customers },
+    { icon: '👤', label: 'الموظفون', path: '/launcher/employees', isSubLauncher: true },
+    { icon: '⏱️', label: 'الحضور والانصراف', path: '/attendance' },
+    { icon: '📦', label: 'المخزون', path: '/launcher/inventory', isSubLauncher: true },
+    { icon: '🏷️', label: 'الأقسام', path: '/launcher/deals', isSubLauncher: true },
+    { icon: '📈', label: 'التقارير', path: '/launcher/reports', isSubLauncher: true },
+    { icon: '🎯', label: 'الأهداف', path: '/launcher/targets', isSubLauncher: true },
+    { icon: '⚙️', label: 'الإعدادات', path: '/launcher/settings', isSubLauncher: true },
+  ]
+
+  const quickIcons: LauncherGroup[] = [
+    { icon: '⏱️', label: 'الحضور', path: '/launcher/attendance' },
+    { icon: '🧑‍💼', label: 'المناديب', path: '/employees?role=مندوب' },
+    { icon: '👔', label: 'المشرفين', path: '/employees?role=مشرف' },
+    { icon: '🎭', label: 'الأدوار', path: '/employees#roles' },
+    { icon: '🔐', label: 'الصلاحيات', path: '/employees#permissions' },
+    { icon: '📋', label: 'سياسات العمل', path: '/attendance/settings#work-policies' },
+    { icon: '🎯', label: 'الأهداف', path: '/employees#targets' },
+    { icon: '📊', label: 'تحليل الأداء', path: '/dashboard/performance' },
+    { icon: '🔍', label: 'تحليل الموظفين', path: '/dashboard/employee-analysis' },
+    { icon: '🔄', label: 'النشاط الموحد', path: '/activity' },
+    { icon: '📄', label: 'طلبي', path: '/orders?my=1' },
+    { icon: '👤', label: 'عملائي', path: '/customers?my=1' },
+  ]
+
+  const curMonthLabel = MONTHS[CUR_MONTH - 1] + ' ' + CUR_YEAR
+
+  const filteredGroups = groups.filter((g) => {
+    if (!searchQuery.trim()) return true
+    const q = searchQuery.trim().toLowerCase()
+    return g.label.toLowerCase().includes(q)
+  })
+
+  const filteredQuick = quickIcons.filter((g) => {
+    if (!searchQuery.trim()) return true
+    const q = searchQuery.trim().toLowerCase()
+    return g.label.toLowerCase().includes(q)
+  })
 
   if (loading) {
     return <div className="text-center py-12 text-text-secondary text-sm">جاري التحميل...</div>
   }
 
-  const submittedCount = statusCounts.find(s => s.status === 'submitted')?.count || 0
-  const preparingCount = statusCounts.find(s => s.status === 'preparing')?.count || 0
-
   return (
-    <div className="p-4 space-y-6" dir="rtl">
-      <h1 className="text-xl font-bold text-text">لوحة الإدارة العليا</h1>
-
-      {/* 12 KPIs */}
-      <div className="grid grid-cols-2 gap-3">
-        <KpiCard label="الطلبات الجديدة" value={data?.new_orders ?? 0} color="bg-primary" onClick={() => nav('/orders?status=new')} />
-        <KpiCard label="الطلبات المعلقة" value={data?.pending_orders ?? 0} color="bg-warning" onClick={() => nav('/orders?status=pending')} />
-        <KpiCard label="الزيارات الجارية" value={data?.active_visits ?? 0} color="bg-success" onClick={() => nav('/visits?status=active')} />
-        <KpiCard label="زيارات اليوم" value={data?.today_visits ?? 0} color="bg-accent" onClick={() => nav('/visits?date=today')} />
-        <KpiCard label="العملاء الجدد" value={data?.new_customers ?? 0} color="bg-primary" onClick={() => nav('/customers?filter=new')} />
-        <KpiCard label="العملاء الراكدون" value={data?.stagnant_customers ?? 0} color="bg-warning" onClick={() => nav('/customers?filter=stagnant')} />
-        <KpiCard label="المبيعات اليومية" value={fmt(data?.daily_sales ?? 0)} color="bg-success" onClick={() => nav('/reports')} />
-        <KpiCard label="المبيعات الشهرية" value={fmt(data?.monthly_sales ?? 0)} color="bg-accent" onClick={() => nav('/reports')} />
-        <KpiCard label="أفضل مندوب" value={data?.best_rep?.name ?? '—'} color="bg-success" onClick={() => data?.best_rep && nav(`/employees/${data.best_rep.id}`)} />
-        <KpiCard label="أضعف مندوب" value={data?.weakest_rep?.name ?? '—'} color="bg-warning" onClick={() => data?.weakest_rep && nav(`/employees/${data.weakest_rep.id}`)} />
-        <KpiCard label="عدد العملاء" value={data?.total_customers ?? 0} color="bg-primary" onClick={() => nav('/customers')} />
-        <KpiCard label="عدد المناديب" value={data?.total_reps ?? 0} color="bg-accent" onClick={() => nav('/employees')} />
-      </div>
-
-      {/* Pending Queues */}
-      <div className="bg-white rounded-xl border border-border p-4">
-        <h3 className="text-sm font-bold text-text mb-3">قوائم الانتظار</h3>
-        <div className="space-y-2">
-          <QueueRow label="بانتظار الاعتماد" count={submittedCount} color="bg-accent" onClick={() => nav('/orders/approval-queue')} />
-          <QueueRow label="قيد التجهيز" count={preparingCount} color="bg-amber-500" onClick={() => nav('/warehouse')} />
-          <QueueRow label="تحصيلات معلقة" count={dashMgmt?.pending_collections ?? 0} color="bg-orange-500" onClick={() => nav('/collections')} />
-          <QueueRow label="مرتجعات معلقة" count={dashMgmt?.pending_returns ?? 0} color="bg-red-500" onClick={() => nav('/returns')} />
+    <div className="p-4 space-y-5" dir="rtl">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-lg font-bold text-text">مرحباً</h1>
+          <p className="text-xs text-text-secondary">{user?.full_name || ''}</p>
+        </div>
+        <div className="text-xs text-text-secondary text-left">
+          <div>{curMonthLabel}</div>
+          <div className="text-primary font-semibold">{achievementPct.toFixed(1)}%</div>
         </div>
       </div>
 
-      {/* Order Status Counters */}
-      <div className="bg-white rounded-xl border border-border p-4">
-        <h3 className="text-sm font-bold text-text mb-3">حالة الطلبات</h3>
-        <div className="grid grid-cols-3 gap-2">
-          {statusCounts.map((sc) => (
-            <button key={sc.status} onClick={() => nav(`/orders?status=${sc.status}`)}
-              className={`rounded-lg p-2 text-center active:opacity-80 transition-opacity ${STATUS_COLORS[sc.status] || 'bg-gray-100 text-gray-700'}`}>
-              <p className="text-sm font-bold">{sc.count}</p>
-              <p className="text-[9px] leading-tight">{STATUS_LABELS[sc.status] || sc.status}</p>
+      {/* Search */}
+      <div className="relative">
+        <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="🔍  ابحث عن شاشة..." className="w-full border border-border rounded-xl px-4 py-3 text-sm bg-white pr-10" />
+        {searchQuery && (
+          <button onClick={() => setSearchQuery('')} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary text-xs">✕</button>
+        )}
+      </div>
+
+      {/* Stats Line — clean, no cards */}
+      <div className="flex items-center justify-between px-1">
+        {statItems.map((s) => (
+          <div key={s.label} className="text-center">
+            <div className={`text-lg font-bold ${s.color}`}>{s.value}</div>
+            <div className="text-[9px] text-text-secondary leading-tight">{s.label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Attendance Overview */}
+      {attendance && (
+        <div className="bg-white rounded-xl border border-border p-3" dir="rtl">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[13px] font-semibold text-text">الحضور والانصراف</span>
+            <span className="text-[10px] text-text-secondary">
+              {((attendance.employees ?? []).length > 0 ? (attendance.employees as unknown[]).length + ' موظف' : '—')}
+            </span>
+          </div>
+          <div className="grid grid-cols-4 gap-2 text-center">
+            <div className="bg-blue-50 rounded-lg py-2">
+              <div className="text-lg font-bold text-blue-700">{attendance.active_count}</div>
+              <div className="text-[9px] text-text-secondary">يعمل الآن</div>
+            </div>
+            <div className="bg-amber-50 rounded-lg py-2">
+              <div className="text-lg font-bold text-amber-700">{attendance.on_break_count}</div>
+              <div className="text-[9px] text-text-secondary">في استراحة</div>
+            </div>
+            <div className="bg-green-50 rounded-lg py-2">
+              <div className="text-lg font-bold text-green-700">{attendance.ended_count}</div>
+              <div className="text-[9px] text-text-secondary">أنهوا اليوم</div>
+            </div>
+            <div className="bg-gray-50 rounded-lg py-2">
+              <div className="text-lg font-bold text-gray-500">{attendance.no_start_count}</div>
+              <div className="text-[9px] text-text-secondary">لم يبدأوا</div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Main Icon Grid — modules that open sub-launchers */}
+      {filteredGroups.length > 0 && (
+        <>
+          <div className="grid grid-cols-4 gap-3 min-[430px]:grid-cols-5">
+            {filteredGroups.map((g) => (
+              <button key={g.path} onClick={() => nav(g.path)}
+                className="bg-white rounded-xl border border-border p-3 text-center active:bg-surface transition-colors hover:shadow-sm hover:border-primary/30 active:scale-95 relative">
+                <div className="text-2xl mb-1">{g.icon}</div>
+                <div className="text-[10px] font-semibold text-text leading-tight">{g.label}</div>
+                {g.badge !== undefined && Number(g.badge) > 0 && (
+                  <div className="absolute -top-1.5 -left-1.5 bg-danger text-white text-[9px] min-w-[18px] h-[18px] rounded-full flex items-center justify-center font-bold px-1">
+                    {g.badge}
+                  </div>
+                )}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+
+      {/* Quick Access Icons */}
+      <div>
+        <h3 className="text-xs font-semibold text-text-secondary mb-2 px-1">وصول سريع</h3>
+        <div className="grid grid-cols-4 gap-3 min-[430px]:grid-cols-5">
+          {filteredQuick.map((q) => (
+            <button key={q.path} onClick={() => nav(q.path)}
+              className="bg-white rounded-xl border border-border p-3 text-center active:bg-surface transition-colors hover:shadow-sm hover:border-primary/30 active:scale-95">
+              <div className="text-xl mb-1">{q.icon}</div>
+              <div className="text-[9px] font-semibold text-text leading-tight">{q.label}</div>
             </button>
           ))}
         </div>
       </div>
 
-      {/* 9 Quick Actions */}
-      <div>
-        <h2 className="text-lg font-bold text-text mb-3">إجراءات سريعة</h2>
-        <div className="grid grid-cols-3 gap-3">
-          <ActionButton label="العملاء" icon="👥" onClick={() => nav('/customers')} />
-          <ActionButton label="الطلبات" icon="📋" onClick={() => nav('/orders')} />
-          <ActionButton label="الزيارات" icon="📍" onClick={() => nav('/visits')} />
-          <ActionButton label="المناديب" icon="🧑‍💼" onClick={() => nav('/employees?role=rep')} />
-          <ActionButton label="السوبر فايزر" icon="👔" onClick={() => nav('/employees?role=supervisor')} />
-          <ActionButton label="الموظفين" icon="👥" onClick={() => nav('/employees')} />
-          <ActionButton label="التقارير" icon="📊" onClick={() => nav('/reports')} />
-          <ActionButton label="المخزون" icon="📦" onClick={() => nav('/products')} />
-          <ActionButton label="النشاط الموحد" icon="🔄" onClick={() => nav('/activity')} />
-        </div>
-      </div>
-
-      {/* Operational Modules */}
-      <div>
-        <h3 className="text-sm font-bold text-text mb-2">وحدات التشغيل</h3>
-        <div className="grid grid-cols-2 gap-2">
-          <ModuleCard label="المخزن" icon="📦" desc="تجهيز ومراجعة الطلبات" onClick={() => nav('/warehouse')} />
-          <ModuleCard label="التوصيل" icon="🚚" desc="إدارة الشحن والتسليم" onClick={() => nav('/delivery')} />
-          <ModuleCard label="المنتجات" icon="🛍️" desc="إدارة قائمة المنتجات" onClick={() => nav('/products')} />
-          <ModuleCard label="الموظفين" icon="👥" desc="إدارة الموظفين والصلاحيات" onClick={() => nav('/employees')} />
-          <ModuleCard label="الشركات" icon="🏢" desc="إدارة الشركات المورّدة" onClick={() => nav('/companies')} />
-          <ModuleCard label="التقارير" icon="📊" desc="تقارير وتحليلات" onClick={() => nav('/reports')} />
-          <ModuleCard label="الهيكل البيعي" icon="🔗" desc="التسلسل الهرمي للمبيعات" onClick={() => nav('/hierarchy')} />
-          <ModuleCard label="المزادات" icon="🔨" desc="المزادات والصفقات" onClick={() => nav('/auctions')} />
-        </div>
-      </div>
+      {/* Empty search state */}
+      {searchQuery && filteredGroups.length === 0 && filteredQuick.length === 0 && (
+        <div className="text-center py-12 text-text-secondary text-sm">لا توجد نتائج لـ "{searchQuery}"</div>
+      )}
     </div>
-  )
-}
-
-function KpiCard({ label, value, color, onClick }: { label: string; value: string | number; color: string; onClick?: () => void }) {
-  const Tag = onClick ? 'button' : 'div'
-  return (
-    <Tag
-      onClick={onClick}
-      className={`bg-white rounded-xl border border-border p-4 text-right ${onClick ? 'active:bg-surface transition-colors cursor-pointer' : ''}`}
-    >
-      <div className={`w-10 h-10 rounded-xl ${color} flex items-center justify-center mb-2`}>
-        <span className="text-white text-lg font-bold">{typeof value === 'number' ? value : value}</span>
-      </div>
-      <span className="text-sm font-semibold text-text">{label}</span>
-    </Tag>
-  )
-}
-
-function ActionButton({ label, icon, onClick }: { label: string; icon: string; onClick?: () => void }) {
-  return (
-    <button onClick={onClick}
-      className="bg-white rounded-xl border border-border p-3 text-center active:bg-surface transition-colors cursor-pointer">
-      <div className="text-2xl mb-1">{icon}</div>
-      <span className="text-xs font-semibold text-text">{label}</span>
-    </button>
-  )
-}
-
-function QueueRow({ label, count, color, onClick }: { label: string; count: number; color: string; onClick: () => void }) {
-  return (
-    <button onClick={onClick}
-      className="w-full flex items-center justify-between py-2 px-3 bg-surface rounded-lg active:bg-border transition-colors">
-      <span className="text-xs font-semibold text-text">{label}</span>
-      <span className={`text-xs font-bold text-white px-2 py-0.5 rounded-full ${color}`}>{count}</span>
-    </button>
-  )
-}
-
-function ModuleCard({ label, icon, desc, onClick }: { label: string; icon: string; desc: string; onClick: () => void }) {
-  return (
-    <button onClick={onClick}
-      className="bg-white rounded-xl border border-border p-4 text-right active:bg-surface transition-colors">
-      <span className="text-lg">{icon}</span>
-      <h4 className="text-xs font-bold text-text mt-1">{label}</h4>
-      <p className="text-[9px] text-text-secondary mt-0.5">{desc}</p>
-    </button>
   )
 }

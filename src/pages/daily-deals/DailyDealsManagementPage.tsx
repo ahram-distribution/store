@@ -81,7 +81,7 @@ export function DailyDealsManagementPage() {
               <span>السعر: {formatCurrencyShort(deal.fixedPrice)}</span>
               <span>المتبقي: {deal.availableQuantity}/{deal.originalQuantity}</span>
               {deal.endsAt && (
-                <span>ينتهي: {new Date(deal.endsAt).toLocaleDateString('ar-EG')}</span>
+                <span>ينتهي: {new Date(deal.endsAt).toLocaleDateString('ar-EG-u-nu-latn')}</span>
               )}
             </div>
 

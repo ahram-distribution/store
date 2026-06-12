@@ -86,6 +86,31 @@ export function StorefrontPage() {
 
   const fetchProducts = useCallback(async () => {
     setLoadingProducts(true)
+    if (!authToken) {
+      let q = supabase
+        .from('products')
+        .select(`
+          id, product_name, legacy_code, carton_price, carton_quantity,
+          is_active, is_visible, image_url, company_id,
+          companies!inner(company_name),
+          product_units(id, unit_type, is_active)
+        `)
+        .eq('is_active', true)
+        .eq('is_visible', true)
+      if (companyId) q = q.eq('company_id', companyId)
+      const { data, error } = await q.order('product_name')
+      if (!error && data) {
+        const normalized = data.map((row: any) => ({
+          ...row,
+          company_name: row.companies?.company_name ?? '',
+          companies: undefined,
+        }))
+        const mapped = normalized.map(mapProduct)
+        setProducts(mapped)
+      }
+      setLoadingProducts(false)
+      return
+    }
     const { data, error } = await supabase.rpc('get_governed_products', {
       p_token: authToken, p_company_id: companyId || null,
     })
@@ -150,6 +175,10 @@ export function StorefrontPage() {
   const filteredProducts = useMemo(() => {
     let list = products.filter((p) => !p.salesBlocked && !p.outOfStock)
 
+    if (companyId) {
+      list = list.filter((p) => p.companyId === companyId)
+    }
+
     if (searchQuery.trim()) {
       list = list.filter((p) => p.productName.includes(searchQuery))
     }
@@ -157,7 +186,7 @@ export function StorefrontPage() {
     return [...list].sort((a, b) =>
       a.productName.localeCompare(b.productName, 'ar')
     )
-  }, [products, searchQuery])
+  }, [products, searchQuery, companyId])
 
   const handleAddToCart = (product: ProductWithPrice, unitType: UnitType, quantity: number) => {
     if (needsCustomer) {
@@ -195,7 +224,7 @@ export function StorefrontPage() {
               {selectedCustomer ? (
                 <div>
                   <div className="text-xs text-text-secondary">العميل الحالي:</div>
-                  <div className="text-sm font-semibold text-text truncate">{selectedCustomer.name}</div>
+                  <div className="text-sm font-semibold text-text">{selectedCustomer.name}</div>
                   <div className="text-xs text-text-secondary ltr">{selectedCustomer.phone}</div>
                 </div>
               ) : (
@@ -263,7 +292,7 @@ export function StorefrontPage() {
                     }`}
                   >
                     <div className="min-w-0 flex-1">
-                      <div className="text-sm font-semibold text-text truncate">{c.customer_name || '—'}</div>
+                      <div className="text-sm font-semibold text-text">{c.customer_name || '—'}</div>
                       <div className="text-xs text-text-secondary ltr">{c.phone || ''}</div>
                     </div>
                     {selectedCustomer?.id === c.id && (
@@ -299,6 +328,11 @@ export function StorefrontPage() {
             className="flex-1 bg-white text-text text-sm py-2 rounded-lg border border-border active:bg-surface transition-colors"
           >
             طلباتي
+          </button>
+          <button onClick={() => navigate('/returns')}
+            className="flex-1 bg-white text-text text-sm py-2 rounded-lg border border-border active:bg-surface transition-colors"
+          >
+            مرتجعاتي
           </button>
         </div>
       )}
@@ -389,7 +423,7 @@ export function StorefrontPage() {
         <div className="sticky bottom-0 bg-white border-t border-border p-3 -mx-4 -mb-24 mt-4">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs text-text-secondary">
-              {cartItemCount} منتج &middot; {items.reduce((s, i) => s + i.pieceQuantity, 0).toLocaleString('ar-EG')} قطعة
+              {cartItemCount} منتج &middot; {items.reduce((s, i) => s + i.pieceQuantity, 0).toLocaleString('ar-EG-u-nu-latn')} قطعة
             </span>
             <span className="text-sm font-bold text-text">{formatCurrencyShort(totals.netTotal)}</span>
           </div>

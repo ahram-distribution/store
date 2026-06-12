@@ -118,7 +118,7 @@ export function DailyDealsPage() {
 
                 {deal.endsAt && (
                   <div className="text-[10px] text-text-secondary">
-                    ينتهي: {new Date(deal.endsAt).toLocaleDateString('ar-EG')}
+                    ينتهي: {new Date(deal.endsAt).toLocaleDateString('ar-EG-u-nu-latn')}
                   </div>
                 )}
 

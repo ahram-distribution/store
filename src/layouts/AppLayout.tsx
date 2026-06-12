@@ -47,7 +47,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     setCartMeta(readCartMeta())
   }, [location])
 
-  if (location.pathname === '/login') {
+  if (location.pathname === '/login' || location.pathname === '/register') {
     return <>{children}</>
   }
 

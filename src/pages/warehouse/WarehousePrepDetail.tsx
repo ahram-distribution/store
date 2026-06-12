@@ -2,10 +2,11 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../hooks/useAuth';
+import { formatCurrencyShort } from '../../utils/format';
 
 function formatDT(ts: string | null | undefined) {
   if (!ts) return '—';
-  return new Date(ts).toLocaleString('ar-EG');
+  return new Date(ts).toLocaleString('ar-EG-u-nu-latn');
 }
 
 const PREP_STATUS_LABELS: Record<string, string> = {
@@ -35,8 +36,7 @@ export default function WarehousePrepDetail() {
   const { token } = useAuth();
   const [prep, setPrep] = useState<any>(null);
   const [order, setOrder] = useState<any>(null);
-  const [customer, setCustomer] = useState<any>(null);
-  const [owner, setOwner] = useState<any>(null);
+
   const [opHistory, setOpHistory] = useState<any[]>([]);
   const [modHistory, setModHistory] = useState<any[]>([]);
   const [prepExceptions, setPrepExceptions] = useState<any[]>([]);
@@ -54,16 +54,6 @@ export default function WarehousePrepDetail() {
     setPrep(detail);
     if (detail.order) {
       setOrder(detail.order);
-      const cId = detail.order.customer_id;
-      const oId = detail.order.owner_id;
-      if (cId) {
-        const { data: cData } = await supabase.rpc('get_governed_customer', { p_token: token, p_id: cId });
-        if (cData) setCustomer(cData);
-      }
-      if (oId) {
-        const { data: eData } = await supabase.rpc('get_governed_employee', { p_token: token, p_employee_id: oId });
-        if (eData && !eData.error) setOwner(eData);
-      }
     }
     if (detail.status_history) setOpHistory(Array.isArray(detail.status_history) ? detail.status_history : []);
     if (detail.modification_history) setModHistory(Array.isArray(detail.modification_history) ? detail.modification_history : []);
@@ -124,7 +114,7 @@ export default function WarehousePrepDetail() {
           <div className="space-y-2 text-sm">
             <div className="flex justify-between"><span className="text-gray-500">رقم الطلب</span><span className="font-semibold">{order?.order_number || '—'}</span></div>
             <div className="flex justify-between"><span className="text-gray-500">حالة الطلب</span><span>{ORDER_STATUS_LABELS[order?.status] || order?.status || '—'}</span></div>
-            <div className="flex justify-between"><span className="text-gray-500">الإجمالي</span><span className="font-semibold">{order?.total_amount ? Number(order.total_amount).toLocaleString() : '—'}</span></div>
+            <div className="flex justify-between"><span className="text-gray-500">الإجمالي</span><span className="font-semibold">{order?.total_amount ? formatCurrencyShort(Number(order.total_amount)) : '—'}</span></div>
             <div className="flex justify-between"><span className="text-gray-500">تاريخ الطلب</span><span>{formatDT(order?.created_at)}</span></div>
           </div>
         </div>
@@ -132,16 +122,15 @@ export default function WarehousePrepDetail() {
         <div className="bg-white rounded-lg border p-4">
           <h3 className="text-sm font-semibold text-gray-700 mb-3">معلومات العميل</h3>
           <div className="space-y-2 text-sm">
-            <div className="flex justify-between"><span className="text-gray-500">اسم العميل</span><span className="font-semibold">{customer?.name || customer?.full_name || customer?.company_name || '—'}</span></div>
-            <div className="flex justify-between"><span className="text-gray-500">رقم الهاتف</span><span>{customer?.phone || '—'}</span></div>
+            <div className="flex justify-between"><span className="text-gray-500">اسم العميل</span><span className="font-semibold">{order?.customer_name || order?.snapshot_customer_name || '—'}</span></div>
+            <div className="flex justify-between"><span className="text-gray-500">رقم الهاتف</span><span>{order?.customer_phone || order?.snapshot_customer_phone || '—'}</span></div>
           </div>
         </div>
 
         <div className="bg-white rounded-lg border p-4">
           <h3 className="text-sm font-semibold text-gray-700 mb-3">معلومات المالك</h3>
           <div className="space-y-2 text-sm">
-            <div className="flex justify-between"><span className="text-gray-500">اسم المالك</span><span className="font-semibold">{owner?.full_name || '—'}</span></div>
-            <div className="flex justify-between"><span className="text-gray-500">كود المالك</span><span>{owner?.code || '—'}</span></div>
+            <div className="flex justify-between"><span className="text-gray-500">اسم المالك</span><span className="font-semibold">{order?.owner_name || order?.snapshot_owner_name || '—'}</span></div>
           </div>
         </div>
 
@@ -232,7 +221,7 @@ export default function WarehousePrepDetail() {
                       <span className="text-gray-400">&rarr;</span>
                       <span className="bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded text-xs">{ORDER_STATUS_LABELS[h.to_status] || h.to_status}</span>
                     </div>
-                    <span className="text-gray-400">{new Date(h.changed_at).toLocaleString('ar-EG')}</span>
+                    <span className="text-gray-400">{new Date(h.changed_at).toLocaleString('ar-EG-u-nu-latn')}</span>
                   </div>
                   {h.reason && <div className="text-gray-500">{h.reason}</div>}
                 </div>
@@ -253,7 +242,7 @@ export default function WarehousePrepDetail() {
                 <div key={h.id} className="px-4 py-2 text-xs">
                   <div className="flex items-center justify-between mb-1">
                     <span className="font-semibold text-gray-700">{h.field_name}</span>
-                    <span className="text-gray-400">{new Date(h.modified_at).toLocaleString('ar-EG')}</span>
+                    <span className="text-gray-400">{new Date(h.modified_at).toLocaleString('ar-EG-u-nu-latn')}</span>
                   </div>
                   <div className="flex items-center gap-2 text-gray-500">
                     <span>{h.old_value || '(فارغ)'}</span>

@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../store/auth'
+import { formatCurrencyShort } from '../../utils/format'
 
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
@@ -20,6 +21,11 @@ interface Opportunity {
   customerName: string
   customerId: string
   detail: string
+  monthlyOrderTotal: number
+  monthlyOrderCount: number
+  monthlyVisitCount: number
+  lastOrderDate: string | null
+  lastOrderValue: number
 }
 
 const MONTH_START = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
@@ -63,38 +69,58 @@ export function SalesRepWorkDay() {
       .reduce((sum, o) => sum + Number(o.total_amount || 0), 0)
   }, [orders])
 
+  const monthlyOrdersCount = useMemo(() => orders.filter((o) => o.created_at >= MONTH_START).length, [orders])
+  const monthlyVisitsCount = useMemo(() => visits.filter((v) => v.created_at >= MONTH_START).length, [visits])
+  const monthlyNewCustomersCount = useMemo(() => customers.filter((c) => c.created_at >= MONTH_START).length, [customers])
+
   const todayVisitsTotal = useMemo(() => visits.filter((v) => isToday(v.created_at)).length, [visits])
   const todayVisitsDone = useMemo(() => visits.filter((v) => isToday(v.created_at) && v.status !== 'active').length, [visits])
 
   const opportunities = useMemo<Opportunity[]>(() => {
     const result: Opportunity[] = []
-    const customerLastOrder = new Map<string, string>()
+    const customerLastOrder = new Map<string, { date: string; value: number }>()
     const customerLastVisit = new Map<string, string>()
+    const customerOrders = new Map<string, { total: number; count: number }>()
+    const customerVisits = new Map<string, number>()
     for (const o of orders) {
-      const existing = customerLastOrder.get(o.customer_id)
-      if (!existing || o.created_at > existing) customerLastOrder.set(o.customer_id, o.created_at)
+      const cid = o.customer_id
+      const existing = customerLastOrder.get(cid)
+      if (!existing || o.created_at > existing.date) customerLastOrder.set(cid, { date: o.created_at, value: Number(o.total_amount || 0) })
+      if (o.created_at >= MONTH_START) {
+        const prev = customerOrders.get(cid) || { total: 0, count: 0 }
+        prev.total += Number(o.total_amount || 0)
+        prev.count++
+        customerOrders.set(cid, prev)
+      }
     }
     for (const v of visits) {
-      const existing = customerLastVisit.get(v.customer_id)
-      if (!existing || v.created_at > existing) customerLastVisit.set(v.customer_id, v.created_at)
+      const cid = v.customer_id || v.customerId
+      const existing = customerLastVisit.get(cid)
+      if (!existing || v.created_at > existing) customerLastVisit.set(cid, v.created_at)
+      if (v.created_at >= MONTH_START) {
+        customerVisits.set(cid, (customerVisits.get(cid) || 0) + 1)
+      }
     }
     const now = Date.now()
     const THIRTY_DAYS = 30 * 24 * 60 * 60 * 1000
     const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000
     for (const c of customers) {
-      const lastOrder = customerLastOrder.get(c.id)
-      const lastVisit = customerLastVisit.get(c.id)
+      const cid = c.id
+      const lastOrd = customerLastOrder.get(cid)
+      const lastVisit = customerLastVisit.get(cid)
       const created = c.created_at
+      const ord = customerOrders.get(cid) || { total: 0, count: 0 }
+      const vis = customerVisits.get(cid) || 0
       if (created && (now - new Date(created).getTime()) < SEVEN_DAYS) {
-        result.push({ type: 'new_customer', customerName: c.company_name || c.companyName, customerId: c.id, detail: 'عميل جديد' })
+        result.push({ type: 'new_customer', customerName: c.company_name || c.companyName, customerId: cid, detail: 'عميل جديد', monthlyOrderTotal: ord.total, monthlyOrderCount: ord.count, monthlyVisitCount: vis, lastOrderDate: lastOrd?.date || null, lastOrderValue: lastOrd?.value || 0 })
         continue
       }
-      if (lastOrder && (now - new Date(lastOrder).getTime()) > THIRTY_DAYS) {
-        result.push({ type: 'no_order', customerName: c.company_name || c.companyName, customerId: c.id, detail: 'لم يطلب منذ 30 يوماً' })
+      if (lastOrd && (now - new Date(lastOrd.date).getTime()) > THIRTY_DAYS) {
+        result.push({ type: 'no_order', customerName: c.company_name || c.companyName, customerId: cid, detail: 'لم يطلب منذ 30 يوماً', monthlyOrderTotal: ord.total, monthlyOrderCount: ord.count, monthlyVisitCount: vis, lastOrderDate: lastOrd.date, lastOrderValue: lastOrd.value })
         continue
       }
       if (!lastVisit || (now - new Date(lastVisit).getTime()) > SEVEN_DAYS) {
-        result.push({ type: 'needs_followup', customerName: c.company_name || c.companyName, customerId: c.id, detail: 'يحتاج متابعة' })
+        result.push({ type: 'needs_followup', customerName: c.company_name || c.companyName, customerId: cid, detail: 'يحتاج متابعة', monthlyOrderTotal: ord.total, monthlyOrderCount: ord.count, monthlyVisitCount: vis, lastOrderDate: lastOrd?.date || null, lastOrderValue: lastOrd?.value || 0 })
       }
     }
     return result.slice(0, 5)
@@ -126,147 +152,158 @@ export function SalesRepWorkDay() {
   })()
 
   const indicators = [
-    { label: 'مبيعات الشهر', value: monthlySales.toLocaleString() + ' ج', color: 'bg-primary', sub: '' },
+    { label: 'مبيعات الشهر', value: formatCurrencyShort(monthlySales), color: 'bg-primary', sub: '' },
     { label: 'متابعة عملاء', value: dashboard?.inactive_customers ?? 0, color: 'bg-accent', sub: 'عميل يحتاج متابعة' },
     { label: 'زيارات اليوم', value: `${todayVisitsDone} / ${todayVisitsTotal}`, color: 'bg-success', sub: 'تم / إجمالي' },
   ]
 
   return (
     <div className="space-y-5 pb-4">
-      <div className="bg-gradient-to-br from-primary to-primary-dark text-white rounded-2xl p-5 -mx-4 px-4">
-        <p className="text-sm opacity-90">{greeting}</p>
-        <h1 className="text-xl font-bold mt-1">{user?.full_name || 'المندوب'}</h1>
+      <div className="bg-gradient-to-br from-primary to-primary-dark text-white rounded-2xl p-5 -mx-4 px-4 flex items-start justify-between" dir="rtl">
+        <div className="text-right">
+          <p className="text-sm opacity-90">{greeting}</p>
+          <h1 className="text-xl font-bold mt-1">{user?.full_name || 'المندوب'}</h1>
+        </div>
+        <div className="text-left text-[11px] opacity-90 leading-relaxed">
+          <div>المبيعات 50% {formatCurrencyShort(monthlySales)}</div>
+          <div>الطلبات 20% {monthlyOrdersCount}</div>
+          <div>الزيارات 15% {monthlyVisitsCount}</div>
+          <div>عملاء جدد 15% {monthlyNewCustomersCount}</div>
+        </div>
       </div>
 
       <div>
-        <h2 className="text-sm font-semibold text-text mb-3">مؤشرات اليوم</h2>
+        <h2 className="text-[15px] font-semibold text-text mb-3">مؤشرات اليوم</h2>
         <div className="grid grid-cols-3 gap-2">
           {indicators.map((item) => (
-            <div key={item.label} className="bg-white rounded-xl border border-border p-3 text-center">
-              <div className={`w-8 h-8 rounded-xl ${item.color} flex items-center justify-center mx-auto mb-1.5`}>
-                <span className="text-white text-sm font-bold">{typeof item.value === 'number' ? item.value : item.value}</span>
-              </div>
-              <span className="text-[11px] font-semibold text-text block">{item.label}</span>
-              {item.sub && <span className="text-[9px] text-text-secondary block mt-0.5">{item.sub}</span>}
+            <div key={item.label} className={`${item.color} rounded-xl p-[9px] text-center text-white min-h-[76px] flex flex-col items-center justify-center`}>
+              <div className="text-[15px] font-bold leading-tight">{typeof item.value === 'number' ? item.value : item.value}</div>
+              <div className="text-[11px] opacity-90 mt-1 leading-tight">{item.label}</div>
+              {item.sub && <div className="text-[10px] opacity-70 mt-1 leading-tight">{item.sub}</div>}
             </div>
           ))}
         </div>
       </div>
 
+      <button onClick={() => navigate('/attendance/runtime')}
+        className="w-full bg-gradient-to-l from-blue-600 to-indigo-700 rounded-xl p-4 text-center text-white active:opacity-80 transition-opacity shadow-sm mb-3">
+        <div className="text-base font-bold">تسجيل الحضور</div>
+        <div className="text-xs opacity-80 mt-1">بدء / إنهاء يوم العمل</div>
+      </button>
+
       <div>
-        <h2 className="text-sm font-semibold text-text mb-3">إجراءات سريعة</h2>
+        <h2 className="text-[15px] font-semibold text-text mb-3">إجراءات سريعة</h2>
         <div className="grid grid-cols-2 gap-2">
           <button onClick={() => navigate('/visits/screen')}
-            className="bg-white rounded-xl border border-border p-4 text-right active:bg-surface transition-colors">
-            <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center mb-2">
-              <span className="text-primary text-sm font-bold">V</span>
-            </div>
-            <p className="text-sm font-semibold text-text">ابدأ زيارة</p>
-            <p className="text-[10px] text-text-secondary mt-0.5">تسجيل زيارة جديدة</p>
+            className="bg-primary rounded-xl p-[13px] text-center text-white active:opacity-80 transition-opacity">
+            <div className="text-[15px] font-bold">ابدأ زيارة</div>
+            <div className="text-[11px] opacity-80 mt-1">تسجيل زيارة جديدة</div>
           </button>
           <button onClick={() => navigate('/orders/new')}
-            className="bg-white rounded-xl border border-border p-4 text-right active:bg-surface transition-colors">
-            <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center mb-2">
-              <span className="text-primary text-sm font-bold">N</span>
-            </div>
-            <p className="text-sm font-semibold text-text">طلب سريع</p>
-            <p className="text-[10px] text-text-secondary mt-0.5">إنشاء طلب جديد</p>
+            className="bg-accent rounded-xl p-[13px] text-center text-white active:opacity-80 transition-opacity">
+            <div className="text-[15px] font-bold">طلب سريع</div>
+            <div className="text-[11px] opacity-80 mt-1">إنشاء طلب جديد</div>
+          </button>
+          <button onClick={() => navigate('/visits')}
+            className="bg-indigo-600 rounded-xl p-[13px] text-center text-white active:opacity-80 transition-opacity">
+            <div className="text-[15px] font-bold">زياراتى</div>
+            <div className="text-[11px] opacity-80 mt-1">جميع زياراتى</div>
           </button>
           <button onClick={() => navigate('/customers')}
-            className="bg-white rounded-xl border border-border p-4 text-right active:bg-surface transition-colors">
-            <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center mb-2">
-              <span className="text-primary text-sm font-bold">S</span>
-            </div>
-            <p className="text-sm font-semibold text-text">ابحث عن عميل</p>
-            <p className="text-[10px] text-text-secondary mt-0.5">قائمة العملاء</p>
+            className="bg-primary-dark rounded-xl p-[13px] text-center text-white active:opacity-80 transition-opacity">
+            <div className="text-[15px] font-bold">عميل جديد</div>
           </button>
           <button onClick={() => navigate('/customers')}
-            className="bg-white rounded-xl border border-border p-4 text-right active:bg-surface transition-colors opacity-60">
-            <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center mb-2">
-              <span className="text-primary text-sm font-bold">+</span>
-            </div>
-            <p className="text-sm font-semibold text-text">عميل جديد</p>
-            <p className="text-[10px] text-text-secondary mt-0.5">قريباً</p>
-          </button>
-          <button onClick={() => navigate('/customers')}
-            className="bg-white rounded-xl border border-border p-4 text-right active:bg-surface transition-colors">
-            <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center mb-2">
-              <span className="text-primary text-sm font-bold">C</span>
-            </div>
-            <p className="text-sm font-semibold text-text">عملائي</p>
-            <p className="text-[10px] text-text-secondary mt-0.5">قائمة العملاء</p>
+            className="bg-primary/80 rounded-xl p-[13px] text-center text-white active:opacity-80 transition-opacity">
+            <div className="text-[15px] font-bold">عملائي</div>
+            <div className="text-[11px] opacity-80 mt-1">قائمة العملاء</div>
           </button>
           <button onClick={() => navigate('/orders')}
-            className="bg-white rounded-xl border border-border p-4 text-right active:bg-surface transition-colors">
-            <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center mb-2">
-              <span className="text-primary text-sm font-bold">O</span>
-            </div>
-            <p className="text-sm font-semibold text-text">فواتيري</p>
-            <p className="text-[10px] text-text-secondary mt-0.5">فواتير وطلبات</p>
+            className="bg-success/80 rounded-xl p-[13px] text-center text-white active:opacity-80 transition-opacity">
+            <div className="text-[15px] font-bold">فواتيري</div>
+            <div className="text-[11px] opacity-80 mt-1">فواتير وطلبات</div>
           </button>
         </div>
       </div>
 
       <div>
-        <h2 className="text-sm font-semibold text-text mb-3">فرص البيع اليوم</h2>
+        <h2 className="text-[15px] font-semibold text-text mb-3">فرص البيع اليوم</h2>
         {opportunities.length > 0 ? (
           <div className="space-y-2">
-            {opportunities.map((opp) => (
+            {opportunities.map((opp, idx) => (
               <button key={opp.customerId + opp.type} onClick={() => navigate(`/customers/${opp.customerId}`)}
-                className="w-full bg-white rounded-xl border border-border p-3 text-right active:bg-surface transition-colors">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-semibold text-text">{opp.customerName}</span>
-                  <span className={`text-[10px] px-2 py-0.5 rounded-full ${
-                    opp.type === 'new_customer' ? 'bg-success/10 text-success' :
-                    opp.type === 'no_order' ? 'bg-warning/10 text-warning' :
-                    'bg-accent/10 text-accent'
-                  }`}>{opp.detail}</span>
+                className={`w-full rounded-xl p-4 text-white active:opacity-80 transition-opacity ${
+                  [
+                    'bg-gradient-to-r from-blue-600 to-blue-800',
+                    'bg-gradient-to-r from-emerald-600 to-emerald-800',
+                    'bg-gradient-to-r from-violet-600 to-violet-800',
+                    'bg-gradient-to-r from-rose-600 to-rose-800',
+                    'bg-gradient-to-r from-cyan-600 to-cyan-800',
+                  ][idx % 5]
+                }`}>
+                <div className="flex items-start justify-between">
+                  <div className="text-right min-w-0 flex-1">
+                    <div className="text-base font-bold">{opp.customerName}</div>
+                    <div className="text-[11px] opacity-80 mt-1">{opp.detail}</div>
+                    {opp.lastOrderDate && (
+                      <div className="text-[10px] opacity-60 mt-1.5">آخر طلب: {new Date(opp.lastOrderDate).toLocaleDateString('ar-EG-u-nu-latn', { day: 'numeric', month: 'short' })} — {formatCurrencyShort(opp.lastOrderValue)}</div>
+                    )}
+                  </div>
+                  <div className="text-left text-[11px] opacity-90 leading-relaxed shrink-0 mr-4">
+                    <div>المبيعات {formatCurrencyShort(opp.monthlyOrderTotal)}</div>
+                    <div>الطلبات {opp.monthlyOrderCount}</div>
+                    <div>الزيارات {opp.monthlyVisitCount}</div>
+                  </div>
                 </div>
               </button>
             ))}
           </div>
         ) : (
-          <div className="bg-white rounded-xl border border-border p-6 text-center">
-            <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-2">
-              <span className="text-primary text-sm font-bold">!</span>
-            </div>
-            <p className="text-sm text-text-secondary">لا توجد فرص متاحة حالياً</p>
-            <p className="text-[11px] text-text-secondary mt-1">يمكنك متابعة العملاء من قائمة العملاء</p>
+          <div className="bg-gradient-to-r from-primary to-primary-dark rounded-xl p-6 text-center text-white">
+            <p className="text-sm font-semibold">لا توجد فرص متاحة حالياً</p>
+            <p className="text-[11px] opacity-80 mt-1">يمكنك متابعة العملاء من قائمة العملاء</p>
           </div>
         )}
       </div>
 
       <div>
-        <h2 className="text-sm font-semibold text-text mb-3">آخر النشاط</h2>
+        <h2 className="text-[15px] font-semibold text-text mb-3">آخر النشاط</h2>
         <div className="space-y-2">
           <button onClick={() => lastOrder && navigate(`/orders/${lastOrder.id}`)}
-            className="w-full bg-white rounded-xl border border-border p-3 text-right cursor-pointer active:bg-surface transition-colors disabled:opacity-100 disabled:cursor-default" disabled={!lastOrder}>
-            <span className="text-[10px] text-text-secondary">آخر طلب</span>
+            className="w-full bg-gradient-to-r from-primary to-primary-dark rounded-xl p-[13px] text-right text-white cursor-pointer active:opacity-80 transition-opacity disabled:opacity-60 disabled:cursor-default" dir="rtl" disabled={!lastOrder}>
+            <div className="text-[11px] opacity-80">آخر طلب</div>
             {lastOrder ? (
-              <p className="text-sm font-semibold text-text mt-0.5">
-                طلب #{lastOrder.order_number || lastOrder.id?.slice(0, 8)} — {Number(lastOrder.total_amount || 0).toLocaleString()} ج
-              </p>
+              <div className="flex items-start justify-between mt-1">
+                <div className="text-right">
+                  <div className="text-[15px] font-bold">{customers.find((c) => c.id === lastOrder.customer_id)?.company_name || lastOrder.customer_name || 'عميل'}</div>
+                  <div className="text-[11px] opacity-80 mt-1">طلب #{lastOrder.order_number || lastOrder.id?.slice(0, 8)}</div>
+                </div>
+                <div className="text-left text-[11px] opacity-90 leading-relaxed">
+                  <div>{formatCurrencyShort(Number(lastOrder.total_amount || 0))}</div>
+                  <div>{new Date(lastOrder.created_at).toLocaleDateString('ar-EG-u-nu-latn', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</div>
+                </div>
+              </div>
             ) : (
-              <p className="text-sm text-text-secondary mt-0.5">لا توجد طلبات</p>
+              <div className="text-[15px] opacity-80 mt-1">لا توجد طلبات</div>
             )}
           </button>
-          <div className="bg-white rounded-xl border border-border p-3">
-            <span className="text-[10px] text-text-secondary">آخر زيارة</span>
+          <div className="bg-gradient-to-r from-accent to-orange-700 rounded-xl p-[13px] text-center text-white">
+            <div className="text-[11px] opacity-80">آخر زيارة</div>
             {lastVisit ? (
-              <p className="text-sm font-semibold text-text mt-0.5">
-                زيارة {lastVisit.visit_result ? `— ${lastVisit.visit_result}` : '(نشطة)'}
-              </p>
+              <div className="text-[15px] font-bold mt-1">
+                {lastVisit.visit_result ? `${lastVisit.visit_result}` : 'نشطة'}
+              </div>
             ) : (
-              <p className="text-sm text-text-secondary mt-0.5">لا توجد زيارات</p>
+              <div className="text-[15px] opacity-80 mt-1">لا توجد زيارات</div>
             )}
           </div>
           <button onClick={() => lastCustomer && navigate(`/customers/${lastCustomer.id}`)}
-            className="w-full bg-white rounded-xl border border-border p-3 text-right cursor-pointer active:bg-surface transition-colors disabled:opacity-100 disabled:cursor-default" disabled={!lastCustomer}>
-            <span className="text-[10px] text-text-secondary">آخر عميل جديد</span>
+            className="w-full bg-gradient-to-r from-success to-green-700 rounded-xl p-[13px] text-center text-white cursor-pointer active:opacity-80 transition-opacity disabled:opacity-60 disabled:cursor-default" disabled={!lastCustomer}>
+            <div className="text-[11px] opacity-80">آخر عميل جديد</div>
             {lastCustomer ? (
-              <p className="text-sm font-semibold text-text mt-0.5">{lastCustomer.company_name || lastCustomer.companyName || 'عميل'}</p>
+              <div className="text-[15px] font-bold mt-1">{lastCustomer.company_name || lastCustomer.companyName || 'عميل'}</div>
             ) : (
-              <p className="text-sm text-text-secondary mt-0.5">لا يوجد</p>
+              <div className="text-[15px] opacity-80 mt-1">لا يوجد</div>
             )}
           </button>
         </div>

@@ -23,6 +23,16 @@
   --color-gold-light: #E0B85A;
 }
 
+:root {
+  --theme-primary: #0F2B5B;
+  --theme-accent: #C9A227;
+  --theme-accent-rgb: 201, 162, 39;
+  --theme-bg-card: #ffffff;
+  --theme-text-card: #0F2B5B;
+  --theme-text-card-muted: #6b7280;
+  --theme-text-card-heading: #111827;
+}
+
 html, body, #app {
   height: 100%;
   margin: 0;
@@ -66,6 +76,45 @@ html, body, #app {
 
 .gold-input::placeholder {
   color: rgba(255, 255, 255, 0.35);
+}
+
+/* Soft capsule input (registration page only) */
+.input-capsule {
+  background: #173872 !important;
+  border: 1px solid rgba(201, 162, 39, 0.2) !important;
+  border-radius: 999px !important;
+  height: 52px !important;
+  padding: 0 20px !important;
+  font-size: 14px !important;
+  box-sizing: border-box !important;
+}
+
+.input-capsule:focus {
+  border-color: #C9A227 !important;
+  background: #173872 !important;
+  box-shadow: none !important;
+}
+
+.input-capsule::placeholder {
+  color: rgba(255, 255, 255, 0.35) !important;
+}
+
+/* Select override for capsule look */
+select.input-capsule {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='rgba(201,162,39,.6)' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: left 16px center;
+  background-size: 20px;
+  padding-left: 44px !important;
+}
+
+textarea.input-capsule {
+  border-radius: 16px !important;
+  height: auto !important;
+  min-height: 52px;
+  padding: 14px 20px !important;
+  resize: none;
 }
 
 /* Gold primary button (auth screens only) */
@@ -152,6 +201,28 @@ html, body, #app {
 @keyframes progress-sweep {
   0% { left: -40%; }
   100% { left: 100%; }
+}
+
+/* Splash progress bar */
+.splash-progress-bar {
+  position: absolute;
+  top: 0;
+  left: -35%;
+  width: 35%;
+  height: 100%;
+  background: #C9A227;
+  border-radius: 999px;
+  animation: splash-progress-slide 1.8s ease-in-out infinite;
+}
+
+@keyframes splash-progress-slide {
+  0% { left: -35%; }
+  100% { left: 100%; }
+}
+
+/* Storefront search input placeholder */
+.storefront-search-input::placeholder {
+  color: rgba(255, 255, 255, 0.35);
 }
 
 /* Mobile container */

@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase'
 import { useCapability } from '../../hooks/useCapability'
 import { formatCurrencyShort, formatDateTime } from '../../utils/format'
 import { StatusBadge } from '../../components/shared/StatusBadge'
+import { VisitCard } from '../../components/visits/VisitCard'
 const BUSINESS_TYPES: { value: string; label: string }[] = [
   { value: 'wholesaler', label: 'تاجر جملة' },
   { value: 'distributor', label: 'موزع' },
@@ -16,6 +17,7 @@ const BUSINESS_TYPES: { value: string; label: string }[] = [
   { value: 'other', label: 'أخرى' },
 ]
 import { locationService } from '../../services/location'
+import { gpsOperation } from '../../lib/diag'
 import toast from 'react-hot-toast'
 
 function getToken(): string | null {
@@ -41,7 +43,6 @@ export function CustomerProfilePage() {
 
   const [showEdit, setShowEdit] = useState(false)
   const [editName, setEditName] = useState('')
-  const [editEmail, setEditEmail] = useState('')
   const [editPhone, setEditPhone] = useState('')
   const [editResponsibleName, setEditResponsibleName] = useState('')
   const [editBusinessType, setEditBusinessType] = useState('')
@@ -49,6 +50,11 @@ export function CustomerProfilePage() {
   const [editCreditDays, setEditCreditDays] = useState('')
   const [editPassword, setEditPassword] = useState('')
   const [editConfirmPassword, setEditConfirmPassword] = useState('')
+  const [editFormattedAddress, setEditFormattedAddress] = useState('')
+  const [editContactName, setEditContactName] = useState('')
+  const [editContactPhone, setEditContactPhone] = useState('')
+
+  const [locating, setLocating] = useState(false)
 
   const [showOwnership, setShowOwnership] = useState(false)
   const [newOwnerId, setNewOwnerId] = useState('')
@@ -121,13 +127,16 @@ export function CustomerProfilePage() {
     if (editPassword && editPassword !== editConfirmPassword) { toast.error('كلمة المرور غير متطابقة'); return }
     const { data, error } = await supabase.rpc('governed_update_customer', {
       p_token: token, p_id: id,
-      p_company_name: editName || null, p_email: editEmail || null,
+      p_company_name: editName || null,
       p_phone: editPhone || null,
       p_responsible_name: editResponsibleName || null,
       p_business_type: editBusinessType || null,
       p_credit_limit: editCreditLimit ? parseFloat(editCreditLimit) : null,
       p_credit_days: editCreditDays ? parseInt(editCreditDays) : null,
       p_password: editPassword || null,
+      p_formatted_address: editFormattedAddress || null,
+      p_contact_name: editContactName || null,
+      p_contact_phone: editContactPhone || null,
     })
     if (error) { toast.error(error.message); return }
     const result = data as any
@@ -135,7 +144,41 @@ export function CustomerProfilePage() {
     toast.success('تم تحديث بيانات العميل')
     setShowEdit(false); setEditPassword(''); setEditConfirmPassword('')
     const custRes = await supabase.rpc('get_governed_customer', { p_token: token, p_id: id })
-    if (custRes.data) setCustomer(custRes.data)
+    if (custRes.data) {
+      setCustomer(custRes.data)
+      const c = Array.isArray(custRes.data) ? custRes.data[0] : custRes.data
+      if (c?.location_id) {
+        const loc = await locationService.fetchLocation(c.location_id)
+        if (loc) setLocation(loc)
+      }
+    }
+  }
+
+  async function handleUpdateLocation() {
+    setLocating(true)
+    const result = await gpsOperation('تحديث موقع العميل')
+    setLocating(false)
+    if (!result.success || !result.location) {
+      toast.error(result.error?.message || 'تعذر الحصول على الموقع')
+      return
+    }
+    const { latitude, longitude, accuracy } = result.location
+    const token = getToken()
+    if (!token) { toast.error('جلسة منتهية'); return }
+    const { data, error } = await supabase.rpc('governed_update_customer', {
+      p_token: token, p_id: id,
+      p_latitude: latitude,
+      p_longitude: longitude,
+      p_accuracy_meters: accuracy,
+    })
+    if (error) { toast.error(error.message); return }
+    const r = data as any
+    if (r?.error) { toast.error(r.error); return }
+    toast.success('تم تحديث الموقع (' + accuracy + 'م)')
+    if (customer?.location_id) {
+      const loc = await locationService.fetchLocation(customer.location_id)
+      if (loc) setLocation(loc)
+    }
   }
 
   async function handleToggleActive() {
@@ -268,6 +311,13 @@ export function CustomerProfilePage() {
                 >
                   فتح الموقع
                 </button>
+                <button
+                  onClick={handleUpdateLocation}
+                  disabled={locating}
+                  className="w-full mt-2 bg-accent/10 text-accent text-sm py-2.5 rounded-lg font-semibold hover:bg-accent/20 active:bg-accent/30 transition-colors disabled:opacity-50"
+                >
+                  {locating ? 'جاري التحديد...' : 'تحديث الموقع الحالي'}
+                </button>
               </div>
             </div>
           )}
@@ -278,7 +328,7 @@ export function CustomerProfilePage() {
               {addresses.map((a: any) => (
                 <div key={a.id} className="py-1.5 border-b border-border/50 last:border-0">
                   <p className="text-xs">{a.address_line1}</p>
-                  <p className="text-[10px] text-text-secondary">{a.city}{a.is_default ? ' (افتراضي)' : ''}</p>
+                  <p className="text-[10px] text-text-secondary">{a.city}</p>
                 </div>
               ))}
             </div>
@@ -287,7 +337,7 @@ export function CustomerProfilePage() {
           {(canEdit || canManage) && (
             <div className="flex gap-2 flex-wrap">
               {canEdit && (
-                <button onClick={() => { setShowEdit(true); setEditName(customer.company_name); setEditEmail(customer.email || ''); setEditPhone(customer.phone || ''); setEditResponsibleName(customer.responsible_name || ''); setEditBusinessType(customer.business_type || ''); setEditCreditLimit(String(customer.credit_limit || '')); setEditCreditDays(String(customer.credit_days || '')); setEditPassword(''); setEditConfirmPassword('') }}
+                <button onClick={() => { setShowEdit(true); setEditName(customer.company_name); setEditPhone(customer.phone || ''); setEditResponsibleName(customer.responsible_name || ''); setEditBusinessType(customer.business_type || ''); setEditCreditLimit(String(customer.credit_limit || '')); setEditCreditDays(String(customer.credit_days || '')); setEditPassword(''); setEditConfirmPassword(''); setEditFormattedAddress(location?.formatted_address || ''); const pc = contacts.find((c: any) => c.is_primary); setEditContactName(pc?.full_name || ''); setEditContactPhone(pc?.phone || ''); }}
                   className="flex-1 bg-primary/10 text-primary text-xs py-2 rounded-lg font-semibold">تعديل البيانات</button>
               )}
               {canManage && (
@@ -315,9 +365,17 @@ export function CustomerProfilePage() {
                 ))}
               </select>
               <input type="tel" value={editPhone} onChange={(e) => setEditPhone(e.target.value)} placeholder="رقم الهاتف" className="w-full border border-border rounded-lg px-3 py-2 text-sm" dir="ltr" />
-              <input type="email" value={editEmail} onChange={(e) => setEditEmail(e.target.value)} placeholder="البريد الإلكتروني" className="w-full border border-border rounded-lg px-3 py-2 text-sm" dir="ltr" />
               <input type="number" value={editCreditLimit} onChange={(e) => setEditCreditLimit(e.target.value)} placeholder="الحد الائتماني" className="w-full border border-border rounded-lg px-3 py-2 text-sm" />
               <input type="number" value={editCreditDays} onChange={(e) => setEditCreditDays(e.target.value)} placeholder="فترة الائتمان (أيام)" className="w-full border border-border rounded-lg px-3 py-2 text-sm" />
+              <div className="border-t border-border/50 pt-3 mt-1">
+                <p className="text-[10px] text-text-secondary mb-2 font-semibold">العنوان</p>
+                <textarea value={editFormattedAddress} onChange={(e) => setEditFormattedAddress(e.target.value)} placeholder="العنوان" className="w-full border border-border rounded-lg px-3 py-2 text-sm resize-none" rows={2} />
+              </div>
+              <div className="border-t border-border/50 pt-3">
+                <p className="text-[10px] text-text-secondary mb-2 font-semibold">جهة الاتصال الأساسية</p>
+                <input type="text" value={editContactName} onChange={(e) => setEditContactName(e.target.value)} placeholder="الاسم" className="w-full border border-border rounded-lg px-3 py-2 text-sm" />
+                <input type="tel" value={editContactPhone} onChange={(e) => setEditContactPhone(e.target.value)} placeholder="رقم الهاتف" className="w-full border border-border rounded-lg px-3 py-2 text-sm mt-2" dir="ltr" />
+              </div>
               <input type="password" value={editPassword} onChange={(e) => setEditPassword(e.target.value)} placeholder="كلمة المرور الجديدة (اختياري)" className="w-full border border-border rounded-lg px-3 py-2 text-sm" maxLength={6} />
               <input type="password" value={editConfirmPassword} onChange={(e) => setEditConfirmPassword(e.target.value)} placeholder="تأكيد كلمة المرور الجديدة" className="w-full border border-border rounded-lg px-3 py-2 text-sm" maxLength={6} />
               <div className="flex gap-2">
@@ -388,20 +446,17 @@ export function CustomerProfilePage() {
       )}
 
       {activeTab === 'visits' && (
-        <div className="space-y-2">
+        <div className="space-y-3">
           {visits.length === 0 ? (
             <div className="text-center py-8 text-text-secondary text-sm">لا توجد زيارات</div>
           ) : visits.map((v: any) => (
-            <div key={v.id} onClick={() => navigate(`/visits/${v.id}`)}
-              className="bg-white rounded-xl border border-border p-3 cursor-pointer active:bg-surface transition-colors">
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-sm font-bold text-text">{v.code}</span>
-                <StatusBadge status={v.status} />
-              </div>
-              {v.check_in_at && <p className="text-[10px] text-text-secondary">{formatDateTime(v.check_in_at)}</p>}
-              {v.visit_result && <div className="text-[10px] text-text-secondary mt-0.5">النتيجة: {v.visit_result}</div>}
-              {v.employee_name && <div className="text-[10px] text-text-secondary mt-0.5">بواسطة: {v.employee_name}</div>}
-            </div>
+            <VisitCard
+              key={v.id}
+              visit={v}
+              customerName={customer?.company_name || ''}
+              employeeName={v.employee_name || ''}
+              onClick={() => navigate(`/visits/${v.id}`)}
+            />
           ))}
         </div>
       )}

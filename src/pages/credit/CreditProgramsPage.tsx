@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
+import { formatCurrencyShort } from '../../utils/format'
 
 function getToken() { try { return localStorage.getItem('session_token') } catch { return null } }
 
@@ -70,7 +71,7 @@ export function CreditProgramsPage() {
               <span className="font-bold text-text">{p.name}</span>
             </div>
             <div className="flex gap-4 text-xs text-text-secondary mb-3">
-              <span>الحد: {p.credit_limit.toLocaleString()} ج.م</span>
+              <span>الحد: {formatCurrencyShort(p.credit_limit)}</span>
               <span>المدة: {p.credit_days} يوم</span>
             </div>
             {p.terms && <p className="text-xs text-text-secondary mb-3">{p.terms}</p>}

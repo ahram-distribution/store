@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../store/auth'
 import toast from 'react-hot-toast'
@@ -8,13 +8,14 @@ function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
 }
 
-export function EmployeesPage() {
+export function EmployeesPage({ embedded }: { embedded?: boolean }) {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const currentEmpId = useAuthStore((s) => s.user?.employee_id)
   const [employees, setEmployees] = useState<any[]>([])
   const [roles, setRoles] = useState<any[]>([])
   const [searchQuery, setSearchQuery] = useState('')
-  const [roleFilter, setRoleFilter] = useState('')
+  const [roleFilter, setRoleFilter] = useState(searchParams.get('role') || '')
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all')
   const [loading, setLoading] = useState(true)
 
@@ -182,11 +183,16 @@ export function EmployeesPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3">
-        <button onClick={() => navigate('/dashboard')} className="text-text-secondary text-lg">&larr;</button>
-        <h1 className="text-lg font-bold text-text">الموظفين</h1>
-        <button onClick={() => setShowAddForm(true)} className="mr-auto bg-primary text-white text-xs px-3 py-1.5 rounded-lg font-semibold">+ إضافة موظف</button>
-      </div>
+      {!embedded && (
+        <div className="flex items-center gap-3">
+          <button onClick={() => navigate('/dashboard')} className="text-text-secondary text-lg">&larr;</button>
+          <h1 className="text-lg font-bold text-text">الموظفين</h1>
+          <button onClick={() => setShowAddForm(true)} className="mr-auto bg-primary text-white text-xs px-3 py-1.5 rounded-lg font-semibold">+ إضافة موظف</button>
+        </div>
+      )}
+      {embedded && (
+        <button onClick={() => setShowAddForm(true)} className="bg-primary text-white text-xs px-3 py-1.5 rounded-lg font-semibold">+ إضافة موظف</button>
+      )}
 
       <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
         placeholder="بحث بالاسم أو الكود أو الهاتف..." className="w-full border border-border rounded-lg px-3 py-2.5 text-sm bg-white" />

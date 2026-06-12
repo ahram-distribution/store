@@ -1,0 +1,11 @@
+-- Fix: employees table uses full_name (not name) and is_active (not active)
+-- The attendance module RPCs referenced e.name / e.active which don't exist
+-- Applied via CREATE OR REPLACE FUNCTION using $func$ dollar quoting
+--
+-- Functions fixed:
+--   get_attendance_analysis: e.name -> e.full_name (2 places)
+--   get_employee_current_location: e.name -> e.full_name
+--   get_live_workday_overview: e.name -> e.full_name (3), e.active -> e.is_active
+--   get_team_map: e.name -> e.full_name, e.active -> e.is_active
+--   get_workday_report: e.name -> e.full_name (2 places)
+--   get_alerts: e.name -> e.full_name (5 places), e.active -> e.is_active

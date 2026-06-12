@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { BrowserRouter } from 'react-router-dom'
+import { BrowserRouter, HashRouter } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
 import { AppRoutes } from './routes'
 import { AppLayout } from './layouts/AppLayout'
@@ -7,6 +7,11 @@ import { useAuthStore } from './store/auth'
 import { SplashScreen } from './components/splash/SplashScreen'
 import { InstallBanner } from './components/splash/InstallBanner'
 import { OfflinePage } from './components/splash/OfflinePage'
+import { ThemeProvider } from './context/ThemeContext'
+import { notificationService } from './services/notificationService'
+
+const isNative = typeof window !== 'undefined' && !!(window as any).Capacitor?.isNativePlatform?.()
+const Router = isNative ? HashRouter : BrowserRouter
 
 export function App() {
   const [splashDone, setSplashDone] = useState(false)
@@ -19,6 +24,13 @@ export function App() {
       restoreSession()
     }
   }, [restoreSession])
+
+  useEffect(() => {
+    if (!loading) {
+      notificationService.register().then(() => notificationService.addListeners())
+    }
+    return () => { notificationService.removeAllListeners() }
+  }, [loading])
 
   if (!splashDone) {
     return (
@@ -33,30 +45,22 @@ export function App() {
   }
 
   return (
-    <BrowserRouter>
+    <Router basename={isNative ? undefined : '/test1'}>
       {loading ? (
         <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center" style={{ background: '#071B4D' }}>
           {/* Logo */}
-          <div
-            className="w-20 h-20 mx-auto mb-5 rounded-3xl flex items-center justify-center shadow-2xl"
-            style={{
-              background: 'linear-gradient(135deg, rgba(201, 162, 39, 0.1) 0%, rgba(201, 162, 39, 0.03) 100%)',
-              border: '1px solid rgba(201, 162, 39, 0.12)',
-            }}
-          >
-            <svg width="44" height="44" viewBox="0 0 48 48" fill="none">
-              <rect width="48" height="48" rx="8" fill="#C9A227" />
-              <text x="24" y="34" textAnchor="middle" fill="#071B4D" fontSize="24" fontWeight="bold" fontFamily="system-ui">أ</text>
-            </svg>
-          </div>
+          <img src={`${import.meta.env.BASE_URL}pwa/branding/logo.png`} alt="الأهرام"
+            className="w-20 h-20 mx-auto mb-5 object-contain" />
           <div className="gold-spinner mb-4" />
           <p className="text-sm font-medium" style={{ color: 'rgba(255, 255, 255, 0.7)' }}>جاري التحقق من المستخدم</p>
           <p className="text-xs mt-1.5" style={{ color: 'rgba(255, 255, 255, 0.35)' }}>يرجى الانتظار...</p>
         </div>
       ) : (
-        <AppLayout>
-          <AppRoutes />
-        </AppLayout>
+        <ThemeProvider>
+          <AppLayout>
+            <AppRoutes />
+          </AppLayout>
+        </ThemeProvider>
       )}
       <InstallBanner />
       <OfflinePage />
@@ -74,6 +78,6 @@ export function App() {
           },
         }}
       />
-    </BrowserRouter>
+    </Router>
   )
 }

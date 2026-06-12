@@ -1,4 +1,5 @@
 export { CreditProgramsPage } from './CreditProgramsPage'
+export { CreditProgramsManagerPage } from './CreditProgramsManagerPage'
 export { CreditApplicationsPage } from './CreditApplicationsPage'
 export { CreditReviewPage } from './CreditReviewPage'
 export { CustomerCreditPage } from './CustomerCreditPage'

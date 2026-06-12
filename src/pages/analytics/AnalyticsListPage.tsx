@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
+import { formatCurrencyShort } from '../../utils/format'
 
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
@@ -114,9 +115,9 @@ export function AnalyticsListPage() {
                 </span>
               </div>
               <div className="grid grid-cols-3 gap-2 mt-2 text-[10px] text-text-secondary">
-                <div>مشتريات: <span className="text-text font-medium">{r.total_purchases?.toLocaleString()}</span></div>
+                <div>مشتريات: <span className="text-text font-medium">{r.total_purchases != null ? formatCurrencyShort(r.total_purchases) : ''}</span></div>
                 <div>أولوية: <span className="text-text font-medium">{r.followup_priority_score?.toFixed(0)}</span></div>
-                <div>العائد المحتمل: <span className="text-text font-medium">{r.potential_revenue_score?.toLocaleString()}</span></div>
+                <div>العائد المحتمل: <span className="text-text font-medium">{r.potential_revenue_score != null ? formatCurrencyShort(r.potential_revenue_score) : ''}</span></div>
               </div>
             </div>
           ))}
@@ -142,17 +143,17 @@ export function AnalyticsListPage() {
                 </div>
                 <div className="grid grid-cols-4 gap-2 mt-2 text-[10px] text-text-secondary">
                   <div>الترتيب: <span className="text-text font-medium">{a.ranking}</span></div>
-                  <div>المشتريات: <span className="text-text font-medium">{a.total_purchases?.toLocaleString()}</span></div>
+                  <div>المشتريات: <span className="text-text font-medium">{a.total_purchases != null ? formatCurrencyShort(a.total_purchases) : ''}</span></div>
                   <div>الطلبات: <span className="text-text font-medium">{a.order_count}</span></div>
-                  <div>المتوسط: <span className="text-text font-medium">{a.avg_order_value?.toLocaleString()}</span></div>
+                  <div>المتوسط: <span className="text-text font-medium">{a.avg_order_value != null ? formatCurrencyShort(a.avg_order_value) : ''}</span></div>
                 </div>
                 {a.expected_next_order_date && (
                   <div className="mt-1 text-[10px] text-text-secondary">
-                    الطلب المتوقع: <span className="text-text font-medium">{new Date(a.expected_next_order_date).toLocaleDateString('ar-EG')}</span>
+                    الطلب المتوقع: <span className="text-text font-medium">{new Date(a.expected_next_order_date).toLocaleDateString('ar-EG-u-nu-latn')}</span>
                   </div>
                 )}
                 <div className="flex justify-between mt-1 text-[10px] text-text-secondary">
-                  <span>العائد المحتمل: <span className="text-primary font-medium">{a.potential_revenue_score?.toLocaleString()}</span></span>
+                  <span>العائد المحتمل: <span className="text-primary font-medium">{a.potential_revenue_score != null ? formatCurrencyShort(a.potential_revenue_score) : ''}</span></span>
                   <span>آخر طلب: {a.days_since_last_order != null ? `منذ ${a.days_since_last_order} يوم` : 'لا يوجد'}</span>
                 </div>
               </div>

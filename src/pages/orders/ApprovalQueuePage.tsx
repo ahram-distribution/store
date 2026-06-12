@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase'
 import { OrderStatusManager } from '../../components/orders/OrderStatusManager'
 import { useCapability } from '../../hooks/useCapability'
 import toast from 'react-hot-toast'
+import { formatCurrencyShort } from '../../utils/format'
 
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
@@ -58,13 +59,18 @@ export function ApprovalQueuePage() {
                   <button onClick={() => navigate(`/orders/${o.id}`)} className="text-sm font-bold text-primary hover:underline">
                     {o.order_number || o.id?.slice(0, 8)}
                   </button>
-                  <p className="text-xs text-text-secondary truncate">{o.customer_name || '—'}</p>
+                  <p className="text-xs text-text-secondary">{o.customer_name || '—'}</p>
                 </div>
-                <span className="text-[10px] bg-accent/10 text-accent px-2 py-0.5 rounded-full shrink-0">{getAge(o.created_at)}</span>
+                <div className="flex items-center gap-1 shrink-0">
+                  {o.payment_method === 'credit' && (
+                    <span className="text-[10px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full">آجل</span>
+                  )}
+                  <span className="text-[10px] bg-accent/10 text-accent px-2 py-0.5 rounded-full">{getAge(o.created_at)}</span>
+                </div>
               </div>
               <div className="flex items-center justify-between text-xs text-text-secondary mb-2">
                 <span>{o.employee_name || o.responsible_name || '—'}</span>
-                <span className="font-semibold text-text">{Number(o.total_amount || 0).toLocaleString('ar-EG')} ج</span>
+                <span className="font-semibold text-text">{formatCurrencyShort(Number(o.total_amount || 0))}</span>
               </div>
               <div className="flex gap-2">
                 <OrderStatusManager

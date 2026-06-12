@@ -1,14 +1,63 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { toEnglishDigits } from '../../utils/format'
 import { useAuthStore } from '../../store/auth'
+import { useCompanyProfile } from '../../hooks/useCompanyProfile'
 import toast from 'react-hot-toast'
+
+interface ContactEntry {
+  label: string
+  value: string
+  href?: string
+  external?: boolean
+}
+
+function buildContactEntries(p: NonNullable<ReturnType<typeof useCompanyProfile>['profile']>): ContactEntry[] {
+  return [
+    p.sales_phone_1 ? { label: 'هاتف المبيعات 1', value: p.sales_phone_1, href: `tel:${p.sales_phone_1}` } : { label: 'هاتف المبيعات 1', value: 'غير متوفر' },
+    p.sales_phone_2 ? { label: 'هاتف المبيعات 2', value: p.sales_phone_2, href: `tel:${p.sales_phone_2}` } : { label: 'هاتف المبيعات 2', value: 'غير متوفر' },
+    p.sales_whatsapp_1 ? { label: 'واتساب المبيعات 1', value: p.sales_whatsapp_1, href: `https://wa.me/${p.sales_whatsapp_1.replace(/^0+/, '20')}`, external: true } : { label: 'واتساب المبيعات 1', value: 'غير متوفر' },
+    p.sales_whatsapp_2 ? { label: 'واتساب المبيعات 2', value: p.sales_whatsapp_2, href: `https://wa.me/${p.sales_whatsapp_2.replace(/^0+/, '20')}`, external: true } : { label: 'واتساب المبيعات 2', value: 'غير متوفر' },
+    p.technical_support_phone ? { label: 'الدعم الفني', value: p.technical_support_phone, href: `https://wa.me/${p.technical_support_phone.replace(/^0+/, '20')}`, external: true } : { label: 'الدعم الفني', value: 'غير متوفر' },
+    p.facebook_url ? { label: 'صفحة فيسبوك', value: 'فيسبوك', href: p.facebook_url, external: true } : { label: 'صفحة فيسبوك', value: 'غير متوفر' },
+  ]
+}
 
 export function LoginPage() {
   const navigate = useNavigate()
   const { login } = useAuthStore()
+  const { profile } = useCompanyProfile()
+
   const [phone, setPhone] = useState('')
   const [password, setPassword] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [deferredPrompt, setDeferredPrompt] = useState<Event | null>(null)
+  const [showContactSheet, setShowContactSheet] = useState(false)
+  const [showInstallDialog, setShowInstallDialog] = useState(false)
+  const phoneRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => { phoneRef.current?.focus() }, [])
+
+  useEffect(() => {
+    const handler = (e: Event) => { e.preventDefault(); setDeferredPrompt(e) }
+    window.addEventListener('beforeinstallprompt', handler)
+    return () => window.removeEventListener('beforeinstallprompt', handler)
+  }, [])
+
+  useEffect(() => {
+    const handler = () => setDeferredPrompt(null)
+    window.addEventListener('appinstalled', handler)
+    return () => window.removeEventListener('appinstalled', handler)
+  }, [])
+
+  const handleInstallClick = () => {
+    if (deferredPrompt) {
+      ;(deferredPrompt as any).prompt()
+      ;(deferredPrompt as any).userChoice.then(() => setDeferredPrompt(null))
+    } else {
+      setShowInstallDialog(true)
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -24,101 +73,283 @@ export function LoginPage() {
         setSubmitting(false)
         return
       }
-
       const state = useAuthStore.getState()
-      if (state.user?.identity_type === 'employee') {
-        navigate('/dashboard', { replace: true })
-      } else {
-        navigate('/storefront', { replace: true })
-      }
+      navigate(state.user?.identity_type === 'employee' ? '/dashboard' : '/storefront', { replace: true })
     } catch {
       toast.error('حدث خطأ في الاتصال')
       setSubmitting(false)
     }
   }
 
+  const contactEntries = profile ? buildContactEntries(profile) : []
+  const ua = typeof navigator !== 'undefined' ? navigator.userAgent.toLowerCase() : ''
+  const isAndroid = /android/.test(ua)
+  const isIPhone = /iphone|ipad|ipod/.test(ua)
+
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-5" style={{ background: '#071B4D' }}>
-      <div className="w-full max-w-sm">
-        {/* Logo */}
-        <div className="text-center mb-10">
-          <div
-            className="w-20 h-20 mx-auto mb-4 rounded-3xl flex items-center justify-center shadow-2xl"
-            style={{
-              background: 'linear-gradient(135deg, rgba(201, 162, 39, 0.12) 0%, rgba(201, 162, 39, 0.04) 100%)',
-              border: '1px solid rgba(201, 162, 39, 0.15)',
-              boxShadow: '0 8px 32px rgba(0, 0, 0, 0.25)',
-            }}
-          >
-            <svg width="44" height="44" viewBox="0 0 48 48" fill="none">
-              <rect width="48" height="48" rx="8" fill="#C9A227" />
-              <text x="24" y="34" textAnchor="middle" fill="#071B4D" fontSize="24" fontWeight="bold" fontFamily="system-ui">أ</text>
-            </svg>
+    <div style={{ background: '#071B4D', minHeight: '100vh' }}>
+      <div style={{ maxWidth: 400, margin: '0 auto', padding: '20px 20px 12px' }}>
+
+        {/* ── HEADER ── */}
+        <div style={{ textAlign: 'center' }}>
+          <img
+            src={`${import.meta.env.BASE_URL}pwa/branding/logo-square.png`}
+            alt="الأهرام"
+            style={{ width: 72, height: 72, display: 'inline-block' }}
+          />
+          <div style={{ color: '#E0B85A', fontSize: 20, fontWeight: 700, marginTop: 8 }}>
+            الأهرام للتجارة والتوزيع
           </div>
-          <h1 className="text-xl font-bold text-white" style={{ letterSpacing: '0.02em' }}>شركة الأهرام</h1>
-          <p className="text-sm mt-0.5 font-medium" style={{ color: '#E0B85A' }}>للتجارة والتوزيع</p>
+          <div style={{ color: '#6b7280', fontSize: 12, marginTop: 4 }}>
+            منصة إدارة الطلبات والمبيعات والتوزيع
+          </div>
         </div>
 
-        {/* Glass Card */}
-        <div className="glass-card p-6">
-          {/* Title */}
-          <h2 className="text-2xl font-bold text-white text-center mb-1">مرحباً بك</h2>
-          <p className="text-sm text-center mb-7" style={{ color: 'rgba(255, 255, 255, 0.5)' }}>سجل الدخول للوصول إلى حسابك</p>
-
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-xs font-medium mb-2" style={{ color: 'rgba(255, 255, 255, 0.6)' }}>رقم الهاتف</label>
-              <input
-                type="tel"
-                dir="ltr"
-                placeholder="01xxxxxxxxx"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                className="gold-input"
-                autoComplete="tel"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium mb-2" style={{ color: 'rgba(255, 255, 255, 0.6)' }}>كلمة المرور</label>
+        {/* ── LOGIN CARD ── */}
+        <div style={{
+          background: '#0F2B5B',
+          border: '1px solid #C9A227',
+          borderRadius: 14,
+          padding: 12,
+          marginTop: 14,
+        }}>
+          <form onSubmit={handleSubmit}>
+            <input
+              ref={phoneRef}
+              type="tel"
+              inputMode="numeric"
+              dir="ltr"
+              placeholder="رقم الهاتف"
+              value={phone}
+              onChange={(e) => setPhone(toEnglishDigits(e.target.value))}
+              autoComplete="tel"
+              style={{
+                width: '100%',
+                padding: '11px 14px',
+                borderRadius: 10,
+                background: '#071B4D',
+                border: '1px solid #C9A227',
+                color: '#ffffff',
+                fontSize: 14,
+                outline: 'none',
+                WebkitAppearance: 'none',
+                boxSizing: 'border-box',
+              }}
+            />
+            <div style={{ marginTop: 8 }}>
               <input
                 type="password"
                 dir="ltr"
-                placeholder="••••••"
+                placeholder="كلمة المرور"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="gold-input"
+                onChange={(e) => setPassword(toEnglishDigits(e.target.value))}
                 autoComplete="current-password"
+                style={{
+                  width: '100%',
+                  padding: '11px 14px',
+                  borderRadius: 10,
+                  background: '#071B4D',
+                  border: '1px solid #C9A227',
+                  color: '#ffffff',
+                  fontSize: 14,
+                  outline: 'none',
+                  WebkitAppearance: 'none',
+                  boxSizing: 'border-box',
+                }}
               />
             </div>
-
-            <div className="pt-2 space-y-3">
-              <button
-                type="submit"
-                disabled={submitting}
-                className="btn-gold"
-              >
-                {submitting ? (
-                  <span className="flex items-center justify-center gap-2">
-                    <span className="w-4 h-4 border-2 border-[#071B4D] border-t-transparent rounded-full animate-spin" />
-                    جاري تسجيل الدخول
-                  </span>
-                ) : (
-                  'تسجيل الدخول'
-                )}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => navigate('/register')}
-                className="btn-outline"
-              >
-                إنشاء حساب جديد
-              </button>
-            </div>
+            <button
+              type="submit"
+              disabled={submitting}
+              style={{
+                width: '100%',
+                padding: 13,
+                borderRadius: 10,
+                background: submitting ? '#a3851f' : '#C9A227',
+                color: '#071B4D',
+                fontSize: 15,
+                fontWeight: 700,
+                border: 'none',
+                cursor: submitting ? 'not-allowed' : 'pointer',
+                marginTop: 12,
+              }}
+            >
+              {submitting ? 'جاري تسجيل الدخول...' : 'تسجيل الدخول'}
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate('/register')}
+              style={{
+                width: '100%',
+                padding: 13,
+                borderRadius: 10,
+                background: 'transparent',
+                color: '#C9A227',
+                fontSize: 15,
+                fontWeight: 600,
+                border: '1px solid #C9A227',
+                cursor: 'pointer',
+                marginTop: 8,
+              }}
+            >
+              إنشاء حساب جديد
+            </button>
           </form>
         </div>
+
+        {/* ── CONTACT BUTTON ── */}
+        <button
+          type="button"
+          onClick={() => setShowContactSheet(true)}
+          style={{
+            width: '100%',
+            padding: 13,
+            borderRadius: 10,
+            background: '#0F2B5B',
+            border: '1px solid #C9A227',
+            color: '#C9A227',
+            fontSize: 14,
+            fontWeight: 700,
+            cursor: 'pointer',
+            marginTop: 10,
+          }}
+        >
+          {'\uD83D\uDCDE'} تواصل معنا
+        </button>
+
+        {/* ── INSTALL BUTTON ── */}
+        <button
+          type="button"
+          onClick={handleInstallClick}
+          style={{
+            width: '100%',
+            padding: 13,
+            borderRadius: 10,
+            background: '#0F2B5B',
+            border: '1px solid #1a3a6e',
+            color: '#C9A227',
+            fontSize: 14,
+            fontWeight: 700,
+            cursor: 'pointer',
+            marginTop: 8,
+          }}
+        >
+          {'\u2B07'} تثبيت التطبيق
+        </button>
+
       </div>
+
+      {/* ── CONTACT BOTTOM SHEET ── */}
+      {showContactSheet && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+          <div onClick={() => setShowContactSheet(false)} style={{ flex: 1 }} />
+          <div style={{
+            background: '#0F2B5B',
+            borderTopLeftRadius: 20,
+            borderTopRightRadius: 20,
+            border: '1px solid #C9A227',
+            borderBottom: 'none',
+            maxHeight: '75vh',
+            overflowY: 'auto',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', borderBottom: '1px solid #1a3a6e' }}>
+              <span style={{ color: '#E0B85A', fontSize: 15, fontWeight: 700 }}>تواصل معنا</span>
+              <button
+                type="button"
+                onClick={() => setShowContactSheet(false)}
+                style={{ background: 'none', border: 'none', color: '#9ca3af', fontSize: 20, cursor: 'pointer', padding: 4 }}
+              >
+                {'\u2716'}
+              </button>
+            </div>
+            <div style={{ padding: '8px 0' }}>
+              {contactEntries.length === 0 ? (
+                <>
+                  {[
+                    { label: 'هاتف المبيعات 1', value: 'غير متوفر' },
+                    { label: 'هاتف المبيعات 2', value: 'غير متوفر' },
+                    { label: 'واتساب المبيعات 1', value: 'غير متوفر' },
+                    { label: 'واتساب المبيعات 2', value: 'غير متوفر' },
+                    { label: 'الدعم الفني', value: 'غير متوفر' },
+                    { label: 'صفحة فيسبوك', value: 'غير متوفر' },
+                  ].map((item, i) => (
+                    <div key={i} style={{ padding: '12px 16px', borderBottom: '1px solid #1a3a6e' }}>
+                      <div style={{ color: '#9ca3af', fontSize: 12, fontWeight: 700 }}>{item.label}</div>
+                      <div style={{ color: '#6b7280', fontSize: 12, marginTop: 4 }}>{item.value}</div>
+                    </div>
+                  ))}
+                </>
+              ) : (
+                contactEntries.map((item, i) => {
+                  const row = (
+                    <div style={{ padding: '12px 16px', borderBottom: i < contactEntries.length - 1 ? '1px solid #1a3a6e' : 'none' }}>
+                      <div style={{ color: '#E0B85A', fontSize: 12, fontWeight: 700 }}>{item.label}</div>
+                      <div style={{ color: item.href ? '#ffffff' : '#6b7280', fontSize: 13, marginTop: 4, direction: 'ltr' }}>{item.value}</div>
+                    </div>
+                  )
+                  return item.href ? (
+                    <a key={i} href={item.href} target={item.external ? '_blank' : undefined} rel={item.external ? 'noopener noreferrer' : undefined} style={{ textDecoration: 'none', display: 'block' }}>
+                      {row}
+                    </a>
+                  ) : (
+                    <div key={i}>{row}</div>
+                  )
+                })
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── INSTALL DIALOG ── */}
+      {showInstallDialog && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div onClick={() => setShowInstallDialog(false)} style={{ position: 'fixed', inset: 0, background: '#000' }} />
+          <div style={{
+            position: 'relative',
+            background: '#0F2B5B',
+            border: '1px solid #C9A227',
+            borderRadius: 16,
+            padding: 24,
+            margin: 20,
+            maxWidth: 340,
+            width: '100%',
+          }}>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ color: '#E0B85A', fontSize: 16, fontWeight: 700 }}>{'\u2B07'} تثبيت التطبيق</div>
+              <div style={{ color: '#9ca3af', fontSize: 13, marginTop: 16, lineHeight: 1.6 }}>
+                {isAndroid && !deferredPrompt ? (
+                  'افتح قائمة المتصفح ثم اختر\nإضافة إلى الشاشة الرئيسية'
+                ) : isIPhone ? (
+                  'اضغط مشاركة\nثم إضافة إلى الشاشة الرئيسية'
+                ) : !deferredPrompt ? (
+                  'استخدم خيار\nInstall App أو Add To Desktop\nحسب إمكانيات المتصفح'
+                ) : (
+                  'يمكنك تثبيت التطبيق\nللوصول السريع من الشاشة الرئيسية'
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowInstallDialog(false)}
+                style={{
+                  width: '100%',
+                  padding: 12,
+                  borderRadius: 10,
+                  background: '#C9A227',
+                  color: '#071B4D',
+                  fontSize: 14,
+                  fontWeight: 700,
+                  border: 'none',
+                  cursor: 'pointer',
+                  marginTop: 20,
+                }}
+              >
+                إغلاق
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

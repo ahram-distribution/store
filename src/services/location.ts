@@ -35,9 +35,9 @@ export interface LocationCaptureResult {
   }
 }
 
-const GPS_TIMEOUT_MS = 15000
-const MAX_RETRIES = 3
-const RETRY_DELAY_MS = 1000
+let _lastLocation: FreshLocation | null = null
+const CACHE_TTL_MS = 10000
+const _reverseGeocodeCache = new Map<string, string>()
 
 export const locationService = {
   buildGoogleMapsUrl(lat: number, lng: number): string {
@@ -45,7 +45,7 @@ export const locationService = {
   },
 
   openGoogleMaps(lat: number, lng: number): void {
-    window.open(this.buildGoogleMapsUrl(lat, lng), '_blank', 'noopener,noreferrer')
+    window.location.href = this.buildGoogleMapsUrl(lat, lng)
   },
 
   formatAccuracy(accuracy: number | null | undefined): { label: string; className: string; detail: string } {
@@ -54,28 +54,36 @@ export const locationService = {
     }
     const rounded = Math.round(accuracy)
     const detail = rounded + ' متر'
-    if (rounded <= 20) {
-      return { label: 'ممتازة', className: 'text-success', detail }
-    }
-    if (rounded <= 50) {
-      return { label: 'جيدة', className: 'text-accent', detail }
-    }
-    if (rounded <= 100) {
-      return { label: 'مقبولة', className: 'text-warning', detail }
-    }
-    if (rounded <= 200) {
-      return { label: 'ضعيفة', className: 'text-danger', detail }
-    }
+    if (rounded <= 20) return { label: 'ممتازة', className: 'text-success', detail }
+    if (rounded <= 50) return { label: 'جيدة', className: 'text-accent', detail }
+    if (rounded <= 100) return { label: 'مقبولة', className: 'text-warning', detail }
+    if (rounded <= 200) return { label: 'ضعيفة', className: 'text-danger', detail }
     return { label: 'ضعيفة جداً', className: 'text-danger/70', detail }
+  },
+
+  async reverseGeocode(lat: number, lng: number): Promise<string | null> {
+    const cacheKey = lat.toFixed(5) + ',' + lng.toFixed(5)
+    const cached = _reverseGeocodeCache.get(cacheKey)
+    if (cached) return cached
+    try {
+      const response = await fetch(
+        'https://nominatim.openstreetmap.org/reverse?format=json&lat=' + lat + '&lon=' + lng + '&accept-language=ar',
+        { headers: { 'User-Agent': 'AhramDistApp/1.0' } }
+      )
+      if (!response.ok) return null
+      const data = await response.json()
+      const address = data.display_name || null
+      if (address) _reverseGeocodeCache.set(cacheKey, address)
+      return address
+    } catch {
+      return null
+    }
   },
 
   async fetchLocation(locationId: string): Promise<LocationRecord | null> {
     const token = (() => { try { return localStorage.getItem('session_token') } catch { return null } })()
     if (!token) return null
-    const { data } = await supabase.rpc('get_governed_location', {
-      p_token: token,
-      p_id: locationId,
-    })
+    const { data } = await supabase.rpc('get_governed_location', { p_token: token, p_id: locationId })
     const result = data as any
     if (result?.error) return null
     return result as LocationRecord
@@ -86,10 +94,7 @@ export const locationService = {
     if (ids.length === 0) return new Map()
     const token = (() => { try { return localStorage.getItem('session_token') } catch { return null } })()
     if (!token) return new Map()
-    const { data } = await supabase.rpc('get_governed_locations', {
-      p_token: token,
-      p_ids: ids,
-    })
+    const { data } = await supabase.rpc('get_governed_locations', { p_token: token, p_ids: ids })
     const map = new Map<string, LocationRecord>()
     if (Array.isArray(data)) {
       for (const r of data) {
@@ -99,52 +104,89 @@ export const locationService = {
     return map
   },
 
-  captureFreshLocation(): Promise<LocationCaptureResult> {
-    return this._captureWithRetry(1)
+  captureLocation(opName?: string, maxWaitMs: number = 30000): Promise<LocationCaptureResult> {
+    if (typeof opName === 'number') {
+      maxWaitMs = opName
+      opName = undefined
+    }
+    return this._capture(opName, maxWaitMs)
   },
 
-  async _captureWithRetry(attempt: number): Promise<LocationCaptureResult> {
+  saveLocation(gps: FreshLocation): Promise<string | null> {
+    const token = (() => { try { return localStorage.getItem('session_token') } catch { return null } })()
+    if (!token) return Promise.resolve(null)
+    return supabase.rpc('governed_create_location', {
+      p_token: token,
+      p_latitude: gps.latitude,
+      p_longitude: gps.longitude,
+      p_accuracy_meters: gps.accuracy,
+    }).then(({ data }) => {
+      const result = data as any
+      if (result?.error) return null
+      return result.id as string
+    })
+  },
+
+  async _capture(opName: string | undefined, maxWaitMs: number = 30000): Promise<LocationCaptureResult> {
+    console.log('GPS_CAPTURE_START', { opName, maxWaitMs })
+    console.log('GEOLOCATION_AVAILABLE', !!navigator.geolocation)
     if (!navigator.geolocation) {
-      const result: LocationCaptureResult = {
-        success: false,
-        location: null,
-        error: { code: 'UNSUPPORTED', message: 'الموقع غير مدعوم على هذا الجهاز' },
-      }
-      console.warn('[GPS] Unsupported', result)
-      return result
+      return { success: false, location: null, error: { code: 'UNSUPPORTED', message: 'الموقع غير مدعوم على هذا الجهاز' } }
     }
-
     if (typeof window !== 'undefined' && window.isSecureContext === false) {
-      const result: LocationCaptureResult = {
-        success: false,
-        location: null,
-        error: { code: 'INSECURE_CONTEXT', message: 'الموقع يتطلب اتصال آمن (HTTPS)' },
+      console.log('GPS_INSECURE_CONTEXT_BLOCKED', { isSecureContext: window.isSecureContext, location: window.location.href })
+      return { success: false, location: null, error: { code: 'INSECURE_CONTEXT', message: 'الموقع يتطلب اتصال آمن (HTTPS)' } }
+    }
+    console.log('GPS_SECURITY_CHECK_PASSED')
+
+    const startTs = Date.now()
+    const opTag = opName ? `[GPS:${opName}]` : '[GPS]'
+
+    if (_lastLocation) {
+      const age = Date.now() - new Date(_lastLocation.capturedAt).getTime()
+      if (age < CACHE_TTL_MS && _lastLocation.accuracy <= 100) {
+        return { success: true, location: _lastLocation }
       }
-      console.warn('[GPS] Insecure context', result)
-      return result
     }
 
-    const result = await this._attemptGPS()
-
-    if (result.success && result.location) {
-      console.log('[GPS] Captured on attempt', attempt, { accuracy: result.location.accuracy })
-      return result
-    }
-
-    console.warn(`[GPS] Attempt ${attempt}/${MAX_RETRIES} failed`, result.error)
-
-    if (attempt < MAX_RETRIES) {
-      await new Promise((r) => setTimeout(r, RETRY_DELAY_MS))
-      return this._captureWithRetry(attempt + 1)
-    }
-
-    return result
+    return this._progressiveGPS(opTag, startTs, maxWaitMs)
   },
 
-  _attemptGPS(): Promise<LocationCaptureResult> {
+  async _progressiveGPS(opTag: string, startTs: number, maxWaitMs: number): Promise<LocationCaptureResult> {
+    console.log('GPS_PROGRESSIVE_START', { opTag, startTs, maxWaitMs })
+    const elapsed = () => ((Date.now() - startTs) / 1000).toFixed(1)
+
+    const tryPhase = (phaseName: string, enableHighAccuracy: boolean, ms: number, earlyExit: number, maxAccept: number): Promise<LocationCaptureResult | null> => {
+      const remaining = maxWaitMs - (Date.now() - startTs)
+      if (remaining <= 0) return Promise.resolve(null)
+      const duration = Math.min(ms, remaining)
+      return this._runPhase(opTag, enableHighAccuracy, duration, earlyExit, maxAccept)
+    }
+
+    let result = await tryPhase('1-high', true, 8000, 30, 100)
+    if (result?.success) return result
+
+    result = await tryPhase('2-retry', true, 5000, 50, 150)
+    if (result?.success) return result
+
+    result = await tryPhase('3-fallback', false, 5000, 999999, 999999)
+    if (result?.success) return result
+
+    return {
+      success: false, location: null,
+      error: { code: 'POSITION_UNAVAILABLE', message: 'تعذر الحصول على موقع دقيق' },
+    }
+  },
+
+  _runPhase(
+    opTag: string,
+    enableHighAccuracy: boolean,
+    phaseTimeout: number,
+    earlyExitAccuracy: number,
+    maxAcceptableAccuracy: number
+  ): Promise<LocationCaptureResult | null> {
+    console.log('GPS_RUNPHASE', { phaseTimeout, enableHighAccuracy })
     return new Promise((resolve) => {
-      const CONVERGENCE_MS = 3000
-      const EARLY_EXIT_ACCURACY = 10
       const fixes: { accuracy: number; latitude: number; longitude: number; capturedAt: string }[] = []
       let watchId: number
       let timer: ReturnType<typeof setTimeout>
@@ -156,16 +198,15 @@ export const locationService = {
 
       const selectBest = (): FreshLocation => {
         const best = fixes.reduce((a, b) => a.accuracy <= b.accuracy ? a : b)
-        return {
-          latitude: best.latitude,
-          longitude: best.longitude,
-          accuracy: best.accuracy,
-          capturedAt: best.capturedAt,
-        }
+        const loc = { latitude: best.latitude, longitude: best.longitude, accuracy: best.accuracy, capturedAt: best.capturedAt }
+        _lastLocation = loc
+        return loc
       }
 
+      console.log('GPS_BEFORE_WATCHPOSITION')
       watchId = navigator.geolocation.watchPosition(
         (pos) => {
+          console.log('GPS_SUCCESS_CALLBACK', { accuracy: pos.coords.accuracy, lat: pos.coords.latitude, lng: pos.coords.longitude })
           const accuracy = Math.round(pos.coords.accuracy)
           fixes.push({
             accuracy,
@@ -173,70 +214,44 @@ export const locationService = {
             longitude: pos.coords.longitude,
             capturedAt: new Date().toISOString(),
           })
-
-          if (accuracy <= EARLY_EXIT_ACCURACY) {
+          if (accuracy <= earlyExitAccuracy) {
             cleanup()
+            console.log('GPS_RESOLVE', 'early exit at accuracy=' + accuracy)
             resolve({ success: true, location: selectBest() })
           }
         },
         (err) => {
+          console.log('GPS_ERROR_CALLBACK', { code: err.code, message: err.message })
           if (err.code === err.PERMISSION_DENIED) {
             cleanup()
+            console.log('GPS_RESOLVE', 'permission denied')
             resolve({
-              success: false,
-              location: null,
-              error: { code: 'PERMISSION_DENIED' as LocationErrorCode, message: 'تم رفض إذن الموقع' },
-            })
-            return
-          }
-          if (fixes.length === 0) {
-            cleanup()
-            resolve({
-              success: false,
-              location: null,
-              error: { code: 'POSITION_UNAVAILABLE' as LocationErrorCode, message: 'GPS غير مفعل أو الإشارة ضعيفة' },
+              success: false, location: null,
+              error: { code: 'PERMISSION_DENIED', message: 'تم رفض إذن الموقع' },
             })
           }
         },
-        { enableHighAccuracy: true, timeout: GPS_TIMEOUT_MS, maximumAge: 0 }
+        { enableHighAccuracy, timeout: phaseTimeout, maximumAge: 0 }
       )
 
+      console.log('GPS_TIMEOUT_SCHEDULED', phaseTimeout)
       timer = setTimeout(() => {
         cleanup()
         if (fixes.length > 0) {
-          resolve({ success: true, location: selectBest() })
+          const best = selectBest()
+          if (best.accuracy > maxAcceptableAccuracy) {
+            console.log('GPS_RESOLVE', 'timeout — accuracy ' + best.accuracy + ' > max ' + maxAcceptableAccuracy)
+            resolve(null)
+          } else {
+            console.log('GPS_RESOLVE', 'timeout — best accuracy ' + best.accuracy)
+            resolve({ success: true, location: best })
+          }
         } else {
-          resolve({
-            success: false,
-            location: null,
-            error: { code: 'TIMEOUT', message: 'انتهت مهلة تحديد الموقع' },
-          })
+          console.log('GPS_RESOLVE', 'timeout — no fixes')
+          resolve(null)
         }
-      }, CONVERGENCE_MS)
+      }, phaseTimeout)
     })
-  },
-
-  async createOperationalLocation(gps: FreshLocation): Promise<string | null> {
-    const token = (() => { try { return localStorage.getItem('session_token') } catch { return null } })()
-    if (!token) return null
-    const { data } = await supabase.rpc('governed_create_location', {
-      p_token: token,
-      p_latitude: gps.latitude,
-      p_longitude: gps.longitude,
-      p_accuracy_meters: gps.accuracy,
-    })
-    const result = data as any
-    if (result?.error) return null
-    return result.id as string
-  },
-
-  async captureAndStoreLocation(): Promise<{ locationId: string | null; gps: FreshLocation | null }> {
-    const result = await this.captureFreshLocation()
-    if (!result.success || !result.location) {
-      return { locationId: null, gps: null }
-    }
-    const locationId = await this.createOperationalLocation(result.location)
-    return { locationId, gps: result.location }
   },
 }
 

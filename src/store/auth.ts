@@ -59,7 +59,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   register: async (params: RegisterParams) => {
     const result = await authService.register(params)
     if (!result.success) {
-      console.log('[store] register failed — error char codes:', Array.from(result.error || '').map(c => c.codePointAt(0)))
       return { success: false, error: result.error }
     }
 

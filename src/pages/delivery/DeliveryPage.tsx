@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase'
 import { OrderStatusManager } from '../../components/orders/OrderStatusManager'
 import { useCapability } from '../../hooks/useCapability'
 import toast from 'react-hot-toast'
+import { formatCurrencyShort } from '../../utils/format'
 
 function getToken() { try { return localStorage.getItem('session_token') } catch { return null } }
 
@@ -77,10 +78,10 @@ export function DeliveryPage() {
               <span className="text-sm font-semibold text-text">{item.customer_name}</span>
             </div>
             <div className="text-xs text-text-secondary space-y-1">
-              <p>الطلب: {item.order_number} - {item.total_amount.toLocaleString()} ج.م</p>
+              <p>الطلب: {item.order_number} - {formatCurrencyShort(item.total_amount)}</p>
               <p>المندوب: {item.assigned_to_name || 'غير معين'}</p>
-              {item.started_at && <p>بدء: {new Date(item.started_at).toLocaleString('ar-EG')}</p>}
-              {item.completed_at && <p>اكتمل: {new Date(item.completed_at).toLocaleString('ar-EG')}</p>}
+              {item.started_at && <p>بدء: {new Date(item.started_at).toLocaleString('ar-EG-u-nu-latn')}</p>}
+              {item.completed_at && <p>اكتمل: {new Date(item.completed_at).toLocaleString('ar-EG-u-nu-latn')}</p>}
               {item.failure_reason && <p className="text-red-600">السبب: {item.failure_reason}</p>}
             </div>
             <div className="flex gap-2 mt-3">

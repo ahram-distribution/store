@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuthStore } from '../../store/auth'
+import { toEnglishDigits } from '../../utils/format'
 import { locationService } from '../../services/location'
+import { gpsOperation } from '../../lib/diag'
 import toast from 'react-hot-toast'
 
 const BUSINESS_TYPES: { value: string; label: string }[] = [
@@ -30,7 +32,6 @@ export function RegistrationPage() {
   const [responsibleName, setResponsibleName] = useState('')
   const [businessType, setBusinessType] = useState('')
   const [phone, setPhone] = useState('')
-  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [addressDetail, setAddressDetail] = useState('')
@@ -40,7 +41,7 @@ export function RegistrationPage() {
 
   const handleCaptureLocation = async () => {
     setLocating(true)
-    const result = await locationService.captureFreshLocation()
+    const result = await gpsOperation('تسجيل حساب')
     setLocating(false)
     if (result.success && result.location) {
       setLocation({
@@ -48,9 +49,8 @@ export function RegistrationPage() {
         longitude: result.location.longitude,
         accuracyMeters: result.location.accuracy,
       })
-      toast.success('تم تحديد الموقع بدقة ' + result.location.accuracy + 'م')
     } else {
-      toast.error(result.error?.message || 'فشل تحديد الموقع')
+      toast.error(result.error?.message || 'تعذر الحصول على الموقع')
     }
   }
 
@@ -79,11 +79,8 @@ export function RegistrationPage() {
         longitude: location.longitude,
         accuracyMeters: location.accuracyMeters ?? 0,
         formattedAddress: addressDetail.trim() || undefined,
-        email: email.trim() || undefined,
       })
       if (!result.success) {
-        console.log('REGISTRATION FAILED — raw RPC error:', JSON.stringify(result.error))
-        console.log('REGISTRATION FAILED — char codes:', Array.from(result.error || '').map(c => c.codePointAt(0)))
         toast.error(result.error || 'حدث خطأ في التسجيل')
         setSubmitting(false)
         return
@@ -98,147 +95,132 @@ export function RegistrationPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4" style={{ background: '#071B4D' }}>
-      <div className="w-full max-w-sm">
-        {/* Logo */}
-        <div className="text-center mb-8">
-          <div
-            className="w-16 h-16 mx-auto mb-3 rounded-3xl flex items-center justify-center shadow-2xl"
-            style={{
-              background: 'linear-gradient(135deg, rgba(201, 162, 39, 0.12) 0%, rgba(201, 162, 39, 0.04) 100%)',
-              border: '1px solid rgba(201, 162, 39, 0.15)',
-              boxShadow: '0 8px 32px rgba(0, 0, 0, 0.25)',
-            }}
-          >
-            <svg width="36" height="36" viewBox="0 0 48 48" fill="none">
-              <rect width="48" height="48" rx="8" fill="#C9A227" />
-              <text x="24" y="34" textAnchor="middle" fill="#071B4D" fontSize="24" fontWeight="bold" fontFamily="system-ui">أ</text>
-            </svg>
+    <div className="min-h-screen" style={{ background: '#071B4D', padding: '16px 16px 24px' }}>
+
+      {/* ── HEADER ── */}
+      <div className="flex items-center gap-3" style={{ marginBottom: 16 }}>
+        <img
+          src={`${import.meta.env.BASE_URL}pwa/branding/logo-square.png`}
+          alt="الأهرام"
+          style={{ width: 48, height: 48, borderRadius: 10, flexShrink: 0 }}
+        />
+        <div className="flex-1 min-w-0">
+          <div style={{ color: '#C9A227', fontWeight: 700, fontSize: 24, lineHeight: 1.2 }}>
+            شركة الأهرام للتجارة والتوزيع
           </div>
-          <h1 className="text-lg font-bold text-white" style={{ letterSpacing: '0.02em' }}>شركة الأهرام</h1>
-          <p className="text-xs mt-0.5 font-medium" style={{ color: '#E0B85A' }}>للتجارة والتوزيع</p>
+          <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, marginTop: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            سجل نشاطك التجاري للانضمام إلى شبكة التوزيع
+          </div>
         </div>
+      </div>
 
-        {/* Glass Card */}
-        <div className="glass-card p-5">
-          <h2 className="text-lg font-bold text-white text-center mb-5">إنشاء حساب جديد</h2>
+      <form onSubmit={handleSubmit}>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+        {/* ── SECTION 1 — بيانات النشاط ── */}
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ color: '#C9A227', fontWeight: 700, fontSize: 16 }}>بيانات النشاط</div>
+          <div style={{ height: 1, background: 'rgba(201,162,39,.25)', marginTop: 8, marginBottom: 12 }} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div>
-              <label className="block text-xs font-medium mb-1.5" style={{ color: 'rgba(255, 255, 255, 0.6)' }}>اسم النشاط التجاري *</label>
+              <label style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', fontWeight: 600, display: 'block', marginBottom: 6 }}>اسم النشاط التجاري *</label>
               <input
                 type="text"
-                placeholder="اسم الشركة أو النشاط"
+                placeholder="اسم الشركة"
                 value={companyName}
                 onChange={(e) => setCompanyName(e.target.value)}
-                className="gold-input"
+                className="gold-input input-capsule"
               />
             </div>
-
             <div>
-              <label className="block text-xs font-medium mb-1.5" style={{ color: 'rgba(255, 255, 255, 0.6)' }}>اسم المسؤول *</label>
-              <input
-                type="text"
-                placeholder="الاسم الكامل للمسؤول"
-                value={responsibleName}
-                onChange={(e) => setResponsibleName(e.target.value)}
-                className="gold-input"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium mb-1.5" style={{ color: 'rgba(255, 255, 255, 0.6)' }}>نوع النشاط *</label>
+              <label style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', fontWeight: 600, display: 'block', marginBottom: 6 }}>نوع النشاط *</label>
               <select
                 value={businessType}
                 onChange={(e) => setBusinessType(e.target.value)}
-                className="gold-input"
+                className="gold-input input-capsule"
                 style={{ color: businessType ? '#ffffff' : 'rgba(255,255,255,0.35)' }}
               >
-                <option value="" style={{ background: '#0B3D91', color: 'rgba(255,255,255,0.5)' }}>-- اختر نوع النشاط --</option>
+                <option value="" style={{ background: '#0B3D91', color: 'rgba(255,255,255,0.5)' }}>-- اختر --</option>
                 {BUSINESS_TYPES.map((bt) => (
                   <option key={bt.value} value={bt.value} style={{ background: '#0B3D91', color: '#ffffff' }}>{bt.label}</option>
                 ))}
               </select>
             </div>
+          </div>
+        </div>
 
+        {/* ── SECTION 2 — بيانات المسؤول ── */}
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ color: '#C9A227', fontWeight: 700, fontSize: 16 }}>بيانات المسؤول</div>
+          <div style={{ height: 1, background: 'rgba(201,162,39,.25)', marginTop: 8, marginBottom: 12 }} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div>
-              <label className="block text-xs font-medium mb-1.5" style={{ color: 'rgba(255, 255, 255, 0.6)' }}>رقم الهاتف *</label>
+              <label style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', fontWeight: 600, display: 'block', marginBottom: 6 }}>اسم المسؤول *</label>
+              <input
+                type="text"
+                placeholder="الاسم الكامل"
+                value={responsibleName}
+                onChange={(e) => setResponsibleName(e.target.value)}
+                className="gold-input input-capsule"
+              />
+            </div>
+            <div>
+              <label style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', fontWeight: 600, display: 'block', marginBottom: 6 }}>رقم الهاتف *</label>
               <input
                 type="tel"
                 dir="ltr"
                 placeholder="01xxxxxxxxx"
                 value={phone}
-                onChange={(e) => setPhone(e.target.value)}
+                onChange={(e) => setPhone(toEnglishDigits(e.target.value))}
                 maxLength={11}
-                className="gold-input"
+                className="gold-input input-capsule"
                 autoComplete="tel"
               />
             </div>
+          </div>
+        </div>
 
+        {/* ── SECTION 3 — بيانات الموقع والحساب ── */}
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ color: '#C9A227', fontWeight: 700, fontSize: 16 }}>بيانات الموقع والحساب</div>
+          <div style={{ height: 1, background: 'rgba(201,162,39,.25)', marginTop: 8, marginBottom: 12 }} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div>
-              <label className="block text-xs font-medium mb-1.5" style={{ color: 'rgba(255, 255, 255, 0.6)' }}>البريد الإلكتروني (اختياري)</label>
-              <input
-                type="email"
-                dir="ltr"
-                placeholder="email@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="gold-input"
-                autoComplete="email"
+              <label style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', fontWeight: 600, display: 'block', marginBottom: 6 }}>العنوان</label>
+              <textarea
+                placeholder="العنوان بالتفصيل"
+                value={addressDetail}
+                onChange={(e) => setAddressDetail(e.target.value)}
+                rows={1}
+                className="gold-input input-capsule"
               />
             </div>
-
             <div>
-              <label className="block text-xs font-medium mb-1.5" style={{ color: 'rgba(255, 255, 255, 0.6)' }}>كلمة المرور *</label>
-              <input
-                type="password"
-                dir="ltr"
-                placeholder="••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                maxLength={6}
-                className="gold-input"
-                autoComplete="new-password"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium mb-1.5" style={{ color: 'rgba(255, 255, 255, 0.6)' }}>تأكيد كلمة المرور *</label>
-              <input
-                type="password"
-                dir="ltr"
-                placeholder="••••••"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                maxLength={6}
-                className="gold-input"
-                autoComplete="new-password"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium mb-1.5" style={{ color: 'rgba(255, 255, 255, 0.6)' }}>الموقع الجغرافي *</label>
+              <label style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', fontWeight: 600, display: 'block', marginBottom: 6 }}>📍 الموقع الجغرافي *</label>
               {location.latitude ? (
                 <div
-                  className="flex items-center justify-between rounded-2xl px-4 py-3"
+                  className="flex items-center justify-between"
                   style={{
-                    background: 'rgba(201, 162, 39, 0.08)',
-                    border: '1px solid rgba(201, 162, 39, 0.15)',
+                    height: 52,
+                    padding: '0 20px',
+                    borderRadius: 999,
+                    background: '#173872',
+                    border: '1px solid rgba(201, 162, 39, 0.2)',
+                    fontSize: 13,
                   }}
                 >
-                  <div className="text-xs">
-                    <span style={{ color: '#E0B85A' }}>✓ تم تحديد الموقع</span>
-                    <span className="mr-2" style={{ color: 'rgba(255,255,255,0.4)' }}>
-                      ({locationService.formatAccuracy(location.accuracyMeters).detail} - {locationService.formatAccuracy(location.accuracyMeters).label})
+                  <div>
+                    <span style={{ color: '#E0B85A', fontWeight: 600 }}>✓ تم تحديد الموقع بنجاح</span>
+                    <span style={{ color: 'rgba(255,255,255,0.3)', marginRight: 6 }}>
+                      ({locationService.formatAccuracy(location.accuracyMeters).label})
                     </span>
                   </div>
                   <a
                     href={locationService.buildGoogleMapsUrl(location.latitude!, location.longitude!)}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-xs font-semibold hover:underline" style={{ color: '#C9A227' }}
+                    style={{ color: '#C9A227', fontSize: 12, fontWeight: 600, flexShrink: 0 }}
                   >
-                    فتح الخريطة
+                    خريطة
                   </a>
                 </div>
               ) : (
@@ -246,16 +228,27 @@ export function RegistrationPage() {
                   type="button"
                   onClick={handleCaptureLocation}
                   disabled={locating}
-                  className="btn-outline"
-                  style={{ padding: '14px' }}
+                  className="gold-input input-capsule"
+                  style={{
+                    height: 52,
+                    borderRadius: 999,
+                    background: '#173872',
+                    border: '1px solid rgba(201, 162, 39, 0.2)',
+                    color: '#C9A227',
+                    fontWeight: 600,
+                    fontSize: 14,
+                    cursor: locating ? 'not-allowed' : 'pointer',
+                    textAlign: 'center',
+                    WebkitAppearance: 'none',
+                  }}
                 >
                   {locating ? (
                     <span className="flex items-center justify-center gap-2">
-                      <span className="gold-spinner" style={{ width: 16, height: 16, borderWidth: 2 }} />
-                      جاري تحديد الموقع...
+                      <span className="gold-spinner" style={{ width: 14, height: 14, borderWidth: 2 }} />
+                      جاري التحديد...
                     </span>
                   ) : (
-                    '📍 استخدم الموقع الحالي'
+                    '📍 تحديد الموقع الحالي'
                   )}
                 </button>
               )}
@@ -263,41 +256,69 @@ export function RegistrationPage() {
                 <button
                   type="button"
                   onClick={() => setLocation({ latitude: null, longitude: null, accuracyMeters: null })}
-                  className="text-xs mt-1.5 hover:underline"
-                  style={{ color: 'rgba(255,255,255,0.4)' }}
+                  style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', display: 'block', marginTop: 6, cursor: 'pointer', background: 'none', border: 'none', padding: 0 }}
                 >
                   إعادة تحديد الموقع
                 </button>
               )}
             </div>
-
             <div>
-              <label className="block text-xs font-medium mb-1.5" style={{ color: 'rgba(255, 255, 255, 0.6)' }}>العنوان التفصيلي (اختياري)</label>
-              <textarea
-                placeholder="عنوان إضافي مثل اسم الشارع أو المبنى"
-                value={addressDetail}
-                onChange={(e) => setAddressDetail(e.target.value)}
-                rows={2}
-                className="gold-input resize-none"
+              <label style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', fontWeight: 600, display: 'block', marginBottom: 6 }}>كلمة المرور *</label>
+              <input
+                type="password"
+                dir="ltr"
+                placeholder="••••••"
+                value={password}
+                onChange={(e) => setPassword(toEnglishDigits(e.target.value))}
+                maxLength={6}
+                className="gold-input input-capsule"
+                autoComplete="new-password"
               />
             </div>
-
-            <div className="pt-2 space-y-3">
-              <button
-                type="submit"
-                disabled={submitting}
-                className="btn-gold"
-              >
-                {submitting ? 'جاري إنشاء الحساب...' : 'إنشاء حساب'}
-              </button>
-
-              <Link to="/login" className="block text-center text-xs font-semibold hover:underline pt-1" style={{ color: '#C9A227' }}>
-                لديك حساب بالفعل؟ سجل دخولك
-              </Link>
+            <div>
+              <label style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', fontWeight: 600, display: 'block', marginBottom: 6 }}>تأكيد كلمة المرور *</label>
+              <input
+                type="password"
+                dir="ltr"
+                placeholder="••••••"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(toEnglishDigits(e.target.value))}
+                maxLength={6}
+                className="gold-input input-capsule"
+                autoComplete="new-password"
+              />
             </div>
-          </form>
+          </div>
         </div>
-      </div>
+
+        {/* ── SUBMIT ── */}
+        <button
+          type="submit"
+          disabled={submitting}
+          style={{
+            width: '100%',
+            height: 56,
+            borderRadius: 16,
+            background: 'linear-gradient(135deg, #C9A227 0%, #E0B85A 100%)',
+            color: '#071B4D',
+            fontSize: 17,
+            fontWeight: 700,
+            border: 'none',
+            cursor: submitting ? 'not-allowed' : 'pointer',
+            opacity: submitting ? 0.5 : 1,
+            WebkitAppearance: 'none',
+          }}
+        >
+          {submitting ? 'جاري إنشاء الحساب...' : 'إنشاء حساب'}
+        </button>
+
+        <div style={{ textAlign: 'center', marginTop: 16, marginBottom: 8 }}>
+          <Link to="/login" style={{ color: '#C9A227', fontSize: 13, fontWeight: 500, textDecoration: 'none' }}>
+            لديك حساب بالفعل؟ سجل دخولك
+          </Link>
+        </div>
+
+      </form>
     </div>
   )
 }

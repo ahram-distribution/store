@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
+import { returnService } from '../../services/returns'
 import { formatCurrencyShort, formatDate } from '../../utils/format'
+import { UNIT_LABELS } from '../../types/order-display'
 import toast from 'react-hot-toast'
 
 const conditionLabels: Record<string, string> = { saleable: 'قابل للبيع', damaged: 'تالف', expired: 'منتهي الصلاحية', unsaleable: 'غير قابل للبيع' }
@@ -32,29 +34,19 @@ export function ReturnDetailPage() {
 
   const handleApprove = async () => {
     if (!id) return
-    const token = (() => { try { return localStorage.getItem('session_token') } catch { return null } })()
-    if (token) {
-      await supabase.rpc('governed_approve_return', {
-        p_token: token,
-        p_id: id,
-        p_credit_note_number: 'CN-' + Date.now(),
-        p_credit_note_amount: r?.credit_note_amount || null,
-      })
-    }
+    const result = await returnService.approve(id)
+    if (!result.success) { toast.error(result.error || 'فشل الاعتماد'); return }
     toast.success('تم اعتماد المرتجع وإصدار إشعار دائن')
     navigate('/returns')
   }
 
   const handleReject = async () => {
     if (!id) return
-    const token = (() => { try { return localStorage.getItem('session_token') } catch { return null } })()
-    if (token) {
-      await supabase.rpc('governed_reject_return', {
-        p_token: token,
-        p_id: id,
-      })
-    }
-    toast.error('تم رفض المرتجع')
+    const reason = window.prompt('سبب الرفض:')
+    if (reason === null) return
+    const result = await returnService.reject(id, reason || undefined)
+    if (!result.success) { toast.error(result.error || 'فشل الرفض'); return }
+    toast.success('تم رفض المرتجع')
     navigate('/returns')
   }
 
@@ -85,7 +77,7 @@ export function ReturnDetailPage() {
               <div key={item.id} className="px-3 py-2.5">
                 <div className="flex justify-between text-sm"><span className="text-text">{item.product_id}</span><span className="text-text font-semibold">{item.quantity}</span></div>
                 <div className="text-xs text-text-secondary mt-1">
-                  <span>{item.quantity} {item.unit_type === 'carton' ? 'كرتونة' : item.unit_type === 'dozen' ? 'دستة' : 'قطعة'}</span>
+                  <span>{item.quantity} {UNIT_LABELS[item.unit_type] || 'قطعة'}</span>
                   {item.reason && <span className="mr-2">سبب: {item.reason}</span>}
                 </div>
               </div>

@@ -87,7 +87,7 @@ export function DailyDealDetailPage() {
           <div className="flex items-center justify-between text-xs text-text-secondary">
             <span>الكمية المتبقية: {deal.availableQuantity}</span>
             {deal.endsAt && (
-              <span>ينتهي: {new Date(deal.endsAt).toLocaleDateString('ar-EG')}</span>
+              <span>ينتهي: {new Date(deal.endsAt).toLocaleDateString('ar-EG-u-nu-latn')}</span>
             )}
           </div>
 

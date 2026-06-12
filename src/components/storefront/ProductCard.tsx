@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import type { ProductWithPrice, ComputedPrices } from '../../types/storefront'
 import type { UnitType } from '../../types/storefront'
 import { formatCurrencyShort } from '../../utils/format'
+import { UNIT_LABELS } from '../../types/order-display'
 
 interface ProductCardProps {
   product: ProductWithPrice
@@ -11,16 +12,10 @@ interface ProductCardProps {
   onAddToCart: (product: ProductWithPrice, unitType: UnitType, quantity: number) => void
 }
 
-const unitLabels: Record<UnitType, string> = {
-  piece: 'قطعة',
-  dozen: 'دستة',
-  carton: 'كرتونة',
-}
-
 export function ProductCard({ product, prices, hasTier, tierName, onAddToCart }: ProductCardProps) {
   const availableOptions = product.unitPrices.map((up) => ({
     value: up.unitType,
-    label: unitLabels[up.unitType],
+    label: UNIT_LABELS[up.unitType],
     price: up.price,
   }))
 
@@ -90,7 +85,7 @@ export function ProductCard({ product, prices, hasTier, tierName, onAddToCart }:
           {product.unitPrices.map((up, i) => (
             <span key={up.unitType}>
               {i > 0 && <span> &middot; </span>}
-              {unitLabels[up.unitType]}: {formatCurrencyShort(up.price)}
+              {UNIT_LABELS[up.unitType]}: {formatCurrencyShort(up.price)}
             </span>
           ))}
         </div>

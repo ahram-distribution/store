@@ -2,15 +2,17 @@ import { useState, useEffect, useMemo } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useVisitsStore } from '../../store/visits'
+import { formatDateTime } from '../../utils/format'
+import { StatusBadge } from '../../components/shared/StatusBadge'
 import { locationService } from '../../services/location'
-import type { FreshLocation } from '../../services/location'
+import { gpsOperation } from '../../lib/diag'
 import toast from 'react-hot-toast'
 
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
 }
 
-type VisitStep = 'select_customer' | 'location' | 'active' | 'checkout' | 'done'
+type VisitStep = 'select_customer' | 'active' | 'done'
 
 const APPROVED_RESULTS = [
   { value: 'order_taken', label: 'تم إنشاء طلب' },
@@ -32,10 +34,11 @@ export function VisitScreen() {
   const [customers, setCustomers] = useState<any[]>([])
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null)
   const [searchQuery, setSearchQuery] = useState('')
-  const [gpsStatus, setGpsStatus] = useState<'idle' | 'detecting' | 'done' | 'failed'>('idle')
-  const [gpsError, setGpsError] = useState<string>('')
-  const [capturedGps, setCapturedGps] = useState<FreshLocation | null>(null)
   const [activeVisit, setActiveVisit] = useState<any>(null)
+  const [startGps, setStartGps] = useState<{ latitude: number; longitude: number; accuracy: number } | null>(null)
+  const [startAddress, setStartAddress] = useState('')
+  const [startTime, setStartTime] = useState('')
+  const [endTime, setEndTime] = useState('')
   const [notes, setNotes] = useState('')
   const [result, setResult] = useState('')
   const [loading, setLoading] = useState(true)
@@ -62,8 +65,8 @@ export function VisitScreen() {
         const found = list.find((c: any) => c.id === preselectedCustomerId)
         if (found) {
           setSelectedCustomer(found)
-          setStep('location')
-          startCapture()
+          setSubmitting(true)
+          startVisit(found).finally(() => setSubmitting(false))
         }
       }
       setLoading(false)
@@ -86,53 +89,62 @@ export function VisitScreen() {
     ? customers.filter((c: any) => (c.company_name || '').includes(searchQuery))
     : customers
 
-  const startCapture = async () => {
-    setGpsStatus('detecting')
-    setGpsError('')
-    const result = await locationService.captureFreshLocation()
-    if (result.success && result.location) {
-      setCapturedGps(result.location)
-      setGpsStatus('done')
-    } else {
-      setGpsError(result.error?.message || 'فشل تحديد الموقع')
-      setGpsStatus('failed')
-    }
-  }
-
-  const handleSelectCustomer = (c: any) => {
+  const handleSelectCustomer = async (c: any) => {
     setSelectedCustomer(c)
-    setStep('location')
-    setCapturedGps(null)
-    startCapture()
+    setSubmitting(true)
+    await startVisit(c)
+    setSubmitting(false)
   }
 
-  const handleStartVisit = async () => {
-    if (!token || !selectedCustomer) return
+  const startVisit = async (customer: any) => {
+    if (!token) return
     if (storeActiveVisit) {
+      console.warn('[VISIT] FAILED — active visit already exists: ' + storeActiveVisit.id)
       toast.error('لا يمكن فتح زيارتين في وقت واحد. أنهِ الزيارة الحالية أولاً.')
-      setSubmitting(false)
       return
     }
-    setSubmitting(true)
 
-    const { locationId, gps } = await locationService.captureAndStoreLocation()
+    const result = await gpsOperation('بدء زيارة')
+
+    let locationId: string | null = null
+    let gps = result.location
+    if (result.success && result.location) {
+      locationId = await locationService.saveLocation(result.location)
+      setStartGps({ latitude: result.location.latitude, longitude: result.location.longitude, accuracy: result.location.accuracy })
+    }
+    if (locationId) {
+      locationService.fetchLocation(locationId).then(loc => {
+        if (loc?.formatted_address) setStartAddress(loc.formatted_address)
+      })
+    }
 
     const { data, error } = await supabase.rpc('governed_checkin_visit', {
       p_token: token,
-      p_customer_id: selectedCustomer.id,
+      p_customer_id: customer.id,
       p_start_location_id: locationId,
       p_latitude: gps?.latitude || null,
       p_longitude: gps?.longitude || null,
     })
     if (error) {
+      console.error('[VISIT] FAILED — RPC error: ' + error.message)
       toast.error('فشل بدء الزيارة: ' + error.message)
-      setSubmitting(false)
       return
     }
-    setActiveVisit(data as any)
-    setStoreActiveVisit(data as any)
+    setStartTime(new Date().toISOString())
+
+    const { data: dbData, error: dbError } = await supabase
+      .from('visits')
+      .select('id, customer_id, employee_id, check_in_latitude, check_in_longitude, check_in_accuracy, start_location_id, status, code, started_at, created_at')
+      .eq('id', (data as any)?.id)
+      .single()
+    if (dbError) {
+      console.warn('[VISIT] DB verify query failed: ' + dbError.message)
+    }
+
+    const visitData = { ...(data as any), customer_id: customer.id }
+    setActiveVisit(visitData)
+    setStoreActiveVisit(visitData)
     setStep('active')
-    setSubmitting(false)
     toast.success('تم بدء الزيارة')
   }
 
@@ -144,22 +156,39 @@ export function VisitScreen() {
     }
     setSubmitting(true)
 
-    const { locationId, gps } = await locationService.captureAndStoreLocation()
+    const gpsResult = await gpsOperation('إنهاء زيارة')
+
+    let locationId: string | null = null
+    let gps = gpsResult.location
+    if (gpsResult.success && gpsResult.location) {
+      locationId = await locationService.saveLocation(gpsResult.location)
+    }
 
     const { error } = await supabase.rpc('governed_checkout_visit', {
       p_token: token,
       p_visit_id: activeVisit.id,
-      p_end_location_id: locationId,
       p_latitude: gps?.latitude || null,
       p_longitude: gps?.longitude || null,
       p_visit_result: result,
       p_notes: notes || null,
     })
     if (error) {
+      console.error('[VISIT] FAILED — checkout RPC error: ' + error.message)
       toast.error('فشل إنهاء الزيارة: ' + error.message)
       setSubmitting(false)
       return
     }
+    // Verify checkout in DB (best-effort)
+    const { data: dbData, error: dbError } = await supabase
+      .from('visits')
+      .select('id, status, check_out_at, check_out_latitude, check_out_longitude, check_out_accuracy, visit_result, notes')
+      .eq('id', activeVisit.id)
+      .single()
+    if (dbError) {
+      console.warn('[VISIT] DB verify query failed: ' + dbError.message)
+    }
+
+    setEndTime(new Date().toISOString())
     setStoreActiveVisit(null)
     toast.success('تم إنهاء الزيارة')
     setStep('done')
@@ -191,7 +220,8 @@ export function VisitScreen() {
               <button
                 key={c.id}
                 onClick={() => handleSelectCustomer(c)}
-                className="w-full bg-white rounded-xl border border-border p-3 text-right active:bg-surface transition-colors"
+                disabled={submitting}
+                className="w-full bg-white rounded-xl border border-border p-3 text-right active:bg-surface transition-colors disabled:opacity-50"
               >
                 <p className="text-sm font-semibold text-text">{c.company_name}</p>
                 {c.owner_name && <p className="text-[10px] text-text-secondary">المسؤول: {c.owner_name}</p>}
@@ -204,48 +234,12 @@ export function VisitScreen() {
         </>
       )}
 
-      {step === 'location' && selectedCustomer && (
-        <div className="space-y-4">
-          <div className="bg-gradient-to-br from-primary to-primary-dark text-white rounded-2xl p-4">
-            <p className="text-[11px] opacity-80">العميل</p>
-            <p className="text-lg font-bold mt-0.5">{selectedCustomer.company_name}</p>
+      {submitting && step === 'select_customer' && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20">
+          <div className="bg-white rounded-2xl p-6 text-center shadow-xl">
+            <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+            <p className="text-sm text-text-secondary">جاري تحديد الموقع وبدء الزيارة...</p>
           </div>
-
-          <div className="bg-white rounded-xl border border-border p-4 text-center">
-            {gpsStatus === 'detecting' && (
-              <div className="py-4">
-                <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-2" />
-                <p className="text-sm text-text-secondary">جاري تحديد موقعك...</p>
-              </div>
-            )}
-            {gpsStatus === 'done' && capturedGps && (
-              <div className="py-4">
-                <p className="text-2xl mb-1">✅</p>
-                <p className="text-sm font-semibold text-text">تم تحديد الموقع</p>
-                <p className="text-[10px] text-text-secondary mt-1">
-                  ({locationService.formatAccuracy(capturedGps.accuracy).detail} - {locationService.formatAccuracy(capturedGps.accuracy).label})
-                </p>
-              </div>
-            )}
-            {gpsStatus === 'failed' && (
-              <div className="py-4">
-                <p className="text-2xl mb-1">⚠️</p>
-                <p className="text-sm text-text-secondary">{gpsError || 'تعذر تحديد الموقع'}</p>
-                <button onClick={startCapture}
-                  className="mt-3 bg-primary text-white text-xs px-4 py-2 rounded-lg active:opacity-90 transition-colors">
-                  إعادة المحاولة
-                </button>
-              </div>
-            )}
-          </div>
-
-          <button
-            onClick={handleStartVisit}
-            disabled={submitting || gpsStatus !== 'done'}
-            className="w-full bg-primary text-white text-sm py-3 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed active:bg-primary-dark transition-colors"
-          >
-            {submitting ? 'جاري البدء...' : 'بدء الزيارة'}
-          </button>
         </div>
       )}
 
@@ -255,6 +249,17 @@ export function VisitScreen() {
             <p className="text-[11px] opacity-80">زيارة نشطة</p>
             <p className="text-lg font-bold mt-0.5">{activeCustomer?.company_name || activeVisit.customer_name || activeVisit.customer_id}</p>
             <p className="text-[11px] opacity-80 mt-1">{activeVisit.code}</p>
+            {startGps && (
+              <div className="mt-2 text-[10px] opacity-70 space-y-0.5">
+                <p>دقة البداية: {startGps.accuracy}m</p>
+                <p>
+                  <a href={locationService.buildGoogleMapsUrl(startGps.latitude, startGps.longitude)} target="_blank" rel="noopener noreferrer" className="text-white/90 underline">
+                    فتح الخريطة
+                  </a>
+                  {startAddress && <span className="opacity-70 mr-1">- {startAddress}</span>}
+                </p>
+              </div>
+            )}
           </div>
 
           <button
@@ -299,19 +304,60 @@ export function VisitScreen() {
 
       {step === 'done' && (
         <div className="space-y-4">
-          <div className="bg-gradient-to-br from-success to-green-700 text-white rounded-2xl p-6 text-center">
+          <div className="bg-gradient-to-br from-success to-green-700 text-white rounded-2xl p-4">
             <p className="text-lg font-bold">تم إنهاء الزيارة</p>
             <p className="text-sm opacity-80 mt-1">
               {APPROVED_RESULTS.find((r) => r.value === result)?.label}
             </p>
           </div>
 
+          <div className="bg-white rounded-lg border border-border p-3 space-y-1">
+            <p className="text-sm">
+              <span className="text-text-secondary">العميل: </span>
+              <span className="text-text font-semibold">{activeCustomer?.company_name || ''}</span>
+            </p>
+            <p className="text-sm">
+              <span className="text-text-secondary">بداية الزيارة: </span>
+              <span className="text-text">{startTime ? formatDateTime(startTime) : ''}</span>
+            </p>
+            <p className="text-sm">
+              <span className="text-text-secondary">نهاية الزيارة: </span>
+              <span className="text-text">{endTime ? formatDateTime(endTime) : ''}</span>
+            </p>
+            <p className="text-sm">
+              <span className="text-text-secondary">مدة الزيارة: </span>
+              <span className="text-text font-semibold">
+                {(() => {
+                  if (!startTime || !endTime) return ''
+                  const diff = new Date(endTime).getTime() - new Date(startTime).getTime()
+                  const mins = Math.floor(diff / 60000)
+                  if (mins < 1) return 'أقل من دقيقة'
+                  const hours = Math.floor(mins / 60)
+                  const rem = mins % 60
+                  if (hours === 0) return rem + ' دقيقة'
+                  return hours + ' ساعة ' + (rem > 0 ? rem + ' دقيقة' : '')
+                })()}
+              </span>
+            </p>
+          </div>
+
+          {startGps && (
+            <div className="bg-white rounded-lg border border-border p-3">
+              <p className="text-sm"><span className="text-text-secondary">رابط بدء الزيارة: </span>
+                <a href={locationService.buildGoogleMapsUrl(startGps.latitude, startGps.longitude)} target="_blank" rel="noopener noreferrer" className="text-primary underline text-xs">فتح الخريطة</a>
+                {startAddress && <span className="text-text-secondary text-xs mr-1">- {startAddress}</span>}
+              </p>
+            </div>
+          )}
+
           <div className="flex gap-2">
             <button
               onClick={() => {
                 setSelectedCustomer(null)
-                setCapturedGps(null)
+                setStartGps(null)
                 setActiveVisit(null)
+                setStartTime('')
+                setEndTime('')
                 setNotes('')
                 setResult('')
                 setStep('select_customer')

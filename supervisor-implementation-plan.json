@@ -1,0 +1,226 @@
+{
+  "project": "Supervisor Command Center — خطة التنفيذ النهائية",
+  "version": 1,
+  "date": "2026-06-08",
+
+  "existing_rpcs_reused": [
+    {
+      "name": "get_dashboard_management",
+      "file": "20260607_recovery_missing_functions.sql:263",
+      "scoping": "subtree-scoped ✅ (recursive CTE على employees.manager_id)",
+      "usage": "جلب إحصائيات سريعة للفريق (team summary KPIs)"
+    },
+    {
+      "name": "get_governed_customers",
+      "file": "20260604_governance_rpcs.sql (prepare + governed_create + متفرقات)",
+      "scoping": "subtree-scoped ✅ (تستخدم app.get_subtree_ids())",
+      "usage": "قائمة عملاء الفريق + عدّ العملاء الجدد هذا الشهر"
+    },
+    {
+      "name": "get_governed_visits",
+      "file": "20260607_recovery_missing_functions.sql",
+      "scoping": "subtree-scoped ✅ (recursive CTE)",
+      "usage": "الزيارات النشطة + زيارات اليوم + زيارات الشهر لكل عضو"
+    },
+    {
+      "name": "get_governed_collections",
+      "file": "20260607_recovery_missing_functions.sql:445",
+      "scoping": "subtree-scoped ✅ (recursive CTE على created_by)",
+      "usage": "التحصيلات المعلقة للفريق"
+    },
+    {
+      "name": "get_governed_employees",
+      "file": "20260615_identity_rules_final.sql:216",
+      "scoping": "غير موسّعة ❌ — تُرجع كل الموظفين",
+      "usage": "فلترة client-side حسب manager_id لتحديد أعضاء الفريق"
+    },
+    {
+      "name": "get_governed_orders",
+      "file": "20260616_snapshot_architecture.sql:329",
+      "scoping": "غير موسّعة ❌ — تُرجع كل الطلبات (بدون WHERE على owner_id)",
+      "usage": "فلترة client-side بمعرفات أعضاء الفريق (owner_id IN team_ids)"
+    },
+    {
+      "name": "get_employee_activity",
+      "file": "20260607_recovery_missing_functions.sql",
+      "scoping": "مفتوحة — تعمل لأي employee_id",
+      "usage": "نشاط كل عضو فريق (آخر زيارة، آخر طلب، إلخ)"
+    },
+    {
+      "name": "get_customer_analytics_list",
+      "file": "20260607_recovery_missing_functions.sql",
+      "scoping": "subtree-scoped ✅ (تستخدم app.get_subtree_ids())",
+      "usage": "تحليل العملاء المتأخرين عن الزيارة / الطلب"
+    },
+    {
+      "name": "governed_create_customer",
+      "file": "20260604_governance_rpcs.sql",
+      "scoping": "ينشئ عميلاً تحت هوية المستخدم الحالي",
+      "usage": "إنشاء عميل (ثم تغيير الملكية للمندوب)"
+    },
+    {
+      "name": "governed_change_customer_ownership",
+      "file": "20260605_customer_direct_ownership.sql",
+      "scoping": "يغير owner_id إلى أي موظف (دون قيود فريق)",
+      "usage": "نقل ملكية العميل للمندوب بعد الإنشاء"
+    },
+    {
+      "name": "governed_create_order",
+      "file": "20260602_runtime_screen_completion.sql",
+      "scoping": "ينشئ طلباً",
+      "usage": "إنشاء طلب نيابة عن مندوب"
+    },
+    {
+      "name": "governed_create_visit",
+      "file": "20260607_recovery_missing_functions.sql",
+      "scoping": "ينشئ زيارة",
+      "usage": "إنشاء زيارة نيابة عن مندوب"
+    },
+    {
+      "name": "governed_create_employee",
+      "file": "20260602_runtime_screen_completion.sql",
+      "scoping": "ينشئ موظفاً مع manager_id",
+      "usage": "إضافة مندوب جديد للفريق"
+    }
+  ],
+
+  "new_rpcs_required": [
+    {
+      "name": "get_supervisor_dashboard",
+      "reason": "جميع RPCs الأهداف (get_governed_employee_monthly_targets, get_governed_target_performance, get_kpi_contributors, get_team_members_kpis) محمية بـ SUPER_ADMIN/CHAIRMAN/ADMIN فقط. السوبر فايزر لا يستطيع الوصول إليها. نحتاج RPC واحد يجمع بيانات الفريق + الأهداف في call واحد مع subtree scoping.",
+      "signature": "get_supervisor_dashboard(p_token uuid, p_month int DEFAULT NULL, p_year int DEFAULT NULL) RETURNS jsonb",
+      "returns": {
+        "team_summary": "عدد الأعضاء، العملاء، الطلبات (شهر/يوم)، المبيعات (شهر/يوم)، الزيارات (نشطة/اليوم/شهر)، التحصيلات المعلقة، العملاء الجدد هذا الشهر",
+        "members": "[] كل عضو: الاسم، الكود، الأداء (مبيعات/طلبات/زيارات/عملاء جدد هذا الشهر) + target achievement % (إذا كان للموظف هدف)",
+        "team_targets": "الأهداف المجمعة للفريق (مبيعات/طلبات/زيارات/عملاء جدد) + الإنجاز %",
+        "personal_summary": "بيانات السوبر فايزر الشخصية (طلباته/زياراته/عملاؤه/مبيعاته)"
+      },
+      "scoping": "تستخدم app.get_subtree_ids() أو recursive CTE (نفس نمط get_governed_customers)",
+      "tables_read": ["orders", "customers", "visits", "collections", "employee_monthly_targets", "employees"],
+      "no_new_tables": true,
+      "no_migration_needed": "نعم — RPC واحد فقط في SQL موجود (لا حاجة لجداول أو أعمدة جديدة)"
+    }
+  ],
+
+  "team_boundary_enforcement": {
+    "design": "نظراً لأن RPCs الموجودة لا تحتوي validation على انتماء الفريق (باستثناء get_governed_customers/visits/collections)، فإن الفرض الوحيد الممكن في الطبقة الحالية هو من الواجهة (UI-only). قمنا بإنشاء RPC واحد جديد (get_supervisor_dashboard) يُطبق الـ subtree-scoping عبر app.get_subtree_ids() لضمان عدم تسرب البيانات. باقي العمليات (إنشاء/تعديل) تعتمد على RPCs موجودة بدون قيود فريق — المستخدم الأمين مسؤول عن عدم إساءة الاستخدام.",
+    "five_constraints": {
+      "new_employee_must_belong_to_supervisor_team": "UI-ONLY: حقل manager_id يُحدد تلقائياً بمعرف السوبر فايزر. لا validation في RPC.",
+      "new_customer_must_be_assigned_to_team_member": "UI-ONLY: خطوتين (إنشاء → نقل ملكية). لا validation.",
+      "new_order_must_be_for_team_customer": "UI-ONLY: قائمة العملاء محدودة بعملاء الفريق. لا validation في governed_create_order.",
+      "new_visit_must_be_for_team_customer": "UI-ONLY: قائمة العملاء محدودة بعملاء الفريق. لا validation في governed_create_visit.",
+      "view_only_team_data": "UI + get_supervisor_dashboard RPC (subtree-scoped). RPCات البيانات الموجودة (get_governed_customers/visits/collections) تطبق scoping تلقائياً ✅"
+    }
+  },
+
+  "screens_to_create": [
+    {
+      "path": "src/pages/supervisor/SupervisorPage.tsx",
+      "description": "شاشة السوبر فايزر الرئيسية — 12 سكشن كاملة"
+    }
+  ],
+
+  "screens_to_modify": [
+    {
+      "path": "src/routes/index.tsx",
+      "changes": "إضافة استيراد SupervisorPage + Route /supervisor"
+    },
+    {
+      "path": "src/pages/dashboard/DashboardPage.tsx",
+      "changes": "توجيه السوبر فايزر إلى SupervisorPage بدلاً من SupervisorWorkspace القديم"
+    }
+  ],
+
+  "sections_breakdown": {
+    "1_team_summary_kpi": {
+      "title": "ملخص الفريق (Team KPIs)",
+      "data_source": "get_supervisor_dashboard → team_summary",
+      "state": "مدعوم بالكامل ✅"
+    },
+    "2_members_performance": {
+      "title": "أداء أعضاء الفريق لكل عضو",
+      "data_source": "get_supervisor_dashboard → members[]",
+      "state": "مدعوم بالكامل ✅"
+    },
+    "3_active_visits": {
+      "title": "الزيارات النشطة حالياً",
+      "data_source": "get_governed_visits فلترة status=active",
+      "state": "مدعوم بالكامل ✅"
+    },
+    "4_delayed_customers": {
+      "title": "العملاء المتأخرون عن الزيارة/الطلب",
+      "data_source": "get_customer_analytics_list",
+      "state": "مدعوم بالكامل ✅"
+    },
+    "5_orders_approval_queue": {
+      "title": "طلبات بانتظار الاعتماد",
+      "data_source": "get_governed_orders فلترة status=submitted مع owner_id IN team_ids",
+      "state": "مدعوم ✅ (يتطلب فلترة client-side)"
+    },
+    "6_team_targets": {
+      "title": "أهداف الفريق (Team Targets)",
+      "data_source": "get_supervisor_dashboard → team_targets",
+      "state": "مدعوم عبر RPC الجديد ✅"
+    },
+    "7_supervisor_personal_performance": {
+      "title": "أداء السوبر فايزر الشخصي",
+      "data_source": "get_supervisor_dashboard → personal_summary",
+      "state": "مدعوم عبر RPC الجديد ✅"
+    },
+    "8_create_customer_and_assign": {
+      "title": "إضافة عميل جديد لمندوب",
+      "data_source": "governed_create_customer → governed_change_customer_ownership",
+      "state": "مدعوم بالكامل ✅ (خطوتين مخفيتين)"
+    },
+    "9_create_order_for_member": {
+      "title": "إنشاء طلب نيابة عن مندوب",
+      "data_source": "governed_create_order (اختيار مندوب → اختيار عميله → إنشاء طلب)",
+      "state": "مدعوم بالكامل ✅"
+    },
+    "10_create_visit_for_member": {
+      "title": "إنشاء زيارة نيابة عن مندوب",
+      "data_source": "governed_create_visit",
+      "state": "مدعوم بالكامل ✅"
+    },
+    "11_add_team_member": {
+      "title": "إضافة عضو فريق جديد",
+      "data_source": "governed_create_employee حقل manager_id = supervisor_id",
+      "state": "مدعوم بالكامل ✅"
+    },
+    "12_activity_feed": {
+      "title": "آخر نشاطات الفريق",
+      "data_source": "get_employee_activity لكل عضو",
+      "state": "مدعوم ✅ (استدعاء واحد لكل عضو أو تجميعه)"
+    }
+  },
+
+  "implementation_order": [
+    {
+      "step": 1,
+      "action": "إنشاء RPC get_supervisor_dashboard في SQL",
+      "file": "supabase/migrations/20260608_supervisor_dashboard.sql",
+      "details": "يقرأ من 5 جداول (orders, customers, visits, collections, employee_monthly_targets) مع subtree scoping"
+    },
+    {
+      "step": 2,
+      "action": "إنشاء صفحة SupervisorPage.tsx",
+      "file": "src/pages/supervisor/SupervisorPage.tsx",
+      "details": "مكون رئيسي يستدعي get_supervisor_dashboard وجميع RPCs الأخرى، مع 12 سكشن"
+    },
+    {
+      "step": 3,
+      "action": "تعديل routes/index.tsx",
+      "changes": "إضافة مسار /supervisor"
+    },
+    {
+      "step": 4,
+      "action": "تعديل DashboardPage.tsx",
+      "changes": "توجيه السوبر فايزر إلى SupervisorPage بدلاً من SupervisorWorkspace القديم"
+    },
+    {
+      "step": 5,
+      "action": "اختبار tsc",
+      "details": "التأكد من أن الأكواد TypeScript سليمة"
+    }
+  ]
+}

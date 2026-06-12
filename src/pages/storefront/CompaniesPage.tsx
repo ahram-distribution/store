@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
-import { StorefrontBanner, StorefrontFooter } from '../../components/storefront/CompanyInfoSection'
-import { StorefrontHeader } from '../../components/storefront/StorefrontHeader'
+import { useCompaniesStore } from '../../store/companies'
+import { StorefrontFooter } from '../../components/storefront/CompanyInfoSection'
+import { StorefrontHero } from '../../components/storefront/StorefrontHero'
 import { BusinessShortcuts } from '../../components/storefront/BusinessShortcuts'
 
 interface CompanyItem {
@@ -13,6 +14,7 @@ interface CompanyItem {
 
 export function CompaniesPage() {
   const navigate = useNavigate()
+  const refreshKey = useCompaniesStore((s) => s.refreshKey)
   const [companies, setCompanies] = useState<CompanyItem[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -34,7 +36,7 @@ export function CompaniesPage() {
         }
         setLoading(false)
       })
-  }, [])
+  }, [refreshKey])
 
   if (loading) {
     return (
@@ -45,48 +47,63 @@ export function CompaniesPage() {
   }
 
   return (
-    <div className="space-y-5">
-      <StorefrontHeader />
-
-      <StorefrontBanner />
-
-      <BusinessShortcuts />
-
-      <div>
-        <h2 className="text-lg font-bold text-[#111827]">الشركات التجارية</h2>
-        <p className="text-xs text-muted mt-0.5">اختر الشركة التي تريد التسوق منها</p>
+    <div>
+      <div style={{ margin: '-16px -16px 0' }}>
+        <StorefrontHero />
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        {companies.map((company) => (
-          <button
-            key={company.id}
-            onClick={() => navigate(`/storefront/products?companyId=${company.id}`)}
-            className="bg-white border border-[#E5E7EB] rounded-2xl shadow-sm active:shadow-inner transition-all flex flex-col overflow-hidden h-36 p-0"
-          >
-            <div className="flex-1 flex items-center justify-center p-4">
+      <div className="space-y-2" style={{ marginTop: 12 }}>
+        <BusinessShortcuts />
+
+        <div>
+          <h2 className="text-lg font-bold" style={{ color: 'var(--theme-accent)' }}>الشركات التجارية</h2>
+          <p className="text-xs mt-0.5" style={{ color: 'rgba(15, 43, 91, .45)' }}>اختر الشركة التي تريد التسوق منها</p>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          {companies.map((company) => (
+            <button
+              key={company.id}
+              onClick={() => navigate(`/storefront/products?companyId=${company.id}`)}
+              style={{
+                background: 'var(--theme-bg-card)',
+                border: '1px solid #E5E7EB',
+                borderRadius: 16,
+                boxShadow: '0 1px 3px rgba(0,0,0,.05)',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                padding: '20px 12px 14px',
+                minHeight: 155,
+                cursor: 'pointer',
+                WebkitAppearance: 'none',
+                transition: 'transform 0.15s ease',
+              }}
+              className="active:border-[rgba(var(--theme-accent-rgb),.5)] active:scale-[0.97]"
+            >
               {company.logoUrl ? (
-                <img src={company.logoUrl} alt={company.companyName} className="max-w-full max-h-full object-contain" />
+                <div style={{ width: 90, height: 90, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <img src={company.logoUrl} alt={company.companyName} loading="lazy" decoding="async" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} style={{ maxWidth: '100%', maxHeight: '100%', width: 'auto', height: 'auto', borderRadius: 8 }} />
+                </div>
               ) : (
-                <div className="w-12 h-12 rounded-xl bg-[#F8FAFC] border border-[#E5E7EB] flex items-center justify-center">
-                  <span className="text-sm font-bold text-muted">{company.companyName.charAt(0)}</span>
+                <div style={{ width: 90, height: 90, borderRadius: 8, background: '#F3F4F6', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <span style={{ color: 'var(--theme-text-card)', fontWeight: 700, fontSize: 28 }}>{company.companyName.charAt(0)}</span>
                 </div>
               )}
-            </div>
-            <div className="text-center pb-2.5 px-2">
-              <span className="text-sm font-medium text-[#111827] leading-tight">{company.companyName}</span>
-            </div>
-          </button>
-        ))}
-      </div>
 
-      {companies.length === 0 && (
-        <div className="text-center py-12 text-muted text-sm">
-          لا توجد شركات متاحة حالياً
+              <div style={{ color: 'var(--theme-text-card)', fontWeight: 600, fontSize: 13, textAlign: 'center', lineHeight: 1.4, marginTop: 10, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', width: '100%' }}>{company.companyName}</div>
+            </button>
+          ))}
         </div>
-      )}
 
-      <StorefrontFooter />
+        {companies.length === 0 && (
+          <div className="text-center py-12" style={{ color: 'rgba(15, 43, 91, .45)', fontSize: 14 }}>
+            لا توجد شركات متاحة حالياً
+          </div>
+        )}
+
+        <StorefrontFooter />
+      </div>
     </div>
   )
 }

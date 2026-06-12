@@ -2,12 +2,11 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { formatCurrencyShort, formatDateTime } from '../../utils/format'
+import { UNIT_LABELS } from '../../types/order-display'
 
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
 }
-
-const unitLabels: Record<string, string> = { piece: 'قطعة', dozen: 'دستة', carton: 'كرتونة' }
 
 export function ProductProfilePage() {
   const { id } = useParams<{ id: string }>()
@@ -81,7 +80,7 @@ export function ProductProfilePage() {
               const isCarton = u.unit_type === 'carton'
               return (
                 <div key={u.id} className="flex items-center justify-between py-2 px-3 bg-surface rounded-lg">
-                  <span className="text-xs font-semibold">{unitLabels[u.unit_type] || u.unit_type}</span>
+                  <span className="text-xs font-semibold">{UNIT_LABELS[u.unit_type] || u.unit_type}</span>
                   <div className="flex items-center gap-3">
                     {isCarton && product.carton_price > 0 && (
                       <span className="text-xs text-text-secondary">السعر: {formatCurrencyShort(product.carton_price)}</span>
@@ -128,7 +127,7 @@ export function ProductProfilePage() {
           <h2 className="text-sm font-bold mb-3">المخزون</h2>
           <div className="flex justify-between py-1.5">
             <span className="text-xs text-text-secondary">الكمية المتاحة</span>
-            <span className="text-sm font-semibold">{Number(inv.quantity ?? 0).toLocaleString('ar-EG')}</span>
+            <span className="text-sm font-semibold">{Number(inv.quantity ?? 0).toLocaleString('ar-EG-u-nu-latn')}</span>
           </div>
         </div>
       )}

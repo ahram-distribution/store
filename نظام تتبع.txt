@@ -1,0 +1,97 @@
+Update OWNER_KNOWLEDGE_BASE only.
+
+Do not implement.
+
+Do not modify code.
+
+Do not modify database.
+
+Add a new future operational module.
+
+==================================================
+WORKDAY TRACKING SYSTEM
+=======================
+
+Owner Approved.
+
+Purpose:
+
+Field activity monitoring for Sales Representatives.
+
+This is a configurable operational monitoring module controlled by Upper Management.
+
+==================================================
+TRACKING MODE
+=============
+
+Upper Management may switch system behavior from Administration settings.
+
+Official modes:
+
+1. OFF
+
+* No location tracking.
+
+2. VISITS_ONLY
+
+* Tracking starts when visit starts.
+* Tracking stops when visit ends.
+
+3. WORKDAY
+
+* Tracking starts when employee starts workday.
+* Tracking stops when employee ends workday.
+
+4. WORKDAY_PLUS_VISITS
+
+* Workday tracking remains active all day.
+* Visit events are linked to tracking history.
+* Visit start/end markers appear on tracking timeline.
+
+==================================================
+OFFLINE SUPPORT
+===============
+
+Tracking must support weak or unavailable internet.
+
+When offline:
+
+* Location points stored locally.
+
+When connection returns:
+
+* Unsent points uploaded automatically.
+
+No tracking data should be lost due to temporary connectivity issues.
+
+==================================================
+VISIBILITY
+==========
+
+Visible only to:
+
+* Upper Management
+* Sales Manager (within own team scope)
+
+==================================================
+WORKDAY EVENTS
+==============
+
+Official events:
+
+* Start Workday
+* End Workday
+* Start Visit
+* End Visit
+
+==================================================
+FUTURE STATUS
+=============
+
+Future Operational Module.
+
+Document only.
+
+No implementation at current phase.
+
+Update changelog only.

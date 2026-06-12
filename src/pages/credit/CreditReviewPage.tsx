@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { supabase } from '../../lib/supabase'
+import { formatCurrencyShort } from '../../utils/format'
 
 function getToken() { try { return localStorage.getItem('session_token') } catch { return null } }
 
@@ -62,9 +63,9 @@ export function CreditReviewPage() {
 
       <div className="bg-white rounded-xl border border-border p-4 space-y-2">
         <p className="text-sm font-semibold text-text">{c?.company_name}</p>
-        <p className="text-xs text-text-secondary">البرنامج: {p?.name} - {p?.credit_limit?.toLocaleString()} ج.م / {p?.credit_days} يوم</p>
+        <p className="text-xs text-text-secondary">البرنامج: {p?.name} - {p?.credit_limit != null ? formatCurrencyShort(p.credit_limit) : '—'} / {p?.credit_days} يوم</p>
         <p className="text-xs text-text-secondary">الحالة: <span className="font-semibold">{statusLabels[a?.status] || a?.status}</span></p>
-        {a?.submitted_at && <p className="text-xs text-text-secondary">تاريخ التقديم: {new Date(a.submitted_at).toLocaleDateString('ar-EG')}</p>}
+        {a?.submitted_at && <p className="text-xs text-text-secondary">تاريخ التقديم: {new Date(a.submitted_at).toLocaleDateString('ar-EG-u-nu-latn')}</p>}
         {a?.rejection_reason && <p className="text-xs text-red-600">سبب الرفض: {a.rejection_reason}</p>}
         {a?.suspension_reason && <p className="text-xs text-orange-600">سبب التعليق: {a.suspension_reason}</p>}
       </div>
@@ -112,7 +113,7 @@ export function CreditReviewPage() {
         <div className="bg-white rounded-xl border border-border p-4 space-y-2">
           <h3 className="text-sm font-semibold text-text">العقد</h3>
           {cc.signed_at ? (
-            <p className="text-xs text-green-600">تم التوقيع: {new Date(cc.signed_at).toLocaleDateString('ar-EG')}</p>
+            <p className="text-xs text-green-600">تم التوقيع: {new Date(cc.signed_at).toLocaleDateString('ar-EG-u-nu-latn')}</p>
           ) : (
             <p className="text-xs text-yellow-600">لم يتم التوقيع بعد</p>
           )}

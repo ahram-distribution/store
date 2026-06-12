@@ -1,63 +1,130 @@
-const UNIT_LABELS: Record<string, string> = { piece: 'قطعة', dozen: 'دستة', carton: 'كرتونة' }
+import type { OrderDisplayData, OrderDisplayItem } from '../types/order-display'
+import toast from 'react-hot-toast'
 
-function money(n: number | null | undefined): string {
-  if (n == null) return '0 ج.م'
-  return Math.round(Number(n)).toLocaleString('en-US') + ' ج.م'
+function normalizeWhatsAppNumber(raw: string): string {
+  const digits = raw.replace(/[^\d]/g, '')
+  let normalized = digits
+  if (normalized.startsWith('00')) normalized = normalized.slice(2)
+  if (normalized.startsWith('0')) normalized = normalized.slice(1)
+  if (!normalized.startsWith('20')) normalized = '20' + normalized
+  return normalized
 }
 
-export function buildFullWhatsAppMessage(
-  order: any,
-  customer?: { name?: string; phone?: string; address?: string; mapsUrl?: string } | null,
-  owner?: { name?: string; phone?: string; address?: string; mapsUrl?: string } | null,
-  creator?: { name?: string; phone?: string; address?: string; mapsUrl?: string } | null,
-  items?: any[],
-): string {
-  const grandTotal = (items || []).reduce((s: number, i: any) => s + Number(i.total_price || 0), 0)
+function toEnUS(n: number | null | undefined): string {
+  if (n == null) return '0'
+  return Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).replace(/\.00$/, '')
+}
 
-  let msg = `🏢 شركة الأهرام للتجارة والتوزيع\n`
-  msg += `━━━━━━━━━━━━━━━━━━━━━━\n`
-  msg += `📄 فاتورة رقم ${order.order_number || ''}\n\n`
-  msg += `┌─ ❲ معلومات العميل ❳ ─┐\n`
-  msg += `الاسم: ${customer?.name || ''}\n`
-  if (customer?.phone) msg += `الهاتف: ${customer.phone}\n`
-  if (customer?.address) msg += `العنوان: ${customer.address}\n`
-  if (customer?.mapsUrl) msg += `الموقع: ${customer.mapsUrl}\n`
-  msg += `\n┌─ ❲ المسؤول ❳ ─┐\n`
-  msg += `الاسم: ${owner?.name || '—'}\n`
-  if (owner?.phone) msg += `الهاتف: ${owner.phone}\n`
-  if (owner?.address) msg += `العنوان: ${owner.address}\n`
-  if (owner?.mapsUrl) msg += `الموقع: ${owner.mapsUrl}\n`
-  msg += `\n┌─ ❲ منشئ الطلب ❳ ─┐\n`
-  msg += `الاسم: ${creator?.name || ''}\n`
-  if (creator?.phone) msg += `الهاتف: ${creator.phone}\n`
-  if (creator?.address) msg += `العنوان: ${creator.address}\n`
-  if (creator?.mapsUrl) msg += `الموقع: ${creator.mapsUrl}\n`
-  msg += `\n━━━━━━━━━━━━━━━━━━━━━━\n📦 المنتجات\n\n`
-  for (const item of items || []) {
-    const name = item.products?.product_name || item.productName || item.product_name || ''
-    const code = item.products?.legacy_code || item.productCode || item.product_code || ''
-    const unit = UNIT_LABELS[item.unit_type || item.unitType] || item.unit_type || item.unitType || 'قطعة'
-    const qty = Number(item.unit_quantity || item.unitQuantity || 1)
-    const price = Number(item.unit_price || item.unitPrice || 0)
-    const lineTotal = qty * price
-    msg += `▸ ${name}\n  كود: ${code || '—'} | ${qty} ${unit} | ${money(price)} = ${money(lineTotal)}\n\n`
+function formatDateTime(iso: string): string {
+  try {
+    const d = new Date(iso)
+    const y = d.getFullYear()
+    const m = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    const h = String(d.getHours()).padStart(2, '0')
+    const min = String(d.getMinutes()).padStart(2, '0')
+    return y + '-' + m + '-' + day + ' ' + h + ':' + min
+  } catch { return '' }
+}
+
+// ============================================================================
+// NEW — WhatsApp message built from unified OrderDisplayData ONLY
+// ============================================================================
+
+export function buildWhatsAppMessageFromDisplay(display: OrderDisplayData): string {
+  console.log('WHATSAPP_DISPLAY_INPUT', display)
+  const isOrder = display.docType === 'order'
+  const docType = isOrder ? 'طلب' : 'فاتورة'
+  const orderNum = display.orderNumber
+  const cust = display.customer
+  const owner = display.owner
+  const creator = display.creator
+  const items = display.items
+  const execLoc = display.executionLocation
+  const createdAt = display.createdAt
+
+  const grandTotal = items.reduce((s, i) => s + i.totalPrice, 0)
+
+  let msg = ''
+
+  msg += (isOrder ? '📦 ' : '📄 ') + docType + ' جديد\n\n'
+  msg += 'رقم الطلب: ' + orderNum + '\n\n'
+  msg += 'التاريخ: ' + formatDateTime(createdAt) + '\n\n'
+
+  msg += '👤 العميل\n\n'
+  msg += 'الاسم: ' + (cust.name || '—') + '\n'
+  msg += 'الهاتف: ' + (cust.phone || '—') + '\n'
+  if (cust.responsibleName) msg += 'المسؤول: ' + cust.responsibleName + '\n'
+  if (cust.address) msg += 'العنوان: ' + cust.address + '\n'
+  if (cust.mapsUrl) msg += '📍 ' + cust.mapsUrl + '\n'
+  msg += '\n'
+
+  msg += '👨‍💼 المسؤول عن العميل\n\n'
+  msg += 'الاسم: ' + (owner?.name || '—') + '\n'
+  msg += 'الهاتف: ' + (owner?.phone || '—') + '\n'
+  if (owner?.address) msg += 'العنوان: ' + owner.address + '\n\n'
+
+  msg += '📤 مرسل الطلب\n\n'
+  msg += 'الاسم: ' + (creator.name || '—') + '\n'
+  msg += 'الهاتف: ' + (creator.phone || '—') + '\n'
+  if (creator.address) msg += 'العنوان: ' + creator.address + '\n\n'
+
+  msg += '━━━━━━━━━━━━━━\n'
+  msg += 'ملخص الطلب\n'
+  msg += '━━━━━━━━━━━━━━\n\n'
+  msg += 'عدد الأصناف: ' + items.length + '\n'
+  if (display.tierName) msg += 'الشريحة: ' + display.tierName + '\n'
+  msg += 'طريقة الدفع: ' + (display.paymentMethod === 'cash' ? 'نقداً' : display.paymentMethod === 'credit' ? 'آجل' : display.paymentMethod || '—') + '\n\n'
+  msg += 'إجمالي الطلب: ' + toEnUS(grandTotal) + ' جنيه\n\n'
+
+  const grouped: Record<string, OrderDisplayItem[]> = {}
+  for (const item of items) {
+    const company = item.companyName || 'أخرى'
+    if (!grouped[company]) grouped[company] = []
+    grouped[company].push(item)
   }
-  msg += `━━━━━━━━━━━━━━━━━━━━━━\n`
-  msg += `💵 الإجمالي: ${money(grandTotal)}`
-  if (order.notes) msg += `\n📝 ملاحظات: ${order.notes}`
+
+  for (const [companyName, companyItems] of Object.entries(grouped)) {
+    msg += '━━━━━━━━━━━━━━\n'
+    msg += companyName + ' (' + companyItems.length + ' صنف)\n'
+    msg += '━━━━━━━━━━━━━━\n\n'
+
+    companyItems.forEach((item, idx) => {
+      const num = idx + 1
+      msg += num + '. ' + item.productName + '\n\n'
+      msg += 'كود: ' + (item.legacyCode || '—') + '  (' + item.quantity + ' ' + item.unitLabel + ')  ' + toEnUS(item.unitPrice) + ' ج\n\n'
+    })
+  }
+
+  // ── Location (from saved order data only) ──
+  if (execLoc) {
+    msg += '━━━━━━━━━━━━━━\n'
+    msg += 'موقع تنفيذ الطلب\n'
+    msg += execLoc.mapsUrl + '\n'
+  }
 
   return msg
 }
 
-export function sendFullOrderToWhatsApp(
-  order: any,
-  customer?: { name?: string; phone?: string; address?: string; mapsUrl?: string } | null,
-  owner?: { name?: string; phone?: string; address?: string; mapsUrl?: string } | null,
-  creator?: { name?: string; phone?: string; address?: string; mapsUrl?: string } | null,
-  items?: any[],
-) {
-  const phone = import.meta.env.VITE_WHATSAPP_NUMBER
-  if (!phone) return
-  const msg = buildFullWhatsAppMessage(order, customer, owner, creator, items)
-  window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank', 'noopener,noreferrer')
+export function sendWhatsAppFromDisplay(display: OrderDisplayData) {
+  const msg = buildWhatsAppMessageFromDisplay(display)
+  console.log('WHATSAPP_MESSAGE_FINAL', msg)
+  const COMPANY_RAW = '01040880002'
+  const targetNumber = normalizeWhatsAppNumber(COMPANY_RAW)
+  const encoded = encodeURIComponent(msg)
+  const url = 'whatsapp://send?phone=' + targetNumber + '&text=' + encoded
+  window.location.href = url
 }
+
+export function copyWhatsAppFromDisplay(display: OrderDisplayData) {
+  const msg = buildWhatsAppMessageFromDisplay(display)
+  navigator.clipboard.writeText(msg).then(() => {
+    toast.success('تم نسخ نص الرسالة')
+  }).catch(() => {
+    toast.error('فشل نسخ النص')
+  })
+}
+
+
+
+

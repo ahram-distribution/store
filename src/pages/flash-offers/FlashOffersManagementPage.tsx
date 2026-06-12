@@ -81,7 +81,7 @@ export function FlashOffersManagementPage() {
               <span>السعر: {formatCurrencyShort(offer.fixedPrice)}</span>
               <span>المتبقي: {offer.availableQuantity}/{offer.originalQuantity}</span>
               {offer.endsAt && (
-                <span>ينتهي: {new Date(offer.endsAt).toLocaleDateString('ar-EG')}</span>
+                <span>ينتهي: {new Date(offer.endsAt).toLocaleDateString('ar-EG-u-nu-latn')}</span>
               )}
             </div>
 

@@ -41,3 +41,15 @@ _verify_*
 test_prep.cjs
 _backup_live_functions.sql
 SYSTEM_BLUEPRINT.md
+.certs/
+/public/rootCA.crt
+# Dev certificates.certs/
+node_modules/
+dist/
+.env
+Temp/
+supabase/.temp/
+android/.gradle/
+android/build/
+android/app/build/
+ios/build/

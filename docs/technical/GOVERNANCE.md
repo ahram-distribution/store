@@ -1,6 +1,6 @@
 # GOVERNANCE — Ahram Distribution Access Control Architecture
 
-**Last updated:** 2026-06-05  
+**Last updated:** 2026-06-11  
 **Source:** Phase 2 Verification Report, SYSTEM_BLUEPRINT.md, migration analysis
 
 ---
@@ -48,6 +48,35 @@ Frontend Route (ProtectedRoute)
 | Priority | Direct grants/denies override role-based capabilities |
 | Check Order | 1. Direct deny → 2. Direct grant → 3. Role-based capabilities |
 | Format | Dot-notation codes: `orders.update`, `credit.manage`, `employees.manage` |
+
+## Phase 4: Targets Capabilities (2026-06-11)
+
+Three new capabilities added:
+- `targets.view_all` — bypass scope and view all employee targets (UM direct grant)
+- `targets.manage` — create/edit targets and weight overrides (UM direct + مدير البيع role)
+- `targets.access` — access targets/performance screens within scope (all employee roles)
+
+### Grant Matrix
+
+| Role | targets.view_all | targets.manage | targets.access |
+|------|:-:|:-:|:-:|
+| ADMIN-001 | ✓ direct | ✓ direct | ✓ direct |
+| Upper Management (WRQ1002-1004) | ✓ direct | ✓ direct | ✓ direct |
+| مدير البيع (role) | — | ✓ role | ✓ role |
+| مشرف مبيعات (role) | — | — | ✓ role |
+| مشرف تنفيذي (role) | — | — | ✓ role |
+| مندوب مبيعات (role) | — | — | ✓ role |
+
+### Effective Visibility per Role
+
+| Role | Can See | Can Edit |
+|------|---------|---------|
+| UM (ADMIN-001, WRQ1002-1004) | All employees | All employees |
+| مدير البيع (SM) | Subtree + self | Subtree employees |
+| Supervisor | Subtree + self | Read-only (no edit) |
+| Sales Rep | Self targets only | Read-only (no edit) |
+
+12 RPCs converted to `check_capability` + `app.get_subtree_ids` pattern. See `20260612_phase4_targets_governance.sql`.
 
 ## Bypasses
 

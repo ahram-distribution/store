@@ -29,12 +29,14 @@ const STATUS_OPTIONS = [
 
 export function OrdersPage() {
   const navigate = useNavigate()
+  const currentUserId = useAuthStore((s) => s.user?.identity_id)
   const currentEmpId = useAuthStore((s) => s.user?.employee_id)
   const [orders, setOrders] = useState<any[]>([])
   const [customers, setCustomers] = useState<any[]>([])
   const [employees, setEmployees] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [tab, setTab] = useState<Tab>('all')
+  const params = new URLSearchParams(window.location.search)
+  const [tab, setTab] = useState<Tab>(params.get('my') === '1' ? 'my_orders' : 'all')
 
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
@@ -65,22 +67,14 @@ export function OrdersPage() {
     return [...orders].sort((a: any, b: any) => ((b.created_at || '') > (a.created_at || '') ? 1 : -1))
   }, [orders])
 
-  const enriched = useMemo(() => {
-    return sorted.map((o: any) => ({
-      ...o,
-      customer_name: o.customer_name_snapshot || '',
-      creator_name: o.created_by_name_snapshot || '',
-    }))
-  }, [sorted])
-
   const filtered = useMemo(() => {
-    let list = enriched
+    let list = sorted
 
-    if (tab === 'my_orders' && currentEmpId) {
-      list = list.filter((o: any) => o.created_by === currentEmpId)
+    if (tab === 'my_orders' && currentUserId) {
+      list = list.filter((o: any) => o.created_by === currentUserId)
     }
-    if (tab === 'my_invoices' && currentEmpId) {
-      list = list.filter((o: any) => o.owner_id === currentEmpId)
+    if (tab === 'my_invoices' && currentUserId) {
+      list = list.filter((o: any) => o.owner_id === currentUserId)
     }
 
     const q = searchQuery.trim().toLowerCase()
@@ -92,12 +86,16 @@ export function OrdersPage() {
     }
     if (statusFilter) list = list.filter((o: any) => o.status === statusFilter)
     if (customerFilter) list = list.filter((o: any) => o.customer_id === customerFilter)
-    if (employeeFilter) list = list.filter((o: any) => o.created_by === employeeFilter)
+    if (employeeFilter) {
+      const emp = employees.find((e: any) => e.id === employeeFilter)
+      const filterIdentityId = emp?.identity_id || employeeFilter
+      list = list.filter((o: any) => o.created_by === filterIdentityId)
+    }
     if (dateFrom) list = list.filter((o: any) => o.created_at >= dateFrom)
     if (dateTo) list = list.filter((o: any) => o.created_at <= dateTo + 'T23:59:59')
 
     return list
-  }, [enriched, tab, currentEmpId, searchQuery, statusFilter, customerFilter, employeeFilter, dateFrom, dateTo])
+  }, [sorted, tab, currentEmpId, searchQuery, statusFilter, customerFilter, employeeFilter, dateFrom, dateTo])
 
   const tabLabel = tab === 'all' ? 'الطلبات' : tab === 'my_orders' ? 'طلباتي' : 'فواتيري'
 
@@ -106,6 +104,7 @@ export function OrdersPage() {
       <div className="flex items-center gap-3">
         <button onClick={() => navigate('/dashboard')} className="text-text-secondary text-lg">&larr;</button>
         <h1 className="text-lg font-bold text-text">{tabLabel}</h1>
+        <button onClick={() => navigate('/orders/new')} className="mr-auto bg-primary text-white text-xs px-3 py-1.5 rounded-lg font-semibold">+ إنشاء طلب</button>
       </div>
 
       {currentEmpId && (

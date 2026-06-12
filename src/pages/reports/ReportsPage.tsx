@@ -180,7 +180,7 @@ export function ReportsPage() {
                         {typeof val === 'number' && (key.includes('amount') || key.includes('total') || key.includes('revenue') || key.includes('price'))
                           ? formatCurrencyShort(val as number)
                           : key.includes('at') && val
-                            ? new Date(val as string).toLocaleDateString('ar-EG')
+                            ? new Date(val as string).toLocaleDateString('ar-EG-u-nu-latn')
                             : String(val ?? '—')}
                       </td>
                     ))}

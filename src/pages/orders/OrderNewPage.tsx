@@ -1,13 +1,14 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
-import { sendFullOrderToWhatsApp } from '../../lib/whatsapp'
+import { sendWhatsAppFromDisplay } from '../../lib/whatsapp'
+import { buildOrderDisplayData, UNIT_LABELS } from '../../types/order-display'
 import { ProductCard } from '../../components/storefront/ProductCard'
 import { computeProductPrices, computePieceQuantity } from '../../engine/pricing'
 import { formatCurrencyShort } from '../../utils/format'
-import { locationService } from '../../services/location'
 import type { ProductWithPrice, ProductUnitPrice, UnitType } from '../../types/storefront'
 import toast from 'react-hot-toast'
+import { creditService } from '../../services/credit'
 
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
@@ -187,8 +188,7 @@ export function OrderNewPage() {
     if (!token || !customerId || cartItems.length === 0) return
     setSubmitting(true)
 
-    const { locationId: executionLocationId, gps } = await locationService.captureAndStoreLocation()
-
+    let order: any = null
     try {
       const items = cartItems.map((i) => ({
         product_id: i.productId,
@@ -198,70 +198,75 @@ export function OrderNewPage() {
         unit_price: Math.round(i.unitPrice * 100) / 100,
         total_price: Math.round(i.totalPrice * 100) / 100,
       }))
-      const { data: order, error: createError } = await supabase.rpc('governed_create_order', {
+      const { data: created, error: createError } = await supabase.rpc('governed_create_order', {
         p_token: token,
         p_customer_id: customerId,
         p_notes: notes || null,
         p_items: items,
-        p_execution_location_id: executionLocationId,
-        p_execution_latitude: gps?.latitude || null,
-        p_execution_longitude: gps?.longitude || null,
-        p_execution_accuracy_meters: gps?.accuracy || null,
-        p_execution_captured_at: gps?.capturedAt || null,
+        p_execution_location_id: null,
+        p_execution_latitude: null,
+        p_execution_longitude: null,
+        p_execution_accuracy_meters: null,
+        p_execution_captured_at: null,
       })
-      if (createError) {
-        toast.error('فشل إنشاء الطلب: ' + createError.message)
-        setSubmitting(false)
-        return
-      }
-      if (!order) {
-        toast.error('فشل إنشاء الطلب')
-        setSubmitting(false)
-        return
-      }
-      const orderId = (order as any).id
+      if (createError) { toast.error('فشل إنشاء الطلب: ' + createError.message); setSubmitting(false); return }
+      if (!created) { toast.error('فشل إنشاء الطلب'); setSubmitting(false); return }
+      order = created
       const { error: submitError } = await supabase.rpc('governed_submit_order', {
-        p_token: token,
-        p_id: orderId,
+        p_token: token, p_id: order.id,
       })
       if (submitError) {
         toast.error('تم إنشاء الطلب ولكن فشل الإرسال: ' + submitError.message)
-        setSubmitting(false)
-        return
+        setSubmitting(false); return
       }
       toast.success('تم إرسال الطلب بنجاح')
 
-      if (preselectedVisitId) {
-        await supabase.rpc('governed_checkout_visit', {
-          p_token: token,
-          p_id: preselectedVisitId,
-          p_visit_result: 'order_taken',
-          p_notes: `تم إنشاء طلب رقم ${(order as any).order_number}`,
-        })
-        sendFullOrderToWhatsApp(order as any, { name: customer?.company_name || '' }, null, null, cartItems)
-        localStorage.removeItem('order_cart')
-        localStorage.removeItem('order_cart_meta')
-        localStorage.removeItem('order_notes')
-        setCartItems([])
-        setShowReview(false)
-        navigate(`/visits/${preselectedVisitId}`)
-        return
+      // ── CREDIT RESERVE — best-effort, only for customers with active credit ──
+      const creditResult = await creditService.reserveCreditForOrder(order.id).catch(() => null)
+      if (creditResult?.over_limit) {
+        toast('الطلب يتجاوز الحد الائتماني وسيتم مراجعته من الإدارة العليا', { icon: '⚠️', duration: 5000 })
       }
-
-      sendFullOrderToWhatsApp(order as any, { name: customer?.company_name || '' }, null, null, cartItems)
-      localStorage.removeItem('order_cart')
-      localStorage.removeItem('order_cart_meta')
-      localStorage.removeItem('order_notes')
-      setCartItems([])
-      setShowReview(false)
-      navigate(`/orders?customer=${customerId}`)
     } catch (err: any) {
       toast.error('حدث خطأ أثناء إنشاء الطلب')
-      setSubmitting(false)
+      setSubmitting(false); return
     }
+
+    // ── OPEN WHATSAPP — uses snapshot data from RPC ──
+    try {
+      const orderRes = await supabase.rpc('get_governed_order', { p_token: token, p_id: order.id })
+      if (!orderRes.error && orderRes.data && !orderRes.data?.error) {
+        const fullOrder = orderRes.data
+        let itemsRes;
+        try { itemsRes = await supabase.rpc('get_governed_order_items', { p_token: token, p_order_id: order.id }); } catch { itemsRes = null; }
+        const orderItems = (itemsRes?.data && Array.isArray(itemsRes.data))
+          ? itemsRes.data.map((i: any) => ({ ...i, products: { product_name: i.product_name, legacy_code: i.legacy_code, image_url: i.image_url, companies: { company_name: i.company_name } } }))
+          : []
+        sendWhatsAppFromDisplay(buildOrderDisplayData({ order: fullOrder, items: orderItems }))
+      }
+    } catch (e) { console.error('WHATSAPP_OPEN_FAILED', e) }
+
+    // Link order to active visit (best-effort)
+    let linkedVisitId: string | null = preselectedVisitId
+    try {
+      const visitsRes = await supabase.rpc('get_governed_visits', { p_token: token })
+      if (Array.isArray(visitsRes.data)) {
+        const active = visitsRes.data.find((v: any) => v.customer_id === customerId && v.status === 'active')
+        if (active) {
+          linkedVisitId = active.id
+          await supabase.rpc('governed_update_visit', {
+            p_token: token, p_id: active.id,
+            p_notes: `طلب:${order.id}|تم إنشاء طلب رقم ${order.order_number}`,
+          })
+        }
+      }
+    } catch (_e) { /* best-effort */ }
+
+    localStorage.removeItem('order_cart'); localStorage.removeItem('order_cart_meta'); localStorage.removeItem('order_notes')
+    setCartItems([]); setShowReview(false); setSubmitting(false)
+    navigate(linkedVisitId ? '/visits/screen' : `/orders?customer=${customerId}`)
   }
 
-  const unitLabels: Record<string, string> = { piece: 'قطعة', dozen: 'دستة', carton: 'كرتونة' }
+
 
   if (!customerId) {
     const filteredCustomers = customerSearchQuery.trim()
@@ -455,7 +460,7 @@ export function OrderNewPage() {
                     <span className="text-xs font-semibold text-text min-w-[20px] text-center">{item.unitQuantity}</span>
                     <button onClick={() => handleUpdateQty(item.productId, item.unitType, 1)}
                       className="w-6 h-6 rounded-full bg-surface text-text-secondary text-xs flex items-center justify-center active:bg-border transition-colors">+</button>
-                    <span className="text-[10px] text-text-secondary mr-1">{unitLabels[item.unitType]}</span>
+                    <span className="text-[10px] text-text-secondary mr-1">{UNIT_LABELS[item.unitType]}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-semibold text-text">{formatCurrencyShort(item.totalPrice)}</span>
@@ -491,8 +496,17 @@ export function OrderNewPage() {
             disabled={submitting || cartItems.length === 0}
             className="w-full bg-primary text-white text-sm py-3 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed active:bg-primary-dark transition-colors"
           >
-            {submitting ? 'جاري الإرسال...' : 'إرسال الطلب'}
+            {submitting ? 'جارِ إرسال الطلب...' : 'إرسال الطلب'}
           </button>
+
+          {submitting && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20">
+              <div className="bg-white rounded-2xl p-6 text-center shadow-xl max-w-[240px]">
+                <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+                <p className="text-sm text-text-secondary font-medium">جارِ إرسال الطلب...</p>
+              </div>
+            </div>
+          )}
 
           <button
             onClick={() => setShowReview(false)}

@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
+import { useCompaniesStore } from '../../store/companies'
 import toast from 'react-hot-toast'
 
 function getToken(): string | null {
@@ -54,6 +55,8 @@ export function CompaniesPage() {
     toast.success('تم إضافة الشركة')
     setShowAddForm(false); setNewName(''); setNewCode('')
     setSubmitting(false)
+    useCompaniesStore.getState().triggerRefresh()
+    try { localStorage.removeItem('ahram_company_profile_cache') } catch {}
     const res = await supabase.rpc('get_governed_companies', { p_token: token })
     if (res.data) setCompanies(Array.isArray(res.data) ? res.data : [])
   }
@@ -68,6 +71,8 @@ export function CompaniesPage() {
     if (result.error) { toast.error(result.error); return }
     toast.success('تم التحديث')
     setEditingId(null)
+    useCompaniesStore.getState().triggerRefresh()
+    try { localStorage.removeItem('ahram_company_profile_cache') } catch {}
     const res = await supabase.rpc('get_governed_companies', { p_token: token })
     if (res.data) setCompanies(Array.isArray(res.data) ? res.data : [])
   }
@@ -80,6 +85,8 @@ export function CompaniesPage() {
     const result = data as any
     if (result.error) { toast.error(result.error); return }
     toast.success(comp.is_active ? 'تم الإيقاف' : 'تم التفعيل')
+    useCompaniesStore.getState().triggerRefresh()
+    try { localStorage.removeItem('ahram_company_profile_cache') } catch {}
     const res = await supabase.rpc('get_governed_companies', { p_token: token })
     if (res.data) setCompanies(Array.isArray(res.data) ? res.data : [])
   }

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { supabase } from '../../lib/supabase'
+import { ORDER_STATUS_LABELS } from '../../types/order-display'
 
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
@@ -8,14 +9,6 @@ function getToken(): string | null {
 const ALL_STATUSES = ['draft','submitted','reviewing','returned_for_revision','approved','preparing','prepared','ready_for_dispatch','sent_to_delivery','dispatched','deferred','cancelled','delivered'] as const
 
 type OrderStatus = typeof ALL_STATUSES[number]
-
-const STATUS_LABELS: Record<string, string> = {
-  draft: 'مسودة', submitted: 'مقدم', reviewing: 'قيد المراجعة',
-  returned_for_revision: 'معاد للتعديل', approved: 'معتمد',
-  preparing: 'قيد التجهيز', prepared: 'تم التجهيز',
-  ready_for_dispatch: 'بانتظار القرار', sent_to_delivery: 'أرسل للتوصيل',
-  dispatched: 'تم الشحن', deferred: 'مؤجل', cancelled: 'ملغي', delivered: 'تم التسليم',
-}
 
 const WORKFLOW_ORDER = ['draft','submitted','reviewing','returned_for_revision','approved','preparing','prepared','ready_for_dispatch','sent_to_delivery','dispatched','deferred','cancelled','delivered']
 
@@ -90,8 +83,29 @@ export function OrderStatusManager({ orderId, currentStatus, canReview, canCompl
   async function executeChange(target: string, reasonText: string | null) {
     const token = getToken()
     if (!token) return
-    const actionLabel = STATUS_LABELS[target] || target
+    const actionLabel = ORDER_STATUS_LABELS[target] || target
     setLoading(target)
+
+    if (target === 'approved') {
+      const { data, error } = await supabase.rpc('governed_approve_order', {
+        p_token: token,
+        p_id: orderId,
+      })
+      if (error) {
+        onError?.(error.message)
+        setLoading(null)
+        return
+      }
+      if (data && typeof data === 'object' && 'error' in data && data.error) {
+        onError?.(String(data.error))
+        setLoading(null)
+        return
+      }
+      onSuccess?.(target)
+      setLoading(null)
+      return
+    }
+
     const { error } = await supabase.rpc('governed_change_order_status', {
       p_token: token,
       p_order_id: orderId,
@@ -108,14 +122,10 @@ export function OrderStatusManager({ orderId, currentStatus, canReview, canCompl
   }
 
   const targets = getAllowedTargets()
-  console.log('[OSM_TRACE] targets after getAllowedTargets:', JSON.stringify(targets), 'length:', targets.length)
-  if (targets.length === 0) { console.log('[OSM_TRACE] targets empty — returning null'); return null }
+  if (targets.length === 0) { return null }
 
   const standardTransitions = targets.filter(t => !isExceptional(currentStatus, t))
   const exceptionalTransitions = targets.filter(t => isExceptional(currentStatus, t))
-  console.log('[OSM_TRACE] standardTransitions:', JSON.stringify(standardTransitions))
-  console.log('[OSM_TRACE] exceptionalTransitions:', JSON.stringify(exceptionalTransitions))
-  console.log('[OSM_TRACE] FINAL rendered array (all targets):', JSON.stringify(targets))
 
   return (
     <>
@@ -132,11 +142,11 @@ export function OrderStatusManager({ orderId, currentStatus, canReview, canCompl
                   <span className="text-sm font-bold text-text">تغيير الحالة</span>
                   <button onClick={() => setShowDropdown(false)} className="text-text-secondary text-lg leading-none">&times;</button>
                 </div>
-                <div className="flex-1 overflow-y-auto min-h-0 p-3 space-y-0.5">
+                <div className="flex-1 overflow-y-auto min-h-0 p-3 pb-16 space-y-0.5">
                   {targets.map(t => (
                     <button key={t} onClick={() => { setShowDropdown(false); handleStatusChange(t) }} disabled={loading !== null}
                       className="w-full text-right px-4 py-2.5 text-xs rounded-xl hover:bg-surface active:bg-border transition-colors flex items-center justify-between">
-                      <span>{STATUS_LABELS[t] || t}</span>
+                      <span>{ORDER_STATUS_LABELS[t] || t}</span>
                       {isExceptional(currentStatus, t) && <span className="text-[9px] text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">استثنائي</span>}
                     </button>
                   ))}
@@ -152,13 +162,13 @@ export function OrderStatusManager({ orderId, currentStatus, canReview, canCompl
           {standardTransitions.map(t => (
             <button key={t} onClick={() => handleStatusChange(t)} disabled={loading !== null}
               className="flex-1 min-w-[80px] bg-primary text-white text-xs py-2.5 rounded-lg active:opacity-90 disabled:opacity-40">
-              {loading === t ? 'جاري...' : STATUS_LABELS[t] || t}
+              {loading === t ? 'جاري...' : ORDER_STATUS_LABELS[t] || t}
             </button>
           ))}
           {exceptionalTransitions.map(t => (
             <button key={t} onClick={() => handleStatusChange(t)} disabled={loading !== null}
               className="flex-1 min-w-[80px] bg-amber-500 text-white text-xs py-2.5 rounded-lg active:opacity-90 disabled:opacity-40">
-              {loading === t ? 'جاري...' : STATUS_LABELS[t] || t}
+              {loading === t ? 'جاري...' : ORDER_STATUS_LABELS[t] || t}
             </button>
           ))}
         </div>
@@ -169,7 +179,7 @@ export function OrderStatusManager({ orderId, currentStatus, canReview, canCompl
           <div className="bg-white rounded-xl w-full max-w-sm p-5 space-y-4">
             <h3 className="text-sm font-bold text-text">تغيير استثنائي</h3>
             <p className="text-xs text-text-secondary">
-              من <span className="font-semibold text-amber-600">{STATUS_LABELS[currentStatus]}</span> إلى <span className="font-semibold text-amber-600">{STATUS_LABELS[showReasonModal]}</span>
+              من <span className="font-semibold text-amber-600">{ORDER_STATUS_LABELS[currentStatus]}</span> إلى <span className="font-semibold text-amber-600">{ORDER_STATUS_LABELS[showReasonModal]}</span>
             </p>
             <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={3} placeholder="الرجاء كتابة سبب التغيير..."
               className="w-full border border-border rounded-lg px-3 py-2 text-xs bg-white resize-none" />

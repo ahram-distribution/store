@@ -1,9 +1,10 @@
-import { Fragment } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { formatCurrencyShort, formatDate, formatDateTime } from '../../utils/format'
 import { StatusBadge } from '../shared/StatusBadge'
-import { sendFullOrderToWhatsApp } from '../../lib/whatsapp'
-
+import { sendWhatsAppFromDisplay, copyWhatsAppFromDisplay } from '../../lib/whatsapp'
+import { buildOrderDisplayData, UNIT_LABELS, ORDER_STATUS_LABELS } from '../../types/order-display'
+import { creditService } from '../../services/credit'
 function esc(s: string | null | undefined): string {
   if (!s) return ''
   const d = document.createElement('div')
@@ -11,14 +12,6 @@ function esc(s: string | null | undefined): string {
   return d.innerHTML
 }
 
-const unitLabels: Record<string, string> = { piece: 'قطعة', dozen: 'دستة', carton: 'كرتونة' }
-
-interface CustomerInfo {
-  id?: string; name: string; phone?: string; address?: string; mapsUrl?: string
-}
-interface EmployeeInfo {
-  id?: string; name: string; role?: string; phone?: string; address?: string; mapsUrl?: string
-}
 interface OrderItem {
   id: string; product_id?: string; unit_type: string; unit_quantity: number
   piece_quantity?: number; unit_price: number; total_price: number
@@ -31,28 +24,35 @@ interface HistoryEntry {
 
 interface OrderDetailViewProps {
   order: any; items: OrderItem[]; history: HistoryEntry[]
-  customer?: CustomerInfo | null; creator?: EmployeeInfo | null; owner?: EmployeeInfo | null
   actions?: React.ReactNode; onBack?: () => void; onSharePdf?: (compact: boolean) => void; onShareWhatsApp?: () => void
 }
 
 function money(n: number | null | undefined): string {
   if (n == null) return '0 ج.م'
-  return Math.round(Number(n)).toLocaleString('en-US') + ' ج.م'
+  return formatCurrencyShort(n)
 }
 
-const statusLabels: Record<string, string> = {
-  draft: 'مسودة', submitted: 'مقدم', reviewing: 'قيد المراجعة',
-  returned_for_revision: 'معاد للتعديل', approved: 'معتمد',
-  preparing: 'قيد التجهيز', prepared: 'تم التجهيز',
-  ready_for_dispatch: 'بانتظار القرار', sent_to_delivery: 'أرسل للتوصيل',
-  deferred: 'مؤجل', dispatched: 'تم الشحن', delivered: 'تم التسليم',
-  cancelled: 'ملغي',
-}
-
-function renderPdfHtml(order: any, items: OrderItem[], customer?: CustomerInfo | null, creator?: EmployeeInfo | null, owner?: EmployeeInfo | null): string {
+function renderPdfHtml(order: any, items: OrderItem[]): string {
   const now = new Date()
-  const statusLabel = statusLabels[order.status] || order.status || 'غير معروف'
+  const statusLabel = ORDER_STATUS_LABELS[order.status] || order.status || 'غير معروف'
   const grandTotal = items.reduce((s, i) => s + Number(i.total_price || 0), 0)
+  const creatorLabel = order.owner_type === 'customer' ? 'عميل'
+    : order.created_by === order.owner_id ? 'مندوب مبيعات'
+    : 'موظف'
+
+  const customerName = order.customer_name || ''
+  const customerPhone = order.customer_phone || ''
+  const customerAddress = order.customer_address || ''
+  const customerMapsUrl = order.customer_maps_url || ''
+  const responsibleName = order.responsible_name || ''
+  const tierName = order.tier_name || ''
+  const paymentMethod = order.payment_method || ''
+  const ownerName = order.owner_name || ''
+  const ownerPhone = order.owner_phone || ''
+  const ownerAddress = order.owner_address || ''
+  const creatorName = order.created_by_name || ''
+  const creatorPhone = order.created_by_phone || ''
+  const creatorAddress = order.created_by_address || ''
 
   function itemsTable(): string {
     let h = '<table><thead><tr><th>كود الصنف</th><th>اسم الصنف</th><th>الشركة</th><th>الوحدة</th><th>الكمية</th><th>السعر</th><th>الإجمالي</th></tr></thead><tbody>'
@@ -63,7 +63,7 @@ function renderPdfHtml(order: any, items: OrderItem[], customer?: CustomerInfo |
       const code = item.products?.legacy_code || ''
       const name = item.products?.product_name || ''
       const company = item.products?.companies?.company_name || ''
-      const unit = unitLabels[item.unit_type] || item.unit_type || 'قطعة'
+      const unit = UNIT_LABELS[item.unit_type] || item.unit_type || 'قطعة'
       h += `<tr><td style="font-family:monospace;direction:ltr">${esc(code || '—')}</td><td>${esc(name)}</td><td>${esc(company)}</td><td>${esc(unit)}</td><td>${qty}</td><td>${money(price)}</td><td>${money(lineTotal)}</td></tr>`
     }
     h += `</tbody><tfoot><tr class="total-row"><td colspan="6" style="text-align:left">الإجمالي النهائي</td><td>${money(grandTotal)}</td></tr></tfoot></table>`
@@ -108,42 +108,63 @@ function renderPdfHtml(order: any, items: OrderItem[], customer?: CustomerInfo |
 </div>
 <div class="sections">
   <div class="section"><div class="section-title">العميل</div><div class="section-body">
-    <div style="font-weight:700;font-size:11pt">${esc(customer?.name || order.customer_name || '')}</div>
-    ${customer?.phone ? `<div dir="ltr">📞 ${esc(customer.phone)}</div>` : ''}
-    ${customer?.address ? `<div>📍 ${esc(customer.address)}</div>` : ''}
+    <div style="font-weight:700;font-size:11pt">${esc(customerName)}</div>
+    ${customerPhone ? `<div dir="ltr">📞 ${esc(customerPhone)}</div>` : ''}
+    ${responsibleName ? `<div>👤 ${esc(responsibleName)}</div>` : ''}
+    ${customerAddress ? `<div>📍 ${esc(customerAddress)}</div>` : ''}
+    ${customerMapsUrl ? `<div><a href="${esc(customerMapsUrl)}" style="color:#0052cc;font-size:8pt">🗺️ عرض الخريطة</a></div>` : ''}
   </div></div>
-  ${owner ? `<div class="section"><div class="section-title">المسؤول</div><div class="section-body">
-    <div style="font-weight:700;font-size:11pt">${esc(owner.name)}</div>${owner.role ? `<div>${esc(owner.role)}</div>` : ''}${owner.phone ? `<div dir="ltr">📞 ${esc(owner.phone)}</div>` : ''}${owner.address ? `<div>📍 ${esc(owner.address)}</div>` : ''}
-  </div></div>` : ''}
-  <div class="section"><div class="section-title">منشئ الطلب</div><div class="section-body">
-    <div style="font-weight:700;font-size:11pt">${esc(creator?.name || order.created_by_name || '')}</div>${creator?.phone ? `<div dir="ltr">📞 ${esc(creator.phone)}</div>` : ''}${creator?.address ? `<div>📍 ${esc(creator.address)}</div>` : ''}
+  <div class="section"><div class="section-title">المسؤول عن العميل</div><div class="section-body">
+    <div style="font-weight:700;font-size:11pt">${esc(ownerName || '—')}</div>
+    ${ownerPhone ? `<div dir="ltr">📞 ${esc(ownerPhone)}</div>` : ''}
+    ${ownerAddress ? `<div>📍 ${esc(ownerAddress)}</div>` : ''}
+  </div></div>
+  <div class="section"><div class="section-title">مرسل الطلب</div><div class="section-body">
+    <div style="font-weight:700;font-size:11pt">${esc(creatorName)}</div>
+    <div style="font-size:8pt;color:#6b7280">${creatorLabel}</div>
+    ${creatorPhone ? `<div dir="ltr">📞 ${esc(creatorPhone)}</div>` : ''}
+    ${creatorAddress ? `<div>📍 ${esc(creatorAddress)}</div>` : ''}
   </div></div>
 </div>
 ${itemsTable()}
+${tierName || paymentMethod ? `<div style="display:flex;gap:12px;justify-content:center;margin-bottom:12px;font-size:9pt;color:#555">
+  ${tierName ? `<span>📋 الشريحة: <strong>${esc(tierName)}</strong></span>` : ''}
+  ${paymentMethod ? `<span>💳 طريقة الدفع: <strong>${esc(paymentMethod === 'cash' ? 'نقداً' : paymentMethod === 'credit' ? 'آجل' : paymentMethod)}</strong></span>` : ''}
+</div>` : ''}
 <div class="footer"><div>شركة الأهرام للتجارة والتوزيع - جميع الحقوق محفوظة</div><div>تمت الطباعة: ${formatDate(now)}</div></div>
 </body></html>`
 }
 
 function printInvoice(html: string) {
-  const w = window.open('', '_blank')
-  if (!w) return
-  w.document.write(html)
-  w.document.close()
-  w.focus()
-  setTimeout(() => { try { w.print() } catch {} }, 500)
+  const iframe = document.createElement('iframe')
+  iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;border:none'
+  document.body.appendChild(iframe)
+  const win = iframe.contentWindow
+  if (!win) { document.body.removeChild(iframe); return }
+  win.document.write(html)
+  win.document.close()
+  setTimeout(() => { try { win.print() } catch {}; document.body.removeChild(iframe) }, 500)
 }
 
 export function OrderDetailView({
   order, items, history,
-  customer, creator, owner,
   actions, onBack,
 }: OrderDetailViewProps) {
   const navigate = useNavigate()
   const grandTotal = items.reduce((s, i) => s + Number(i.total_price || 0), 0)
   const totalQty = items.reduce((s, i) => s + Number(i.unit_quantity || 0), 0)
+  const [overLimit, setOverLimit] = useState<boolean | null>(null)
+
+  useEffect(() => {
+    if (order.payment_method === 'credit' && ['submitted', 'reviewing'].includes(order.status)) {
+      creditService.checkOrderOverLimit(order.id).then((r) => {
+        if (r.over_limit) setOverLimit(true)
+      }).catch(() => {})
+    }
+  }, [order.id, order.payment_method, order.status])
 
   function handlePdf(compact: boolean) {
-    const html = renderPdfHtml(order, items, customer, creator, owner)
+    const html = renderPdfHtml(order, items)
     if (compact) {
       const comp = html.replace(/size: A4/, 'size: A5').replace(/1\.5cm/g, '0.7cm').replace(/10pt/g, '8pt').replace(/18pt/g, '11pt').replace(/20pt/g, '14pt')
       printInvoice(comp)
@@ -153,7 +174,8 @@ export function OrderDetailView({
   }
 
   function handleWhatsApp() {
-    sendFullOrderToWhatsApp(order, customer, owner, creator, items)
+    const display = buildOrderDisplayData({ order, items })
+    sendWhatsAppFromDisplay(display)
   }
 
   function ContactActions({ phone, mapsUrl }: { phone?: string; mapsUrl?: string }) {
@@ -197,6 +219,17 @@ export function OrderDetailView({
     : order.created_by === order.owner_id ? 'مندوب مبيعات'
     : 'موظف'
 
+  const customerName = order.customer_name || '—'
+  const customerPhone = order.customer_phone || ''
+  const customerAddress = order.customer_address || ''
+  const customerMapsUrl = order.customer_maps_url || ''
+  const ownerName = order.owner_name || ''
+  const ownerPhone = order.owner_phone || ''
+  const ownerAddress = order.owner_address || ''
+  const creatorName = order.created_by_name || ''
+  const creatorPhone = order.created_by_phone || ''
+  const creatorAddress = order.created_by_address || ''
+
   return (
     <div className="space-y-4 pb-4">
 
@@ -211,6 +244,11 @@ export function OrderDetailView({
             </div>
             <div className="flex items-center gap-2">
               <StatusBadge status={order.status} size="md" />
+              {overLimit && (
+                <span className="text-[10px] bg-danger/10 text-danger px-2 py-0.5 rounded-full border border-danger/30">
+                  تجاوز الحد الائتماني
+                </span>
+              )}
               {actions}
             </div>
           </div>
@@ -226,6 +264,14 @@ export function OrderDetailView({
               <span className="text-text-secondary">آخر تحديث</span>
               <p className="text-text font-medium">{order.updated_at ? formatDateTime(order.updated_at) : '—'}</p>
             </div>
+            <div>
+              <span className="text-text-secondary">الشريحة</span>
+              <p className="text-text font-medium">{order.tier_name || '—'}</p>
+            </div>
+            <div>
+              <span className="text-text-secondary">طريقة الدفع</span>
+              <p className="text-text font-medium">{(order.payment_method === 'cash' ? 'نقداً' : order.payment_method === 'credit' ? 'آجل' : order.payment_method) || '—'}</p>
+            </div>
             <div className="col-span-2">
               <span className="text-text-secondary">الإجمالي</span>
               <p className="text-lg font-bold text-primary">{formatCurrencyShort(Number(order.total_amount) || grandTotal)}</p>
@@ -237,34 +283,37 @@ export function OrderDetailView({
       {/* SECTION B: CUSTOMER INFORMATION */}
       <div className="bg-white rounded-xl border border-border p-4">
         <p className="text-[10px] font-bold text-text-secondary uppercase mb-2">معلومات العميل</p>
-        <p className="text-sm font-bold text-primary cursor-pointer" onClick={() => customer?.id && navigate(`/customers/${customer.id}`)}>{customer?.name || order.customer_name || '—'}</p>
-        {customer?.phone && <p className="text-xs text-text-secondary mt-0.5 text-left" dir="ltr">{customer.phone}</p>}
-        {customer?.address && <p className="text-xs text-text-secondary mt-0.5">{customer.address}</p>}
-        <ContactActions phone={customer?.phone} mapsUrl={customer?.mapsUrl} />
+        <p className="text-sm font-bold text-primary">{customerName}</p>
+        {customerPhone && <p className="text-xs text-text-secondary mt-0.5 text-left" dir="ltr">{customerPhone}</p>}
+        {customerAddress && customerMapsUrl ? (
+          <p className="text-xs text-primary mt-0.5 cursor-pointer underline" onClick={() => window.open(customerMapsUrl, '_blank')} title="فتح في خرائط جوجل">{customerAddress}</p>
+        ) : (
+          customerAddress && <p className="text-xs text-text-secondary mt-0.5">{customerAddress}</p>
+        )}
+        <ContactActions phone={customerPhone} mapsUrl={customerMapsUrl} />
+        {order.responsible_name && <p className="text-xs text-text-secondary mt-1">المسؤول: {order.responsible_name}</p>}
       </div>
 
       {/* SECTION C: RESPONSIBLE USER */}
       <div className="bg-white rounded-xl border border-border p-4">
         <p className="text-[10px] font-bold text-text-secondary uppercase mb-2">المسؤول عن العميل</p>
-        <p className="text-sm font-bold text-primary cursor-pointer" onClick={() => owner?.id && navigate(`/employees/${owner.id}`)}>{owner?.name || '—'}</p>
-        {owner?.role && <p className="text-xs text-text-secondary mt-0.5">{owner.role}</p>}
-        {owner?.phone && <p className="text-xs text-text-secondary mt-0.5 text-left" dir="ltr">{owner.phone}</p>}
-        {owner?.address && <p className="text-xs text-text-secondary mt-0.5">{owner.address}</p>}
-        <ContactActions phone={owner?.phone} mapsUrl={owner?.mapsUrl} />
+        <p className="text-sm font-bold text-primary">{ownerName || '—'}</p>
+        {ownerPhone && <p className="text-xs text-text-secondary mt-0.5 text-left" dir="ltr">{ownerPhone}</p>}
+        {ownerAddress && <p className="text-xs text-text-secondary mt-0.5">{ownerAddress}</p>}
+        <ContactActions phone={ownerPhone} />
       </div>
 
       {/* SECTION D: ORDER CREATOR */}
       <div className="bg-white rounded-xl border border-border p-4">
-        <p className="text-[10px] font-bold text-text-secondary uppercase mb-2">منشئ الطلب</p>
-        <p className="text-sm font-bold text-primary cursor-pointer" onClick={() => creator?.id && navigate(`/employees/${creator.id}`)}>{creator?.name || order.created_by_name || '—'}</p>
+        <p className="text-[10px] font-bold text-text-secondary uppercase mb-2">مرسل الطلب</p>
+        <p className="text-sm font-bold text-text">{creatorName}</p>
         <p className="text-xs text-text-secondary mt-0.5">{creatorLabel}</p>
-        {creator?.phone && <p className="text-xs text-text-secondary mt-0.5 text-left" dir="ltr">{creator.phone}</p>}
-        {creator?.role && <p className="text-xs text-text-secondary mt-0.5">{creator.role}</p>}
-        {creator?.address && <p className="text-xs text-text-secondary mt-0.5">{creator.address}</p>}
-        <ContactActions phone={creator?.phone} mapsUrl={creator?.mapsUrl} />
-        {creator && owner && creator.name === owner.name && (
+        {creatorPhone && <p className="text-xs text-text-secondary mt-0.5 text-left" dir="ltr">{creatorPhone}</p>}
+        {creatorAddress && <p className="text-xs text-text-secondary mt-0.5">{creatorAddress}</p>}
+        <ContactActions phone={creatorPhone} />
+        {creatorName && ownerName && creatorName === ownerName && creatorLabel !== 'عميل' && (
           <div className="mt-2 text-[10px] bg-blue-50 text-blue-700 px-2 py-1 rounded-lg inline-block">
-            منشئ الطلب هو المسؤول عن العميل
+            مرسل الطلب هو المسؤول عن العميل
           </div>
         )}
       </div>
@@ -310,7 +359,7 @@ export function OrderDetailView({
                         <td className="px-2 py-1.5 text-text-secondary font-mono text-[10px]" dir="ltr">{item.products?.legacy_code || '—'}</td>
                         <td className="px-2 py-1.5 text-primary font-semibold cursor-pointer" onClick={() => item.product_id && navigate(`/products/${item.product_id}`)}>{item.products?.product_name || '—'}</td>
                         <td className="px-2 py-1.5 text-center text-text-secondary text-[10px]">{item.products?.companies?.company_name || ''}</td>
-                        <td className="px-2 py-1.5 text-center text-text-secondary">{unitLabels[item.unit_type] || item.unit_type}</td>
+                        <td className="px-2 py-1.5 text-center text-text-secondary">{UNIT_LABELS[item.unit_type] || item.unit_type}</td>
                         <td className="px-2 py-1.5 text-center text-text">{qty}</td>
                         <td className="px-2 py-1.5 text-left text-text">{formatCurrencyShort(price)}</td>
                         <td className="px-2 py-1.5 text-left text-text font-semibold">{formatCurrencyShort(lineTotal)}</td>
@@ -358,8 +407,8 @@ export function OrderDetailView({
           </div>
           <div className="divide-y divide-border">
             {history.map((h) => {
-              const fromLabel = statusLabels[h.from_status || ''] || h.from_status || ''
-              const toLabel = statusLabels[h.to_status] || h.to_status
+              const fromLabel = ORDER_STATUS_LABELS[h.from_status || ''] || h.from_status || ''
+              const toLabel = ORDER_STATUS_LABELS[h.to_status] || h.to_status
               return (
                 <div key={h.id} className="px-3 py-2 text-[11px]">
                   <div className="flex items-center justify-between">
@@ -393,6 +442,9 @@ export function OrderDetailView({
           </button>
           <button onClick={handleWhatsApp} className="flex-1 min-w-[100px] bg-green-600 text-white text-xs py-2.5 rounded-lg active:opacity-90 transition-colors">
             مشاركة واتساب
+          </button>
+          <button onClick={() => { const d = buildOrderDisplayData({ order, items }); copyWhatsAppFromDisplay(d) }} className="flex-1 min-w-[100px] bg-gray-600 text-white text-xs py-2.5 rounded-lg active:opacity-90 transition-colors">
+            نسخ الرسالة
           </button>
         </div>
       </div>

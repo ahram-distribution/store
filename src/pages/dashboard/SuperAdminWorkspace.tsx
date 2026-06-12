@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
+import { ORDER_STATUS_LABELS } from '../../types/order-display'
 
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
@@ -19,14 +20,6 @@ interface CreditStats {
 
 interface StatusCount {
   status: string; count: number
-}
-
-const STATUS_LABELS: Record<string, string> = {
-  draft: 'مسودة', submitted: 'مقدم', reviewing: 'قيد المراجعة',
-  returned_for_revision: 'معاد للتعديل', approved: 'معتمد',
-  preparing: 'قيد التجهيز', prepared: 'تم التجهيز',
-  ready_for_dispatch: 'بانتظار القرار', sent_to_delivery: 'أرسل للتوصيل',
-  dispatched: 'تم الشحن', deferred: 'مؤجل', cancelled: 'ملغي', delivered: 'تم التسليم',
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -123,7 +116,7 @@ export function SuperAdminWorkspace() {
             <button key={sc.status} onClick={() => navigate(`/orders?status=${sc.status}`)}
               className={`rounded-lg p-2 text-center active:opacity-80 transition-opacity ${STATUS_COLORS[sc.status] || 'bg-gray-100 text-gray-700'}`}>
               <p className="text-sm font-bold">{sc.count}</p>
-              <p className="text-[9px] leading-tight">{STATUS_LABELS[sc.status] || sc.status}</p>
+              <p className="text-[9px] leading-tight">{ORDER_STATUS_LABELS[sc.status] || sc.status}</p>
             </button>
           ))}
         </div>

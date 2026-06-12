@@ -302,7 +302,7 @@ export function AuctionDetailPage() {
                       <div className="w-1.5 h-1.5 rounded-full bg-[#C9A227] mt-1.5 flex-shrink-0" />
                       <div>
                         <p className="text-gray-700">{a.message}</p>
-                        <p className="text-[10px] text-gray-400">{new Date(a.created_at).toLocaleTimeString('ar-EG')}</p>
+                        <p className="text-[10px] text-gray-400">{new Date(a.created_at).toLocaleTimeString('ar-EG-u-nu-latn')}</p>
                       </div>
                     </div>
                   ))}
@@ -320,7 +320,7 @@ export function AuctionDetailPage() {
                     }`}>
                       <div>
                         <p className="text-xs font-medium text-gray-900">{b.participant_name}</p>
-                        <p className="text-[10px] text-gray-400">{new Date(b.placed_at).toLocaleTimeString('ar-EG')}</p>
+                        <p className="text-[10px] text-gray-400">{new Date(b.placed_at).toLocaleTimeString('ar-EG-u-nu-latn')}</p>
                       </div>
                       <div className="text-left">
                         <p className={`text-xs font-bold ${b.is_winning ? 'text-emerald-600' : 'text-[#C9A227]'}`}>

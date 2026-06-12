@@ -1,16 +1,11 @@
 import type { CartItem as CartItemType } from '../../types/storefront'
 import { formatCurrencyShort } from '../../utils/format'
+import { UNIT_LABELS } from '../../types/order-display'
 
 interface CartItemProps {
   item: CartItemType
   onUpdateQuantity: (productId: string, unitType: string, quantity: number) => void
   onRemove: (productId: string, unitType: string) => void
-}
-
-const unitLabels: Record<string, string> = {
-  piece: 'قطعة',
-  dozen: 'دستة',
-  carton: 'كرتونة',
 }
 
 export function CartItem({ item, onUpdateQuantity, onRemove }: CartItemProps) {
@@ -19,10 +14,10 @@ export function CartItem({ item, onUpdateQuantity, onRemove }: CartItemProps) {
       <div className="flex-1 min-w-0">
         <h4 className="text-sm font-medium text-text truncate">{item.productName}</h4>
         <div className="text-xs text-text-secondary mt-0.5">
-          {unitLabels[item.unitType] || item.unitType} &middot; {formatCurrencyShort(item.unitPrice)} للوحدة
+          {UNIT_LABELS[item.unitType] || item.unitType} &middot; {formatCurrencyShort(item.unitPrice)} للوحدة
         </div>
         <div className="text-xs text-text-secondary">
-          إجمالي القطع: {item.pieceQuantity.toLocaleString('ar-EG')}
+          إجمالي القطع: {item.pieceQuantity.toLocaleString('ar-EG-u-nu-latn')}
         </div>
       </div>
 

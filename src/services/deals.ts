@@ -1,5 +1,7 @@
 import { supabase } from '../lib/supabase'
 
+function getToken() { try { return localStorage.getItem('session_token') } catch { return null } }
+
 export interface PackageDealRecord {
   id: string
   packageType: 'daily_deal' | 'flash_offer'
@@ -16,51 +18,41 @@ export interface PackageDealRecord {
   updatedAt: string
 }
 
-function mapRow(row: any): PackageDealRecord {
+function mapDailyDeal(d: any): PackageDealRecord {
   return {
-    id: row.id,
-    packageType: row.package_type,
-    name: row.name,
-    description: row.description,
-    price: Number(row.price),
-    availableQuantity: row.available_quantity,
-    originalQuantity: row.original_quantity,
-    startTime: row.start_time,
-    endTime: row.end_time,
-    status: row.status,
-    isManualStop: row.is_manual_stop,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
+    id: d.id,
+    packageType: 'daily_deal',
+    name: d.title || '',
+    description: d.description || null,
+    price: Number(d.fixed_price || 0),
+    availableQuantity: d.available_quantity ?? 0,
+    originalQuantity: d.original_quantity ?? 0,
+    startTime: d.starts_at || null,
+    endTime: d.ends_at || null,
+    status: d.status || 'draft',
+    isManualStop: false,
+    createdAt: d.created_at || '',
+    updatedAt: d.updated_at || '',
   }
 }
 
 export const dealService = {
   async getAll() {
-    const { data, error } = await supabase
-      .from('packages')
-      .select('*')
-      .order('created_at', { ascending: false })
+    const token = getToken()
+    if (!token) throw new Error('NO_SESSION')
+    const { data, error } = await supabase.rpc('get_governed_daily_deals', { p_token: token })
     if (error) throw error
-    return (data ?? []).map(mapRow)
+    return (Array.isArray(data) ? data : []).map(mapDailyDeal)
   },
 
   async getActive() {
-    const { data, error } = await supabase
-      .from('packages')
-      .select('*')
-      .eq('status', 'active')
-      .order('created_at', { ascending: false })
+    const { data, error } = await supabase.rpc('get_governed_active_daily_deals', { p_token: null })
     if (error) throw error
-    return (data ?? []).map(mapRow)
+    return (Array.isArray(data) ? data : []).map(mapDailyDeal)
   },
 
   async getById(id: string) {
-    const { data, error } = await supabase
-      .from('packages')
-      .select('*, package_items(*, products(product_name))')
-      .eq('id', id)
-      .single()
-    if (error) throw error
-    return data ? mapRow(data) : null
+    const all = await this.getAll()
+    return all.find((d) => d.id === id) || null
   },
 }

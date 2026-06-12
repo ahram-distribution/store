@@ -5,6 +5,7 @@ import { useAccountStore } from '../../store/account'
 import { useOrdersStore } from '../../store/orders'
 import { formatCurrencyShort } from '../../utils/format'
 import { StatusBadge } from '../../components/shared/StatusBadge'
+import { UNIT_LABELS } from '../../types/order-display'
 import { GuidedError } from '../../components/shared/GuidedError'
 import toast from 'react-hot-toast'
 import type { OrderRecord, OrderItemRecord, OrderStatus } from '../../types/storefront'
@@ -26,10 +27,6 @@ export function CheckoutPage() {
   if (items.length === 0) {
     navigate('/cart')
     return null
-  }
-
-  const unitLabels: Record<string, string> = {
-    piece: 'قطعة', dozen: 'دستة', carton: 'كرتونة',
   }
 
   const handleSubmit = async () => {
@@ -175,7 +172,7 @@ export function CheckoutPage() {
         <div className="divide-y divide-border">
           {items.map((item) => (
             <div key={`${item.productId}-${item.unitType}`} className="flex justify-between py-2 text-sm">
-              <span className="text-text-secondary">{item.productName} - {item.unitQuantity} {unitLabels[item.unitType]}</span>
+              <span className="text-text-secondary">{item.productName} - {item.unitQuantity} {UNIT_LABELS[item.unitType]}</span>
               <span className="text-text font-semibold">{formatCurrencyShort(item.totalPrice)}</span>
             </div>
           ))}

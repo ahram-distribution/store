@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
+import { formatCurrencyShort } from '../../utils/format'
 
 function getToken() { try { return localStorage.getItem('session_token') } catch { return null } }
 
@@ -57,9 +58,9 @@ export function CreditApplicationsPage() {
               <span className="text-sm font-semibold text-text">{item.customer_name}</span>
             </div>
             <div className="text-xs text-text-secondary space-y-1">
-              <p>البرنامج: {item.program_name} - {item.credit_limit.toLocaleString()} ج.م / {item.credit_days} يوم</p>
-              <p>تاريخ التقديم: {item.submitted_at ? new Date(item.submitted_at).toLocaleDateString('ar-EG') : new Date(item.created_at).toLocaleDateString('ar-EG')}</p>
-              <p>آخر تحديث: {new Date(item.updated_at).toLocaleDateString('ar-EG')}</p>
+              <p>البرنامج: {item.program_name} - {formatCurrencyShort(item.credit_limit)} / {item.credit_days} يوم</p>
+              <p>تاريخ التقديم: {item.submitted_at ? new Date(item.submitted_at).toLocaleDateString('ar-EG-u-nu-latn') : new Date(item.created_at).toLocaleDateString('ar-EG-u-nu-latn')}</p>
+              <p>آخر تحديث: {new Date(item.updated_at).toLocaleDateString('ar-EG-u-nu-latn')}</p>
             </div>
           </div>
         ))}

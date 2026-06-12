@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { creditService } from '../../services/credit'
 import type { CreditDashboardStats } from '../../types/storefront'
+import { formatCurrencyShort } from '../../utils/format'
 
 export function CreditManagementPage() {
   const [tab, setTab] = useState<'dashboard' | 'programs' | 'invoices'>('dashboard')
@@ -141,7 +142,7 @@ export function CreditManagementPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-semibold text-text">{p.name}</p>
-                  <p className="text-xs text-text-secondary">{p.credit_limit?.toLocaleString()} ج.م / {p.credit_days} يوم</p>
+                  <p className="text-xs text-text-secondary">{p.credit_limit != null ? formatCurrencyShort(p.credit_limit) : '—'} / {p.credit_days} يوم</p>
                 </div>
                 <button onClick={() => handleToggleProgram(p.id)}
                   className={`text-xs px-2 py-1 rounded-md ${
@@ -169,7 +170,7 @@ export function CreditManagementPage() {
                   <p className="text-[10px] text-text-secondary">{inv.order_number}</p>
                 </div>
                 <div className="text-left">
-                  <p className="text-sm font-bold text-text">{inv.invoice_amount.toLocaleString()} ج.م</p>
+                  <p className="text-sm font-bold text-text">{formatCurrencyShort(inv.invoice_amount)}</p>
                   <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
                     inv.status === 'paid' ? 'bg-emerald-50 text-emerald-600' :
                     inv.status === 'overdue' ? 'bg-red-50 text-red-600' :
@@ -181,7 +182,7 @@ export function CreditManagementPage() {
               </div>
               <div className="flex justify-between items-center mt-2">
                 <div className="text-[10px] text-text-secondary">
-                  <span>استحقاق: {new Date(inv.due_date).toLocaleDateString('ar-EG')}</span>
+                  <span>استحقاق: {new Date(inv.due_date).toLocaleDateString('ar-EG-u-nu-latn')}</span>
                   {inv.days_overdue > 0 && <span className="text-red-500 mr-2">متأخر {inv.days_overdue} يوم</span>}
                 </div>
                 {inv.status !== 'paid' && (

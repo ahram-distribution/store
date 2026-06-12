@@ -29,37 +29,50 @@ export function SplashScreen({ onFinish, message }: SplashScreenProps) {
       }`}
       style={{ background: '#071B4D' }}
     >
-      {/* Logo */}
-      <div className="text-center mb-12">
-        <div
-          className="w-24 h-24 mx-auto mb-5 rounded-3xl flex items-center justify-center shadow-2xl"
-          style={{
-            background: 'linear-gradient(135deg, rgba(201, 162, 39, 0.15) 0%, rgba(201, 162, 39, 0.05) 100%)',
-            border: '1px solid rgba(201, 162, 39, 0.2)',
-            boxShadow: '0 8px 40px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(201, 162, 39, 0.1)',
-          }}
-        >
-          <svg width="52" height="52" viewBox="0 0 48 48" fill="none">
-            <rect width="48" height="48" rx="10" fill="#C9A227" />
-            <text x="24" y="34" textAnchor="middle" fill="#071B4D" fontSize="24" fontWeight="bold" fontFamily="system-ui">أ</text>
-          </svg>
+      {/* Background mark */}
+      <img
+        src={`${import.meta.env.BASE_URL}pwa/branding/logo-square.png`}
+        alt=""
+        aria-hidden
+        style={{
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          width: 320,
+          opacity: 0.04,
+          pointerEvents: 'none',
+        }}
+      />
+
+      {/* Foreground */}
+      <div className="flex flex-col items-center" style={{ position: 'relative', zIndex: 1, marginTop: -48 }}>
+        <img
+          src={`${import.meta.env.BASE_URL}pwa/branding/logo.png`}
+          alt="الأهرام"
+          style={{ width: 88, height: 88, marginBottom: 20, objectFit: 'contain' }}
+        />
+
+        <h1 style={{ fontSize: 28, fontWeight: 700, color: '#C9A227', textAlign: 'center' }}>
+          الأهرام للتجارة والتوزيع
+        </h1>
+
+        <p style={{ fontSize: 14, color: 'rgba(255,255,255,.65)', textAlign: 'center', marginTop: 8 }}>
+          نظام تشغيل متكامل للتوزيع والمبيعات
+        </p>
+
+        <div style={{ width: 140, height: 3, borderRadius: 999, background: 'rgba(201,162,39,.15)', marginTop: 28, position: 'relative', overflow: 'hidden' }}>
+          <div className="splash-progress-bar" />
         </div>
-        <h1 className="text-2xl font-bold text-white tracking-wide" style={{ letterSpacing: '0.02em' }}>شركة الأهرام</h1>
-        <p className="text-sm mt-1 font-medium" style={{ color: '#E0B85A' }}>للتجارة والتوزيع</p>
+
+        <p style={{ fontSize: 13, color: 'rgba(255,255,255,.55)', textAlign: 'center', marginTop: 14 }}>
+          جاري تهيئة النظام...
+        </p>
+
+        {message && (
+          <p style={{ fontSize: 12, color: 'rgba(255,255,255,.35)', textAlign: 'center', marginTop: 8 }}>{message}</p>
+        )}
       </div>
-
-      {/* Gold progress line */}
-      <div className="gold-progress mb-8" />
-
-      {/* Tagline */}
-      <p className="text-xs" style={{ color: 'rgba(255, 255, 255, 0.45)' }}>نظام تشغيل متكامل للتوزيع والمبيعات</p>
-
-      {/* Message */}
-      {message && (
-        <div className="absolute bottom-20 left-0 right-0 text-center">
-          <p className="text-xs" style={{ color: 'rgba(255, 255, 255, 0.35)' }}>{message}</p>
-        </div>
-      )}
     </div>
   )
 }

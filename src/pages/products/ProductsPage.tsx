@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase'
 import { formatCurrencyShort } from '../../utils/format'
 import { productService } from '../../services/products'
 import { useCapability } from '../../hooks/useCapability'
+import { UNIT_LABELS } from '../../types/order-display'
 import type { ProductWithDetails } from '../../services/products'
 import toast from 'react-hot-toast'
 
@@ -173,7 +174,7 @@ export function ProductsPage() {
               {['piece', 'dozen', 'carton'].map((u) => (
                 <label key={u} className="flex items-center gap-1 text-xs">
                   <input type="checkbox" checked={newUnits.includes(u)} onChange={() => setNewUnits((prev) => prev.includes(u) ? prev.filter((x) => x !== u) : [...prev, u])} />
-                  {u === 'piece' ? 'قطعة' : u === 'dozen' ? 'دستة' : 'كرتونة'}
+                  {UNIT_LABELS[u]}
                 </label>
               ))}
             </div>

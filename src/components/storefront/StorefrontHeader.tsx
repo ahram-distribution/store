@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../../store/auth'
 import { supabase } from '../../lib/supabase'
-import { Search, User, LogIn } from 'lucide-react'
 
 export function StorefrontHeader() {
   const navigate = useNavigate()
@@ -24,26 +23,42 @@ export function StorefrontHeader() {
   }
 
   return (
-    <div className="-mx-4 px-4 bg-white h-14 flex items-center justify-between gap-2 border-b border-[#E5E7EB]">
-      <div className="text-lg font-bold text-gold shrink-0 leading-tight">
-        {companyName}
+    <div className="-mx-4 px-4 flex items-center justify-between gap-2" style={{ background: '#0F2B5B', height: 56, borderBottom: '1px solid rgba(201,162,39,.2)' }}>
+      <div className="flex items-center gap-2.5 shrink-0">
+        <img src={`${import.meta.env.BASE_URL}pwa/branding/logo-square.png`} alt="" style={{ width: 32, height: 32, borderRadius: 6 }} />
+        <div className="text-lg font-bold" style={{ color: '#C9A227', lineHeight: 1.2 }}>
+          {companyName}
+        </div>
       </div>
-      <div className="flex-1 max-w-[200px] relative">
-        <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted pointer-events-none" />
+      <div className="flex-1 max-w-[180px] relative">
+        <span className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: 'rgba(255,255,255,.35)', fontSize: 16, lineHeight: 1 }}>🔍</span>
         <input
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           onKeyDown={handleSearch}
           placeholder="ابحث عن منتج..."
-          className="w-full h-9 pr-9 pl-3 text-sm bg-[#F8FAFC] border border-[#E5E7EB] rounded-full text-[#111827] placeholder:text-muted outline-none focus:border-gold transition-colors"
+          style={{
+            width: '100%',
+            height: 36,
+            paddingRight: 36,
+            paddingLeft: 12,
+            borderRadius: 999,
+            background: 'rgba(255,255,255,.08)',
+            border: '1px solid rgba(201,162,39,.15)',
+            color: '#fff',
+            fontSize: 13,
+            outline: 'none',
+          }}
+          className="storefront-search-input"
         />
       </div>
       <button
         onClick={() => navigate(token ? '/account' : '/login')}
-        className="shrink-0 w-9 h-9 flex items-center justify-center rounded-full bg-[#0F2B5B] text-white active:opacity-90 transition-opacity"
+        className="shrink-0 flex items-center justify-center active:opacity-80 transition-opacity"
+        style={{ width: 36, height: 36, borderRadius: 999, background: 'rgba(201,162,39,.15)', border: '1px solid rgba(201,162,39,.25)', color: '#C9A227' }}
       >
-        {token ? <User className="w-4 h-4" /> : <LogIn className="w-4 h-4" />}
+        {token ? <span style={{ fontSize: 18, lineHeight: 1 }}>👤</span> : <span style={{ fontSize: 13, fontWeight: 600 }}>دخول</span>}
       </button>
     </div>
   )

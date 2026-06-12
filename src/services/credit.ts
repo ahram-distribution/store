@@ -86,13 +86,22 @@ export const creditService = {
     return { success: true }
   },
 
-  async reserveCreditForOrder(orderId: string): Promise<{ success: boolean; reserved?: number; error?: string; available?: number; required?: number }> {
+  async reserveCreditForOrder(orderId: string): Promise<{ success: boolean; reserved?: number; over_limit?: boolean; available?: number; required?: number; error?: string }> {
     const token = getToken()
     if (!token) return { success: false, error: 'INVALID_SESSION' }
     const { data, error } = await supabase.rpc('governed_reserve_credit_for_order', { p_token: token, p_order_id: orderId })
     if (error) return { success: false, error: error.message }
     if (data?.error) return { success: false, error: data.error, available: data.available, required: data.required }
+    if (data?.over_limit) return { success: true, over_limit: true, available: Number(data.available), required: Number(data.required) }
     return { success: true, reserved: Number(data.reserved) }
+  },
+
+  async checkOrderOverLimit(orderId: string): Promise<{ over_limit: boolean; available: number; required: number; error?: string }> {
+    const token = getToken()
+    if (!token) return { over_limit: false, available: 0, required: 0, error: 'INVALID_SESSION' }
+    const { data, error } = await supabase.rpc('governed_check_order_over_limit', { p_token: token, p_order_id: orderId })
+    if (error) return { over_limit: false, available: 0, required: 0, error: error.message }
+    return { over_limit: !!data?.over_limit, available: Number(data?.available || 0), required: Number(data?.required || 0) }
   },
 
   async releaseCreditReservation(orderId: string): Promise<{ success: boolean; error?: string }> {

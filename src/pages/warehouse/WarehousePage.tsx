@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../hooks/useAuth';
 import { OrderStatusManager } from '../../components/orders/OrderStatusManager';
 import { useCapability } from '../../hooks/useCapability';
+import { formatCurrencyShort } from '../../utils/format';
 
 type PrepRecord = {
   id: string;
@@ -344,8 +345,8 @@ export default function WarehousePage() {
               </div>
               <div className="text-xs text-text-secondary space-y-0.5">
                 <p>العميل: {o.customer_name}</p>
-                <p>الإجمالي: {Number(o.total).toLocaleString()} ج.م</p>
-                <p>التاريخ: {new Date(o.created_at).toLocaleDateString('ar-EG')}</p>
+                <p>الإجمالي: {formatCurrencyShort(Number(o.total))}</p>
+                <p>التاريخ: {new Date(o.created_at).toLocaleDateString('ar-EG-u-nu-latn')}</p>
               </div>
               <button onClick={() => handleStart(o.id)} className="w-full mt-3 bg-primary text-white rounded-xl py-2 text-sm font-semibold active:bg-primary-dark transition-colors">
                 بدء التجهيز
@@ -377,8 +378,8 @@ export default function WarehousePage() {
               </div>
               <div className="text-xs text-text-secondary space-y-0.5 mb-3">
                 <p>العميل: {r.customer_name}</p>
-                <p>بدء: {new Date(r.started_at).toLocaleDateString('ar-EG')}</p>
-                <p>إكمال: {r.completed_at ? new Date(r.completed_at).toLocaleDateString('ar-EG') : '—'}</p>
+                <p>بدء: {new Date(r.started_at).toLocaleDateString('ar-EG-u-nu-latn')}</p>
+                <p>إكمال: {r.completed_at ? new Date(r.completed_at).toLocaleDateString('ar-EG-u-nu-latn') : '—'}</p>
               </div>
               <div className="flex gap-2">
                 <button onClick={() => handleApprove(r.id)} className="flex-1 bg-indigo-600 text-white rounded-xl py-2 text-xs font-semibold active:opacity-90 transition-colors">اعتماد التجهيز</button>
@@ -412,7 +413,7 @@ export default function WarehousePage() {
               </div>
               <div className="text-xs text-text-secondary space-y-0.5 mb-3">
                 <p>العميل: {r.customer_name}</p>
-                <p>بدء: {new Date(r.started_at).toLocaleDateString('ar-EG')}</p>
+                <p>بدء: {new Date(r.started_at).toLocaleDateString('ar-EG-u-nu-latn')}</p>
                 {r.notes && <p className="text-gray-500">ملاحظات: {r.notes}</p>}
               </div>
               <button onClick={() => navigate(`/warehouse/prep/${r.id}`)} className="w-full bg-gray-600 text-white rounded-xl py-2 text-xs active:opacity-90 transition-colors">التفاصيل</button>
@@ -450,9 +451,9 @@ export default function WarehousePage() {
               </div>
               <div className="text-xs text-text-secondary space-y-0.5 mb-3">
                 <p>العميل: {r.customer_name}</p>
-                <p>بدء: {new Date(r.started_at).toLocaleDateString('ar-EG')}</p>
-                {r.completed_at && <p>إكمال: {new Date(r.completed_at).toLocaleDateString('ar-EG')}</p>}
-                {r.reviewed_at && <p>مراجعة: {new Date(r.reviewed_at).toLocaleDateString('ar-EG')}</p>}
+                <p>بدء: {new Date(r.started_at).toLocaleDateString('ar-EG-u-nu-latn')}</p>
+                {r.completed_at && <p>إكمال: {new Date(r.completed_at).toLocaleDateString('ar-EG-u-nu-latn')}</p>}
+                {r.reviewed_at && <p>مراجعة: {new Date(r.reviewed_at).toLocaleDateString('ar-EG-u-nu-latn')}</p>}
               </div>
               <div className="flex gap-2">
                 {r.status === 'in_progress' && (

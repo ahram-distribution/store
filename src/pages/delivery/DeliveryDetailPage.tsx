@@ -4,6 +4,7 @@ import toast from 'react-hot-toast'
 import { supabase } from '../../lib/supabase'
 import { OrderStatusManager } from '../../components/orders/OrderStatusManager'
 import { useCapability } from '../../hooks/useCapability'
+import { formatCurrencyShort } from '../../utils/format'
 
 function getToken() { try { return localStorage.getItem('session_token') } catch { return null } }
 
@@ -53,12 +54,12 @@ export function DeliveryDetailPage() {
       </div>
       <div className="bg-white rounded-xl border border-border p-4 space-y-2">
         <p className="text-sm font-semibold text-text">{c?.company_name}</p>
-        <p className="text-xs text-text-secondary">الطلب: {o?.order_number} - {o?.total_amount?.toLocaleString()} ج.م</p>
+        <p className="text-xs text-text-secondary">الطلب: {o?.order_number} - {formatCurrencyShort(Number(o?.total_amount || 0))}</p>
         <p className="text-xs text-text-secondary">الحالة: <span className="font-semibold">{statusLabels[dt?.status]}</span></p>
         <p className="text-xs text-text-secondary">المندوب: {emp?.code || 'غير معين'}</p>
-        {dt?.assigned_at && <p className="text-xs text-text-secondary">تاريخ التعيين: {new Date(dt.assigned_at).toLocaleString('ar-EG')}</p>}
-        {dt?.started_at && <p className="text-xs text-text-secondary">بدء التوصيل: {new Date(dt.started_at).toLocaleString('ar-EG')}</p>}
-        {dt?.completed_at && <p className="text-xs text-text-secondary">اكتمل: {new Date(dt.completed_at).toLocaleString('ar-EG')}</p>}
+        {dt?.assigned_at && <p className="text-xs text-text-secondary">تاريخ التعيين: {new Date(dt.assigned_at).toLocaleString('ar-EG-u-nu-latn')}</p>}
+        {dt?.started_at && <p className="text-xs text-text-secondary">بدء التوصيل: {new Date(dt.started_at).toLocaleString('ar-EG-u-nu-latn')}</p>}
+        {dt?.completed_at && <p className="text-xs text-text-secondary">اكتمل: {new Date(dt.completed_at).toLocaleString('ar-EG-u-nu-latn')}</p>}
         {dt?.failure_reason && <p className="text-xs text-red-600">سبب الفشل: {failureReasons.find(f => f.value === dt.failure_reason)?.label || dt.failure_reason}</p>}
         {dt?.notes && <p className="text-xs text-text-secondary">ملاحظات: {dt.notes}</p>}
       </div>

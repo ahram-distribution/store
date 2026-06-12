@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
+import { formatCurrencyShort } from '../../utils/format'
 
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
@@ -94,21 +95,21 @@ export function CustomerAnalyticsPage() {
       </div>
 
       <Section title="ملخص المشتريات">
-        <StatRow label="إجمالي المشتريات" value={card.purchase_summary.total_purchases?.toLocaleString()} />
+        <StatRow label="إجمالي المشتريات" value={card.purchase_summary.total_purchases != null ? formatCurrencyShort(card.purchase_summary.total_purchases) : ''} />
         <StatRow label="عدد الطلبات" value={card.purchase_summary.order_count?.toString()} />
-        <StatRow label="متوسط قيمة الطلب" value={card.purchase_summary.avg_order_value?.toLocaleString()} />
-        {card.purchase_summary.last_order_date && <StatRow label="آخر طلب" value={new Date(card.purchase_summary.last_order_date).toLocaleDateString('ar-EG')} />}
+        <StatRow label="متوسط قيمة الطلب" value={card.purchase_summary.avg_order_value != null ? formatCurrencyShort(card.purchase_summary.avg_order_value) : ''} />
+        {card.purchase_summary.last_order_date && <StatRow label="آخر طلب" value={new Date(card.purchase_summary.last_order_date).toLocaleDateString('ar-EG-u-nu-latn')} />}
       </Section>
 
       <Section title="ملخص الزيارات">
         <StatRow label="إجمالي الزيارات" value={card.visit_summary.total_visits?.toString()} />
-        {card.visit_summary.last_visit_date && <StatRow label="آخر زيارة" value={new Date(card.visit_summary.last_visit_date).toLocaleDateString('ar-EG')} />}
+        {card.visit_summary.last_visit_date && <StatRow label="آخر زيارة" value={new Date(card.visit_summary.last_visit_date).toLocaleDateString('ar-EG-u-nu-latn')} />}
         {card.visit_summary.days_since_last_visit != null && <StatRow label="أيام منذ آخر زيارة" value={`${card.visit_summary.days_since_last_visit} يوم`} />}
       </Section>
 
       <Section title="الوضع الائتماني">
-        <StatRow label="الرصيد الحالي" value={card.credit_status.current_balance?.toLocaleString()} />
-        <StatRow label="الحد الائتماني" value={card.credit_status.credit_limit?.toLocaleString()} />
+        <StatRow label="الرصيد الحالي" value={card.credit_status.current_balance != null ? formatCurrencyShort(card.credit_status.current_balance) : ''} />
+        <StatRow label="الحد الائتماني" value={card.credit_status.credit_limit != null ? formatCurrencyShort(card.credit_status.credit_limit) : ''} />
         <StatRow label="نسبة الاستخدام" value={`${card.credit_status.credit_utilization_pct?.toFixed(1)}%`} />
       </Section>
 
@@ -123,8 +124,8 @@ export function CustomerAnalyticsPage() {
       <Section title="مؤشرات السلوك">
         <StatRow label="متوسط فترة إعادة الطلب" value={card.behavior.avg_reorder_interval_days ? `${card.behavior.avg_reorder_interval_days.toFixed(0)} يوم` : 'غير متاح'} />
         <StatRow label="معدل النمو" value={`${card.behavior.growth_trend_pct?.toFixed(1)}%`} valueClass={card.behavior.growth_trend_pct >= 0 ? 'text-success' : 'text-danger'} />
-        {card.expected_next_order_date && <StatRow label="تاريخ الطلب المتوقع" value={new Date(card.expected_next_order_date).toLocaleDateString('ar-EG')} />}
-        <StatRow label="العائد المحتمل" value={card.potential_revenue_score?.toLocaleString()} valueClass="text-primary font-bold" />
+        {card.expected_next_order_date && <StatRow label="تاريخ الطلب المتوقع" value={new Date(card.expected_next_order_date).toLocaleDateString('ar-EG-u-nu-latn')} />}
+        <StatRow label="العائد المحتمل" value={card.potential_revenue_score != null ? formatCurrencyShort(card.potential_revenue_score) : ''} valueClass="text-primary font-bold" />
       </Section>
 
       <Section title="المنتجات الأكثر شراءً">
@@ -133,8 +134,8 @@ export function CustomerAnalyticsPage() {
             {products.top_products.map((p, i) => (
               <div key={p.product_id} className="flex justify-between text-[11px] py-1 border-b border-border last:border-0">
                 <span className="text-text-secondary">{i + 1}. </span>
-                <span className="text-text flex-1 mr-1">{p.product_name}</span>
-                <span className="text-text-secondary text-[10px]">{p.total_spent?.toLocaleString()}</span>
+                <span className="text-text flex-1 mr-1"><span className="text-primary cursor-pointer" onClick={() => navigate(`/products/${p.product_id}`)}>{p.product_name}</span></span>
+                <span className="text-text-secondary text-[10px]">{p.total_spent != null ? formatCurrencyShort(p.total_spent) : ''}</span>
               </div>
             ))}
           </div>
@@ -147,7 +148,7 @@ export function CustomerAnalyticsPage() {
             {products.repeated_products.map((p, i) => (
               <div key={p.product_id} className="flex justify-between text-[11px] py-1 border-b border-border last:border-0">
                 <span className="text-text-secondary">{i + 1}. </span>
-                <span className="text-text flex-1 mr-1">{p.product_name}</span>
+                <span className="text-text flex-1 mr-1"><span className="text-primary cursor-pointer" onClick={() => navigate(`/products/${p.product_id}`)}>{p.product_name}</span></span>
                 <span className="text-text-secondary text-[10px]">{p.times_ordered} مرات</span>
               </div>
             ))}
@@ -161,8 +162,8 @@ export function CustomerAnalyticsPage() {
             {products.stopped_products.map((p, i) => (
               <div key={p.product_id} className="flex justify-between text-[11px] py-1 border-b border-border last:border-0">
                 <span className="text-text-secondary">{i + 1}. </span>
-                <span className="text-text flex-1 mr-1">{p.product_name}</span>
-                <span className="text-text-secondary text-[10px]">{p.last_ordered_date ? new Date(p.last_ordered_date).toLocaleDateString('ar-EG') : ''}</span>
+                <span className="text-text flex-1 mr-1"><span className="text-primary cursor-pointer" onClick={() => navigate(`/products/${p.product_id}`)}>{p.product_name}</span></span>
+                <span className="text-text-secondary text-[10px]">{p.last_ordered_date ? new Date(p.last_ordered_date).toLocaleDateString('ar-EG-u-nu-latn') : ''}</span>
               </div>
             ))}
           </div>

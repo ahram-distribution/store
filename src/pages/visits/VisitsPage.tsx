@@ -2,9 +2,10 @@ import { useState, useEffect, useMemo } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useVisitsStore } from '../../store/visits'
-import { formatDateTime } from '../../utils/format'
 import { StatusBadge } from '../../components/shared/StatusBadge'
+import { VisitCard } from '../../components/visits/VisitCard'
 import { locationService } from '../../services/location'
+import { gpsOperation } from '../../lib/diag'
 import toast from 'react-hot-toast'
 
 function getToken(): string | null {
@@ -13,12 +14,6 @@ function getToken(): string | null {
 
 const filterLabels: Record<string, string> = {
   today: 'زيارات اليوم', active: 'زيارات نشطة',
-}
-
-const resultLabels: Record<string, string> = {
-  order_taken: 'تم الطلب', collection_taken: 'تم التحصيل', order_and_collection: 'طلب وتحصيل',
-  follow_up: 'متابعة', customer_closed: 'العميل مغلق', no_responsible_person: 'لا يوجد مسؤول',
-  order_rejected: 'رفض الطلب', postponed: 'تأجل', other: 'أخرى',
 }
 
 const STATUS_OPTIONS = [
@@ -46,8 +41,6 @@ export function VisitsPage() {
 
   const [showCheckin, setShowCheckin] = useState(false)
   const [checkinCustomerId, setCheckinCustomerId] = useState('')
-  const [gpsLat, setGpsLat] = useState('')
-  const [gpsLng, setGpsLng] = useState('')
 
   useEffect(() => {
     const token = getToken()
@@ -79,6 +72,12 @@ export function VisitsPage() {
     return m
   }, [customers])
 
+  const employeeMap = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const e of employees) m.set(e.id, e.full_name)
+    return m
+  }, [employees])
+
   const filtered = useMemo(() => {
     let list = visits
     const q = searchQuery.trim().toLowerCase()
@@ -101,30 +100,26 @@ export function VisitsPage() {
     if (!checkinCustomerId) { toast.error('اختر العميل'); return }
     const token = getToken()
 
-    const { locationId, gps } = await locationService.captureAndStoreLocation()
+    const result = await gpsOperation('بدء زيارة')
+
+    let locationId: string | null = null
+    let gps = result.location
+    if (result.success && result.location) {
+      locationId = await locationService.saveLocation(result.location)
+    }
 
     const { data, error } = await supabase.rpc('governed_checkin_visit', {
       p_token: token, p_customer_id: checkinCustomerId,
       p_start_location_id: locationId,
-      p_latitude: gps?.latitude || (gpsLat ? parseFloat(gpsLat) : null),
-      p_longitude: gps?.longitude || (gpsLng ? parseFloat(gpsLng) : null),
+      p_latitude: gps?.latitude || null,
+      p_longitude: gps?.longitude || null,
     })
-    if (error) { toast.error(error.message); return }
-    const result = data as any
-    if (result.error) { toast.error(result.error); return }
+    if (error) { console.error('[VISIT] VisitsPage checkin failed', error); toast.error(error.message); return }
+    const resultData = data as any
+    if (resultData.error) { console.error('[VISIT] VisitsPage checkin result error', resultData.error); toast.error(resultData.error); return }
     toast.success('تم تسجيل الدخول')
-    setShowCheckin(false); setCheckinCustomerId(''); setGpsLat(''); setGpsLng('')
-    if (result.id) navigate(`/visits/${result.id}`)
-  }
-
-  async function getCurrentPosition() {
-    const result = await locationService.captureFreshLocation()
-    if (result.success && result.location) {
-      setGpsLat(String(result.location.latitude))
-      setGpsLng(String(result.location.longitude))
-    } else {
-      toast.error(result.error?.message || 'تعذر الحصول على الموقع')
-    }
+    setShowCheckin(false); setCheckinCustomerId('')
+    if (resultData.id) navigate(`/visits/${resultData.id}`)
   }
 
   return (
@@ -172,11 +167,6 @@ export function VisitsPage() {
             {customers.map((c: any) => <option key={c.id} value={c.id}>{c.company_name}</option>)}
           </select>
           <div className="flex gap-2">
-            <input type="text" value={gpsLat} onChange={(e) => setGpsLat(e.target.value)} placeholder="خط العرض" className="flex-1 border border-border rounded-lg px-3 py-2 text-xs" dir="ltr" />
-            <button onClick={getCurrentPosition} className="bg-surface text-text-secondary text-xs px-3 py-2 rounded-lg">GPS</button>
-          </div>
-          <input type="text" value={gpsLng} onChange={(e) => setGpsLng(e.target.value)} placeholder="خط الطول" className="w-full border border-border rounded-lg px-3 py-2 text-xs" dir="ltr" />
-          <div className="flex gap-2">
             <button onClick={handleCheckin} className="flex-1 bg-success text-white text-xs py-2 rounded-lg">تسجيل الدخول</button>
             <button onClick={() => setShowCheckin(false)} className="px-4 border border-border rounded-lg text-xs">إلغاء</button>
           </div>
@@ -214,28 +204,16 @@ export function VisitsPage() {
       ) : filtered.length === 0 ? (
         <div className="text-center py-12 text-text-secondary text-sm">لا توجد زيارات</div>
       ) : (
-        <div className="space-y-2">
-          {filtered.map((visit: any) => {
-            const cusName = visit.customer_name || customerMap.get(visit.customer_id) || ''
-            return (
-              <div key={visit.id} onClick={() => navigate(`/visits/${visit.id}`)}
-                className="bg-white rounded-lg border border-border p-3 cursor-pointer active:bg-surface transition-colors">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-sm font-semibold text-text">{cusName}</span>
-                  <StatusBadge status={visit.status} />
-                </div>
-                <p className="text-xs text-text-secondary">{visit.code}</p>
-                {visit.check_in_at && <p className="text-xs text-text-secondary mt-0.5">{formatDateTime(visit.check_in_at)}</p>}
-                {visit.visit_result && (
-                  <div className="mt-1">
-                    <span className="text-[10px] bg-surface text-text-secondary px-2 py-0.5 rounded">
-                      {resultLabels[visit.visit_result] || visit.visit_result}
-                    </span>
-                  </div>
-                )}
-              </div>
-            )
-          })}
+        <div className="space-y-3">
+          {filtered.map((visit: any) => (
+            <VisitCard
+              key={visit.id}
+              visit={visit}
+              customerName={visit.customer_name || customerMap.get(visit.customer_id) || ''}
+              employeeName={employeeMap.get(visit.employee_id) || ''}
+              onClick={() => navigate(`/visits/${visit.id}`)}
+            />
+          ))}
         </div>
       )}
     </div>

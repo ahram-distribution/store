@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { creditService } from '../../services/credit'
 import { useAuthStore } from '../../store/auth'
+import { formatCurrencyShort } from '../../utils/format'
 import type { CreditAccountRecord, CreditInvoiceRecord } from '../../types/storefront'
 
 const statusTitles: Record<string, string> = {
@@ -77,19 +78,19 @@ export function CustomerCreditPage() {
             <div className="grid grid-cols-2 gap-3">
               <div className="bg-surface rounded-lg p-3">
                 <p className="text-[10px] text-text-secondary">الحد الائتماني</p>
-                <p className="text-lg font-bold text-text">{account.credit_limit.toLocaleString()} ج.م</p>
+                <p className="text-lg font-bold text-text">{formatCurrencyShort(account.credit_limit)}</p>
               </div>
               <div className="bg-surface rounded-lg p-3">
                 <p className="text-[10px] text-text-secondary">المتاح</p>
-                <p className="text-lg font-bold text-emerald-600">{account.available_credit.toLocaleString()} ج.م</p>
+                <p className="text-lg font-bold text-emerald-600">{formatCurrencyShort(account.available_credit)}</p>
               </div>
               <div className="bg-surface rounded-lg p-3">
                 <p className="text-[10px] text-text-secondary">مستحق</p>
-                <p className="text-sm font-bold text-amber-600">{account.outstanding_credit.toLocaleString()} ج.م</p>
+                <p className="text-sm font-bold text-amber-600">{formatCurrencyShort(account.outstanding_credit)}</p>
               </div>
               <div className="bg-surface rounded-lg p-3">
                 <p className="text-[10px] text-text-secondary">محجوز</p>
-                <p className="text-sm font-bold text-blue-600">{account.reserved_credit.toLocaleString()} ج.م</p>
+                <p className="text-sm font-bold text-blue-600">{formatCurrencyShort(account.reserved_credit)}</p>
               </div>
             </div>
 
@@ -130,7 +131,7 @@ export function CustomerCreditPage() {
                       <p className="text-[10px] text-text-secondary">{inv.order_number}</p>
                     </div>
                     <div className="text-left">
-                      <p className="text-sm font-bold text-text">{inv.invoice_amount.toLocaleString()} ج.م</p>
+                      <p className="text-sm font-bold text-text">{formatCurrencyShort(inv.invoice_amount)}</p>
                       <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
                         inv.status === 'paid' ? 'bg-emerald-50 text-emerald-600' :
                         inv.status === 'overdue' ? 'bg-red-50 text-red-600' :
@@ -139,7 +140,7 @@ export function CustomerCreditPage() {
                     </div>
                   </div>
                   <div className="flex justify-between text-[10px] text-text-secondary mt-1">
-                    <span>استحقاق: {new Date(inv.due_date).toLocaleDateString('ar-EG')}</span>
+                    <span>استحقاق: {new Date(inv.due_date).toLocaleDateString('ar-EG-u-nu-latn')}</span>
                     {inv.days_overdue > 0 && <span className="text-red-500">متأخر {inv.days_overdue} يوم</span>}
                   </div>
                 </div>
@@ -165,7 +166,7 @@ export function CustomerCreditPage() {
                   <option value="">اختر البرنامج...</option>
                   {programs.map(p => (
                     <option key={p.id} value={p.id}>
-                      {p.name} - {p.credit_limit.toLocaleString()} ج.م / {p.credit_days} يوم
+                      {p.name} - {formatCurrencyShort(p.credit_limit)} / {p.credit_days} يوم
                     </option>
                   ))}
                 </select>

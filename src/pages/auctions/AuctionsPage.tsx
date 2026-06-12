@@ -119,7 +119,7 @@ export function AuctionsPage() {
                   <span className="text-xs font-bold text-[#C9A227]">{formatCurrencyShort(a.current_price)}</span>
                   {a.status === 'pending' && (
                     <span className="text-[10px] text-gray-400">
-                      {new Date(a.start_time).toLocaleDateString('ar-EG')}
+                      {new Date(a.start_time).toLocaleDateString('ar-EG-u-nu-latn')}
                     </span>
                   )}
                 </div>

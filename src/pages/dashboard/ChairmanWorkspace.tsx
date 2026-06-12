@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
+import { formatCurrencyShort } from '../../utils/format'
 
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
@@ -44,11 +45,11 @@ export function ChairmanWorkspace() {
           <span className="text-sm font-semibold text-text">إجمالي الطلبات</span>
         </div>
         <div className="bg-white rounded-xl border border-border p-4 text-right">
-          <div className="w-10 h-10 rounded-xl bg-success flex items-center justify-center mb-2"><span className="text-white text-lg font-bold">{totalSales.toLocaleString('ar-EG')}</span></div>
+          <div className="w-10 h-10 rounded-xl bg-success flex items-center justify-center mb-2"><span className="text-white text-lg font-bold">{formatCurrencyShort(totalSales)}</span></div>
           <span className="text-sm font-semibold text-text">إجمالي المبيعات</span>
         </div>
         <div className="bg-white rounded-xl border border-border p-4 text-right">
-          <div className="w-10 h-10 rounded-xl bg-accent flex items-center justify-center mb-2"><span className="text-white text-lg font-bold">{monthSales.toLocaleString('ar-EG')}</span></div>
+          <div className="w-10 h-10 rounded-xl bg-accent flex items-center justify-center mb-2"><span className="text-white text-lg font-bold">{formatCurrencyShort(monthSales)}</span></div>
           <span className="text-sm font-semibold text-text">مبيعات الشهر</span>
         </div>
         <div className="bg-white rounded-xl border border-border p-4 text-right">
@@ -74,7 +75,7 @@ export function ChairmanWorkspace() {
           {orders.slice(0, 5).map((o: any) => (
             <button key={o.id} onClick={() => navigate(`/orders/${o.id}`)} className="w-full flex justify-between items-center text-xs py-1.5 border-b border-border last:border-0 text-right">
               <span className="text-text font-semibold">{o.order_number || o.id?.slice(0, 8)}</span>
-              <span className="text-text-secondary">{Number(o.total_amount || 0).toLocaleString('ar-EG')} ج</span>
+              <span className="text-text-secondary">{formatCurrencyShort(Number(o.total_amount || 0))}</span>
             </button>
           ))}
         </div>

@@ -1,6 +1,6 @@
 # MIGRATION HISTORY — Ahram Distribution
 
-**Last updated:** 2026-06-05  
+**Last updated:** 2026-06-11  
 **Full history:** PROJECT_CHANGELOG.md  
 
 ---
@@ -56,6 +56,9 @@ When deploying to a new Supabase project, apply migrations in this order (alphab
 
 ### RECOVERY: Missing functions
 20260607_recovery_missing_functions.sql # 92 functions restored from live DB
+
+### Phase 7: Targets & Performance Weights (Phase 4)
+20260612_phase4_targets_governance.sql # Collections target, weights config, weight overrides, 13 RPCs
 ```
 
 ## Migration Stats

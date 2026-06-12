@@ -20,7 +20,7 @@ export function TopBar() {
     <header className="sticky top-0 z-50 bg-white border-b border-border">
       <div className="mobile-container flex items-center justify-between h-14 px-4">
         <div className="flex items-center gap-2 min-w-0">
-          <span className="font-semibold text-sm truncate text-text">{displayName}</span>
+          <span className="font-semibold text-sm text-text">{displayName}</span>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {isEmployee && <GlobalSearch />}

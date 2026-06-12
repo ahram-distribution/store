@@ -1,5 +1,5 @@
 export function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat('ar-EG', {
+  return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'EGP',
     minimumFractionDigits: 2,
@@ -7,15 +7,20 @@ export function formatCurrency(amount: number): string {
 }
 
 export function formatCurrencyShort(amount: number): string {
-  return new Intl.NumberFormat('ar-EG', {
+  const formatted = new Intl.NumberFormat('en-US', {
     style: 'decimal',
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  }).format(amount) + ' ج.م'
+  }).format(amount)
+  return formatted.replace(/\.00$/, '') + ' ج.م'
+}
+
+export function toEnglishDigits(str: string): string {
+  return str.replace(/[\u0660-\u0669]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0x0660 + 0x0030))
 }
 
 export function formatDate(date: string | Date): string {
-  return new Intl.DateTimeFormat('ar-EG', {
+  return new Intl.DateTimeFormat('ar-EG-u-nu-latn', {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
@@ -23,7 +28,7 @@ export function formatDate(date: string | Date): string {
 }
 
 export function formatDateTime(date: string | Date): string {
-  return new Intl.DateTimeFormat('ar-EG', {
+  return new Intl.DateTimeFormat('ar-EG-u-nu-latn', {
     year: 'numeric',
     month: 'short',
     day: 'numeric',

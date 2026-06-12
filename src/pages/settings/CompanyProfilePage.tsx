@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useCapability } from '../../hooks/useCapability'
+import { useCompaniesStore } from '../../store/companies'
 import toast from 'react-hot-toast'
 
 function getToken(): string | null {
@@ -66,6 +67,8 @@ export function CompanyProfilePage() {
     })
     setSaving(false)
     if (error) { toast.error(error.message); return }
+    useCompaniesStore.getState().triggerRefresh()
+    try { localStorage.removeItem('ahram_company_profile_cache') } catch {}
     toast.success('تم حفظ البيانات')
   }
 

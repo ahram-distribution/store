@@ -3,13 +3,12 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useCartStore } from '../../store/cart'
 import { formatCurrencyShort } from '../../utils/format'
+import { UNIT_LABELS } from '../../types/order-display'
 import toast from 'react-hot-toast'
 
 function getToken() {
   try { return localStorage.getItem('session_token') } catch { return null }
 }
-
-const unitLabels: Record<string, string> = { piece: 'قطعة', dozen: 'دستة', carton: 'كرتونة' }
 
 export function OrderEditPage() {
   const navigate = useNavigate()
@@ -92,7 +91,7 @@ export function OrderEditPage() {
                         min={1}
                         className="w-16 border border-border rounded px-2 py-1 text-xs text-center"
                       />
-                      <span className="text-xs text-text-secondary">{unitLabels[item.unit_type] || item.unit_type}</span>
+                      <span className="text-xs text-text-secondary">{UNIT_LABELS[item.unit_type] || item.unit_type}</span>
                     </div>
                   </div>
                   <span className="text-sm font-semibold text-text">{formatCurrencyShort(total)}</span>

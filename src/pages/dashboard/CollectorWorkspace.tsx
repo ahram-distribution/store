@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
+import { formatCurrencyShort } from '../../utils/format'
 
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
@@ -43,7 +44,7 @@ export function CollectorWorkspace() {
           <span className="text-sm font-semibold text-text">تم تحصيلها اليوم</span>
         </button>
         <div className="bg-white rounded-xl border border-border p-4 text-right">
-          <div className="w-10 h-10 rounded-xl bg-success flex items-center justify-center mb-2"><span className="text-white text-lg font-bold">{todayTotal.toLocaleString('ar-EG')}</span></div>
+          <div className="w-10 h-10 rounded-xl bg-success flex items-center justify-center mb-2"><span className="text-white text-lg font-bold">{formatCurrencyShort(todayTotal)}</span></div>
           <span className="text-sm font-semibold text-text">قيمة المحصل اليوم</span>
         </div>
         <button onClick={() => navigate('/collections')} className="bg-white rounded-xl border border-border p-4 text-right active:bg-surface transition-colors">
@@ -59,7 +60,7 @@ export function CollectorWorkspace() {
             {pending.slice(0, 5).map((c: any) => (
               <button key={c.id} onClick={() => navigate(`/collections/${c.id}`)} className="w-full flex justify-between items-center text-xs py-1.5 border-b border-border last:border-0 text-right">
                 <span className="text-text font-semibold">{c.customer_name || c.id?.slice(0, 8)}</span>
-                <span className="text-text-secondary">{Number(c.amount || 0).toLocaleString('ar-EG')} ج</span>
+                <span className="text-text-secondary">{formatCurrencyShort(Number(c.amount || 0))}</span>
               </button>
             ))}
           </div>

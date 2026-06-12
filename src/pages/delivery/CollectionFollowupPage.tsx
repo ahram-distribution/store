@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
+import { formatCurrencyShort } from '../../utils/format'
 
 function getToken() { try { return localStorage.getItem('session_token') } catch { return null } }
 
@@ -53,11 +54,11 @@ export function CollectionFollowupPage() {
               <span className="text-sm font-semibold text-text">{item.customer_name}</span>
             </div>
             <div className="text-xs text-text-secondary space-y-1">
-              <p>المبلغ: {item.amount.toLocaleString()} ج.م - {methodLabels[item.method] || item.method}</p>
+              <p>المبلغ: {formatCurrencyShort(item.amount)} - {methodLabels[item.method] || item.method}</p>
               <p>المسؤول: {item.owner_name || 'غير معروف'}</p>
-              <p>تاريخ الإنشاء: {new Date(item.created_at).toLocaleDateString('ar-EG')}</p>
+              <p>تاريخ الإنشاء: {new Date(item.created_at).toLocaleDateString('ar-EG-u-nu-latn')}</p>
               {item.days_since_creation > 30 && <p className="text-red-600">متأخر {item.days_since_creation} يوم</p>}
-              {item.collected_at && <p className="text-green-600">تم التحصيل: {new Date(item.collected_at).toLocaleDateString('ar-EG')}</p>}
+              {item.collected_at && <p className="text-green-600">تم التحصيل: {new Date(item.collected_at).toLocaleDateString('ar-EG-u-nu-latn')}</p>}
             </div>
           </div>
         ))}
