@@ -12,42 +12,83 @@ const isMobileBuild = process.env.MOBILE_BUILD === 'true'
 export default defineConfig({
   server: {
     host: '0.0.0.0',
-    ...(hasCerts ? { https: { cert: fs.readFileSync(certPath), key: fs.readFileSync(keyPath) } } : {}),
+    ...(hasCerts
+      ? {
+          https: {
+            cert: fs.readFileSync(certPath),
+            key: fs.readFileSync(keyPath),
+          },
+        }
+      : {}),
   },
+
   plugins: [
     react(),
     tailwindcss(),
-    ...(isMobileBuild ? [] : [VitePWA({
-      strategies: 'injectManifest',
-      srcDir: 'src',
-      filename: 'sw.ts',
-      registerType: 'autoUpdate',
-      includeAssets: ['pwa/**/*'],
-      manifest: {
-        name: 'شركة الأهرام للتجارة والتوزيع',
-        short_name: 'الأهرام',
-        description: 'نظام تشغيل متكامل للتوزيع والمبيعات',
-        theme_color: '#0B3D91',
-        background_color: '#0B3D91',
-        display: 'standalone',
-        orientation: 'portrait',
-        start_url: '/test1/',
-        lang: 'ar',
-        dir: 'rtl',
-        scope: '/test1/',
-        categories: ['business', 'shopping'],
-        prefer_related_applications: false,
-        icons: [
-          { src: 'pwa/icons/icon-192x192.png', sizes: '192x192', type: 'image/png' },
-          { src: 'pwa/icons/icon-512x512.png', sizes: '512x512', type: 'image/png' },
-          { src: 'pwa/icons/maskable-192x192.png', sizes: '192x192', type: 'image/png', purpose: 'maskable' },
-          { src: 'pwa/icons/maskable-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
-        ],
-      },
-      workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
-      },
-    })]),
+
+    ...(isMobileBuild
+      ? []
+      : [
+          VitePWA({
+            strategies: 'injectManifest',
+            srcDir: 'src',
+            filename: 'sw.ts',
+            registerType: 'autoUpdate',
+
+            includeAssets: ['pwa/**/*'],
+
+            manifest: {
+              name: 'شركة الأهرام للتجارة والتوزيع',
+              short_name: 'الأهرام',
+              description: 'نظام تشغيل متكامل للتوزيع والمبيعات',
+
+              theme_color: '#0B3D91',
+              background_color: '#0B3D91',
+
+              display: 'standalone',
+              orientation: 'portrait',
+
+              start_url: '/ahram-distribution/',
+              scope: '/ahram-distribution/',
+
+              lang: 'ar',
+              dir: 'rtl',
+
+              categories: ['business', 'shopping'],
+              prefer_related_applications: false,
+
+              icons: [
+                {
+                  src: 'pwa/icons/icon-192x192.png',
+                  sizes: '192x192',
+                  type: 'image/png',
+                },
+                {
+                  src: 'pwa/icons/icon-512x512.png',
+                  sizes: '512x512',
+                  type: 'image/png',
+                },
+                {
+                  src: 'pwa/icons/maskable-192x192.png',
+                  sizes: '192x192',
+                  type: 'image/png',
+                  purpose: 'maskable',
+                },
+                {
+                  src: 'pwa/icons/maskable-512x512.png',
+                  sizes: '512x512',
+                  type: 'image/png',
+                  purpose: 'maskable',
+                },
+              ],
+            },
+
+            workbox: {
+              globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
+            },
+          }),
+        ]),
   ],
-  base: isMobileBuild ? './' : '/test1/',
+
+  base: isMobileBuild ? './' : '/ahram-distribution/',
 })
