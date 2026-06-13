@@ -12,6 +12,7 @@ import { notificationService } from './services/notificationService'
 
 const isNative = typeof window !== 'undefined' && !!(window as any).Capacitor?.isNativePlatform?.()
 const Router = isNative ? HashRouter : BrowserRouter
+const basePath = import.meta.env.VITE_BASE_PATH || '/'
 
 export function App() {
   const [splashDone, setSplashDone] = useState(false)
@@ -45,7 +46,7 @@ export function App() {
   }
 
   return (
-    <Router basename={isNative ? undefined : '/test1'}>
+    <Router basename={isNative ? undefined : basePath}>
       {loading ? (
         <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center" style={{ background: '#071B4D' }}>
           {/* Logo */}
