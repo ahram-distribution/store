@@ -109,12 +109,6 @@ export function buildWhatsAppMessageFromDisplay(display: OrderDisplayData): stri
 export function sendWhatsAppFromDisplay(display: OrderDisplayData) {
   const msg = buildWhatsAppMessageFromDisplay(display)
   console.log('WHATSAPP_MESSAGE_FINAL', msg)
-
-  if (navigator.share) {
-    navigator.share({ title: 'طلب جديد', text: msg }).catch(() => {})
-    return
-  }
-
   const COMPANY_RAW = import.meta.env.VITE_WHATSAPP_NUMBER || '01040880002'
   const targetNumber = normalizeWhatsAppNumber(COMPANY_RAW)
   const encoded = encodeURIComponent(msg)
