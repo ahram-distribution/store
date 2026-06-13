@@ -79,27 +79,21 @@ export function DailyDealsManagerPage() {
     const token = getToken()
     try {
       const payload: Record<string, any> = { p_token: token, p_id: selectedId }
-      const rpcFields = ['title', 'image_url', 'description', 'fixed_price', 'starts_at', 'ends_at']
+      const rpcFields = ['title', 'image_url', 'description', 'fixed_price', 'starts_at', 'ends_at', 'original_quantity']
       for (const key of rpcFields) {
         if (key === 'fixed_price') {
           payload.p_fixed_price = form.fixed_price ? parseFloat(form.fixed_price) : null
         } else if (key === 'starts_at' || key === 'ends_at') {
           payload[`p_${key}`] = form[key] ? new Date(form[key]).toISOString() : null
+        } else if (key === 'original_quantity') {
+          payload.p_original_quantity = form.original_quantity !== undefined && form.original_quantity !== ''
+            ? parseInt(form.original_quantity) : null
         } else {
           payload[`p_${key}`] = form[key] || null
         }
       }
       const { error: updateErr } = await supabase.rpc('governed_update_daily_deal', payload)
       if (updateErr) { toast.error(updateErr.message); setSaving(false); return }
-
-      const directFields: Record<string, any> = {}
-      if (form.original_quantity !== undefined && form.original_quantity !== '') {
-        directFields.original_quantity = parseInt(form.original_quantity)
-      }
-      if (Object.keys(directFields).length > 0) {
-        const { error: directErr } = await supabase.from('daily_deals').update(directFields).eq('id', selectedId)
-        if (directErr) { toast.error('فشل تحديث بعض الحقول: ' + directErr.message); setSaving(false); return }
-      }
 
       toast.success('تم حفظ التغييرات')
 

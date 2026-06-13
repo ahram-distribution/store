@@ -52,4 +52,12 @@ supabase/.temp/
 android/.gradle/
 android/build/
 android/app/build/
-ios/build/
+ios/build/t3.py
+android/alahram.txt
+debug_pricing.py
+debug_pricing2.py
+runtime_test3.py
+verify_um.py
+check_functions.ps1
+order_flow_v2.py
+runtime_order_flow.py

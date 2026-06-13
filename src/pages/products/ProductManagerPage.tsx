@@ -135,6 +135,7 @@ export function ProductManagerPage() {
         p_product_name: form.product_name || null,
         p_description: form.description || null,
         p_legacy_code: form.legacy_code || null,
+        p_image_url: form.image_url || null,
       })
       if (updateErr) { toast.error(updateErr.message); setSaving(false); return }
 
@@ -158,27 +159,15 @@ export function ProductManagerPage() {
       })
       if (unitsErr) { toast.error(unitsErr.message); setSaving(false); return }
 
-      const { error: imgErr } = await supabase.from('products').update({
-        image_url: form.image_url || null,
-      }).eq('id', selectedId)
-      if (imgErr) { toast.error('فشل تحديث الصورة: ' + imgErr.message); setSaving(false); return }
-
-      const { error: visErr } = await supabase.from('products').update({
-        is_visible: form.is_visible,
-      }).eq('id', selectedId)
-      if (visErr && visErr.code === 'PGRST204') {
-        toast('خاصية الإظهار/الإخفاء تحتاج تحديث حتى تنعكس', { icon: 'ℹ️' })
-      } else if (visErr) {
-        toast.error('فشل تحديث حالة الظهور: ' + visErr.message)
-        setSaving(false); return
-      }
+      const { error: visErr } = await supabase.rpc('governed_update_product_visibility', {
+        p_token: token, p_id: selectedId, p_is_visible: form.is_visible,
+      })
+      if (visErr) { toast.error('فشل تحديث حالة الظهور: ' + visErr.message); setSaving(false); return }
 
       if (form.inventory_quantity) {
-        const { error: invErr } = await supabase.from('inventory').upsert({
-          product_id: selectedId,
-          quantity: parseInt(form.inventory_quantity),
-          updated_at: new Date().toISOString(),
-        }, { onConflict: 'product_id' })
+        const { error: invErr } = await supabase.rpc('governed_update_product_inventory', {
+          p_token: token, p_id: selectedId, p_quantity: parseInt(form.inventory_quantity),
+        })
         if (invErr) { toast.error('فشل تحديث المخزون: ' + invErr.message); setSaving(false); return }
       }
 

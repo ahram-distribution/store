@@ -1,15 +1,9 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { SubLauncherPage, type LauncherIcon } from './SubLauncherPage'
 import { useAuthStore } from '../../store/auth'
+import { normalizeEmployeeRole } from '../../utils/roleNormalization'
 
-const MODULE_HOME_ROLES = new Set([
-  'مدير البيع',
-  'مدير تنفيذي',
-  'سوبر أدمن',
-  'رئيس مجلس الإدارة',
-  'أدمن',
-  'SUPER_ADMIN',
-])
+const MODULE_HOME_TARGETS = new Set(['الإدارة العليا', 'مدير بيع'])
 
 const MODULE_ICONS: Record<string, { title: string; icons: LauncherIcon[] }> = {
   orders: {
@@ -126,13 +120,20 @@ const MODULE_ICONS: Record<string, { title: string; icons: LauncherIcon[] }> = {
       { icon: '🔐', label: 'الصلاحيات', path: '/account/permissions' },
     ],
   },
+  command_center: {
+    title: 'مركز القيادة',
+    icons: [
+      { icon: '🎯', label: 'مركز قيادة المبيعات', path: '/sales-manager-cc' },
+      { icon: '📊', label: 'مركز القيادة', path: '/command-center' },
+    ],
+  },
 }
 
 export function ModuleLauncherPage() {
   const { module } = useParams<{ module: string }>()
   const nav = useNavigate()
   const user = useAuthStore((s) => s.user)
-  const isMgmt = user?.roles?.some((r) => MODULE_HOME_ROLES.has(r)) ?? false
+  const isMgmt = user?.roles?.some((r) => MODULE_HOME_TARGETS.has(normalizeEmployeeRole(r))) ?? false
   const icons = module === 'attendance' && !isMgmt ? [] : MODULE_ICONS[module]?.icons
 
   if (!module || !MODULE_ICONS[module] || (module === 'attendance' && !isMgmt)) {

@@ -61,6 +61,30 @@ export const DAILY_DEAL_COLUMNS: ColumnDef[] = [
   { key: 'updated_at', label: 'آخر تحديث', inputType: 'text', readonly: true, hidden: true },
 ]
 
+/* ───────── FLASH OFFERS ───────── */
+export const FLASH_OFFER_COLUMNS: ColumnDef[] = [
+  { key: 'id', label: 'المُعرّف', inputType: 'text', readonly: true },
+  { key: 'title', label: 'العنوان', inputType: 'text', required: true, maxLength: 255 },
+  { key: 'description', label: 'الوصف', inputType: 'textarea' },
+  { key: 'image_url', label: 'رابط الصورة', inputType: 'url' },
+  { key: 'fixed_price', label: 'السعر الثابت', inputType: 'number', required: true, step: 0.01, min: 0 },
+  { key: 'original_quantity', label: 'الكمية الأصلية', inputType: 'number', min: 0 },
+  { key: 'available_quantity', label: 'الكمية المتاحة', inputType: 'number', readonly: true, min: 0 },
+  { key: 'starts_at', label: 'تاريخ البدء', inputType: 'datetime-local' },
+  { key: 'ends_at', label: 'تاريخ الانتهاء', inputType: 'datetime-local' },
+  { key: 'status', label: 'الحالة', inputType: 'select', readonly: true,
+    options: [
+      { value: 'draft', label: 'مسودة' },
+      { value: 'scheduled', label: 'مجدول' },
+      { value: 'active', label: 'نشط' },
+      { value: 'sold_out', label: 'نفد' },
+      { value: 'expired', label: 'منتهي' },
+      { value: 'cancelled', label: 'ملغي' },
+    ] },
+  { key: 'created_at', label: 'تاريخ الإنشاء', inputType: 'text', readonly: true, hidden: true },
+  { key: 'updated_at', label: 'آخر تحديث', inputType: 'text', readonly: true, hidden: true },
+]
+
 /* ───────── AUCTIONS ───────── */
 export const AUCTION_COLUMNS: ColumnDef[] = [
   { key: 'id', label: 'المُعرّف', inputType: 'text', readonly: true },
@@ -83,6 +107,7 @@ export const AUCTION_COLUMNS: ColumnDef[] = [
       { value: 'cancelled', label: 'ملغي' },
     ] },
   { key: 'winner_amount', label: 'قيمة الفائز', inputType: 'number', readonly: true, step: 0.01 },
+  { key: 'winner_id', label: 'الفائز', inputType: 'text', readonly: true },
   { key: 'created_at', label: 'تاريخ الإنشاء', inputType: 'text', readonly: true, hidden: true },
   { key: 'updated_at', label: 'آخر تحديث', inputType: 'text', readonly: true, hidden: true },
 ]

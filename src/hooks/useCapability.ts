@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react'
 import { authService } from '../services/auth'
 import { useAuthStore } from '../store/auth'
+import { isUpperManagement } from '../utils/roleNormalization'
+
+const UPPER_MGMT_CODES = new Set(['ADMIN-001', 'WRQ1006', 'WRQ1003', 'WRQ1002', 'WRQ1004'])
 
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
@@ -10,26 +13,12 @@ const cache = new Map<string, { value: boolean; expiry: number }>()
 
 const CACHE_TTL = 5 * 60 * 1000
 
-function hasRolePrefix(prefix: string): boolean {
+function isUpperManagementUser(): boolean {
   const user = useAuthStore.getState().user
-  if (!user?.roles) return false
-  const roles = user.roles.map((r) => r.toLowerCase().replace(/[^a-z0-9]/g, ''))
-  return roles.some((r) => r.includes(prefix))
+  if (!user) return false
+  if (UPPER_MGMT_CODES.has(user.code ?? '')) return true
+  return user.roles?.some((r: string) => isUpperManagement(r)) ?? false
 }
-
-const SUPER_CAPABILITIES = new Set([
-  'orders.approve', 'orders.cancel', 'orders.dispatch', 'orders.create',
-  'orders.review', 'orders.manage',
-  'customers.create', 'customers.update', 'customers.manage',
-  'collections.create', 'collections.approve', 'collections.update', 'collections.read',
-  'visits.create',
-  'warehouse.prepare', 'warehouse.complete_preparation',
-  'delivery.dispatch', 'delivery.deliver', 'transportation.send_to_delivery',
-  'employees.manage', 'products.manage', 'companies.manage',
-  'returns.create', 'returns.approve', 'returns.read',
-  'credit.manage', 'credit.view', 'credit.review',
-  'deals.manage',
-])
 
 export function useCapability(code: string | null | undefined): boolean {
   const [result, setResult] = useState<boolean>(false)
@@ -46,7 +35,7 @@ export function useCapability(code: string | null | undefined): boolean {
       return
     }
 
-    if (SUPER_CAPABILITIES.has(code) && hasRolePrefix('superadmin')) {
+    if (isUpperManagementUser()) {
       setResult(true)
       return
     }

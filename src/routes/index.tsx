@@ -53,6 +53,7 @@ import {
 import { AttendanceRuntimePage } from '../pages/attendance/runtime'
 import { AttendanceRouter } from '../components/attendance/AttendanceRouter'
 import { OperationsCenterPage } from '../pages/operations-center'
+import { SalesManagerCCPage } from '../pages/sales-manager'
 
 export function AppRoutes() {
   const { token } = useAuthStore()
@@ -174,6 +175,8 @@ export function AppRoutes() {
       <Route path="/attendance/map/:employeeId/:date" element={<ProtectedRoute employeeOnly requireCapability="attendance.view_timeline"><EmployeeDayMapPage /></ProtectedRoute>} />
       <Route path="/attendance/employee/:employeeId/:date" element={<ProtectedRoute employeeOnly requireCapability="attendance.view_history"><EmployeeWorkdayDetailPage /></ProtectedRoute>} />
       <Route path="/attendance/operations" element={<ProtectedRoute employeeOnly requireCapability="attendance.live_monitor"><OperationsCenterPage /></ProtectedRoute>} />
+
+      <Route path="/sales-manager-cc" element={<ProtectedRoute employeeOnly><SalesManagerCCPage /></ProtectedRoute>} />
 
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>

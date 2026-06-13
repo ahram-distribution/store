@@ -1,19 +1,9 @@
 import { Navigate } from 'react-router-dom'
 import { useAuthStore } from '../../store/auth'
+import { normalizeEmployeeRole } from '../../utils/roleNormalization'
 import AttendanceModuleHomePage from '../../pages/attendance/AttendanceModuleHomePage'
 
-const MODULE_HOME_ROLES = new Set([
-  'مدير البيع',
-  'مدير تنفيذي',
-  'سوبر أدمن',
-  'رئيس مجلس الإدارة',
-  'أدمن',
-  'SUPER_ADMIN',
-])
-
-function shouldGoToModuleHome(roles: string[]): boolean {
-  return roles.some((role) => MODULE_HOME_ROLES.has(role))
-}
+const MODULE_HOME_TARGETS = new Set(['الإدارة العليا', 'مدير بيع'])
 
 export function AttendanceRouter() {
   const { user, token } = useAuthStore()
@@ -22,7 +12,7 @@ export function AttendanceRouter() {
     return <Navigate to="/login" replace />
   }
 
-  if (shouldGoToModuleHome(user.roles)) {
+  if (user.roles?.some((r: string) => MODULE_HOME_TARGETS.has(normalizeEmployeeRole(r)))) {
     return <AttendanceModuleHomePage />
   }
 

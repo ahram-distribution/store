@@ -107,23 +107,10 @@ export function CompanyManagerPage() {
         p_id: selectedId,
         p_company_name: form.company_name || null,
         p_legacy_code: form.legacy_code || null,
+        p_logo_url: form.logo_url || null,
+        p_is_visible: form.is_visible,
       })
       if (error) { toast.error(error.message); setSaving(false); return }
-
-      const { error: logoErr } = await supabase.from('companies').update({
-        logo_url: form.logo_url || null,
-      }).eq('id', selectedId)
-      if (logoErr) { toast.error('فشل تحديث الشعار: ' + logoErr.message); setSaving(false); return }
-
-      const { error: visErr } = await supabase.from('companies').update({
-        is_visible: form.is_visible,
-      }).eq('id', selectedId)
-      if (visErr && visErr.code === 'PGRST204') {
-        toast('خاصية الإظهار/الإخفاء تحتاج تحديث حتى تنعكس', { icon: 'ℹ️' })
-      } else if (visErr) {
-        toast.error('فشل تحديث حالة الظهور: ' + visErr.message)
-        setSaving(false); return
-      }
 
       if (form.is_active !== originalCompany?.is_active) {
         const fn = form.is_active ? 'governed_activate_company' : 'governed_deactivate_company'
