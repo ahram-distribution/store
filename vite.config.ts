@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 import fs from 'fs'
+import path from 'path'
 
 const certPath = '.certs/dev-cert.pem'
 const keyPath = '.certs/dev-key.pem'
@@ -81,5 +82,20 @@ export default defineConfig({
             },
           }),
         ]),
-  ],
+    {
+      name: 'generate-404',
+      closeBundle() {
+        if (isMobileBuild) return
+        const distDir = path.resolve(__dirname, 'dist')
+        const indexPath = path.join(distDir, 'index.html')
+        const fourOhFourPath = path.join(distDir, '404.html')
+        if (!fs.existsSync(indexPath)) return
+        let html = fs.readFileSync(indexPath, 'utf-8')
+        const redirectScript =
+          `<script>(function(){var p=location.pathname+location.search+location.hash;sessionStorage.setItem('gh_pages_redirect',p);location.replace('${basePath}');})();</script>`
+        html = html.replace('</head>', redirectScript + '</head>')
+        fs.writeFileSync(fourOhFourPath, html)
+      },
+    },
+   ],
 })

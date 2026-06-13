@@ -18,6 +18,15 @@
     <link rel="apple-touch-icon" sizes="180x180" href="pwa/apple/apple-touch-icon-180x180.png" />
     <link rel="manifest" href="manifest.webmanifest" />
     <title>الأهرام - نظام التوزيع المتكامل</title>
+    <script>
+      (function() {
+        var redirect = sessionStorage.getItem('gh_pages_redirect');
+        if (redirect && redirect !== location.pathname + location.search + location.hash) {
+          sessionStorage.removeItem('gh_pages_redirect');
+          history.replaceState(null, null, redirect);
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="app"></div>
