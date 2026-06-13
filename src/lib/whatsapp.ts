@@ -109,11 +109,11 @@ export function buildWhatsAppMessageFromDisplay(display: OrderDisplayData): stri
 export function sendWhatsAppFromDisplay(display: OrderDisplayData) {
   const msg = buildWhatsAppMessageFromDisplay(display)
   console.log('WHATSAPP_MESSAGE_FINAL', msg)
-  const COMPANY_RAW = '01040880002'
+  const COMPANY_RAW = import.meta.env.VITE_WHATSAPP_NUMBER || '01040880002'
   const targetNumber = normalizeWhatsAppNumber(COMPANY_RAW)
   const encoded = encodeURIComponent(msg)
-  const url = 'whatsapp://send?phone=' + targetNumber + '&text=' + encoded
-  window.location.href = url
+  const url = 'https://wa.me/' + targetNumber + '?text=' + encoded
+  window.open(url, '_blank', 'noopener,noreferrer')
 }
 
 export function copyWhatsAppFromDisplay(display: OrderDisplayData) {
