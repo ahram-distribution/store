@@ -90,11 +90,7 @@ export default defineConfig({
         const indexPath = path.join(distDir, 'index.html')
         const fourOhFourPath = path.join(distDir, '404.html')
         if (!fs.existsSync(indexPath)) return
-        let html = fs.readFileSync(indexPath, 'utf-8')
-        const redirectScript =
-          `<script>(function(){var p=location.pathname+location.search+location.hash;sessionStorage.setItem('gh_pages_redirect',p);location.replace('${basePath}');})();</script>`
-        html = html.replace('</head>', redirectScript + '</head>')
-        fs.writeFileSync(fourOhFourPath, html)
+        fs.copyFileSync(indexPath, fourOhFourPath)
       },
     },
    ],
