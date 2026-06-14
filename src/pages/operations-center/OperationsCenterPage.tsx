@@ -92,20 +92,26 @@ export default function OperationsCenterPage() {
 
   const departments = useMemo(() => {
     if (!data) return []
-    const set = new Set<string>()
-    (data.employees ?? []).forEach((e) => { if (e.role_name) set.add(e.role_name) })
-    (data.no_start_employees ?? []).forEach((e) => { if (e.role_name) set.add(e.role_name) })
-    (data.ended_employees ?? []).forEach((e) => { if (e.role_name) set.add(e.role_name) })
+    const set = new Set<string>();
+    const emps = data.employees ?? [];
+    const noStarts = data.no_start_employees ?? [];
+    const endeds = data.ended_employees ?? [];
+    emps.forEach((e) => { if (e.role_name) set.add(e.role_name) })
+    noStarts.forEach((e) => { if (e.role_name) set.add(e.role_name) })
+    endeds.forEach((e) => { if (e.role_name) set.add(e.role_name) })
     return Array.from(set).sort()
   }, [data])
 
   const areas = useMemo(() => {
     if (!data) return []
-    const set = new Set<string>()
+    const set = new Set<string>();
     const addLoc = (loc: string | null) => { if (loc && loc !== 'field' && loc !== 'office') set.add(loc) }
-    (data.employees ?? []).forEach((e) => { if (e.work_location === 'field') set.add('ميداني'); else if (e.work_location === 'office') set.add('مكتبي'); else addLoc(e.work_location) })
-    (data.no_start_employees ?? []).forEach((e) => { if (e.work_location === 'field') set.add('ميداني'); else if (e.work_location === 'office') set.add('مكتبي'); else addLoc(e.work_location) })
-    (data.ended_employees ?? []).forEach((e) => { if (e.work_location === 'field') set.add('ميداني'); else if (e.work_location === 'office') set.add('مكتبي'); else addLoc(e.work_location) })
+    const emps = data.employees ?? [];
+    const noStarts = data.no_start_employees ?? [];
+    const endeds = data.ended_employees ?? [];
+    emps.forEach((e) => { if (e.work_location === 'field') set.add('ميداني'); else if (e.work_location === 'office') set.add('مكتبي'); else addLoc(e.work_location) })
+    noStarts.forEach((e) => { if (e.work_location === 'field') set.add('ميداني'); else if (e.work_location === 'office') set.add('مكتبي'); else addLoc(e.work_location) })
+    endeds.forEach((e) => { if (e.work_location === 'field') set.add('ميداني'); else if (e.work_location === 'office') set.add('مكتبي'); else addLoc(e.work_location) })
     return Array.from(set).sort()
   }, [data])
 
