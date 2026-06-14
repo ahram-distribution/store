@@ -101,6 +101,7 @@ export default function UpperManagementDashboard() {
     { icon: '📈', label: 'التقارير', path: '/launcher/reports', isSubLauncher: true },
     { icon: '🎯', label: 'الأهداف', path: '/launcher/targets', isSubLauncher: true },
     { icon: '⚙️', label: 'الإعدادات', path: '/launcher/settings', isSubLauncher: true },
+    { icon: '📡', label: 'اختبار GPS والموقع', path: '/ops/gps-test' },
   ]
 
   const quickIcons: LauncherGroup[] = [
