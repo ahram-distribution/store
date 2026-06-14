@@ -1,6 +1,9 @@
+let _lastSessionId: string | null = null
 let _lastGpsAt: string | null = null
 let _lastHeartbeatAt: string | null = null
 let _lastSyncAt: string | null = null
+let _isOnline: boolean = true
+let _lastGpsAccuracy: number | null = null
 
 export interface FullLastSeen {
   lastGpsAt: string | null
@@ -17,6 +20,34 @@ function getMinutesSince(t: string | null): number {
 }
 
 export const lastSeenTracker = {
+  setSession(sessionId: string) {
+    _lastSessionId = sessionId
+  },
+
+  setOnline(online: boolean) {
+    _isOnline = online
+  },
+
+  setGps(info: { accuracy: number; timestamp: string }) {
+    if (!_lastGpsAt || info.timestamp > _lastGpsAt) {
+      _lastGpsAt = info.timestamp
+      _lastGpsAccuracy = info.accuracy
+    }
+  },
+
+  setSync(time: string) {
+    if (!_lastSyncAt || time > _lastSyncAt) _lastSyncAt = time
+  },
+
+  clear() {
+    _lastSessionId = null
+    _lastGpsAt = null
+    _lastHeartbeatAt = null
+    _lastSyncAt = null
+    _isOnline = true
+    _lastGpsAccuracy = null
+  },
+
   recordGps(time: string) {
     if (!_lastGpsAt || time > _lastGpsAt) _lastGpsAt = time
   },
@@ -33,6 +64,10 @@ export const lastSeenTracker = {
   getLastHeartbeat(): string | null { return _lastHeartbeatAt },
   getLastSync(): string | null { return _lastSyncAt },
 
+  getFull(): FullLastSeen {
+    return this.getFullStatus()
+  },
+
   getFullStatus(): FullLastSeen {
     const candidates: string[] = []
     if (_lastGpsAt) candidates.push(_lastGpsAt)
@@ -45,7 +80,6 @@ export const lastSeenTracker = {
     let connectionStatus: FullLastSeen['connectionStatus'] = 'no_data'
     if (minutes < 2) connectionStatus = 'connected'
     else if (minutes < 5) connectionStatus = 'delayed'
-    else if (minutes < 15) connectionStatus = 'delayed'
     else connectionStatus = 'lost'
     return { lastGpsAt: _lastGpsAt, lastHeartbeatAt: _lastHeartbeatAt, lastSyncAt: _lastSyncAt, lastSeenAt, minutesSinceLastSeen: minutes, connectionStatus }
   },

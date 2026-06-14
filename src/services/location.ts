@@ -258,3 +258,80 @@ export const locationService = {
 export function getLocationAccuracyLabel(accuracy: number | null | undefined): string {
   return locationService.formatAccuracy(accuracy).label
 }
+
+/**
+ * Acquire a GPS fix following the business rules:
+ *  1. Accept immediately if accuracy ≤ 100m.
+ *  2. Keep trying for up to maxWaitMs (default 30s) if accuracy > 100m.
+ *  3. Proceed immediately once accuracy ≤ 100m.
+ *  4. If maxWaitMs expires without a fix ≤ maxAcceptableAccuracy, return null.
+ *
+ * Never writes null coordinates. The caller must check the return value
+ * and reject the action if GPS acquisition failed.
+ */
+export function acquireGPS(
+  maxWaitMs: number = 30000,
+  maxAcceptableAccuracy: number = 100
+): Promise<{ latitude: number; longitude: number; accuracy: number; capturedAt: string } | null> {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) {
+      resolve(null)
+      return
+    }
+
+    const startTs = Date.now()
+    let watchId: number | null = null
+    let timer: ReturnType<typeof setTimeout> | null = null
+    let resolved = false
+    const fixes: Array<{ latitude: number; longitude: number; accuracy: number; capturedAt: string }> = []
+
+    const finish = (result: typeof fixes[0] | null) => {
+      if (resolved) return
+      resolved = true
+      if (watchId !== null) navigator.geolocation.clearWatch(watchId)
+      if (timer !== null) clearTimeout(timer)
+      if (result) {
+        _lastLocation = { latitude: result.latitude, longitude: result.longitude, accuracy: result.accuracy, capturedAt: result.capturedAt }
+      }
+      resolve(result)
+    }
+
+    const bestFix = () => {
+      if (fixes.length === 0) return null
+      return fixes.reduce((a, b) => (a.accuracy <= b.accuracy ? a : b))
+    }
+
+    timer = setTimeout(() => {
+      const best = bestFix()
+      if (best && best.accuracy <= maxAcceptableAccuracy) {
+        finish(best)
+      } else {
+        finish(null)
+      }
+    }, maxWaitMs)
+
+    try {
+      watchId = navigator.geolocation.watchPosition(
+        (pos) => {
+          const fix = {
+            latitude: pos.coords.latitude,
+            longitude: pos.coords.longitude,
+            accuracy: Math.round(pos.coords.accuracy),
+            capturedAt: new Date().toISOString(),
+          }
+          fixes.push(fix)
+
+          if (fix.accuracy <= maxAcceptableAccuracy) {
+            finish(fix)
+          }
+        },
+        () => {
+          /* ignore individual errors; timeout handles failure */
+        },
+        { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+      )
+    } catch {
+      finish(null)
+    }
+  })
+}

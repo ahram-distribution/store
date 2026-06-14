@@ -17,9 +17,10 @@ interface ProtectedRouteProps {
   requireCapability?: string
   employeeOnly?: boolean
   customerOnly?: boolean
+  requireUpperManagement?: boolean
 }
 
-export function ProtectedRoute({ children, requireCapability, employeeOnly, customerOnly }: ProtectedRouteProps) {
+export function ProtectedRoute({ children, requireCapability, employeeOnly, customerOnly, requireUpperManagement }: ProtectedRouteProps) {
   const { user, token } = useAuthStore()
   const [capabilityOk, setCapabilityOk] = useState<boolean | null>(null)
 
@@ -36,6 +37,10 @@ export function ProtectedRoute({ children, requireCapability, employeeOnly, cust
       setCapabilityOk(false)
       return
     }
+    if (requireUpperManagement) {
+      setCapabilityOk(isUpperManagementUser(user))
+      return
+    }
     if (requireCapability) {
       if (isUpperManagementUser(user)) {
         setCapabilityOk(true)
@@ -45,7 +50,7 @@ export function ProtectedRoute({ children, requireCapability, employeeOnly, cust
     } else {
       setCapabilityOk(true)
     }
-  }, [token, user, requireCapability, employeeOnly, customerOnly])
+  }, [token, user, requireCapability, employeeOnly, customerOnly, requireUpperManagement])
 
   if (!token || !user) {
     return <Navigate to="/login" replace />
