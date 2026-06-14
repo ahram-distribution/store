@@ -144,31 +144,34 @@
   - **Tracking Configuration**: offline timeout, sync interval
   - **Alert Thresholds**: متى يُعتبر انقطاعاً، متى يُعتبر break طويلاً
 
-### 2.8 Supervisor Dashboard
-- **المسار**: `/attendance/supervisor`
-- **الصلاحية**: مشرف (يمكنه رؤية فريقه فقط)
-- **الوصف**: نسخة مبسطة من Operations Center للمشرف العادي:
-  - فقط فريق المشرف
-  - يرى live status + history + alerts لفريقه فقط
-  - لا يرى analytics أو composite scores للإدارة
-  - يمكنه فتح Employee Detail لأي فرد من فريقه
+---
+> **ملاحظة**: تم إلغاء Supervisor Dashboard بقرار تشغيلي.
+> Supervisor يعامل كموظف من ناحية الحضور والانصراف — ليس جهة رقابية مستقلة.
 
 ---
 
-## 3. Screen Mapping — Current → Final
+## 3. Screen Mapping — Current State
 
-| المسار | الشاشة الحالية | ← | الشاشة النهائية |
-|---|---|---|---|
-| `/attendance` | AttendancePage | → | **Employee Self-Service Runtime** (Phase 6) |
-| `/attendance/live` | LiveMonitoringPage | → | **Operations Center** (Phase 7) |
-| `/attendance/team-map` | TeamMapPage | → | **Team Map** (محسّنة — Phase 5) |
-| `/attendance/alerts` | AlertsPage | → | **مدمجة في Operations Center** (Phase 7) |
-| `/attendance/reports` | ReportsPage | → | **Productivity & Analytics Dashboard** (Phase 6) |
-| `/attendance/history` | HistoryPage | → | **مدمجة في Employee Workday Detail** (Phase 6) |
-| `/attendance/map/:emp/:date` | EmployeeDayMapPage | → | **جزء من Employee Workday Detail** (Phase 6) |
-| `/attendance/settings` | AttendanceSettingsPage | → | **تبقى** + إضافة Shift Templates (Phase 5) |
-| **جديد** | — | → | **Supervisor Dashboard** `/attendance/supervisor` (Phase 7) |
-| **جديد** | — | → | **Employee Workday Detail** `/attendance/employee/:id/:date` (Phase 6) |
+| المسار | الشاشة الحالية | الحالة |
+|---|---|---|
+| `/attendance` | AttendanceRouter | **يعمل** — يوجّه إلى Runtime للموظف أو Module Home للإدارة |
+| `/attendance/runtime` | Employee Self-Service Runtime | **يعمل** |
+| `/attendance/operations` | Operations Center | **يعمل** |
+| `/attendance/team-map` | TeamMapPage | **موجود — يحتاج تحسين** (خريطة Leaflet) |
+| `/attendance/employee/:id/:date` | Employee Workday Detail | **يعمل** |
+| `/attendance/settings` | Attendance Settings + Work Policies | **يعمل** |
+
+### تم حذفها (إرث قديم)
+
+| المسار | الشاشة | سبب الحذف |
+|---|---|---|
+| `/attendance/live` | LiveMonitoringPage | **مُلغى** — مستبدل بـ Operations Center |
+| `/attendance/alerts` | AlertsPage | **مُلغى** — مدمج في Operations Center |
+| `/attendance/reports` | ReportsPage (قديم) | **مُلغى** — بانتظار Productivity & Analytics Dashboard |
+| `/attendance/history` | HistoryPage | **مُلغى** — مدمج في Employee Workday Detail |
+| `/attendance/map/:emp/:date` | EmployeeDayMapPage | **مُلغى** — مدمج في Employee Workday Detail |
+| `/attendance` (قديم) | AttendancePage (قديم) | **مُلغى** — مستبدل بـ Runtime |
+| `/attendance/supervisor` | Supervisor Dashboard | **مُلغى** — بقرار تشغيلي (Supervisor = موظف) |
 
 ---
 
@@ -183,12 +186,15 @@
 | ما عنده تقييم ليومه | عنده Composite Score + Best Day/Worst Day |
 
 ### المشرف (Supervisor)
+> **تغيير تشغيلي**: Supervisor يعامل كموظف عادي من ناحية الحضور والانصراف.
+> لا توجد شاشة رقابية مستقلة للمشرف. يستخدم Operations Center للإدارة العليا ومدير البيع.
+
 | قبل | بعد المشروع |
 |---|---|
-| يفتح Live → يرى الموظفين النشطين | يفتح Supervisor Dashboard → يرى فريقه فقط → live status + KPIs + alerts |
+| يفتح Live → يرى الموظفين النشطين | يستخدم **Team Map** لرؤية الفريق أو **Operations Center** (للمديرين) |
 | يفتح الخريطة → يرى كل الفريق (بدون فلتر) | يفتح Team Map → يرى فريقه + فلاتر + employee detail |
-| يستخدم History → يكتب employee id يدوياً | يفتح Employee Detail مباشرة من أي شاشة → يرى كل شيء عن يوم الموظف |
-| ما عنده تنبيهات مباشرة | يرى Alerts Panel جانبي في الوقت الحقيقي |
+| يستخدم History → يكتب employee id يدوياً | يفتح Employee Detail مباشرة من Team Map |
+| ما عنده تنبيهات مباشرة | يرى التنبيهات في Operations Center |
 
 ### مدير البيع (Sales Manager)
 | قبل | بعد المشروع |
@@ -323,44 +329,40 @@
 
 ## 7. Decommission Plan — الشاشات القديمة
 
-### Phase 6: إزالة الشاشات المستبدلة
+### ✅ تم الحذف — Phase 1
 
-| الشاشة | تُزال في | ملاحظات |
+| الشاشة | تاريخ الحذف | ملاحظات |
 |---|---|---|
-| `HistoryPage` | **Phase 6** | بعد انتهاء Employee Workday Detail |
-| `EmployeeDayMapPage` | **Phase 6** | بعد دمج route + timeline + ledger في Workday Detail |
-| `ReportsPage` | **Phase 6** | بعد تشغيل Productivity & Analytics Dashboard |
-
-### Phase 7: إزالة ما تبقى
-
-| الشاشة | تُزال في | ملاحظات |
-|---|---|---|
-| `LiveMonitoringPage` | **Phase 7** | بعد اعتماد Operations Center |
-| `AlertsPage` | **Phase 7** | بعد نقل التنبيهات إلى Operations Center Panel |
-| `AttendancePage` (قديم) | **Phase 7** | بعد اعتماد Employee Self-Service Runtime الجديد |
+| `LiveMonitoringPage` | **14 يونيو 2026** | مستبدل بـ Operations Center |
+| `AlertsPage` | **14 يونيو 2026** | مدمج في Operations Center |
+| `ReportsPage` | **14 يونيو 2026** | بانتظار Productivity & Analytics Dashboard |
+| `HistoryPage` | **14 يونيو 2026** | مدمج في Employee Workday Detail |
+| `EmployeeDayMapPage` | **14 يونيو 2026** | مدمج في Employee Workday Detail |
+| `AttendancePage` (قديم) | **14 يونيو 2026** | مستبدل بـ Runtime |
+| `Supervisor Dashboard` | **14 يونيو 2026** | بقرار تشغيلي |
 
 ### ستبقى بعد المشروع
 
 | الشاشة | سبب الإبقاء |
 |---|---|
-| `TeamMapPage` | شاشة قائمة بذاتها (محسّنة) |
+| `TeamMapPage` | شاشة قائمة بذاتها — تحتاج تحسين |
 | `AttendanceSettingsPage` | إعدادات + Work Policies + Shift Templates |
-| `Operations Center` | **جديدة** |
-| `Employee Workday Detail` | **جديدة** |
-| `Productivity & Analytics Dashboard` | **جديدة** |
-| `Employee Self-Service Runtime` | **جديدة — تحل محل AttendancePage القديمة** |
-| `Supervisor Dashboard` | **جديدة** |
+| `Operations Center` | تشغيليّة — غرفة العمليات الرئيسية |
+| `Employee Workday Detail` | تفاصيل يوم عمل الموظف |
+| `Employee Self-Service Runtime` | شاشة الموظف الرئيسية |
+| `Productivity & Analytics Dashboard` | **جديدة — لم تنفذ بعد** |
 
 ---
 
-## ملخص المراحل والتسليم
+## ملخص الشاشات بعد التحديث
 
-| الشاشة | المرحلة | النوع |
+| الشاشة | النوع | الحالة |
 |---|---|---|
-| Employee Workday Detail | **Phase 6** | New — Replace EmployeeDayMapPage + HistoryPage |
-| Productivity & Analytics Dashboard | **Phase 6** | New — Replace ReportsPage |
-| Employee Self-Service Runtime | **Phase 6** | Redesign AttendancePage |
-| Team Map Enhanced | **Phase 5** | Improved |
-| Operations Center | **Phase 7** | New — Replace LiveMonitoringPage + AlertsPage |
-| Supervisor Dashboard | **Phase 7** | New |
-| Work Policies + Shift Templates | **Phase 5** | Improved |
+| Employee Self-Service Runtime | **تشغيلية** | ✅ منفذة |
+| Operations Center | **رقابية** | ✅ منفذة |
+| Team Map Enhanced | **رقابية** | ⚠️ تحتاج تحسين (خريطة Leaflet) |
+| Employee Workday Detail | **تحليلية** | ✅ منفذة |
+| Productivity & Analytics Dashboard | **تحليلية** | ❌ غير منفذة |
+| Attendance Settings | **إدارية** | ✅ منفذة |
+| Work Policies | **إدارية** | ✅ منفذة |
+| Supervisor Dashboard | — | **مُلغى** (بقرار تشغيلي) |

@@ -6,6 +6,7 @@ import { formatDateTime } from '../../utils/format'
 import { StatusBadge } from '../../components/shared/StatusBadge'
 import { locationService } from '../../services/location'
 import { getCurrentLocation } from '../../services/gpsService'
+import { LocationDisplay } from '../../components/shared/LocationDisplay'
 import toast from 'react-hot-toast'
 
 function getToken(): string | null {
@@ -252,11 +253,8 @@ export function VisitScreen() {
             {startGps && (
               <div className="mt-2 text-[10px] opacity-70 space-y-0.5">
                 <p>دقة البداية: {startGps.accuracy}m</p>
-                <p>
-                  <a href={locationService.buildGoogleMapsUrl(startGps.latitude, startGps.longitude)} target="_blank" rel="noopener noreferrer" className="text-white/90 underline">
-                    فتح الخريطة
-                  </a>
-                  {startAddress && <span className="opacity-70 mr-1">- {startAddress}</span>}
+                <p className="flex items-center gap-1">
+                  <LocationDisplay lat={startGps.latitude} lng={startGps.longitude} size="sm" />
                 </p>
               </div>
             )}
@@ -343,9 +341,8 @@ export function VisitScreen() {
 
           {startGps && (
             <div className="bg-white rounded-lg border border-border p-3">
-              <p className="text-sm"><span className="text-text-secondary">رابط بدء الزيارة: </span>
-                <a href={locationService.buildGoogleMapsUrl(startGps.latitude, startGps.longitude)} target="_blank" rel="noopener noreferrer" className="text-primary underline text-xs">فتح الخريطة</a>
-                {startAddress && <span className="text-text-secondary text-xs mr-1">- {startAddress}</span>}
+              <p className="text-sm flex items-center gap-1"><span className="text-text-secondary">موقع بدء الزيارة: </span>
+                <LocationDisplay lat={startGps.latitude} lng={startGps.longitude} size="md" />
               </p>
             </div>
           )}

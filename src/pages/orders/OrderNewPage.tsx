@@ -115,7 +115,7 @@ export function OrderNewPage() {
       setProducts(allProds)
       if (compRes.data && allProds.length > 0) {
         const companyHasSellable = new Set(allProds.filter(p => !p.salesBlocked).map(p => p.companyId))
-        setCompanies(compRes.data.filter((c: any) => companyHasSellable.has(c.id)))
+        setCompanies(compRes.data.filter((c: any) => c.is_visible !== false && companyHasSellable.has(c.id)))
       } else if (compRes.data) {
         setCompanies(compRes.data)
       }

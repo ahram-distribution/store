@@ -70,8 +70,17 @@ export default function OperationsCenterPage() {
   const [areaFilter, setAreaFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [hiddenAlerts, setHiddenAlerts] = useState<Set<string>>(new Set())
+  const [canConfigure, setCanConfigure] = useState(false)
 
   const token = getToken()
+  const simpleMode = new URLSearchParams(window.location.search).has('simple')
+
+  useEffect(() => {
+    if (!token) return
+    supabase.rpc('check_capability', { p_token: token.trim(), p_code: 'attendance.configure' }).then(({ data }) => {
+      if (data === true) setCanConfigure(true)
+    })
+  }, [token])
 
   const fetchData = useCallback(async () => {
     if (!token) return
@@ -224,19 +233,21 @@ export default function OperationsCenterPage() {
           pollingSeconds={POLLING_INTERVAL / 1000}
           onRefresh={fetchData}
           alertCount={alertCount}
-          canConfigure={false}
+           canConfigure={canConfigure}
         />
 
         <TimeFilterBar active={timeFilter} onChange={setTimeFilter} />
 
-        <FilterBar
-          departments={departments}
-          areas={areas}
-          onDepartmentChange={setDeptFilter}
-          onAreaChange={setAreaFilter}
-          onStatusChange={setStatusFilter}
-          onSearchChange={setSearchQuery}
-        />
+        {!simpleMode && (
+          <FilterBar
+            departments={departments}
+            areas={areas}
+            onDepartmentChange={setDeptFilter}
+            onAreaChange={setAreaFilter}
+            onStatusChange={setStatusFilter}
+            onSearchChange={setSearchQuery}
+          />
+        )}
 
         <GlobalCounters
           activeCount={data?.active_count ?? 0}

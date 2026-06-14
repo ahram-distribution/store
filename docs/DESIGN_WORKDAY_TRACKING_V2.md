@@ -455,11 +455,11 @@ Each timeline event is clickable:
   → Has reports, timeline, history, alerts, team_map
   → May own customers directly (customer.owner_id = مدير البيع)
 
-سوبر فايزر (attendance.live_monitor + subtree of reps)
-  → Sees assigned مندوب and their customers only
-  → Alerts + live_monitor only
-  → NO reports, NO timeline (except own)
-  → May own customers directly (customer.owner_id = سوبر فايزر)
+سوبر فايزر (معامل كموظف عادي — قرار تشغيلي)
+  → يعامل كموظف من ناحية الحضور والانصراف
+  → Self only (start/end workday, own status, own mini-timeline)
+  → لا توجد شاشة رقابية مستقلة للمشرف
+  → قد يمتلك عملاء مباشرة (customer.owner_id = سوبر فايزر)
 
 مندوب
   → Self only (start/end workday, own status, own mini-timeline)

@@ -1,10 +1,11 @@
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../../lib/supabase'
-import { MapPinned, User, Navigation, Clock, Eye, Filter, Layers } from 'lucide-react'
+import { MapPinned, User, Clock, Eye, Filter, Layers } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import { formatTime } from '../../utils/format'
+import { LocationDisplay } from '../../components/shared/LocationDisplay'
 
 interface TeamCounters {
   active: number; on_break: number; on_visit: number; not_started: number
@@ -223,10 +224,7 @@ export default function TeamMapPage() {
                              <p className="text-[9px] text-gray-400 mt-1">آخر ظهور: {formatTime(m.last_seen_at)}</p>
                           )}
                           <div className="flex items-center gap-1 mt-2 border-t border-gray-100 pt-2">
-                            <a href={`https://www.google.com/maps?q=${m.latitude},${m.longitude}`} target="_blank" rel="noopener noreferrer"
-                              className="flex items-center gap-1 text-[9px] text-blue-600 bg-blue-50 px-2 py-1 rounded" onClick={e => e.stopPropagation()}>
-                              <Navigation className="w-2.5 h-2.5" /> فتح الخريطة
-                            </a>
+                            <LocationDisplay lat={m.latitude} lng={m.longitude} size="sm" />
                             <button onClick={() => navigate(`/attendance/employee/${m.employee_id}/${new Date().toISOString().slice(0, 10)}`)}
                               className="flex items-center gap-1 text-[9px] text-purple-600 bg-purple-50 px-2 py-1 rounded">
                               <Eye className="w-2.5 h-2.5" /> التفاصيل
@@ -279,11 +277,7 @@ export default function TeamMapPage() {
                         {CONN_LABELS[m.connection_status] ?? m.connection_status}
                       </span>
                     </div>
-                    <a href={`https://www.google.com/maps?q=${m.latitude},${m.longitude}`} target="_blank" rel="noopener noreferrer"
-                      className="flex items-center gap-1 text-blue-600 text-[10px] bg-blue-50 px-2 py-1 rounded-xl"
-                      onClick={e => e.stopPropagation()}>
-                      <Navigation className="w-3 h-3" />
-                    </a>
+                    <LocationDisplay lat={m.latitude} lng={m.longitude} />
                   </div>
                   <div className="flex items-center gap-2 text-[10px] text-gray-400 mt-1">
                     <Clock className="w-3 h-3" /> {fmtMin(m.duration_minutes)}

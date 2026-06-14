@@ -17,6 +17,7 @@ const BUSINESS_TYPES: { value: string; label: string }[] = [
   { value: 'other', label: 'أخرى' },
 ]
 import { locationService } from '../../services/location'
+import { LocationDisplay } from '../../components/shared/LocationDisplay'
 import { getCurrentLocation } from '../../services/gpsService'
 import toast from 'react-hot-toast'
 
@@ -288,12 +289,9 @@ export function CustomerProfilePage() {
                 الموقع
               </h2>
               <div className="space-y-2">
-                {location.formatted_address && (
-                  <div>
-                    <span className="text-[10px] text-text-secondary">العنوان</span>
-                    <p className="text-xs mt-0.5">{location.formatted_address}</p>
-                  </div>
-                )}
+                <div className="flex items-center gap-2 text-xs">
+                  <LocationDisplay lat={location.latitude} lng={location.longitude} size="md" className="text-text" />
+                </div>
                 <div className="flex items-center gap-2 text-xs">
                   <span className="text-text-secondary">دقة الموقع:</span>
                   <span className={locationService.formatAccuracy(location.accuracy_meters).className}>
@@ -305,12 +303,6 @@ export function CustomerProfilePage() {
                   <span className="text-text-secondary">تاريخ التقاط الموقع:</span>
                   <span>{formatDateTime(location.captured_at)}</span>
                 </div>
-                <button
-                  onClick={() => locationService.openGoogleMaps(location.latitude, location.longitude)}
-                  className="w-full mt-2 bg-primary/10 text-primary text-sm py-2.5 rounded-lg font-semibold hover:bg-primary/20 active:bg-primary/30 transition-colors"
-                >
-                  فتح الموقع
-                </button>
                 <button
                   onClick={handleUpdateLocation}
                   disabled={locating}

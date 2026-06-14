@@ -61,3 +61,18 @@ verify_um.py
 check_functions.ps1
 order_flow_v2.py
 runtime_order_flow.py
+apply_enum_fix.py
+debug_*.py
+runtime_test*.py
+t3.py*
+h origin main --force-with-lease
+# Generated audit/review files (not source)
+docs/analysis_report.txt
+docs/execute_update.sql
+docs/execution_report.txt
+docs/matching_audit.xlsx
+docs/products_needing_review.xlsx
+docs/units_debug.txt
+# Excel files (source price lists excluded from git)
+docs/*.xlsx
+*.xlsx

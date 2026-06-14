@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../store/auth'
 import { useCapability } from '../../hooks/useCapability'
 import { locationService } from '../../services/location'
+import { LocationDisplay } from '../../components/shared/LocationDisplay'
 
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
@@ -119,12 +120,7 @@ export function CustomersPage() {
                 </div>
                 {loc && (
                   <div className="flex items-center gap-2 mt-2">
-                    <button
-                      onClick={(e) => { e.stopPropagation(); locationService.openGoogleMaps(loc.latitude, loc.longitude) }}
-                      className="text-[10px] bg-primary/10 text-primary px-2.5 py-1 rounded-lg font-semibold hover:bg-primary/20 transition-colors"
-                    >
-                      فتح الموقع
-                    </button>
+                    <LocationDisplay lat={loc.latitude} lng={loc.longitude} size="sm" />
                     <span className={'text-[10px] ' + locationService.formatAccuracy(loc.accuracy_meters).className}>
                       {locationService.formatAccuracy(loc.accuracy_meters).label} ({locationService.formatAccuracy(loc.accuracy_meters).detail})
                     </span>

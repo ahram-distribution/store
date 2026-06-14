@@ -161,7 +161,18 @@ export default function AttendanceRuntimePage() {
         p_longitude: result.location!.longitude,
         p_device_status: { battery, timestamp: new Date().toISOString() },
       })
-      if (error) { toast.error(error.message || 'حدث خطأ'); return }
+      if (error) { toast.error(error.message || 'حدث خطأ'); setActionLoading(null); return }
+      const errCode = (data as any)?.error
+      if (errCode) {
+        const msgs: Record<string, string> = {
+          GPS_REQUIRED: 'لم يتم الحصول على موقع GPS دقيق — تأكد من فتح GPS وحاول مرة أخرى',
+          ALREADY_ACTIVE: 'لديك يوم عمل نشط بالفعل',
+          INVALID_SESSION: 'جلسة منتهية — الرجاء إعادة تسجيل الدخول',
+          FORBIDDEN: 'ليس لديك صلاحية لبدء يوم العمل',
+        }
+        toast.error(msgs[errCode] || 'فشل في بدء يوم العمل')
+        setActionLoading(null); return
+      }
       const sessionId = (data as any)?.session_id
       toast.success('بدأ يوم العمل بنجاح')
       await fetchStatus()
@@ -184,7 +195,17 @@ export default function AttendanceRuntimePage() {
         p_longitude: result.location!.longitude,
         p_device_status: { battery, timestamp: new Date().toISOString() },
       })
-      if (error) { toast.error(error.message || 'حدث خطأ'); return }
+      if (error) { toast.error(error.message || 'حدث خطأ'); setActionLoading(null); return }
+      const errCode = (data as any)?.error
+      if (errCode) {
+        const msgs: Record<string, string> = {
+          GPS_REQUIRED: 'لم يتم الحصول على موقع GPS دقيق',
+          SESSION_NOT_FOUND: 'لم يتم العثور على جلسة اليوم',
+          INVALID_SESSION: 'جلسة منتهية — الرجاء إعادة تسجيل الدخول',
+        }
+        toast.error(msgs[errCode] || 'فشل في إنهاء يوم العمل')
+        setActionLoading(null); return
+      }
       const d = data as { attendance_status?: string; late_minutes?: number }
       if (d?.attendance_status === 'late') {
         toast(`⏰ تم تسجيل تأخير ${d.late_minutes} دقيقة`)
