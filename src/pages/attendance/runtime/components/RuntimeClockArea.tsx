@@ -1,4 +1,5 @@
 import { Clock, Coffee, Timer } from 'lucide-react'
+import { formatTime } from '../../../../utils/format'
 
 function fmt(m: number): string {
   const h = Math.floor(m / 60)
@@ -22,7 +23,7 @@ export default function RuntimeClockArea({
     <div className="bg-white rounded-2xl shadow-sm p-4">
       <div className="text-center mb-3">
         <div className="text-4xl font-bold text-gray-800 tabular-nums tracking-wider" dir="ltr">
-          {currentTime.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}
+          {formatTime(currentTime, { second: '2-digit', hour12: false })}
         </div>
         <div className="text-xs text-gray-400 mt-0.5">الوقت الحالي</div>
       </div>
@@ -46,7 +47,7 @@ export default function RuntimeClockArea({
         <div className="bg-gray-50 rounded-xl p-3 text-center">
           <Clock className="w-4 h-4 text-gray-400 mx-auto mb-1" />
           <div className="text-lg font-bold text-gray-800 tabular-nums" dir="ltr">
-            {startedAt ? new Date(startedAt).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', hour12: false }) : '--:--'}
+            {startedAt ? formatTime(startedAt, { hour12: false }) : '--:--'}
           </div>
           <div className="text-[10px] text-gray-400">الحضور</div>
         </div>

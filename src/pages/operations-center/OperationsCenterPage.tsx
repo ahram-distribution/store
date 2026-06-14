@@ -93,9 +93,9 @@ export default function OperationsCenterPage() {
   const departments = useMemo(() => {
     if (!data) return []
     const set = new Set<string>()
-    data.employees.forEach((e) => { if (e.role_name) set.add(e.role_name) })
-    data.no_start_employees.forEach((e) => { if (e.role_name) set.add(e.role_name) })
-    data.ended_employees.forEach((e) => { if (e.role_name) set.add(e.role_name) })
+    (data.employees ?? []).forEach((e) => { if (e.role_name) set.add(e.role_name) })
+    (data.no_start_employees ?? []).forEach((e) => { if (e.role_name) set.add(e.role_name) })
+    (data.ended_employees ?? []).forEach((e) => { if (e.role_name) set.add(e.role_name) })
     return Array.from(set).sort()
   }, [data])
 
@@ -103,15 +103,15 @@ export default function OperationsCenterPage() {
     if (!data) return []
     const set = new Set<string>()
     const addLoc = (loc: string | null) => { if (loc && loc !== 'field' && loc !== 'office') set.add(loc) }
-    data.employees.forEach((e) => { if (e.work_location === 'field') set.add('ميداني'); else if (e.work_location === 'office') set.add('مكتبي'); else addLoc(e.work_location) })
-    data.no_start_employees.forEach((e) => { if (e.work_location === 'field') set.add('ميداني'); else if (e.work_location === 'office') set.add('مكتبي'); else addLoc(e.work_location) })
-    data.ended_employees.forEach((e) => { if (e.work_location === 'field') set.add('ميداني'); else if (e.work_location === 'office') set.add('مكتبي'); else addLoc(e.work_location) })
+    (data.employees ?? []).forEach((e) => { if (e.work_location === 'field') set.add('ميداني'); else if (e.work_location === 'office') set.add('مكتبي'); else addLoc(e.work_location) })
+    (data.no_start_employees ?? []).forEach((e) => { if (e.work_location === 'field') set.add('ميداني'); else if (e.work_location === 'office') set.add('مكتبي'); else addLoc(e.work_location) })
+    (data.ended_employees ?? []).forEach((e) => { if (e.work_location === 'field') set.add('ميداني'); else if (e.work_location === 'office') set.add('مكتبي'); else addLoc(e.work_location) })
     return Array.from(set).sort()
   }, [data])
 
   const filteredActive = useMemo(() => {
     if (!data) return []
-    return data.employees
+    return (data.employees ?? [])
       .filter((e) => {
         if (deptFilter && e.role_name !== deptFilter) return false
         if (areaFilter) {
@@ -134,7 +134,7 @@ export default function OperationsCenterPage() {
 
   const filteredNoStart = useMemo(() => {
     if (!data) return []
-    return data.no_start_employees.filter((e) => {
+    return (data.no_start_employees ?? []).filter((e) => {
       if (deptFilter && e.role_name !== deptFilter) return false
       if (areaFilter) {
         const areaLabel = e.work_location === 'field' ? 'ميداني' : e.work_location === 'office' ? 'مكتبي' : e.work_location
@@ -147,7 +147,7 @@ export default function OperationsCenterPage() {
 
   const filteredEnded = useMemo(() => {
     if (!data) return []
-    return data.ended_employees
+    return (data.ended_employees ?? [])
       .filter((e) => {
         if (deptFilter && e.role_name !== deptFilter) return false
         if (areaFilter) {
@@ -168,10 +168,10 @@ export default function OperationsCenterPage() {
   const totals = useMemo(() => {
     if (!data) return { orders: 0, sales: 0, newCustomers: 0, visits: 0 }
     return {
-      orders: data.employees.reduce((s, e) => s + e.order_count, 0) + data.ended_employees.reduce((s, e) => s + e.order_count, 0),
-      sales: data.employees.reduce((s, e) => s + e.sales_value, 0) + data.ended_employees.reduce((s, e) => s + e.sales_value, 0),
-      newCustomers: data.employees.reduce((s, e) => s + e.new_customer_count, 0) + data.ended_employees.reduce((s, e) => s + e.new_customer_count, 0),
-      visits: data.employees.reduce((s, e) => s + e.visit_count, 0) + data.ended_employees.reduce((s, e) => s + e.visit_count, 0),
+      orders: (data.employees ?? []).reduce((s, e) => s + e.order_count, 0) + (data.ended_employees ?? []).reduce((s, e) => s + e.order_count, 0),
+      sales: (data.employees ?? []).reduce((s, e) => s + e.sales_value, 0) + (data.ended_employees ?? []).reduce((s, e) => s + e.sales_value, 0),
+      newCustomers: (data.employees ?? []).reduce((s, e) => s + e.new_customer_count, 0) + (data.ended_employees ?? []).reduce((s, e) => s + e.new_customer_count, 0),
+      visits: (data.employees ?? []).reduce((s, e) => s + e.visit_count, 0) + (data.ended_employees ?? []).reduce((s, e) => s + e.visit_count, 0),
     }
   }, [data])
 
@@ -207,7 +207,7 @@ export default function OperationsCenterPage() {
   const isHistoryFilter = timeFilter === 'yesterday' || timeFilter === 'this_week' || timeFilter === 'custom_range_history'
 
   const alertCount = data
-    ? data.no_start_employees.length + (data.employees.filter((e) => e.connection_status === 'lost').length)
+    ? (data.no_start_employees ?? []).length + (data.employees ?? []).filter((e) => e.connection_status === 'lost').length
     : 0
 
   return (

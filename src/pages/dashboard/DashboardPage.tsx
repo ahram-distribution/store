@@ -7,13 +7,13 @@ import WarehouseDashboard from './WarehouseDashboard'
 import { ManagementDashboard } from './ManagementDashboard'
 import UpperManagementDashboard from './UpperManagementDashboard'
 import { WarehouseManagerWorkspace } from './WarehouseManagerWorkspace'
-import { SupervisorPage } from '../supervisor/SupervisorPage'
+
 import { normalizeEmployeeRole, type TargetRole } from '../../utils/roleNormalization'
 
 const WORKSPACE_HIERARCHY: { target: TargetRole; component: React.ReactNode }[] = [
   { target: 'الإدارة العليا', component: <UpperManagementDashboard /> },
   { target: 'مدير بيع', component: <SalesManagerCCPage /> },
-  { target: 'مشرف عام', component: <SupervisorPage /> },
+  { target: 'مشرف عام', component: <SalesManagerCCPage /> },
   { target: 'مندوب مبيعات', component: <SalesRepWorkDay /> },
   { target: 'مدير مخزن', component: <WarehouseManagerWorkspace /> },
   { target: 'سيلز داخلي', component: <ManagementDashboard /> },

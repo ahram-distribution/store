@@ -3,6 +3,7 @@ import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import { supabase } from '../../../lib/supabase'
 import { useNavigate } from 'react-router-dom'
+import { formatTime } from '../../../utils/format'
 
 interface TeamMapEmployee {
   employee_id: string
@@ -53,7 +54,16 @@ export default function MapTab() {
     if (!token) return
     const fetchMap = async () => {
       const { data } = await supabase.rpc('get_team_map', { p_token: token })
-      if (data && Array.isArray(data)) setEmployees(data as TeamMapEmployee[])
+      console.log('[MapTab] get_team_map raw response:', data)
+      console.log('[MapTab] typeof:', typeof data, 'isArray:', Array.isArray(data))
+      if (data && typeof data === 'object') {
+        const d = data as Record<string, unknown>
+        console.log('[MapTab] keys:', Object.keys(d), 'has employees:', 'employees' in d)
+        if ('employees' in d && Array.isArray(d.employees)) {
+          console.log('[MapTab] employees count:', d.employees.length)
+          setEmployees(d.employees as TeamMapEmployee[])
+        }
+      }
     }
     fetchMap()
     const interval = setInterval(fetchMap, 60000)
@@ -98,7 +108,7 @@ export default function MapTab() {
                   {e.duration_minutes ? `${Math.round(e.duration_minutes / 60)}h ${e.duration_minutes % 60}m` : '--'}
                 </p>
                 {e.last_seen_at && (
-                  <p className="text-gray-400">آخر ظهور: {new Date(e.last_seen_at).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}</p>
+                  <p className="text-gray-400">آخر ظهور: {formatTime(e.last_seen_at)}</p>
                 )}
                 <button
                   onClick={() => navigate(`/attendance/employee/${e.employee_id}/${new Date().toISOString().slice(0, 10)}`)}

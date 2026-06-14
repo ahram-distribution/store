@@ -81,12 +81,6 @@ const MODULE_ICONS: Record<string, { title: string; icons: LauncherIcon[] }> = {
     title: 'الحضور والانصراف',
     icons: [
       { icon: '⏱️', label: 'الحضور والانصراف', path: '/attendance' },
-      { icon: '📍', label: 'المراقبة الحية', path: '/attendance/live' },
-      { icon: '👥', label: 'خريطة الفريق', path: '/attendance/team-map' },
-      { icon: '🔔', label: 'التنبيهات', path: '/attendance/alerts' },
-      { icon: '📊', label: 'التقارير', path: '/attendance/reports' },
-      { icon: '📜', label: 'السجل', path: '/attendance/history' },
-      { icon: '⚙️', label: 'الإعدادات', path: '/attendance/settings' },
     ],
   },
   reports: {

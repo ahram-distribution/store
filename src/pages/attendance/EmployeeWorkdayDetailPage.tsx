@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase'
 import { ArrowRight, Clock, Coffee, MapPinned, Navigation } from 'lucide-react'
 import { MapContainer, TileLayer, Polyline, CircleMarker, Popup, Marker as LeafletMarker, useMap } from 'react-leaflet'
 import L from 'leaflet'
+import { formatTime } from '../../utils/format'
 
 const homeIcon = L.divIcon({ className: 'bg-transparent', html: '<span style="font-size:20px">🏠</span>', iconSize: [20, 20], iconAnchor: [10, 10] })
 const visitIcon = L.divIcon({ className: 'bg-transparent', html: '<span style="font-size:18px">📍</span>', iconSize: [18, 18], iconAnchor: [9, 9] })
@@ -114,8 +115,11 @@ export default function EmployeeWorkdayDetailPage() {
   const [mapData, setMapData] = useState<DayMapData | null>(null)
   const [timeline, setTimeline] = useState<TimelineData | null>(null)
   const [workHoursLedger, setWorkHoursLedger] = useState<WorkHoursLedgerEntry[] | null>(null)
+  const [historySessions, setHistorySessions] = useState<SessionData[]>([])
+  const [historySummary, setHistorySummary] = useState<HistoryResponse['summary'] | null>(null)
+  const [targetWeek, setTargetWeek] = useState<TargetResponse['last_7_days']>([])
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
-    map: true, timeline: true, tracking: false, stops: false, ledger: true, breakDetail: false,
+    map: true, timeline: true, tracking: false, stops: false, ledger: true, breakDetail: false, weekHistory: true,
   })
 
   const today = date ?? new Date().toISOString().slice(0, 10)
@@ -125,9 +129,11 @@ export default function EmployeeWorkdayDetailPage() {
   useEffect(() => {
     if (!token || !employeeId) return
     const fetchAll = async () => {
+      const d = new Date(today); d.setDate(d.getDate() - 6)
+      const fromDate = d.toISOString().slice(0, 10)
       const [nameRes, historyRes, mapRes, timelineRes] = await Promise.all([
         supabase.rpc('get_governed_employee', { p_token: token, p_employee_id: employeeId }),
-        supabase.rpc('get_employee_workday_history', { p_token: token, p_employee_id: employeeId, p_from: today, p_to: today }),
+        supabase.rpc('get_employee_workday_history', { p_token: token, p_employee_id: employeeId, p_from: fromDate, p_to: today }),
         supabase.rpc('get_employee_day_map', { p_token: token, p_employee_id: employeeId, p_date: today }),
         supabase.rpc('get_employee_day_timeline', { p_token: token, p_employee_id: employeeId, p_date: today }),
       ])
@@ -137,6 +143,8 @@ export default function EmployeeWorkdayDetailPage() {
       if (historyRes.data && typeof historyRes.data === 'object' && !('error' in (historyRes.data as Record<string, unknown>))) {
         const h = historyRes.data as HistoryResponse
         if (h.sessions && h.sessions.length > 0) setSession(h.sessions[0])
+        if (h.sessions) setHistorySessions(h.sessions)
+        if (h.summary) setHistorySummary(h.summary)
       }
       try {
         const { data: tr } = await supabase.rpc('get_daily_target_vs_actual', {
@@ -144,9 +152,20 @@ export default function EmployeeWorkdayDetailPage() {
         })
         if (tr && typeof tr === 'object' && !('error' in (tr as Record<string, unknown>))) {
           setTarget(tr as TargetResponse)
+          if ((tr as TargetResponse).last_7_days) setTargetWeek((tr as TargetResponse).last_7_days)
         }
       } catch {}
-      if (mapRes.data && !((mapRes.data as Record<string, unknown>).error)) setMapData(mapRes.data as DayMapData)
+      if (mapRes.data && !((mapRes.data as Record<string, unknown>).error)) {
+        const map = mapRes.data as DayMapData
+        if (map.route && map.route.length > 0) {
+          const sample = map.route.slice(0, 20).map((p, i) => ({ i, lat: p.latitude, lng: p.longitude }))
+          const hasNull = sample.some(p => p.lat == null || p.lng == null)
+          console.log('[EmployeeWorkdayDetail] route points:', map.route.length)
+          console.log('[EmployeeWorkdayDetail] first 20 route points:', sample)
+          console.log('[EmployeeWorkdayDetail] has null lat/lng:', hasNull)
+        }
+        setMapData(map)
+      }
       if (timelineRes.data && !((timelineRes.data as Record<string, unknown>).error)) setTimeline(timelineRes.data as TimelineData)
 
       const ledgerRes = await supabase.rpc('get_work_hours_ledger', {
@@ -159,7 +178,9 @@ export default function EmployeeWorkdayDetailPage() {
     fetchAll()
   }, [token, employeeId, today])
 
-  const routePoints: [number, number][] = mapData?.route.map(p => [p.latitude, p.longitude]) ?? []
+  const routePoints: [number, number][] = mapData?.route
+    ?.filter(p => p.latitude != null && p.longitude != null)
+    .map(p => [p.latitude, p.longitude]) ?? []
 
   const firstPtTime = mapData?.route?.[0]?.time ? new Date(mapData.route[0].time) : null
   const lastPtTime = mapData?.route?.[mapData.route.length - 1]?.time ? new Date(mapData.route[mapData.route.length - 1].time) : null
@@ -182,10 +203,23 @@ export default function EmployeeWorkdayDetailPage() {
             <ArrowRight className="w-5 h-5 text-gray-600" />
           </button>
           <div className="flex-1 min-w-0">
-            <h1 className="font-bold text-gray-800 text-base truncate">{employeeName || 'الموظف'}</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="font-bold text-gray-800 text-base truncate">{employeeName || 'الموظف'}</h1>
+              {session?.composite_score != null && <CompositeBadge score={session.composite_score} />}
+            </div>
             <p className="text-[10px] text-gray-400">
               {today && new Date(today).toLocaleDateString('ar-EG', { weekday: 'long', month: 'long', day: 'numeric' })}
             </p>
+          </div>
+          <div className="flex items-center gap-1">
+            <button onClick={() => {
+              const d = new Date(today); d.setDate(d.getDate() - 1)
+              navigate(`/attendance/employee/${employeeId}/${d.toISOString().slice(0, 10)}`)
+            }} className="p-1.5 hover:bg-gray-200 rounded-lg text-gray-500 text-xs font-bold">→</button>
+            <button onClick={() => {
+              const d = new Date(today); d.setDate(d.getDate() + 1)
+              navigate(`/attendance/employee/${employeeId}/${d.toISOString().slice(0, 10)}`)
+            }} className="p-1.5 hover:bg-gray-200 rounded-lg text-gray-500 text-xs font-bold">←</button>
           </div>
         </div>
 
@@ -234,6 +268,76 @@ export default function EmployeeWorkdayDetailPage() {
               </div>
             )}
 
+            {/* ===== TARGET LAST 7 DAYS ===== */}
+            {targetWeek.length > 0 && (
+              <Section title="📊 المستهدف آخر 7 أيام" expandedKey="targetWeek" expanded={expandedSections.targetWeek} onToggle={() => toggle('targetWeek')}>
+                <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                  {targetWeek.map((d, i) => {
+                    const pct = d.target_hours > 0 ? Math.round((d.net_hours / d.target_hours) * 100) : 0
+                    return (
+                      <div key={i} className="flex flex-col items-center shrink-0">
+                        <span className="text-[9px] text-gray-400 mb-0.5">
+                          {new Date(d.date).toLocaleDateString('ar-EG', { weekday: 'short' })}
+                        </span>
+                        <div className="w-10 h-14 bg-gray-50 rounded-lg relative overflow-hidden">
+                          <div className={`absolute bottom-0 w-full rounded-t-sm transition-all ${d.met_target ? 'bg-green-400' : pct >= 50 ? 'bg-amber-400' : 'bg-red-400'}`}
+                            style={{ height: `${Math.min(pct, 100)}%` }} />
+                        </div>
+                        <span className="text-[9px] font-bold mt-0.5">{d.net_hours.toFixed(1)}س</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </Section>
+            )}
+
+            {/* ===== WEEK HISTORY ===== */}
+            {historySessions.length > 1 && (
+              <Section title="📅 سجل الأيام (آخر 7 أيام)" expandedKey="weekHistory" expanded={expandedSections.weekHistory} onToggle={() => toggle('weekHistory')}>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-[10px] border-collapse">
+                    <thead>
+                      <tr className="border-b border-gray-200">
+                        <th className="text-right py-1 px-1 text-gray-500 font-bold">اليوم</th>
+                        <th className="text-right py-1 px-1 text-gray-500 font-bold">التاريخ</th>
+                        <th className="text-center py-1 px-1 text-gray-500 font-bold">صافي</th>
+                        <th className="text-center py-1 px-1 text-gray-500 font-bold">طلبات</th>
+                        <th className="text-center py-1 px-1 text-gray-500 font-bold">مبيعات</th>
+                        <th className="text-center py-1 px-1 text-gray-500 font-bold">تحصيل</th>
+                        <th className="text-center py-1 px-1 text-gray-500 font-bold">زيارات</th>
+                        <th className="text-center py-1 px-1 text-gray-500 font-bold">الحالة</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {historySessions.sort((a, b) => b.date.localeCompare(a.date)).map((s, i) => (
+                        <tr key={i} className="border-b border-gray-50 hover:bg-gray-50 cursor-pointer"
+                          onClick={() => navigate(`/attendance/employee/${employeeId}/${s.date}`)}>
+                          <td className="py-1 px-1 text-gray-600">
+                            {new Date(s.date).toLocaleDateString('ar-EG', { weekday: 'short' })}
+                          </td>
+                          <td className="py-1 px-1 text-gray-500">{s.date}</td>
+                          <td className="py-1 px-1 text-center font-bold text-gray-800">{fmtMin(s.net_work_minutes)}</td>
+                          <td className="py-1 px-1 text-center text-gray-700">{s.order_count}</td>
+                          <td className="py-1 px-1 text-center text-gray-700">{s.sales_amount?.toLocaleString('ar-EG')}</td>
+                          <td className="py-1 px-1 text-center text-gray-700">{s.collection_amount?.toLocaleString('ar-EG')}</td>
+                          <td className="py-1 px-1 text-center text-gray-700">{s.visit_count}</td>
+                          <td className="py-1 px-1 text-center"><BadgeSmall status={s.attendance_status} /></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                {historySummary && (
+                  <div className="flex items-center gap-2 mt-2 text-[9px] text-gray-400 flex-wrap">
+                    <span>إجمالي الأيام: {historySummary.total_days}</span>
+                    <span className="text-green-600">ملتزم: {historySummary.ontime_days}</span>
+                    <span className="text-red-600">متأخر: {historySummary.late_days}</span>
+                    <span className="text-amber-600">مبكر: {historySummary.early_departure_days}</span>
+                  </div>
+                )}
+              </Section>
+            )}
+
             {/* ===== 1. ROUTE MAP ===== */}
             <Section title="🗺️ خريطة المسار" expandedKey="map" expanded={expandedSections.map} onToggle={() => toggle('map')}>
               {routePoints.length > 0 ? (
@@ -243,7 +347,7 @@ export default function EmployeeWorkdayDetailPage() {
                     <span className="bg-indigo-50 text-indigo-600 text-[10px] px-2 py-0.5 rounded-full font-bold">{mapData?.total_distance_km} كم</span>
                     <span className="bg-gray-100 text-gray-600 text-[10px] px-2 py-0.5 rounded-full">{mapData?.total_points} نقطة</span>
                     <span className="bg-blue-50 text-blue-600 text-[10px] px-2 py-0.5 rounded-full">
-                      {firstPtTime ? firstPtTime.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }) : '--'} ← {lastPtTime ? lastPtTime.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }) : '--'}
+                      {firstPtTime ? formatTime(firstPtTime) : '--'} ← {lastPtTime ? formatTime(lastPtTime) : '--'}
                     </span>
                   </div>
                   <div className="rounded-xl overflow-hidden" style={{ height: 250 }}>
@@ -251,17 +355,17 @@ export default function EmployeeWorkdayDetailPage() {
                       <MapFitBounds points={routePoints} />
                       <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
                       <Polyline positions={routePoints} pathOptions={{ color: '#3b82f6', weight: 3, opacity: 0.7 }} />
-                      {mapData?.route.map((p, i) => (
+                      {mapData?.route.filter(p => p.latitude != null && p.longitude != null).map((p, i, arr) => (
                         <CircleMarker key={i} center={[p.latitude, p.longitude]}
-                          radius={i === 0 || i === (mapData?.route.length ?? 1) - 1 ? 5 : 2}
-                          pathOptions={{ color: i === 0 ? '#22c55e' : i === (mapData?.route.length ?? 1) - 1 ? '#ef4444' : '#3b82f6', fillOpacity: 0.8 }}>
-                          <Popup>{new Date(p.time).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}</Popup>
+                          radius={i === 0 || i === arr.length - 1 ? 5 : 2}
+                          pathOptions={{ color: i === 0 ? '#22c55e' : i === arr.length - 1 ? '#ef4444' : '#3b82f6', fillOpacity: 0.8 }}>
+                          <Popup>{formatTime(p.time)}</Popup>
                         </CircleMarker>
                       ))}
                       {mapData?.visit_locations.filter(v => v.latitude).map((v) => (
                         <LeafletMarker key={v.visit_id} position={[v.latitude, v.longitude]} icon={visitIcon}>
                           <Popup>
-                            <div className="text-xs"><p className="font-bold">{v.customer_name}</p><p>{v.check_in_at ? new Date(v.check_in_at).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }) : '--'}</p></div>
+                            <div className="text-xs"><p className="font-bold">{v.customer_name}</p><p>{v.check_in_at ? formatTime(v.check_in_at) : '--'}</p></div>
                           </Popup>
                         </LeafletMarker>
                       ))}
@@ -290,7 +394,7 @@ export default function EmployeeWorkdayDetailPage() {
                         <div className={`flex-1 ${cfg.bg} rounded-lg p-2`}>
                           <div className="flex items-center justify-between">
                             <span className="text-[10px] font-bold">{cfg.icon} {cfg.label}</span>
-                            <span className="text-[9px] text-gray-400">{new Date(ev.time).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}</span>
+                            <span className="text-[9px] text-gray-400">{formatTime(ev.time)}</span>
                           </div>
                           {ev.description && <p className="text-[10px] text-gray-600 mt-0.5">{ev.description}</p>}
                         </div>
@@ -306,8 +410,8 @@ export default function EmployeeWorkdayDetailPage() {
               <div className="grid grid-cols-2 gap-2 mb-2">
                 <StatBox label="إجمالي النقاط" value={String(mapData?.total_points ?? 0)} />
                 <StatBox label="المسافة" value={mapData ? `${mapData.total_distance_km} كم` : '--'} />
-                <StatBox label="أول نقطة" value={firstPtTime ? firstPtTime.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }) : '--'} />
-                <StatBox label="آخر نقطة" value={lastPtTime ? lastPtTime.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }) : '--'} />
+                <StatBox label="أول نقطة" value={firstPtTime ? formatTime(firstPtTime) : '--'} />
+                <StatBox label="آخر نقطة" value={lastPtTime ? formatTime(lastPtTime) : '--'} />
               </div>
               {mapData && mapData.route.length > 0 && (
                 <button onClick={() => setExpandedSections(prev => ({ ...prev, trackingList: !prev.trackingList }))}
@@ -319,7 +423,7 @@ export default function EmployeeWorkdayDetailPage() {
                 <div key={i} className="flex items-center justify-between text-[10px] py-1 border-b border-gray-50 last:border-0">
                   <span className="text-gray-400">#{i + 1}</span>
                   <span className="text-gray-600">{p.latitude.toFixed(4)}, {p.longitude.toFixed(4)}</span>
-                  <span className="text-gray-400">{new Date(p.time).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}</span>
+                  <span className="text-gray-400">{formatTime(p.time)}</span>
                 </div>
               ))}
             </Section>
@@ -341,7 +445,7 @@ export default function EmployeeWorkdayDetailPage() {
                         )}
                       </div>
                       <div className="text-[10px] text-amber-600 mt-0.5">
-                        {new Date(stop.start_time).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })} ← {new Date(stop.end_time).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}
+                        {formatTime(stop.start_time)} ← {formatTime(stop.end_time)}
                       </div>
                       {stop.latitude && (
                         <div className="text-[9px] text-amber-500 mt-0.5">{stop.latitude.toFixed(4)}, {stop.longitude.toFixed(4)}</div>
@@ -378,8 +482,8 @@ export default function EmployeeWorkdayDetailPage() {
                           return (
                             <tr key={i} className="border-b border-gray-50">
                               <td className="py-1 px-1 text-gray-700">{typeLabel[e.activity_type] || e.activity_type}</td>
-                              <td className="py-1 px-1 text-gray-500">{new Date(e.start_time).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}</td>
-                              <td className="py-1 px-1 text-gray-500">{e.end_time ? new Date(e.end_time).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }) : '--'}</td>
+                              <td className="py-1 px-1 text-gray-500">{formatTime(e.start_time)}</td>
+                              <td className="py-1 px-1 text-gray-500">{e.end_time ? formatTime(e.end_time) : '--'}</td>
                               <td className="py-1 px-1 text-center font-bold text-gray-800">{fmtMin(e.duration_minutes)}</td>
                             </tr>
                           )
@@ -498,8 +602,8 @@ function BreakHistoryTable({ events }: { events: TimelineEvent[] }) {
           {breaks.map((b, i) => (
             <tr key={i} className="border-b border-gray-50">
               <td className="py-1 px-1 text-gray-400">{i + 1}</td>
-              <td className="py-1 px-1 text-gray-700">{new Date(b.start).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}</td>
-              <td className="py-1 px-1 text-gray-700">{b.end !== '---' ? new Date(b.end!).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }) : <span className="text-amber-500">مستمرة</span>}</td>
+              <td className="py-1 px-1 text-gray-700">{formatTime(b.start)}</td>
+              <td className="py-1 px-1 text-gray-700">{b.end !== '---' ? formatTime(b.end!) : <span className="text-amber-500">مستمرة</span>}</td>
               <td className="py-1 px-1 text-center font-bold text-gray-800">{fmtMin(b.duration_minutes)}</td>
             </tr>
           ))}
@@ -513,6 +617,23 @@ function BreakHistoryTable({ events }: { events: TimelineEvent[] }) {
       </table>
     </div>
   )
+}
+
+function CompositeBadge({ score }: { score: number }) {
+  const color = score >= 85 ? 'bg-green-100 text-green-700' : score >= 70 ? 'bg-blue-100 text-blue-700' : score >= 50 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'
+  return <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold ${color}`}>{score}</span>
+}
+
+function BadgeSmall({ status }: { status: string | null }) {
+  if (!status) return null
+  const cfg: Record<string, { label: string; cls: string }> = {
+    late: { label: 'متأخر', cls: 'bg-red-100 text-red-600' },
+    early_departure: { label: 'مبكر', cls: 'bg-amber-100 text-amber-600' },
+    late_and_early: { label: 'مختلط', cls: 'bg-red-100 text-red-600' },
+    compliant: { label: 'ملتزم', cls: 'bg-green-100 text-green-600' },
+  }
+  const c = cfg[status]
+  return c ? <span className={`text-[8px] px-1 py-0.5 rounded-full font-bold ${c.cls}`}>{c.label}</span> : null
 }
 
 function Badge({ status }: { status: string | null }) {

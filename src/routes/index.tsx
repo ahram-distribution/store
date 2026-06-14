@@ -37,17 +37,11 @@ import { CompaniesPage as MgmtCompaniesPage, CompanyProfilePage } from '../pages
 import { ReportsPage } from '../pages/reports'
 import { CompanyProfilePage as SettingsCompanyProfilePage } from '../pages/settings'
 import ActivityPage from '../pages/activity/ActivityPage'
-import { SupervisorPage } from '../pages/supervisor/SupervisorPage'
+
 import { CommandCenterPage, ModuleWorkspacePage } from '../pages/command-center'
 import {
-  AttendancePage,
   AttendanceSettingsPage,
-  LiveMonitoringPage,
   TeamMapPage,
-  AlertsPage,
-  AttendanceReportsPage,
-  HistoryPage,
-  EmployeeDayMapPage,
   EmployeeWorkdayDetailPage,
 } from '../pages/attendance'
 import { AttendanceRuntimePage } from '../pages/attendance/runtime'
@@ -92,7 +86,7 @@ export function AppRoutes() {
       <Route path="/dashboard/company-targets" element={<ProtectedRoute employeeOnly><CompanyTargetsPage /></ProtectedRoute>} />
       <Route path="/dashboard/employee-targets" element={<ProtectedRoute employeeOnly><EmployeeTargetsPage /></ProtectedRoute>} />
       <Route path="/dashboard/employee-analysis" element={<ProtectedRoute employeeOnly><EmployeeAnalysisPage /></ProtectedRoute>} />
-      <Route path="/supervisor" element={<ProtectedRoute employeeOnly><SupervisorPage /></ProtectedRoute>} />
+
       <Route path="/storefront" element={<ProtectedRoute><CompaniesPage /></ProtectedRoute>} />
       <Route path="/storefront/products" element={<ProtectedRoute><StorefrontPage /></ProtectedRoute>} />
       <Route path="/cart" element={<ProtectedRoute><CartPage /></ProtectedRoute>} />
@@ -168,12 +162,7 @@ export function AppRoutes() {
       <Route path="/attendance" element={<ProtectedRoute employeeOnly><AttendanceRouter /></ProtectedRoute>} />
       <Route path="/attendance/runtime" element={<ProtectedRoute employeeOnly><AttendanceRuntimePage /></ProtectedRoute>} />
       <Route path="/attendance/settings" element={<ProtectedRoute employeeOnly requireCapability="attendance.configure"><AttendanceSettingsPage /></ProtectedRoute>} />
-      <Route path="/attendance/live" element={<ProtectedRoute employeeOnly requireCapability="attendance.live_monitor"><LiveMonitoringPage /></ProtectedRoute>} />
       <Route path="/attendance/team-map" element={<ProtectedRoute employeeOnly requireCapability="attendance.view_team_map"><TeamMapPage /></ProtectedRoute>} />
-      <Route path="/attendance/alerts" element={<ProtectedRoute employeeOnly requireCapability="attendance.view_alerts"><AlertsPage /></ProtectedRoute>} />
-      <Route path="/attendance/reports" element={<ProtectedRoute employeeOnly requireCapability="attendance.view_reports"><AttendanceReportsPage /></ProtectedRoute>} />
-      <Route path="/attendance/history" element={<ProtectedRoute employeeOnly requireCapability="attendance.view_history"><HistoryPage /></ProtectedRoute>} />
-      <Route path="/attendance/map/:employeeId/:date" element={<ProtectedRoute employeeOnly requireCapability="attendance.view_timeline"><EmployeeDayMapPage /></ProtectedRoute>} />
       <Route path="/attendance/employee/:employeeId/:date" element={<ProtectedRoute employeeOnly requireCapability="attendance.view_history"><EmployeeWorkdayDetailPage /></ProtectedRoute>} />
       <Route path="/attendance/operations" element={<ProtectedRoute employeeOnly requireCapability="attendance.live_monitor"><OperationsCenterPage /></ProtectedRoute>} />
 

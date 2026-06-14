@@ -12,4 +12,4 @@ export { BuffetWorkspace } from './BuffetWorkspace'
 export { DataEntryWorkspace } from './DataEntryWorkspace'
 export { CollectorWorkspace } from './CollectorWorkspace'
 export { DeliveryWorkspace } from './DeliveryWorkspace'
-export { SupervisorWorkspace } from './SupervisorWorkspace'
+

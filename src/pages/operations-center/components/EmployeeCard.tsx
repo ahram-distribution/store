@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import { Clock } from 'lucide-react'
+import { formatTime } from '../../../utils/format'
 
 interface ActiveEmployee {
   employee_id: string
@@ -173,7 +174,7 @@ export default function EmployeeCard(props: EmployeeCardProps) {
         <div className="flex items-center gap-1 text-xs text-gray-400 mb-2">
           <Clock className="w-3 h-3" />
           {e.started_at
-            ? new Date(e.started_at).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })
+            ? formatTime(e.started_at)
             : '--'}
           <span className="mx-1">-</span>
           <span className="font-bold text-gray-600">{formatDuration(e.duration_minutes)}</span>
@@ -236,7 +237,7 @@ export default function EmployeeCard(props: EmployeeCardProps) {
         </div>
         <div className="text-xs text-gray-400 mb-2">
           {e.shift_start_time
-            ? `وقت الدوام: ${new Date(e.shift_start_time).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}`
+            ? `وقت الدوام: ${formatTime(e.shift_start_time)}`
             : `الهدف: ${e.required_daily_hours} ساعات`}
         </div>
         <button
@@ -264,7 +265,7 @@ export default function EmployeeCard(props: EmployeeCardProps) {
           <Clock className="w-3 h-3" />
           {e.ended_at && (
             <span>
-              {new Date(e.ended_at).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })} · {formatDuration(e.duration_minutes)}
+              {formatTime(e.ended_at)} · {formatDuration(e.duration_minutes)}
             </span>
           )}
         </div>

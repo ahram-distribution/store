@@ -1,4 +1,5 @@
 import type { TrackingStatus } from '../../../../services/trackingEngine'
+import { formatTime } from '../../../../utils/format'
 
 interface RuntimeTrackingStatusProps {
   status: TrackingStatus
@@ -29,7 +30,7 @@ export default function RuntimeTrackingStatus({ status }: RuntimeTrackingStatusP
         </div>
         <span className={syncColor}>
           {status.lastSyncAt
-            ? `آخر مزامنة: ${new Date(status.lastSyncAt).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}`
+            ? `آخر مزامنة: ${formatTime(status.lastSyncAt)}`
             : 'لم تتم المزامنة'}
         </span>
       </div>
@@ -52,7 +53,7 @@ export default function RuntimeTrackingStatus({ status }: RuntimeTrackingStatusP
 
       {status.lastPointAt && (
         <div className="text-gray-400">
-          آخر نقطة: {new Date(status.lastPointAt).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+          آخر نقطة: {formatTime(status.lastPointAt, { second: '2-digit' })}
         </div>
       )}
     </div>

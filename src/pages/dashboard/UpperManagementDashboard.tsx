@@ -105,7 +105,7 @@ export default function UpperManagementDashboard() {
   ]
 
   const quickIcons: LauncherGroup[] = [
-    { icon: '⏱️', label: 'الحضور', path: '/launcher/attendance' },
+
     { icon: '🧑‍💼', label: 'المناديب', path: '/employees?role=مندوب' },
     { icon: '👔', label: 'المشرفين', path: '/employees?role=مشرف' },
     { icon: '🎭', label: 'الأدوار', path: '/employees#roles' },

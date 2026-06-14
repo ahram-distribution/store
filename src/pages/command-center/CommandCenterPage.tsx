@@ -70,7 +70,7 @@ const MODULE_ROUTES: Record<string, string> = {
   companies: '/companies',
   deals: '/deals',
   products: '/products',
-  attendance: '/attendance/live',
+  attendance: '/attendance/operations',
 }
 
 const MODULE_EMOJI: Record<string, string> = {

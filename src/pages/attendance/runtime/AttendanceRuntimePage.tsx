@@ -8,6 +8,7 @@ import { getCurrentLocation } from '../../../services/gpsService'
 import RuntimeTrackingStatus from './components/RuntimeTrackingStatus'
 import RuntimeDailySummaryModal from './components/RuntimeDailySummaryModal'
 import { useAuthStore } from '../../../store/auth'
+import { formatTime } from '../../../utils/format'
 
 interface DailyTarget {
   target_hours: number
@@ -265,7 +266,7 @@ export default function AttendanceRuntimePage() {
               {currentTime.toLocaleDateString('ar-EG', { weekday: 'long', day: 'numeric', month: 'long' })}
             </p>
             <p className="text-2xl font-bold text-gray-800 mt-1 tabular-nums tracking-wider" dir="ltr">
-              {currentTime.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+              {formatTime(currentTime, { second: '2-digit' })}
             </p>
           </div>
 
@@ -288,14 +289,14 @@ export default function AttendanceRuntimePage() {
                     <p className="text-[10px] text-gray-400 mb-0.5">وقت البدء</p>
                     <p className="text-sm font-bold text-gray-800">
                       {status.started_at
-                        ? new Date(status.started_at).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })
+                        ? formatTime(status.started_at)
                         : '--'}
                     </p>
                   </div>
                   <div className="text-center">
                     <p className="text-[10px] text-gray-400 mb-0.5">الوقت الحالي</p>
                     <p className="text-sm font-bold text-gray-800 tabular-nums" dir="ltr">
-                      {currentTime.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+{formatTime(currentTime, { second: '2-digit' })}
                     </p>
                   </div>
                   <div className="text-center">
@@ -361,14 +362,14 @@ export default function AttendanceRuntimePage() {
                   <SummaryBox
                     label="الحضور"
                     value={status.started_at
-                      ? new Date(status.started_at).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })
+                      ? formatTime(status.started_at)
                       : '--'}
                     color="amber"
                   />
                   <SummaryBox
                     label="الانصراف"
                     value={status.ended_at
-                      ? new Date(status.ended_at).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })
+                      ? formatTime(status.ended_at)
                       : '--'}
                     color="gray"
                   />

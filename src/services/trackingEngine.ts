@@ -136,13 +136,26 @@ class TrackingEngine {
       this._flushInterval = setInterval(() => this._flush(), 30000)
     }
 
-    heartbeatService.employeeId = this._employeeId
-    heartbeatService.sessionId = this._sessionId
-    heartbeatService.start()
+    heartbeatService.setEmployeeId(this._employeeId)
+    heartbeatService.start(this._sessionId!)
     lastSeenTracker.setSession(this._sessionId)
     lastSeenTracker.setOnline(navigator.onLine)
 
     this._setupListeners()
+
+    this._flush()
+
+    const lastLocationJson = localStorage.getItem('tracking_last_location')
+    if (lastLocationJson) {
+      try {
+        const lastLoc = JSON.parse(lastLocationJson)
+        const age = Date.now() - new Date(lastLoc.capturedAt).getTime()
+        if (lastLoc.latitude != null && lastLoc.longitude != null && age < this._intervalSeconds * 2000) {
+          this._captureFromPositionImmediate(lastLoc)
+        }
+      } catch {}
+    }
+
     this._notify()
 
     if (!navigator.onLine) {
@@ -161,6 +174,7 @@ class TrackingEngine {
 
     heartbeatService.stop()
     lastSeenTracker.clear()
+    try { localStorage.removeItem('tracking_last_location') } catch {}
     this._sessionId = null
     this._employeeId = null
     this._authStored = false
@@ -287,6 +301,14 @@ class TrackingEngine {
 
   private _captureFromPositionImmediate(loc: { latitude: number; longitude: number; accuracy: number }) {
     this._lastPointAt = new Date().toISOString()
+    try {
+      localStorage.setItem('tracking_last_location', JSON.stringify({
+        latitude: loc.latitude,
+        longitude: loc.longitude,
+        accuracy: loc.accuracy,
+        capturedAt: this._lastPointAt,
+      }))
+    } catch {}
     getBattery().then((battery) => {
       const point = {
         employee_id: this._employeeId,

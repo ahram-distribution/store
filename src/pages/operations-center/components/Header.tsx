@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Monitor, Bell, RefreshCw, Settings } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
+import { formatTime } from '../../../utils/format'
 
 interface HeaderProps {
   lastUpdate: Date | null
@@ -57,7 +58,7 @@ export default function Header({ lastUpdate, pollingSeconds, onRefresh, alertCou
 
         {lastUpdate && (
           <div className="text-xs text-gray-400 hidden md:block">
-            آخر تحديث: {lastUpdate.toLocaleTimeString('ar-EG')}
+            آخر تحديث: {formatTime(lastUpdate)}
           </div>
         )}
 

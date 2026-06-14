@@ -1,4 +1,5 @@
 import { X, Clock, Timer, Coffee, ShoppingCart, DollarSign, HandCoins, Users, Target } from 'lucide-react'
+import { formatTime } from '../../../../utils/format'
 
 function fmt(m: number): string {
   const h = Math.floor(m / 60)
@@ -48,8 +49,8 @@ export default function RuntimeDailySummaryModal({
 
         <div className="p-5 space-y-5">
           <Section title="⏰ أوقات العمل">
-            <Row label="وقت الحضور" value={startedAt ? new Date(startedAt).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }) : '--'} icon={<Clock className="w-4 h-4 text-blue-500" />} />
-            {endedAt && <Row label="وقت الانصراف" value={new Date(endedAt).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })} icon={<Clock className="w-4 h-4 text-gray-500" />} />}
+            <Row label="وقت الحضور" value={startedAt ? formatTime(startedAt) : '--'} icon={<Clock className="w-4 h-4 text-blue-500" />} />
+            {endedAt && <Row label="وقت الانصراف" value={formatTime(endedAt)} icon={<Clock className="w-4 h-4 text-gray-500" />} />}
             <Row label="إجمالي اليوم" value={fmt(durationMinutes)} icon={<Timer className="w-4 h-4 text-blue-500" />} />
             <Row label="الاستراحات" value={fmt(breakMinutes)} icon={<Coffee className="w-4 h-4 text-amber-500" />} />
             <Row label="صافي العمل" value={fmt(netWorkMinutes)} icon={<Timer className="w-4 h-4 text-green-500" />} />
@@ -73,7 +74,7 @@ export default function RuntimeDailySummaryModal({
           )}
 
           <div className="text-center text-xs text-gray-400 pt-2 border-t border-gray-100">
-            آخر تحديث: {new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}
+            آخر تحديث: {formatTime(new Date())}
           </div>
         </div>
 
