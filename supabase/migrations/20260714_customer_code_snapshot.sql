@@ -3,18 +3,35 @@
 -- Adds snapshot_customer_code column to orders table, updates
 -- governed_create_order to capture it, and updates get_governed_order/
 -- get_governed_orders to return it.
+-- Also backfills snapshot_customer_address for orders that were created
+-- before the customer_addresses fallback was added to governed_create_order.
 -- ============================================================================
 
 -- 1. Add snapshot column
 ALTER TABLE public.orders
   ADD COLUMN IF NOT EXISTS snapshot_customer_code text;
 
--- 2. Backfill existing orders (best-effort: reads customer code at time of migration)
+-- 2. Backfill existing orders
+--    a) snapshot_customer_code from customers.code
 UPDATE public.orders o
 SET snapshot_customer_code = c.code
 FROM public.customers c
 WHERE o.customer_id = c.id
   AND o.snapshot_customer_code IS NULL;
+
+--    b) snapshot_customer_address from unified_locations or customer_addresses
+--       (original governed_create_order only checked unified_locations and did
+--       not fall back to customer_addresses, leaving the snapshot empty for
+--       customers without a location_id.)
+UPDATE public.orders o
+SET snapshot_customer_address = COALESCE(
+  (SELECT formatted_address FROM public.unified_locations ul WHERE ul.id = c.location_id),
+  (SELECT address_line1 FROM public.customer_addresses ca WHERE ca.customer_id = c.id AND ca.is_default = true LIMIT 1),
+  ''
+)
+FROM public.customers c
+WHERE o.customer_id = c.id
+  AND (o.snapshot_customer_address IS NULL OR o.snapshot_customer_address = '');
 
 -- 3. Update governed_create_order — capture c.code
 CREATE OR REPLACE FUNCTION public.governed_create_order(
