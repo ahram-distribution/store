@@ -4,7 +4,7 @@ import toast from 'react-hot-toast'
 import { Clock, Play, Coffee, LogOut, ArrowLeftFromLine, MapPin, Wifi, WifiOff, Database } from 'lucide-react'
 import { trackingEngine } from '../../../services/trackingEngine'
 import { attendanceService } from '../../../services/attendance'
-import { acquireGPS } from '../../../services/location'
+import { getCurrentLocation } from '../../../services/gpsService'
 import RuntimeTrackingStatus from './components/RuntimeTrackingStatus'
 import RuntimeDailySummaryModal from './components/RuntimeDailySummaryModal'
 import { useAuthStore } from '../../../store/auth'
@@ -65,7 +65,7 @@ function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
 }
 
-const GPS_ERROR_MSG = 'لم نتمكن من الحصول على موقع دقيق.\nيرجى المحاولة مرة أخرى.'
+const GPS_ERROR_MSG = 'لم يتم تسجيلك على النظام، حاول مرة أخرى'
 
 async function getBatteryLevel(): Promise<number | null> {
   try {
@@ -151,13 +151,13 @@ export default function AttendanceRuntimePage() {
   const handleStart = async () => {
     setActionLoading('start')
     try {
-      const gps = await acquireGPS(30000, 100)
-      if (!gps) { toast.error(GPS_ERROR_MSG); setActionLoading(null); return }
+      const result = await getCurrentLocation()
+      if (!result.success) { toast.error(GPS_ERROR_MSG); setActionLoading(null); return }
       const battery = await getBatteryLevel()
       const { data, error } = await supabase.rpc('start_workday', {
         p_token: token,
-        p_latitude: gps.latitude,
-        p_longitude: gps.longitude,
+        p_latitude: result.location!.latitude,
+        p_longitude: result.location!.longitude,
         p_device_status: { battery, timestamp: new Date().toISOString() },
       })
       if (error) { toast.error(error.message || 'حدث خطأ'); return }
@@ -173,14 +173,14 @@ export default function AttendanceRuntimePage() {
     setActionLoading('end')
     try {
       await trackingEngine.flushNow()
-      const gps = await acquireGPS(30000, 100)
-      if (!gps) { toast.error(GPS_ERROR_MSG); setActionLoading(null); return }
+      const result = await getCurrentLocation()
+      if (!result.success) { toast.error(GPS_ERROR_MSG); setActionLoading(null); return }
       const battery = await getBatteryLevel()
       const { data, error } = await supabase.rpc('end_workday', {
         p_token: token,
         p_session_id: status?.session_id,
-        p_latitude: gps.latitude,
-        p_longitude: gps.longitude,
+        p_latitude: result.location!.latitude,
+        p_longitude: result.location!.longitude,
         p_device_status: { battery, timestamp: new Date().toISOString() },
       })
       if (error) { toast.error(error.message || 'حدث خطأ'); return }
@@ -199,13 +199,13 @@ export default function AttendanceRuntimePage() {
   const handleStartBreak = async () => {
     setActionLoading('break')
     try {
-      const gps = await acquireGPS(30000, 100)
-      if (!gps) { toast.error(GPS_ERROR_MSG); setActionLoading(null); return }
+      const result = await getCurrentLocation()
+      if (!result.success) { toast.error(GPS_ERROR_MSG); setActionLoading(null); return }
       const { data, error } = await supabase.rpc('start_break', {
         p_token: token,
         p_session_id: status?.session_id,
-        p_latitude: gps.latitude,
-        p_longitude: gps.longitude,
+        p_latitude: result.location!.latitude,
+        p_longitude: result.location!.longitude,
         p_reason: 'استراحة',
       })
       if (error) { toast.error(error.message || 'حدث خطأ'); return }
@@ -218,8 +218,8 @@ export default function AttendanceRuntimePage() {
   const handleEndBreak = async () => {
     setActionLoading('resume')
     try {
-      const gps = await acquireGPS(30000, 100)
-      if (!gps) { toast.error(GPS_ERROR_MSG); setActionLoading(null); return }
+      const result = await getCurrentLocation()
+      if (!result.success) { toast.error(GPS_ERROR_MSG); setActionLoading(null); return }
       if (status?.open_break_id) {
         const { data, error } = await supabase.rpc('end_break', {
           p_token: token,

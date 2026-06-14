@@ -1,5 +1,13 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { supabase } from '../../lib/supabase'
+import {
+  getCurrentLocation,
+  startWatching,
+  stopWatching,
+  isWatching,
+  getLastKnownLocation,
+  getAccuracyLabel,
+} from '../../services/gpsService'
 
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
@@ -7,7 +15,7 @@ function getToken(): string | null {
 
 function detectPWA(): boolean {
   return window.matchMedia('(display-mode: standalone)').matches
-    || (window.navigator as any).standalone === true
+    || (window.navicator as any)?.standalone === true
 }
 
 interface DeviceInfo {
@@ -35,29 +43,21 @@ interface GpsFix {
   capturedAt: string
 }
 
-type PermissionStatus = 'granted' | 'prompt' | 'denied' | 'unknown'
+type PermStatus = 'granted' | 'prompt' | 'denied' | 'unknown'
 
 function formatDelta(ms: number): string {
   if (ms < 1000) return `${ms.toFixed(0)}ms`
   return `${(ms / 1000).toFixed(1)}s`
 }
 
-function accuracyClass(acc: number): { label: string; color: string } {
-  if (acc <= 10) return { label: 'ممتازة', color: 'text-green-600 bg-green-50 border-green-300' }
-  if (acc <= 30) return { label: 'جيدة', color: 'text-blue-600 bg-blue-50 border-blue-300' }
-  if (acc <= 100) return { label: 'مقبولة', color: 'text-amber-600 bg-amber-50 border-amber-300' }
-  return { label: 'ضعيفة', color: 'text-red-600 bg-red-50 border-red-300' }
-}
-
 export default function GpsTestPage() {
   const [deviceInfo, setDeviceInfo] = useState<DeviceInfo | null>(null)
-  const [permStatus, setPermStatus] = useState<PermissionStatus>('unknown')
+  const [permStatus, setPermStatus] = useState<PermStatus>('unknown')
   const [currentFix, setCurrentFix] = useState<GpsFix | null>(null)
   const [fixLoading, setFixLoading] = useState(false)
   const [monitorFixes, setMonitorFixes] = useState<GpsFix[]>([])
   const [monitoring, setMonitoring] = useState(false)
   const [log, setLog] = useState<LogEntry[]>([])
-  const watchRef = useRef<number | null>(null)
 
   const [policyTest, setPolicyTest] = useState<{
     status: 'idle' | 'running' | 'success' | 'failed'
@@ -70,18 +70,11 @@ export default function GpsTestPage() {
     result: string | null
   }>({ status: 'idle', result: null })
 
-  const policyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const policyWatchRef = useRef<number | null>(null)
-  const policyStartRef = useRef<number>(0)
-
   const [signalTest, setSignalTest] = useState<{
     status: 'idle' | 'waiting' | 'done'
     startTime: number | null
-    firstFixTime: number | null
     elapsedMs: number | null
-  }>({ status: 'idle', startTime: null, firstFixTime: null, elapsedMs: null })
-
-  const signalWatchRef = useRef<number | null>(null)
+  }>({ status: 'idle', startTime: null, elapsedMs: null })
 
   const addLog = useCallback((level: LogEntry['level'], message: string) => {
     setLog(prev => [...prev, { timestamp: new Date().toISOString(), level, message }])
@@ -98,162 +91,96 @@ export default function GpsTestPage() {
     })
     if (navigator.permissions) {
       navigator.permissions.query({ name: 'geolocation' }).then((s) => {
-        setPermStatus(s.state as PermissionStatus)
-        s.addEventListener('change', () => setPermStatus(s.state as PermissionStatus))
+        setPermStatus(s.state as PermStatus)
+        s.addEventListener('change', () => setPermStatus(s.state as PermStatus))
       }).catch(() => setPermStatus('unknown'))
     }
   }, [])
 
   useEffect(() => {
-    return () => {
-      if (watchRef.current !== null) navigator.geolocation.clearWatch(watchRef.current)
-      if (policyWatchRef.current !== null) navigator.geolocation.clearWatch(policyWatchRef.current)
-      if (policyTimerRef.current !== null) clearTimeout(policyTimerRef.current)
-      if (signalWatchRef.current !== null) navigator.geolocation.clearWatch(signalWatchRef.current)
-    }
+    return () => { if (isWatching()) stopWatching() }
   }, [])
 
   const handleGetLocation = async () => {
-    if (!navigator.geolocation) {
-      addLog('error', 'Geolocation غير متاح على هذا الجهاز')
-      return
-    }
     setFixLoading(true)
     setCurrentFix(null)
     const start = Date.now()
-    try {
-      const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(resolve, reject, {
-          enableHighAccuracy: true,
-          timeout: 15000,
-          maximumAge: 0,
-        })
+    const result = await getCurrentLocation()
+    if (result.success && result.location) {
+      const loc = result.location
+      setCurrentFix({
+        latitude: loc.latitude,
+        longitude: loc.longitude,
+        accuracy: loc.accuracy,
+        altitude: null,
+        heading: null,
+        speed: null,
+        capturedAt: loc.capturedAt,
       })
-      const fix: GpsFix = {
-        latitude: pos.coords.latitude,
-        longitude: pos.coords.longitude,
-        accuracy: Math.round(pos.coords.accuracy),
-        altitude: pos.coords.altitude,
-        heading: pos.coords.heading,
-        speed: pos.coords.speed,
-        capturedAt: new Date().toISOString(),
-      }
-      setCurrentFix(fix)
-      addLog('success', `تم الحصول على الموقع — الدقة ${fix.accuracy}m بعد ${formatDelta(Date.now() - start)}`)
-    } catch (err: any) {
-      addLog('error', `فشل الحصول على الموقع: ${err.message || 'خطأ غير معروف'} (code=${err.code})`)
+      addLog('success', `تم الحصول على الموقع — الدقة ${loc.accuracy}m بعد ${formatDelta(Date.now() - start)}`)
+    } else {
+      addLog('error', `فشل الحصول على الموقع: ${result.error?.message || 'خطأ غير معروف'}`)
     }
     setFixLoading(false)
   }
 
   const handleStartMonitor = () => {
-    if (!navigator.geolocation) {
-      addLog('error', 'Geolocation غير متاح')
-      return
-    }
-    if (monitoring) return
+    if (isWatching()) return
     setMonitorFixes([])
     setMonitoring(true)
     addLog('info', 'بدء مراقبة الموقع المتكررة...')
-    watchRef.current = navigator.geolocation.watchPosition(
-      (pos) => {
-        const fix: GpsFix = {
-          latitude: pos.coords.latitude,
-          longitude: pos.coords.longitude,
-          accuracy: Math.round(pos.coords.accuracy),
-          altitude: pos.coords.altitude,
-          heading: pos.coords.heading,
-          speed: pos.coords.speed,
-          capturedAt: new Date().toISOString(),
-        }
-        setMonitorFixes(prev => [fix, ...prev].slice(0, 100))
+    startWatching({
+      onLocation: (loc) => {
+        setMonitorFixes(prev => [{
+          latitude: loc.latitude,
+          longitude: loc.longitude,
+          accuracy: loc.accuracy,
+          altitude: null,
+          heading: null,
+          speed: null,
+          capturedAt: loc.capturedAt,
+        }, ...prev].slice(0, 100))
       },
-      (err) => {
+      onError: (err) => {
         addLog('error', `مراقبة GPS: خطأ ${err.code} — ${err.message}`)
       },
-      { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
-    )
+    })
   }
 
   const handleStopMonitor = () => {
-    if (watchRef.current !== null) {
-      navigator.geolocation.clearWatch(watchRef.current)
-      watchRef.current = null
-    }
+    stopWatching()
     setMonitoring(false)
     addLog('info', 'تم إيقاف المراقبة')
   }
 
-  const handleSignalTest = () => {
-    if (!navigator.geolocation) {
-      addLog('error', 'Geolocation غير متاح')
-      return
-    }
-    setSignalTest({ status: 'waiting', startTime: Date.now(), firstFixTime: null, elapsedMs: null })
+  const handleSignalTest = async () => {
+    const start = Date.now()
+    setSignalTest({ status: 'waiting', startTime: start, elapsedMs: null })
     addLog('info', 'بدء اختبار مدة الحصول على أول إشارة...')
-    signalWatchRef.current = navigator.geolocation.watchPosition(
-      (pos) => {
-        const elapsed = Date.now() - (signalTest.startTime ?? Date.now())
-        setSignalTest({
-          status: 'done',
-          startTime: signalTest.startTime ?? Date.now(),
-          firstFixTime: Date.now(),
-          elapsedMs: elapsed,
-        })
-        addLog('success', `تم الحصول على أول إشارة بعد ${formatDelta(elapsed)}`)
-        if (signalWatchRef.current !== null) {
-          navigator.geolocation.clearWatch(signalWatchRef.current)
-          signalWatchRef.current = null
-        }
-      },
-      (err) => {
-        addLog('error', `فشل اختبار الإشارة: ${err.message}`)
-        if (signalWatchRef.current !== null) {
-          navigator.geolocation.clearWatch(signalWatchRef.current)
-          signalWatchRef.current = null
-        }
-        setSignalTest({ status: 'idle', startTime: null, firstFixTime: null, elapsedMs: null })
-      },
-      { enableHighAccuracy: true, timeout: 30000, maximumAge: 0 }
-    )
+    const result = await getCurrentLocation()
+    if (result.success) {
+      const elapsed = Date.now() - start
+      setSignalTest({ status: 'done', startTime: start, elapsedMs: elapsed })
+      addLog('success', `تم الحصول على أول إشارة بعد ${formatDelta(elapsed)}`)
+    } else {
+      addLog('error', `فشل اختبار الإشارة: ${result.error?.message}`)
+      setSignalTest({ status: 'idle', startTime: null, elapsedMs: null })
+    }
   }
 
-  const handlePolicyTest = () => {
-    if (!navigator.geolocation) {
-      addLog('error', 'Geolocation غير متاح')
-      return
-    }
+  const handlePolicyTest = async () => {
     setPolicyTest({ status: 'running', elapsedMs: null, fixAccuracy: null })
     addLog('info', 'بدء اختبار سياسة الـ30 ثانية (الدقة ≤100m)...')
     const start = Date.now()
-    policyStartRef.current = start
-
-    policyTimerRef.current = setTimeout(() => {
-      if (policyWatchRef.current !== null) {
-        navigator.geolocation.clearWatch(policyWatchRef.current)
-        policyWatchRef.current = null
-      }
-      setPolicyTest({ status: 'failed', elapsedMs: Date.now() - start, fixAccuracy: null })
-      addLog('warn', `فشل اختبار السياسة — لم يتم الحصول على دقة ≤100m خلال 30 ثانية`)
-    }, 30000)
-
-    policyWatchRef.current = navigator.geolocation.watchPosition(
-      (pos) => {
-        const acc = Math.round(pos.coords.accuracy)
-        const elapsed = Date.now() - start
-        if (acc <= 100) {
-          if (policyTimerRef.current !== null) clearTimeout(policyTimerRef.current)
-          if (policyWatchRef.current !== null) {
-            navigator.geolocation.clearWatch(policyWatchRef.current)
-            policyWatchRef.current = null
-          }
-          setPolicyTest({ status: 'success', elapsedMs: elapsed, fixAccuracy: acc })
-          addLog('success', `نجاح اختبار السياسة — الدقة ${acc}m بعد ${formatDelta(elapsed)}`)
-        }
-      },
-      () => {},
-      { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
-    )
+    const result = await getCurrentLocation()
+    const elapsed = Date.now() - start
+    if (result.success && result.location) {
+      setPolicyTest({ status: 'success', elapsedMs: elapsed, fixAccuracy: result.location.accuracy })
+      addLog('success', `نجاح اختبار السياسة — الدقة ${result.location.accuracy}m بعد ${formatDelta(elapsed)}`)
+    } else {
+      setPolicyTest({ status: 'failed', elapsedMs: elapsed, fixAccuracy: null })
+      addLog('warn', `فشل اختبار السياسة — لم يتم الحصول على دقة ≤100m خلال 30 ثانية: ${result.error?.message}`)
+    }
   }
 
   const handleDbTest = async () => {
@@ -281,12 +208,12 @@ export default function GpsTestPage() {
         p_device_info: { userAgent: navigator.userAgent, platform: navigator.platform },
       })
       if (error) throw error
-      const result = data as any
-      if (result?.success) {
-        setDbTest({ status: 'success', result: `تم بنجاح — id=${result.id}` })
-        addLog('success', `تم تسجيل نقطة الاختبار بنجاح (${result.id})`)
+      const r = data as any
+      if (r?.success) {
+        setDbTest({ status: 'success', result: `تم بنجاح — id=${r.id}` })
+        addLog('success', `تم تسجيل نقطة الاختبار بنجاح (${r.id})`)
       } else {
-        throw new Error(result?.error || 'فشل غير معروف')
+        throw new Error(r?.error || 'فشل غير معروف')
       }
     } catch (err: any) {
       const msg = err.message || err.toString?.() || 'خطأ غير معروف'
@@ -349,8 +276,8 @@ export default function GpsTestPage() {
           <section className="bg-white rounded-xl shadow-sm p-4">
             <h2 className="text-sm font-bold text-gray-700 mb-2">🎯 تصنيف الدقة</h2>
             <div className="text-center">
-              <div className={`inline-block px-4 py-2 rounded-lg border text-sm font-bold ${accuracyClass(currentFix.accuracy).color}`}>
-                {accuracyClass(currentFix.accuracy).label}
+              <div className={`inline-block px-4 py-2 rounded-lg border text-sm font-bold ${getAccuracyLabel(currentFix.accuracy).color} bg-white`}>
+                {getAccuracyLabel(currentFix.accuracy).label}
               </div>
               <div className="mt-2 text-xs text-gray-500">
                 الدقة الحالية: <span className="font-bold text-gray-700" dir="ltr">{currentFix.accuracy} متر</span>
@@ -506,14 +433,14 @@ function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
   )
 }
 
-function PermBadge({ status }: { status: PermissionStatus }) {
+function PermBadge({ status }: { status: PermStatus }) {
   const s = {
     granted: 'bg-green-100 text-green-700',
     prompt: 'bg-amber-100 text-amber-700',
     denied: 'bg-red-100 text-red-700',
     unknown: 'bg-gray-100 text-gray-500',
   }
-  const l = {
+  const l: Record<PermStatus, string> = {
     granted: 'ممنوح ✅',
     prompt: 'يطلب',
     denied: 'مرفوض ❌',

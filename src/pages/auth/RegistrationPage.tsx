@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom'
 import { useAuthStore } from '../../store/auth'
 import { toEnglishDigits } from '../../utils/format'
 import { locationService } from '../../services/location'
-import { gpsOperation } from '../../lib/diag'
+import { getCurrentLocation } from '../../services/gpsService'
 import toast from 'react-hot-toast'
 
 const BUSINESS_TYPES: { value: string; label: string }[] = [
@@ -41,7 +41,7 @@ export function RegistrationPage() {
 
   const handleCaptureLocation = async () => {
     setLocating(true)
-    const result = await gpsOperation('تسجيل حساب')
+    const result = await getCurrentLocation()
     setLocating(false)
     if (result.success && result.location) {
       setLocation({

@@ -5,7 +5,7 @@ import { useVisitsStore } from '../../store/visits'
 import { formatDateTime } from '../../utils/format'
 import { StatusBadge } from '../../components/shared/StatusBadge'
 import { locationService } from '../../services/location'
-import { gpsOperation } from '../../lib/diag'
+import { getCurrentLocation } from '../../services/gpsService'
 import toast from 'react-hot-toast'
 
 function getToken(): string | null {
@@ -104,7 +104,7 @@ export function VisitScreen() {
       return
     }
 
-    const result = await gpsOperation('بدء زيارة')
+    const result = await getCurrentLocation()
 
     let locationId: string | null = null
     let gps = result.location
@@ -156,7 +156,7 @@ export function VisitScreen() {
     }
     setSubmitting(true)
 
-    const gpsResult = await gpsOperation('إنهاء زيارة')
+    const gpsResult = await getCurrentLocation()
 
     let locationId: string | null = null
     let gps = gpsResult.location

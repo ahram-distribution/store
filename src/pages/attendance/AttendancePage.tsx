@@ -65,7 +65,7 @@ export default function AttendancePage() {
     setActionLoading(action)
     try {
       if (action === 'start') {
-        const pos = await getCurrentPosition()
+        const pos = await getGpsPosition()
         const result = await supabase.rpc('start_workday', {
           p_token: token,
           p_latitude: pos?.latitude ?? null,
@@ -75,7 +75,7 @@ export default function AttendancePage() {
         if (result.error) { toast.error(result.error.message || 'حدث خطأ'); return }
         toast.success('بدأ يوم العمل بنجاح')
       } else if (action === 'end') {
-        const pos = await getCurrentPosition()
+        const pos = await getGpsPosition()
         const result = await supabase.rpc('end_workday', {
           p_token: token,
           p_session_id: status?.session_id,
@@ -91,7 +91,7 @@ export default function AttendancePage() {
           toast.success('تم إنهاء يوم العمل')
         }
       } else if (action === 'break') {
-        const pos = await getCurrentPosition()
+        const pos = await getGpsPosition()
         const result = await supabase.rpc('start_break', {
           p_token: token,
           p_session_id: status?.session_id,
@@ -340,13 +340,14 @@ export default function AttendancePage() {
   )
 }
 
-async function getCurrentPosition(): Promise<{ latitude: number; longitude: number } | null> {
-  try {
-    const pos = await new Promise<GeolocationPosition>((resolve, reject) =>
-      navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000, enableHighAccuracy: false })
-    )
-    return { latitude: pos.coords.latitude, longitude: pos.coords.longitude }
-  } catch { return null }
+import { getCurrentLocation } from '../../services/gpsService'
+
+async function getGpsPosition(): Promise<{ latitude: number; longitude: number } | null> {
+  const result = await getCurrentLocation()
+  if (result.success && result.location) {
+    return { latitude: result.location.latitude, longitude: result.location.longitude }
+  }
+  return null
 }
 
 async function getBatteryLevel(): Promise<number | null> {

@@ -3,6 +3,7 @@ import { trackingQueue } from './trackingQueue'
 import { heartbeatService } from './heartbeatService'
 import { lastSeenTracker } from './lastSeenTracker'
 import { failureLogger } from './failureLogger'
+import * as gpsService from './gpsService'
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || ''
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
@@ -51,8 +52,7 @@ class TrackingEngine {
   private _flushInterval: ReturnType<typeof setInterval> | null = null
   private _onlineHandler: (() => void) | null = null
   private _visibilityHandler: (() => void) | null = null
-  private _watchId: number | null = null
-  private _lastPosition: GeolocationCoordinates | null = null
+  private _lastPosition: { latitude: number; longitude: number; accuracy: number } | null = null
   private _authStored = false
   private _nativeService = false
   private _gpsDeniedLogged = false
@@ -244,26 +244,27 @@ class TrackingEngine {
   }
 
   private _startWatch() {
-    if (this._watchId != null) return
+    if (gpsService.isWatching()) return
     if (!('geolocation' in navigator)) return
     this._gpsDeniedLogged = false
-    this._watchId = navigator.geolocation.watchPosition(
-      (pos) => {
-        this._lastPosition = pos.coords
-        lastSeenTracker.setGps({ accuracy: pos.coords.accuracy, timestamp: new Date().toISOString() })
+    gpsService.startWatching({
+      onLocation: (loc) => {
+        this._lastPosition = { latitude: loc.latitude, longitude: loc.longitude, accuracy: loc.accuracy, altitude: null, heading: null, speed: null }
+        lastSeenTracker.setGps({ accuracy: loc.accuracy, timestamp: loc.capturedAt })
         this._gpsAvailable = true
-        this._gpsAccuracy = pos.coords.accuracy
+        this._gpsAccuracy = loc.accuracy
         if (this._intervalId == null && this._running) {
-          this._captureFromPosition(pos.coords)
+          this._captureFromPositionImmediate(loc)
           this._intervalId = setInterval(() => {
-            if (this._lastPosition) {
-              this._captureFromPosition(this._lastPosition)
+            const last = gpsService.getLastKnownLocation()
+            if (last) {
+              this._captureFromPositionImmediate(last)
             }
           }, this._intervalSeconds * 1000)
         }
         this._notify()
       },
-      (err) => {
+      onError: (err) => {
         this._gpsAvailable = false
         this._gpsAccuracy = null
         if (!this._gpsDeniedLogged) {
@@ -273,52 +274,48 @@ class TrackingEngine {
         }
         this._notify()
       },
-      { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 },
-    )
+    })
     this._watchActive = true
   }
 
   private _stopWatch() {
-    if (this._watchId != null) {
-      navigator.geolocation.clearWatch(this._watchId)
-      this._watchId = null
-    }
+    gpsService.stopWatching()
     if (this._intervalId) { clearInterval(this._intervalId); this._intervalId = null }
     this._watchActive = false
     this._lastPosition = null
   }
 
-  private async _captureFromPosition(coords: GeolocationCoordinates) {
+  private _captureFromPositionImmediate(loc: { latitude: number; longitude: number; accuracy: number }) {
     this._lastPointAt = new Date().toISOString()
-    const battery = await getBattery()
-    const point = {
-      employee_id: this._employeeId,
-      session_id: this._sessionId!,
-      latitude: coords.latitude,
-      longitude: coords.longitude,
-      accuracy_meters: coords.accuracy,
-      altitude_meters: coords.altitude,
-      speed_mps: coords.speed,
-      heading_degrees: coords.heading,
-      battery_pct: battery,
-      recorded_at: new Date().toISOString(),
-      point_type: 'periodic' as const,
-    }
-    if (navigator.onLine) {
-      try {
-        await this._sendPoints([point])
-        this._lastSyncAt = new Date().toISOString()
-        lastSeenTracker.setSync(this._lastSyncAt)
-      } catch {
-        await trackingQueue.addPoint(point)
-        await this._registerBackgroundSync()
+    getBattery().then((battery) => {
+      const point = {
+        employee_id: this._employeeId,
+        session_id: this._sessionId!,
+        latitude: loc.latitude,
+        longitude: loc.longitude,
+        accuracy_meters: loc.accuracy,
+        altitude_meters: null,
+        speed_mps: null,
+        heading_degrees: null,
+        battery_pct: battery,
+        recorded_at: new Date().toISOString(),
+        point_type: 'periodic' as const,
       }
-    } else {
-      await trackingQueue.addPoint(point)
-      await this._registerBackgroundSync()
-    }
-    this._notify()
+      if (navigator.onLine) {
+        this._sendPoints([point]).then(() => {
+          this._lastSyncAt = new Date().toISOString()
+          lastSeenTracker.setSync(this._lastSyncAt!)
+        }).catch(() => {
+          trackingQueue.addPoint(point).then(() => this._registerBackgroundSync())
+        })
+      } else {
+        trackingQueue.addPoint(point).then(() => this._registerBackgroundSync())
+      }
+      this._notify()
+    })
   }
+
+
 
   private async _sendPoints(points: Array<Omit<any, 'id' | 'retries'>>) {
     const token = getToken()
@@ -394,12 +391,13 @@ class TrackingEngine {
         this._wasHidden = false
         failureLogger.log({ category: 'tab_restored', detail: 'Tab visible again, recovering tracking', sessionId: this._sessionId })
 
-        if (this._watchId == null && !isNative()) {
+        if (!gpsService.isWatching() && !isNative()) {
           this._startWatch()
         }
 
-        if (this._lastPosition) {
-          this._captureFromPosition(this._lastPosition)
+        const last = gpsService.getLastKnownLocation()
+        if (last) {
+          this._captureFromPositionImmediate(last)
         }
         this._flush()
         this._notify()
@@ -432,8 +430,9 @@ class TrackingEngine {
   }
 
   async captureNow() {
-    if (this._lastPosition) {
-      await this._captureFromPosition(this._lastPosition)
+    const last = gpsService.getLastKnownLocation()
+    if (last) {
+      this._captureFromPositionImmediate(last)
     } else {
       failureLogger.log({ category: 'gps_unavailable', detail: 'captureNow called but no GPS position', sessionId: this._sessionId })
     }

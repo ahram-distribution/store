@@ -17,7 +17,7 @@ const BUSINESS_TYPES: { value: string; label: string }[] = [
   { value: 'other', label: 'أخرى' },
 ]
 import { locationService } from '../../services/location'
-import { gpsOperation } from '../../lib/diag'
+import { getCurrentLocation } from '../../services/gpsService'
 import toast from 'react-hot-toast'
 
 function getToken(): string | null {
@@ -156,7 +156,7 @@ export function CustomerProfilePage() {
 
   async function handleUpdateLocation() {
     setLocating(true)
-    const result = await gpsOperation('تحديث موقع العميل')
+    const result = await getCurrentLocation()
     setLocating(false)
     if (!result.success || !result.location) {
       toast.error(result.error?.message || 'تعذر الحصول على الموقع')

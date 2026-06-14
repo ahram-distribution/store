@@ -5,7 +5,7 @@ import { useVisitsStore } from '../../store/visits'
 import { StatusBadge } from '../../components/shared/StatusBadge'
 import { VisitCard } from '../../components/visits/VisitCard'
 import { locationService } from '../../services/location'
-import { gpsOperation } from '../../lib/diag'
+import { getCurrentLocation } from '../../services/gpsService'
 import toast from 'react-hot-toast'
 
 function getToken(): string | null {
@@ -100,7 +100,7 @@ export function VisitsPage() {
     if (!checkinCustomerId) { toast.error('اختر العميل'); return }
     const token = getToken()
 
-    const result = await gpsOperation('بدء زيارة')
+    const result = await getCurrentLocation()
 
     let locationId: string | null = null
     let gps = result.location

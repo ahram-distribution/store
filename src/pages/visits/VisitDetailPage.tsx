@@ -5,7 +5,7 @@ import { useVisitsStore } from '../../store/visits'
 import { formatDateTime } from '../../utils/format'
 import { StatusBadge } from '../../components/shared/StatusBadge'
 import { locationService } from '../../services/location'
-import { gpsOperation } from '../../lib/diag'
+import { getCurrentLocation } from '../../services/gpsService'
 import toast from 'react-hot-toast'
 
 const resultLabels: Record<string, string> = {
@@ -91,7 +91,7 @@ export function VisitDetailPage() {
     }
     if (!visit) return
 
-    const gpsResult = await gpsOperation('إنهاء زيارة')
+    const gpsResult = await getCurrentLocation()
     let locationId = null
     let gps = null
     if (gpsResult.success && gpsResult.location) {

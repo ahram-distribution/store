@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { toEnglishDigits } from '../../utils/format'
 import { locationService } from '../../services/location'
-import { gpsOperation } from '../../lib/diag'
+import { getCurrentLocation } from '../../services/gpsService'
 import toast from 'react-hot-toast'
 
 const BUSINESS_TYPES: { value: string; label: string }[] = [
@@ -43,7 +43,7 @@ export function NewCustomerPage() {
 
   const handleCaptureLocation = async () => {
     setLocating(true)
-    const result = await gpsOperation('تسجيل عميل جديد')
+    const result = await getCurrentLocation()
     setLocating(false)
     if (result.success && result.location) {
       setLocation({
