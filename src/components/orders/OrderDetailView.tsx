@@ -41,6 +41,7 @@ function renderPdfHtml(order: any, items: OrderItem[]): string {
     : 'موظف'
 
   const customerName = order.customer_name || ''
+  const customerCode = order.customer_code || ''
   const customerPhone = order.customer_phone || ''
   const customerAddress = order.customer_address || ''
   const customerMapsUrl = order.customer_maps_url || ''
@@ -109,6 +110,7 @@ function renderPdfHtml(order: any, items: OrderItem[]): string {
 <div class="sections">
   <div class="section"><div class="section-title">العميل</div><div class="section-body">
     <div style="font-weight:700;font-size:11pt">${esc(customerName)}</div>
+    ${customerCode ? `<div style="font-size:8pt;color:#6b7280;font-family:monospace" dir="ltr">${esc(customerCode)}</div>` : ''}
     ${customerPhone ? `<div dir="ltr">📞 ${esc(customerPhone)}</div>` : ''}
     ${responsibleName ? `<div>👤 ${esc(responsibleName)}</div>` : ''}
     ${customerAddress ? `<div>📍 ${esc(customerAddress)}</div>` : ''}
@@ -220,6 +222,7 @@ export function OrderDetailView({
     : 'موظف'
 
   const customerName = order.customer_name || '—'
+  const customerCode = order.customer_code || ''
   const customerPhone = order.customer_phone || ''
   const customerAddress = order.customer_address || ''
   const customerMapsUrl = order.customer_maps_url || ''
@@ -284,6 +287,7 @@ export function OrderDetailView({
       <div className="bg-white rounded-xl border border-border p-4">
         <p className="text-[10px] font-bold text-text-secondary uppercase mb-2">معلومات العميل</p>
         <p className="text-sm font-bold text-primary">{customerName}</p>
+        {customerCode && <p className="text-[10px] text-text-secondary mt-0.5 font-mono" dir="ltr">{customerCode}</p>}
         {customerPhone && <p className="text-xs text-text-secondary mt-0.5 text-left" dir="ltr">{customerPhone}</p>}
         {customerAddress && customerMapsUrl ? (
           <p className="text-xs text-primary mt-0.5 cursor-pointer underline" onClick={() => window.open(customerMapsUrl, '_blank')} title="فتح في خرائط جوجل">{customerAddress}</p>

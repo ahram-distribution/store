@@ -15,6 +15,7 @@
  *
  * اسم العميل     → orders.snapshot_customer_name                            ✅
  * هاتف العميل    → orders.snapshot_customer_phone                           ✅
+ * كود العميل     → orders.snapshot_customer_code                            ✅
  * عنوان العميل   → orders.snapshot_customer_address                         ✅
  *
  * اسم المسؤول    → orders.snapshot_owner_name                               ✅
@@ -38,6 +39,7 @@ export interface OrderCustomerData {
   id: string
   name: string
   phone: string
+  code: string
   address: string
   mapsUrl: string
   responsibleName: string
@@ -137,6 +139,7 @@ export function buildOrderDisplayData(params: {
     id: o.customer_id || '',
     name: o.customer_name || '',
     phone: o.customer_phone || '',
+    code: o.customer_code || '',
     address: o.customer_address || '',
     mapsUrl: o.customer_maps_url || '',
     responsibleName: o.responsible_name || '',

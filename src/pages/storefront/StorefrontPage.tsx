@@ -283,7 +283,7 @@ export function StorefrontPage() {
                   <button
                     key={c.id}
                     onClick={() => {
-                      setSelectedCustomer({ id: c.id, name: c.customer_name || '—', phone: c.phone || '' })
+                      setSelectedCustomer({ id: c.id, name: c.customer_name || '—', phone: c.phone || '', code: c.code || '', address: '' })
                       setCustomerPickerOpen(false)
                       setCustomerSearch('')
                     }}

@@ -155,6 +155,13 @@ export function OrderReviewPage() {
         <h1 className="text-lg font-bold text-text">مراجعة الطلب</h1>
       </div>
 
+      <div className="bg-white rounded-lg border border-border p-3">
+        <p className="text-[10px] font-bold text-text-secondary uppercase mb-2">معلومات العميل</p>
+        <p className="text-sm font-bold text-primary">{selectedCustomer?.name || user?.full_name || '—'}</p>
+        {selectedCustomer?.code && <p className="text-[10px] text-text-secondary font-mono" dir="ltr">{selectedCustomer.code}</p>}
+        {selectedCustomer?.phone && <p className="text-xs text-text-secondary mt-0.5" dir="ltr">{selectedCustomer.phone}</p>}
+      </div>
+
       {selectedTier && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
           <div className="text-xs text-blue-800">

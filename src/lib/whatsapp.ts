@@ -53,6 +53,7 @@ export function buildWhatsAppMessageFromDisplay(display: OrderDisplayData): stri
 
   msg += '👤 العميل\n\n'
   msg += 'الاسم: ' + (cust.name || '—') + '\n'
+  msg += 'كود: ' + (cust.code || '—') + '\n'
   msg += 'الهاتف: ' + (cust.phone || '—') + '\n'
   if (cust.responsibleName) msg += 'المسؤول: ' + cust.responsibleName + '\n'
   if (cust.address) msg += 'العنوان: ' + cust.address + '\n'

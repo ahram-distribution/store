@@ -8,6 +8,8 @@ interface CartCustomer {
   id: string
   name: string
   phone: string
+  code?: string
+  address?: string
 }
 
 interface CartState {

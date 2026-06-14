@@ -338,6 +338,7 @@ export function OrderNewPage() {
           <div>
             <p className="text-[11px] opacity-80">طلب جديد لـ</p>
             <h1 className="text-lg font-bold mt-0.5">{customer.company_name}</h1>
+            {customer.code && <p className="text-[11px] opacity-70 font-mono mt-0.5" dir="ltr">{customer.code}</p>}
           </div>
           <button onClick={() => navigate(-1)} className="text-white/80 text-sm">رجوع</button>
         </div>
