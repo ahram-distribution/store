@@ -253,11 +253,13 @@ export default function SalesManagerCCPage() {
     if (!empName.trim() || !empPhone.trim()) { toast.error('الاسم ورقم الهاتف مطلوبان'); return }
     setSubmitting(true)
     const t = getToken()
+    const { data: session } = await supabase.rpc('validate_session', { p_token: t })
+    const managerId = (session as any)?.employee_id || null
     const salesRepRole = roles.find((r: any) => r.name === 'مندوب مبيعات')
     const { data, error } = await supabase.rpc('governed_create_employee', {
       p_token: t, p_full_name: empName.trim(), p_phone: empPhone.trim(),
       p_password: empPassword || null, p_email: empEmail || null,
-      p_role_id: salesRepRole?.id || null, p_manager_id: null, p_address: empAddress || null,
+      p_role_id: salesRepRole?.id || null, p_manager_id: managerId, p_address: empAddress || null,
     })
     setSubmitting(false)
     if (error) { toast.error(error.message); return }
@@ -275,6 +277,8 @@ export default function SalesManagerCCPage() {
     if (!/^01[0-9]{9}$/.test(custPhone.trim())) { toast.error('رقم الهاتف غير صالح'); return }
     setSubmitting(true)
     const t = getToken()
+    const { data: session } = await supabase.rpc('validate_session', { p_token: t })
+    const managerId = (session as any)?.employee_id || null
     const { data, error } = await supabase.rpc('governed_create_customer', {
       p_token: t, p_company_name: custName.trim(), p_phone: custPhone.trim() || null,
       p_contact_name: custResponsible.trim() || null, p_contact_phone: custPhone.trim() || null,
@@ -288,10 +292,10 @@ export default function SalesManagerCCPage() {
     const res = data as any
     if (res?.error) { setSubmitting(false); toast.error(res.error); return }
     const customerId = res.id as string
-    /* Transfer to selected team member if different from self */
-    if (custOwnerId && customerId) {
+    const targetOwner = custOwnerId || managerId
+    if (targetOwner && customerId) {
       const { error: xferErr } = await supabase.rpc('governed_change_customer_ownership', {
-        p_token: t, p_customer_id: customerId, p_new_owner_id: custOwnerId, p_reason: 'إضافة عميل بواسطة مدير البيع',
+        p_token: t, p_customer_id: customerId, p_new_owner_id: targetOwner, p_reason: 'إضافة عميل بواسطة مدير البيع',
       })
       if (xferErr) toast.error('تم إنشاء العميل لكن فشل نقل الملكية: ' + xferErr.message)
     }
