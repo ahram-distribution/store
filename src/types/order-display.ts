@@ -126,6 +126,14 @@ export const UNIT_LABELS: Record<string, string> = {
  * Pure transformer — reads from order RPC result (which contains snapshot fields).
  * ممنوع تمرير customer/owner/creator منفصلين — كلها مقروءة من Snapshot.
  */
+function snapshotVal(o: any, keys: string[]): string {
+  for (const k of keys) {
+    const v = o[k]
+    if (v != null && v !== '') return String(v)
+  }
+  return ''
+}
+
 export function buildOrderDisplayData(params: {
   order: any
   items: any[]
@@ -136,22 +144,22 @@ export function buildOrderDisplayData(params: {
   const docType = (o.status === 'submitted' || o.status === 'reviewing') ? 'order' : 'invoice'
 
   const customer: OrderCustomerData = {
-    id: o.customer_id || '',
-    name: o.customer_name || '',
-    phone: o.customer_phone || '',
-    code: o.customer_code || '',
-    address: o.customer_address || '',
-    mapsUrl: o.customer_maps_url || '',
-    responsibleName: o.responsible_name || '',
+    id: snapshotVal(o, ['customer_id', 'snapshot_customer_id']),
+    name: snapshotVal(o, ['customer_name', 'snapshot_customer_name']),
+    phone: snapshotVal(o, ['customer_phone', 'snapshot_customer_phone']),
+    code: snapshotVal(o, ['customer_code', 'snapshot_customer_code']),
+    address: snapshotVal(o, ['customer_address', 'snapshot_customer_address']),
+    mapsUrl: snapshotVal(o, ['customer_maps_url', '']),
+    responsibleName: snapshotVal(o, ['responsible_name', '']),
   }
 
-  const ownerName = o.owner_name || ''
+  const ownerName = snapshotVal(o, ['owner_name', 'snapshot_owner_name'])
   const owner: OrderPersonData | null = ownerName
     ? {
-        id: o.owner_id || '',
+        id: snapshotVal(o, ['owner_id', 'snapshot_owner_id']),
         name: ownerName,
-        phone: o.owner_phone || '',
-        address: o.owner_address || '',
+        phone: snapshotVal(o, ['owner_phone', 'snapshot_owner_phone']),
+        address: snapshotVal(o, ['owner_address', 'snapshot_owner_address']),
       }
     : null
 
@@ -160,10 +168,10 @@ export function buildOrderDisplayData(params: {
     : o.created_by === o.owner_id ? 'مندوب مبيعات' : 'موظف'
 
   const creator: OrderPersonData = {
-    id: o.created_by || '',
-    name: o.created_by_name || '',
-    phone: o.created_by_phone || '',
-    address: o.created_by_address || '',
+    id: snapshotVal(o, ['created_by', 'snapshot_sender_id']),
+    name: snapshotVal(o, ['created_by_name', 'snapshot_sender_name']),
+    phone: snapshotVal(o, ['created_by_phone', 'snapshot_sender_phone']),
+    address: snapshotVal(o, ['created_by_address', 'snapshot_sender_address']),
   }
 
   const items: OrderDisplayItem[] = itemList.map((i: any) => {

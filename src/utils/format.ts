@@ -22,6 +22,27 @@ export function toEnglishDigits(str: string): string {
 
 export const CAIRO_TZ = 'Africa/Cairo'
 
+export function isValidDate(value: unknown): value is Date {
+  if (value instanceof Date) return !isNaN(value.getTime())
+  if (typeof value === 'string' || typeof value === 'number') {
+    const d = new Date(value)
+    return !isNaN(d.getTime())
+  }
+  return false
+}
+
+export function safeFormatDateTime(value: string | Date | null | undefined, fallback?: string): string {
+  if (!value) return fallback || ''
+  if (!isValidDate(value)) return fallback || String(value)
+  try {
+    return new Intl.DateTimeFormat('ar-EG-u-nu-latn', {
+      year: 'numeric', month: 'short', day: 'numeric',
+      hour: '2-digit', minute: '2-digit',
+      timeZone: CAIRO_TZ,
+    }).format(value instanceof Date ? value : new Date(value))
+  } catch { return fallback || String(value) }
+}
+
 export function formatDate(date: string | Date): string {
   return new Intl.DateTimeFormat('ar-EG-u-nu-latn', {
     year: 'numeric',

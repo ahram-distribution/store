@@ -56,7 +56,7 @@ export function App() {
   }
 
   return (
-    <Router basename={isNative ? undefined : basePath}>
+    <Router basename={isNative ? undefined : basePath.replace(/\/+$/, '')}>
       {loading ? (
         <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center" style={{ background: '#071B4D' }}>
           {/* Logo */}

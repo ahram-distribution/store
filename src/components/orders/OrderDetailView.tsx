@@ -5,6 +5,14 @@ import { StatusBadge } from '../shared/StatusBadge'
 import { sendWhatsAppFromDisplay, copyWhatsAppFromDisplay } from '../../lib/whatsapp'
 import { buildOrderDisplayData, UNIT_LABELS, ORDER_STATUS_LABELS } from '../../types/order-display'
 import { creditService } from '../../services/credit'
+function orderVal(o: any, keys: string[]): string {
+  for (const k of keys) {
+    const v = o[k]
+    if (v != null && v !== '') return String(v)
+  }
+  return ''
+}
+
 function esc(s: string | null | undefined): string {
   if (!s) return ''
   const d = document.createElement('div')
@@ -40,20 +48,20 @@ function renderPdfHtml(order: any, items: OrderItem[]): string {
     : order.created_by === order.owner_id ? 'مندوب مبيعات'
     : 'موظف'
 
-  const customerName = order.customer_name || ''
-  const customerCode = order.customer_code || ''
-  const customerPhone = order.customer_phone || ''
-  const customerAddress = order.customer_address || ''
-  const customerMapsUrl = order.customer_maps_url || ''
-  const responsibleName = order.responsible_name || ''
-  const tierName = order.tier_name || ''
-  const paymentMethod = order.payment_method || ''
-  const ownerName = order.owner_name || ''
-  const ownerPhone = order.owner_phone || ''
-  const ownerAddress = order.owner_address || ''
-  const creatorName = order.created_by_name || ''
-  const creatorPhone = order.created_by_phone || ''
-  const creatorAddress = order.created_by_address || ''
+  const customerName = orderVal(order, ['customer_name', 'snapshot_customer_name'])
+  const customerCode = orderVal(order, ['customer_code', 'snapshot_customer_code'])
+  const customerPhone = orderVal(order, ['customer_phone', 'snapshot_customer_phone'])
+  const customerAddress = orderVal(order, ['customer_address', 'snapshot_customer_address'])
+  const customerMapsUrl = orderVal(order, ['customer_maps_url', ''])
+  const responsibleName = orderVal(order, ['responsible_name', ''])
+  const tierName = orderVal(order, ['tier_name', ''])
+  const paymentMethod = orderVal(order, ['payment_method', ''])
+  const ownerName = orderVal(order, ['owner_name', 'snapshot_owner_name'])
+  const ownerPhone = orderVal(order, ['owner_phone', 'snapshot_owner_phone'])
+  const ownerAddress = orderVal(order, ['owner_address', 'snapshot_owner_address'])
+  const creatorName = orderVal(order, ['created_by_name', 'snapshot_sender_name'])
+  const creatorPhone = orderVal(order, ['created_by_phone', 'snapshot_sender_phone'])
+  const creatorAddress = orderVal(order, ['created_by_address', 'snapshot_sender_address'])
 
   function itemsTable(): string {
     let h = '<table><thead><tr><th>كود الصنف</th><th>اسم الصنف</th><th>الشركة</th><th>الوحدة</th><th>الكمية</th><th>السعر</th><th>الإجمالي</th></tr></thead><tbody>'
@@ -221,17 +229,17 @@ export function OrderDetailView({
     : order.created_by === order.owner_id ? 'مندوب مبيعات'
     : 'موظف'
 
-  const customerName = order.customer_name || '—'
-  const customerCode = order.customer_code || ''
-  const customerPhone = order.customer_phone || ''
-  const customerAddress = order.customer_address || ''
-  const customerMapsUrl = order.customer_maps_url || ''
-  const ownerName = order.owner_name || ''
-  const ownerPhone = order.owner_phone || ''
-  const ownerAddress = order.owner_address || ''
-  const creatorName = order.created_by_name || ''
-  const creatorPhone = order.created_by_phone || ''
-  const creatorAddress = order.created_by_address || ''
+  const customerName = orderVal(order, ['customer_name', 'snapshot_customer_name']) || '—'
+  const customerCode = orderVal(order, ['customer_code', 'snapshot_customer_code'])
+  const customerPhone = orderVal(order, ['customer_phone', 'snapshot_customer_phone'])
+  const customerAddress = orderVal(order, ['customer_address', 'snapshot_customer_address'])
+  const customerMapsUrl = orderVal(order, ['customer_maps_url', ''])
+  const ownerName = orderVal(order, ['owner_name', 'snapshot_owner_name'])
+  const ownerPhone = orderVal(order, ['owner_phone', 'snapshot_owner_phone'])
+  const ownerAddress = orderVal(order, ['owner_address', 'snapshot_owner_address'])
+  const creatorName = orderVal(order, ['created_by_name', 'snapshot_sender_name'])
+  const creatorPhone = orderVal(order, ['created_by_phone', 'snapshot_sender_phone'])
+  const creatorAddress = orderVal(order, ['created_by_address', 'snapshot_sender_address'])
 
   return (
     <div className="space-y-4 pb-4">
@@ -295,7 +303,7 @@ export function OrderDetailView({
           customerAddress && <p className="text-xs text-text-secondary mt-0.5">{customerAddress}</p>
         )}
         <ContactActions phone={customerPhone} mapsUrl={customerMapsUrl} />
-        {order.responsible_name && <p className="text-xs text-text-secondary mt-1">المسؤول: {order.responsible_name}</p>}
+        {orderVal(order, ['responsible_name', '']) && <p className="text-xs text-text-secondary mt-1">المسؤول: {orderVal(order, ['responsible_name', ''])}</p>}
       </div>
 
       {/* SECTION C: RESPONSIBLE USER */}

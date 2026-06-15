@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
-import { formatCurrencyShort, toEnglishDigits } from '../../utils/format'
+import { formatCurrencyShort, toEnglishDigits, safeFormatDateTime } from '../../utils/format'
 import { locationService } from '../../services/location'
 import { getCurrentLocation } from '../../services/gpsService'
 import { VisitCard } from '../../components/visits/VisitCard'
@@ -904,8 +904,8 @@ export default function SalesManagerCCPage() {
                 <div className="h-px bg-border/60" />
                 <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2.5">
                   {visitDetailEmpName && (<><span className="text-[13px] text-indigo-600 font-semibold">بواسطة</span><span className="text-[15px] text-indigo-900 font-medium">{visitDetailEmpName}</span></>)}
-                  {startTime && (<><span className="text-[13px] text-blue-600 font-semibold">البداية</span><span className="text-[15px] text-blue-800">{new Date(startTime).toLocaleString('ar-EG')}</span></>)}
-                  {endTime && (<><span className="text-[13px] text-emerald-600 font-semibold">النهاية</span><span className="text-[15px] text-emerald-800">{new Date(endTime).toLocaleString('ar-EG')}</span></>)}
+{startTime && (<><span className="text-[13px] text-blue-600 font-semibold">البداية</span><span className="text-[15px] text-blue-800">{safeFormatDateTime(startTime, startTime)}</span></>)}
+{endTime && (<><span className="text-[13px] text-emerald-600 font-semibold">النهاية</span><span className="text-[15px] text-emerald-800">{safeFormatDateTime(endTime, endTime)}</span></>)}
                   {durationText && (<><span className="text-[13px] text-amber-700 font-semibold">المدة</span><span className={'text-[15px] ' + (isActive ? 'text-accent font-semibold' : isCompleted ? 'text-success font-semibold' : 'text-text-secondary font-semibold')}>{durationText}</span></>)}
                 </div>
                 {(v.check_in_latitude || v.check_out_latitude) && <div className="h-px bg-border/60" />}
