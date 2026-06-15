@@ -387,11 +387,11 @@ export default function EmployeeWorkdayDetailPage() {
 
             {/* ===== 2. TIMELINE ===== */}
             <Section title="⏳ الخط الزمني" expandedKey="timeline" expanded={expandedSections.timeline} onToggle={() => toggle('timeline')}>
-              {timeline?.events.length === 0 ? (
+              {(!timeline?.events || timeline.events.length === 0) ? (
                 <div className="text-center py-6 text-gray-400"><p className="text-xs">لا توجد أحداث</p></div>
               ) : (
                 <div className="space-y-1">
-                  {timeline?.events.map((ev, i) => {
+                  {timeline.events.map((ev, i) => {
                     const cfg = EVENT_CFG[ev.type] ?? { label: ev.type, color: 'text-gray-600', bg: 'bg-gray-50', dot: 'bg-gray-400', icon: '📌' }
                     return (
                       <div key={i} className="flex gap-2">
