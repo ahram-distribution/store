@@ -147,10 +147,10 @@ export function RolesTab() {
   }
 
   const roleGroups = [
-    { label: 'أدوار النظام', filter: (r: any) => ['سوبر أدمن', 'رئيس مجلس الإدارة', 'أدمن'].includes(r.name) },
-    { label: 'أدوار الإدارة', filter: (r: any) => ['مدير البيع', 'مدير تنفيذي', 'مشرف مبيعات', 'مشرف تنفيذي', 'سوبر فايزر'].includes(r.name) },
+    { label: 'أدوار النظام', filter: (r: any) => ['الإدارة العليا', 'سوبر أدمن', 'رئيس مجلس الإدارة', 'أدمن'].includes(r.name) },
+    { label: 'أدوار الإدارة', filter: (r: any) => ['مدير البيع', 'مشرف مبيعات', 'مشرف تنفيذي', 'سوبر فايزر'].includes(r.name) },
     { label: 'أدوار البيع', filter: (r: any) => ['مندوب مبيعات'].includes(r.name) },
-    { label: 'أدوار أخرى', filter: (r: any) => !['سوبر أدمن', 'رئيس مجلس الإدارة', 'أدمن', 'مدير البيع', 'مدير تنفيذي', 'مشرف مبيعات', 'مشرف تنفيذي', 'سوبر فايزر', 'مندوب مبيعات'].includes(r.name) },
+    { label: 'أدوار أخرى', filter: (r: any) => !['الإدارة العليا', 'سوبر أدمن', 'رئيس مجلس الإدارة', 'أدمن', 'مدير البيع', 'مشرف مبيعات', 'مشرف تنفيذي', 'سوبر فايزر', 'مندوب مبيعات'].includes(r.name) },
   ]
 
   if (loading) return <div className="text-center py-8 text-text-secondary text-sm">جاري التحميل...</div>
@@ -197,7 +197,7 @@ export function RolesTab() {
             <div className="space-y-2">
               {groupRoles.map((role: any) => {
                 const empCount = employeeCount(role.id)
-                const isSystem = ['سوبر أدمن', 'رئيس مجلس الإدارة', 'أدمن'].includes(role.name)
+                const isSystem = ['الإدارة العليا', 'سوبر أدمن', 'رئيس مجلس الإدارة', 'أدمن'].includes(role.name)
                 return (
                   <div key={role.id} className="bg-white rounded-xl border border-border overflow-hidden">
                     <div className="p-3">

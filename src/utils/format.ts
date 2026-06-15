@@ -7,6 +7,7 @@ export function formatCurrency(amount: number): string {
 }
 
 export function formatCurrencyShort(amount: number): string {
+  if (!Number.isFinite(amount)) return '0 ج.م'
   const formatted = new Intl.NumberFormat('en-US', {
     style: 'decimal',
     minimumFractionDigits: 2,

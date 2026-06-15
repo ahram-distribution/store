@@ -4,11 +4,8 @@ import { useState, useEffect } from 'react'
 import { authService } from '../../services/auth'
 import { isUpperManagement } from '../../utils/roleNormalization'
 
-const UPPER_MGMT_CODES = new Set(['ADMIN-001', 'WRQ1006', 'WRQ1003', 'WRQ1002', 'WRQ1004'])
-
 function isUpperManagementUser(user: { identity_type: string; code?: string; roles?: string[] } | null): boolean {
   if (!user || user.identity_type !== 'employee') return false
-  if (UPPER_MGMT_CODES.has(user.code ?? '')) return true
   return user.roles?.some((r) => isUpperManagement(r)) ?? false
 }
 

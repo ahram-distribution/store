@@ -3,8 +3,6 @@ import { authService } from '../services/auth'
 import { useAuthStore } from '../store/auth'
 import { isUpperManagement } from '../utils/roleNormalization'
 
-const UPPER_MGMT_CODES = new Set(['ADMIN-001', 'WRQ1006', 'WRQ1003', 'WRQ1002', 'WRQ1004'])
-
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
 }
@@ -16,7 +14,6 @@ const CACHE_TTL = 5 * 60 * 1000
 function isUpperManagementUser(): boolean {
   const user = useAuthStore.getState().user
   if (!user) return false
-  if (UPPER_MGMT_CODES.has(user.code ?? '')) return true
   return user.roles?.some((r: string) => isUpperManagement(r)) ?? false
 }
 
