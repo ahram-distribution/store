@@ -750,7 +750,7 @@ export default function SalesManagerCCPage() {
 
       {/* Add Employee Modal */}
       {showAddEmployee && (
-        <div className="fixed inset-0 z-20 flex items-start justify-center bg-black/30 pt-0">
+        <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/30">
           <form onSubmit={handleAddEmployee}
             className="w-full sm:max-w-sm bg-white rounded-2xl p-4 max-h-[85vh] overflow-y-auto space-y-3">
             <div className="flex items-center justify-between gap-2">
