@@ -280,20 +280,16 @@ export default function AttendanceRuntimePage() {
       <div className="flex-1 px-3 pt-4 overflow-y-auto">
         <div className="mx-auto flex flex-col" style={{ maxWidth: '420px', minHeight: 'calc(100vh - 2rem)' }}>
           {/* Header */}
-          <div className="text-center mb-5">
-            <h1 className="text-base font-bold text-gray-800">{status.employee_name}</h1>
-            <p className="text-xs text-gray-500">{status.employee_code}</p>
-            <p className="text-[10px] text-gray-400 mt-1">
+          <div className="flex items-center justify-between mb-5">
+            <span className="text-base font-bold text-gray-800">{status.employee_name}</span>
+            <span className="text-xs text-gray-400">
               {currentTime.toLocaleDateString('ar-EG', { weekday: 'long', day: 'numeric', month: 'long' })}
-            </p>
-            <p className="text-2xl font-bold text-gray-800 mt-1 tabular-nums tracking-wider" dir="ltr">
-              {formatTime(currentTime, { second: '2-digit' })}
-            </p>
+            </span>
           </div>
 
           {/* Before Work */}
           {isBeforeWork && (
-            <div className="flex-1 flex flex-col items-center justify-center text-center">
+            <div className="flex flex-col items-center justify-center text-center py-10">
               <div className="text-6xl mb-4">🏁</div>
               <h2 className="text-xl font-bold text-gray-800 mb-1">اليوم لم يبدأ بعد</h2>
               <p className="text-xs text-gray-500 mb-6">أنت على وشك بدء يوم جديد</p>
@@ -373,28 +369,26 @@ export default function AttendanceRuntimePage() {
 
           {/* Completed */}
           {isCompleted && (
-            <div className="flex-1 flex flex-col items-center justify-center">
-              <div className="bg-white rounded-xl shadow-sm p-5 text-center w-full">
-                <div className="text-4xl mb-2">✅</div>
-                <h2 className="text-base font-bold text-gray-800 mb-4">تم إنهاء اليوم بنجاح</h2>
-                <div className="grid grid-cols-2 gap-2">
-                  <SummaryBox label="إجمالي اليوم" value={fmt(durationMinutes)} color="blue" />
-                  <SummaryBox label="صافي العمل" value={fmt(netMinutes)} color="green" />
-                  <SummaryBox
-                    label="الحضور"
-                    value={status.started_at
-                      ? formatTime(status.started_at)
-                      : '--'}
-                    color="amber"
-                  />
-                  <SummaryBox
-                    label="الانصراف"
-                    value={status.ended_at
-                      ? formatTime(status.ended_at)
-                      : '--'}
-                    color="gray"
-                  />
-                </div>
+            <div className="bg-white rounded-xl shadow-sm p-5 text-center w-full">
+              <div className="text-4xl mb-2">✅</div>
+              <h2 className="text-base font-bold text-gray-800 mb-4">تم إنهاء اليوم بنجاح</h2>
+              <div className="grid grid-cols-2 gap-2">
+                <SummaryBox label="إجمالي اليوم" value={fmt(durationMinutes)} color="blue" />
+                <SummaryBox label="صافي العمل" value={fmt(netMinutes)} color="green" />
+                <SummaryBox
+                  label="الحضور"
+                  value={status.started_at
+                    ? formatTime(status.started_at)
+                    : '--'}
+                  color="amber"
+                />
+                <SummaryBox
+                  label="الانصراف"
+                  value={status.ended_at
+                    ? formatTime(status.ended_at)
+                    : '--'}
+                  color="gray"
+                />
               </div>
             </div>
           )}
