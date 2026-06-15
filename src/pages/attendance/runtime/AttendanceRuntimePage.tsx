@@ -5,7 +5,7 @@ import { Clock, Play, Coffee, LogOut, ArrowLeftFromLine, MapPin, Wifi, WifiOff, 
 import { trackingEngine } from '../../../services/trackingEngine'
 import { attendanceService } from '../../../services/attendance'
 import { getCurrentLocation } from '../../../services/gpsService'
-import RuntimeTrackingStatus from './components/RuntimeTrackingStatus'
+// import RuntimeTrackingStatus from './components/RuntimeTrackingStatus'
 import RuntimeDailySummaryModal from './components/RuntimeDailySummaryModal'
 import { useAuthStore } from '../../../store/auth'
 import { formatTime } from '../../../utils/format'
@@ -366,8 +366,8 @@ export default function AttendanceRuntimePage() {
                 )}
               </div>
 
-              {/* GPS Tracking Status */}
-              <RuntimeTrackingStatus status={trackingStatus} />
+              {/* GPS Tracking Status — hidden from employee view */}
+              
             </div>
           )}
 
