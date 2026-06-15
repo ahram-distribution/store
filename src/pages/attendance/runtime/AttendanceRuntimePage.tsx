@@ -399,10 +399,7 @@ export default function AttendanceRuntimePage() {
             </div>
           )}
 
-          {/* Spacer to push actions down */}
-          {!(isBeforeWork || isCompleted) && <div className="flex-1" />}
-
-          {/* Action Buttons — inline at bottom of scroll area */}
+          {/* Action Buttons — directly below summary */}
           <div className="pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
             {isBeforeWork && (
               <button
