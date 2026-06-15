@@ -92,8 +92,12 @@ DROP FUNCTION IF EXISTS public.get_workday_settings(uuid) CASCADE;
 DROP FUNCTION IF EXISTS public.update_workday_settings(uuid, jsonb) CASCADE;
 DROP FUNCTION IF EXISTS public.get_workday_cleanup_log(uuid, integer) CASCADE;
 DROP FUNCTION IF EXISTS public.get_employee_day_timeline(uuid, uuid, date) CASCADE;
-DROP FUNCTION IF EXISTS public.get_employee_day_map(uuid, uuid, date) CASCADE;
-DROP FUNCTION IF EXISTS public.get_employee_workday_history(uuid, uuid, integer, integer) CASCADE;
+-- The 3-param overload (uuid,uuid,date) is the current version — do NOT drop it.
+-- Drop only the OLD 6-param overload that was removed from the database.
+DROP FUNCTION IF EXISTS public.get_employee_day_map(uuid, uuid, date, numeric, numeric, numeric) CASCADE;
+-- The 4-param overload (uuid,uuid,date,date) is the current version — do NOT drop it.
+-- Drop only the OLD text-param overload that was removed from the database.
+DROP FUNCTION IF EXISTS public.get_employee_workday_history(text, uuid, date, date) CASCADE;
 DROP FUNCTION IF EXISTS public.get_attendance_analysis(uuid, date, date, uuid[]) CASCADE;
 DROP FUNCTION IF EXISTS public.get_employee_current_location(uuid, uuid) CASCADE;
 DROP FUNCTION IF EXISTS public.cleanup_tracking_data(uuid, integer) CASCADE;

@@ -741,7 +741,7 @@ CREATE OR REPLACE FUNCTION public.get_governed_order(p_token uuid, p_id uuid)
  LANGUAGE plpgsql
  SECURITY DEFINER
 AS $function$
-DECLARE v_session app.sessions; v_order public.orders; v_visible uuid[];
+DECLARE v_session app.sessions; v_order public.orders; v_subtree_ids uuid[];
 BEGIN
   SELECT * INTO v_session FROM app.sessions WHERE token = p_token AND expires_at > now();
   IF NOT FOUND THEN RAISE EXCEPTION 'INVALID_SESSION'; END IF;
@@ -752,8 +752,8 @@ BEGIN
     RETURN v_order;
   END IF;
   IF public.is_upper_management(v_session.employee_id) THEN RETURN v_order; END IF;
-  v_visible := COALESCE(public.get_visible_employee_ids(p_token), '{}'::uuid[]);
-  IF v_order.owner_id = ANY(v_visible) THEN RETURN v_order; END IF;
+  v_subtree_ids := app.get_subtree_ids(v_session.employee_id);
+  IF EXISTS (SELECT 1 FROM public.customers c WHERE c.id = v_order.customer_id AND c.owner_id = ANY(v_subtree_ids)) THEN RETURN v_order; END IF;
   RAISE EXCEPTION 'FORBIDDEN';
 END;
 $function$;
