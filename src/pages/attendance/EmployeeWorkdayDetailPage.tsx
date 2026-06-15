@@ -127,24 +127,33 @@ export default function EmployeeWorkdayDetailPage() {
   const toggle = (key: string) => setExpandedSections(prev => ({ ...prev, [key]: !prev[key] }))
 
   useEffect(() => {
-    if (!token || !employeeId) return
+    if (!token || !employeeId) { console.log('[DBG] early return token=', !!token, 'eid=', employeeId); return }
     const fetchAll = async () => {
       const d = new Date(today); d.setDate(d.getDate() - 6)
       const fromDate = d.toISOString().slice(0, 10)
-      const [nameRes, historyRes, mapRes, timelineRes] = await Promise.all([
-        supabase.rpc('get_governed_employee', { p_token: token, p_employee_id: employeeId }),
-        supabase.rpc('get_employee_workday_history', { p_token: token, p_employee_id: employeeId, p_from: fromDate, p_to: today }),
-        supabase.rpc('get_employee_day_map', { p_token: token, p_employee_id: employeeId, p_date: today }),
-        supabase.rpc('get_employee_day_timeline', { p_token: token, p_employee_id: employeeId, p_date: today }),
-      ])
-      if (nameRes.data && typeof nameRes.data === 'object' && !('error' in (nameRes.data as Record<string, unknown>))) {
+      console.log('[DBG] fetchAll start token=', token?.slice(0,8)+'..', 'eid=', employeeId, 'from=', fromDate, 'to=', today)
+      let nameRes: any, historyRes: any, mapRes: any, timelineRes: any
+      try {
+        ;[nameRes, historyRes, mapRes, timelineRes] = await Promise.all([
+          supabase.rpc('get_governed_employee', { p_token: token, p_employee_id: employeeId }),
+          supabase.rpc('get_employee_workday_history', { p_token: token, p_employee_id: employeeId, p_from: fromDate, p_to: today }),
+          supabase.rpc('get_employee_day_map', { p_token: token, p_employee_id: employeeId, p_date: today }),
+          supabase.rpc('get_employee_day_timeline', { p_token: token, p_employee_id: employeeId, p_date: today }),
+        ])
+      } catch (e) { console.error('[DBG] Promise.all threw', e) }
+      console.log('[DBG] nameRes', JSON.stringify(nameRes))
+      console.log('[DBG] historyRes', JSON.stringify(historyRes))
+      if (nameRes?.data && typeof nameRes.data === 'object' && !('error' in (nameRes.data as Record<string, unknown>))) {
         setEmployeeName((nameRes.data as Record<string, unknown>).full_name as string || '')
       }
-      if (historyRes.data && typeof historyRes.data === 'object' && !('error' in (historyRes.data as Record<string, unknown>))) {
+      if (historyRes?.data && typeof historyRes.data === 'object' && !('error' in (historyRes.data as Record<string, unknown>))) {
         const h = historyRes.data as HistoryResponse
+        console.log('[DBG] sessions.length=', h.sessions?.length, 'sessions[0]=', JSON.stringify(h.sessions?.[0]))
         if (h.sessions && h.sessions.length > 0) setSession(h.sessions[0])
         if (h.sessions) setHistorySessions(h.sessions)
         if (h.summary) setHistorySummary(h.summary)
+      } else {
+        console.log('[DBG] historyRes check FAILED data=', historyRes?.data, 'error=', historyRes?.error)
       }
       try {
         const { data: tr } = await supabase.rpc('get_daily_target_vs_actual', {
@@ -175,7 +184,7 @@ export default function EmployeeWorkdayDetailPage() {
 
       setLoading(false)
     }
-    fetchAll()
+    fetchAll().catch(e => console.error('[DBG] fetchAll top threw', e))
   }, [token, employeeId, today])
 
   const routePoints: [number, number][] = mapData?.route
@@ -223,7 +232,7 @@ export default function EmployeeWorkdayDetailPage() {
           </div>
         </div>
 
-        {!session && !loading && (
+        {!session && !loading && (() => { console.log('[DBG] RENDER no-data session=', session, 'loading=', loading); return true })() && (
           <div className="text-center py-10 text-gray-400">
             <Clock className="w-10 h-10 mx-auto mb-2" />
             <p className="text-sm">لا توجد بيانات لهذا اليوم</p>
