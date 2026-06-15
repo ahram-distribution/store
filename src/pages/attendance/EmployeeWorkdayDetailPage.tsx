@@ -164,13 +164,18 @@ export default function EmployeeWorkdayDetailPage() {
         }
       } catch {}
       if (mapRes.data && !((mapRes.data as Record<string, unknown>).error)) {
-        const map = mapRes.data as DayMapData
-        if (map.route && map.route.length > 0) {
-          const sample = map.route.slice(0, 20).map((p, i) => ({ i, lat: p.latitude, lng: p.longitude }))
-          const hasNull = sample.some(p => p.lat == null || p.lng == null)
-          console.log('[EmployeeWorkdayDetail] route points:', map.route.length)
-          console.log('[EmployeeWorkdayDetail] first 20 route points:', sample)
-          console.log('[EmployeeWorkdayDetail] has null lat/lng:', hasNull)
+        const raw = mapRes.data as Record<string, unknown>
+        const routePoints_raw = (raw.route_polyline ?? raw.route) as RoutePoint[] | undefined
+        const map: DayMapData = {
+          session: raw.session as DayMapData['session'],
+          route: routePoints_raw ?? [],
+          total_points: routePoints_raw?.length ?? 0,
+          total_distance_meters: (raw.total_distance_meters as number) ?? 0,
+          total_distance_km: (raw.total_distance_km as string) ?? '0',
+          visit_locations: (raw.visit_locations as VisitLocation[]) ?? [],
+          long_stops: (raw.long_stops as LongStop[]) ?? [],
+          long_stops_count: (raw.long_stops_count as number) ?? 0,
+          long_stops_total_minutes: (raw.long_stops_total_minutes as number) ?? 0,
         }
         setMapData(map)
       }
@@ -186,9 +191,9 @@ export default function EmployeeWorkdayDetailPage() {
     fetchAll()
   }, [token, employeeId, today])
 
-  const routePoints: [number, number][] = mapData?.route
-    ?.filter(p => p.latitude != null && p.longitude != null)
-    .map(p => [p.latitude, p.longitude]) ?? []
+  const routePoints: [number, number][] = (mapData?.route ?? [])
+    .filter(p => p.latitude != null && p.longitude != null)
+    .map(p => [p.latitude, p.longitude])
 
   const firstPtTime = mapData?.route?.[0]?.time ? new Date(mapData.route[0].time) : null
   const lastPtTime = mapData?.route?.[mapData.route.length - 1]?.time ? new Date(mapData.route[mapData.route.length - 1].time) : null
@@ -363,14 +368,14 @@ export default function EmployeeWorkdayDetailPage() {
                       <MapFitBounds points={routePoints} />
                       <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
                       <Polyline positions={routePoints} pathOptions={{ color: '#3b82f6', weight: 3, opacity: 0.7 }} />
-                      {mapData?.route.filter(p => p.latitude != null && p.longitude != null).map((p, i, arr) => (
+                      {mapData?.route?.filter(p => p.latitude != null && p.longitude != null).map((p, i, arr) => (
                         <CircleMarker key={i} center={[p.latitude, p.longitude]}
                           radius={i === 0 || i === arr.length - 1 ? 5 : 2}
                           pathOptions={{ color: i === 0 ? '#22c55e' : i === arr.length - 1 ? '#ef4444' : '#3b82f6', fillOpacity: 0.8 }}>
                           <Popup>{formatTime(p.time)}</Popup>
                         </CircleMarker>
                       ))}
-                      {mapData?.visit_locations.filter(v => v.latitude).map((v) => (
+                      {mapData?.visit_locations?.filter(v => v.latitude).map((v) => (
                         <LeafletMarker key={v.visit_id} position={[v.latitude, v.longitude]} icon={visitIcon}>
                           <Popup>
                             <div className="text-xs"><p className="font-bold">{v.customer_name}</p><p>{v.check_in_at ? formatTime(v.check_in_at) : '--'}</p></div>
@@ -421,13 +426,13 @@ export default function EmployeeWorkdayDetailPage() {
                 <StatBox label="أول نقطة" value={firstPtTime ? formatTime(firstPtTime) : '--'} />
                 <StatBox label="آخر نقطة" value={lastPtTime ? formatTime(lastPtTime) : '--'} />
               </div>
-              {mapData && mapData.route.length > 0 && (
+              {mapData && mapData.route?.length > 0 && (
                 <button onClick={() => setExpandedSections(prev => ({ ...prev, trackingList: !prev.trackingList }))}
                   className="w-full text-xs text-blue-600 font-bold py-1.5 bg-blue-50 rounded-lg">
                   {expandedSections.trackingList ? 'إخفاء القائمة' : `عرض القائمة (${mapData.route.length})`}
                 </button>
               )}
-              {expandedSections.trackingList && mapData?.route.map((p, i) => (
+              {expandedSections.trackingList && mapData?.route?.map((p, i) => (
                 <div key={i} className="flex items-center justify-between text-[10px] py-1 border-b border-gray-50 last:border-0">
                   <span className="text-gray-400">#{i + 1}</span>
                   <span className="text-gray-600">{p.latitude.toFixed(4)}, {p.longitude.toFixed(4)}</span>

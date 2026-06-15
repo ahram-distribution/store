@@ -152,12 +152,12 @@ function AddressSection({ customerId }: { customerId: string }) {
   const [addresses, setAddresses] = useState<any[]>([])
 
   useEffect(() => {
+    const token = getToken()
+    if (!token) return
     supabase
-      .from('customer_addresses')
-      .select('*')
-      .eq('customer_id', customerId)
+      .rpc('get_governed_customer_addresses', { p_token: token, p_customer_id: customerId })
       .then(({ data }) => {
-        if (data) setAddresses(data)
+        if (data) setAddresses(Array.isArray(data) ? data : [data])
       })
   }, [customerId])
 

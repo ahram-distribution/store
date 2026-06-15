@@ -69,14 +69,13 @@ export function CompanyManagerPage() {
     if (!c) { setSelectedId(null); return }
     setSelectedId(id)
 
-    const { data: full } = await supabase.from('companies').select('*').eq('id', id).single()
-    setFullCompany(full || c)
+    setFullCompany(c)
     setForm({
-      company_name: (full?.company_name || c.company_name) ?? '',
-      legacy_code: (full?.legacy_code || c.legacy_code) ?? '',
-      logo_url: (full?.logo_url || c.logo_url) ?? '',
-      is_active: full?.is_active ?? c.is_active ?? true,
-      is_visible: full?.is_visible ?? c.is_visible ?? true,
+      company_name: c.company_name ?? '',
+      legacy_code: c.legacy_code ?? '',
+      logo_url: c.logo_url ?? '',
+      is_active: c.is_active ?? true,
+      is_visible: c.is_visible ?? true,
     })
 
     extractExceptions(id)
