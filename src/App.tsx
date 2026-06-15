@@ -13,8 +13,6 @@ import { registerGeolocationGuard, registerWindowOpenGuard } from './utils/syste
 
 const isNative = typeof window !== 'undefined' && !!(window as any).Capacitor?.isNativePlatform?.()
 const Router = isNative ? HashRouter : BrowserRouter
-const basePath = import.meta.env.VITE_BASE_PATH || '/'
-
 export function App() {
   const [splashDone, setSplashDone] = useState(false)
   const { loading, restoreSession } = useAuthStore()
@@ -56,7 +54,7 @@ export function App() {
   }
 
   return (
-    <Router basename={isNative ? undefined : basePath.replace(/\/+$/, '')}>
+    <Router basename={isNative ? undefined : '/store/'}>
       {loading ? (
         <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center" style={{ background: '#071B4D' }}>
           {/* Logo */}
