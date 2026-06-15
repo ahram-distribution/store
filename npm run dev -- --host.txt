@@ -1,1 +1,2 @@
 npm run dev -- --host
+https://github.com/ahram-distribution/store.git
