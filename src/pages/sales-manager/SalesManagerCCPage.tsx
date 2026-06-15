@@ -750,12 +750,18 @@ export default function SalesManagerCCPage() {
 
       {/* Add Employee Modal */}
       {showAddEmployee && (
-        <div className="fixed inset-0 z-20 flex items-end sm:items-center justify-center bg-black/30">
+        <div className="fixed inset-0 z-20 flex items-start justify-center bg-black/30 pt-0">
           <form onSubmit={handleAddEmployee}
-            className="w-full sm:max-w-sm bg-white rounded-t-2xl sm:rounded-2xl p-4 max-h-[85vh] overflow-y-auto space-y-3">
-            <div className="flex items-center justify-between">
+            className="w-full sm:max-w-sm bg-white rounded-2xl p-4 max-h-[85vh] overflow-y-auto space-y-3">
+            <div className="flex items-center justify-between gap-2">
               <h3 className="text-sm font-bold text-text">إضافة مندوب للفريق</h3>
-              <button type="button" onClick={() => setShowAddEmployee(false)} className="text-xs text-text-secondary">إلغاء</button>
+              <div className="flex items-center gap-2">
+                <button type="submit" disabled={submitting}
+                  className="bg-primary text-white text-xs px-3 py-1.5 rounded-lg font-semibold disabled:opacity-40">
+                  {submitting ? 'جاري الحفظ...' : 'حفظ'}
+                </button>
+                <button type="button" onClick={() => setShowAddEmployee(false)} className="text-xs text-text-secondary">إلغاء</button>
+              </div>
             </div>
             <input type="text" value={empName} onChange={e => setEmpName(e.target.value)}
               placeholder="الاسم الكامل *" required
@@ -772,14 +778,6 @@ export default function SalesManagerCCPage() {
             <textarea value={empAddress} onChange={e => setEmpAddress(e.target.value)}
               placeholder="العنوان" rows={2}
               className="w-full border border-border rounded-lg px-3 py-2 text-sm resize-none" />
-            <div className="flex gap-2">
-              <button type="submit" disabled={submitting}
-                className="flex-1 bg-primary text-white text-xs py-2.5 rounded-lg font-semibold disabled:opacity-40">
-                {submitting ? 'جاري الحفظ...' : 'حفظ'}
-              </button>
-              <button type="button" onClick={() => setShowAddEmployee(false)}
-                className="px-4 border border-border rounded-lg text-xs text-text-secondary">إلغاء</button>
-            </div>
           </form>
         </div>
       )}
