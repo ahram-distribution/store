@@ -7,6 +7,7 @@ import { attendanceService } from '../../../services/attendance'
 import { getCurrentLocation } from '../../../services/gpsService'
 // import RuntimeTrackingStatus from './components/RuntimeTrackingStatus'
 import RuntimeDailySummaryModal from './components/RuntimeDailySummaryModal'
+import DeviceReadinessPanel from '../../../components/attendance/DeviceReadinessPanel'
 import { useAuthStore } from '../../../store/auth'
 import { formatTime } from '../../../utils/format'
 
@@ -83,6 +84,7 @@ export default function AttendanceRuntimePage() {
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [currentTime, setCurrentTime] = useState(new Date())
   const [summaryOpen, setSummaryOpen] = useState(false)
+  const [deviceReady, setDeviceReady] = useState(false)
   const [trackingStatus, setTrackingStatus] = useState(trackingEngine.status)
   const [trackingInterval, setTrackingInterval] = useState(300)
 
@@ -289,10 +291,13 @@ export default function AttendanceRuntimePage() {
 
           {/* Before Work */}
           {isBeforeWork && (
-            <div className="flex flex-col items-center justify-center text-center py-10">
-              <div className="text-6xl mb-4">🏁</div>
+            <div className="flex flex-col items-center justify-center text-center pt-6 pb-2">
+              <div className="text-6xl mb-3">🏁</div>
               <h2 className="text-xl font-bold text-gray-800 mb-1">اليوم لم يبدأ بعد</h2>
-              <p className="text-xs text-gray-500 mb-6">أنت على وشك بدء يوم جديد</p>
+              <p className="text-xs text-gray-500 mb-4">أنت على وشك بدء يوم جديد</p>
+              <div className="w-full">
+                <DeviceReadinessPanel onReadyChange={setDeviceReady} />
+              </div>
             </div>
           )}
 
@@ -398,7 +403,7 @@ export default function AttendanceRuntimePage() {
             {isBeforeWork && (
               <button
                 onClick={handleStart}
-                disabled={actionLoading === 'start'}
+                disabled={actionLoading === 'start' || !deviceReady}
                 className="w-full py-5 px-6 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-2xl text-lg font-bold shadow-lg hover:from-green-600 hover:to-emerald-700 active:scale-[0.97] transition-all disabled:opacity-50 flex items-center justify-center gap-3"
               >
                 {actionLoading === 'start' ? (
