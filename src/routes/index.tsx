@@ -49,6 +49,7 @@ import { AttendanceRuntimePage } from '../pages/attendance/runtime'
 import { AttendanceRouter } from '../components/attendance/AttendanceRouter'
 import { OperationsCenterPage } from '../pages/operations-center'
 import { SalesManagerCCPage } from '../pages/sales-manager'
+import { SalesEffortPage } from '../pages/sales-effort'
 import { GpsTestPage } from '../pages/diagnostics'
 
 export function AppRoutes() {
@@ -169,6 +170,7 @@ export function AppRoutes() {
       <Route path="/attendance/operations" element={<ProtectedRoute employeeOnly requireCapability="attendance.live_monitor"><OperationsCenterPage /></ProtectedRoute>} />
 
       <Route path="/sales-manager-cc" element={<ProtectedRoute employeeOnly><SalesManagerCCPage /></ProtectedRoute>} />
+      <Route path="/sales-effort" element={<ProtectedRoute employeeOnly><SalesEffortPage /></ProtectedRoute>} />
 
       <Route path="/ops/gps-test" element={<ProtectedRoute requireUpperManagement><GpsTestPage /></ProtectedRoute>} />
 
