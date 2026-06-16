@@ -53,22 +53,17 @@ export function buildWhatsAppMessageFromDisplay(display: OrderDisplayData): stri
 
   msg += '👤 العميل\n\n'
   msg += 'الاسم: ' + (cust.name || 'غير متوفر') + '\n'
-  msg += 'كود: ' + (cust.code || 'غير متوفر') + '\n'
   msg += 'الهاتف: ' + (cust.phone || 'غير متوفر') + '\n'
-  if (cust.responsibleName) msg += 'المسؤول: ' + cust.responsibleName + '\n'
-  if (cust.address) msg += 'العنوان: ' + cust.address + '\n'
-  if (cust.mapsUrl) msg += '📍 ' + cust.mapsUrl + '\n'
-  msg += '\n'
+  msg += 'العنوان: ' + (cust.address || 'غير متوفر') + '\n\n'
 
   msg += '👨‍💼 المسؤول عن العميل\n\n'
   msg += 'الاسم: ' + (owner?.name || 'غير متوفر') + '\n'
-  msg += 'الهاتف: ' + (owner?.phone || 'غير متوفر') + '\n'
-  if (owner?.address) msg += 'العنوان: ' + owner.address + '\n\n'
+  msg += 'الهاتف: ' + (owner?.phone || 'غير متوفر') + '\n\n'
 
   msg += '📤 مرسل الطلب\n\n'
   msg += 'الاسم: ' + (creator.name || 'غير متوفر') + '\n'
   msg += 'الهاتف: ' + (creator.phone || 'غير متوفر') + '\n'
-  if (creator.address) msg += 'العنوان: ' + creator.address + '\n\n'
+  msg += 'الدور: ' + (display.creatorType || 'غير متوفر') + '\n\n'
 
   msg += '━━━━━━━━━━━━━━\n'
   msg += 'ملخص الطلب\n'

@@ -296,38 +296,28 @@ export function OrderDetailView({
         <p className="text-[10px] font-bold text-text-secondary uppercase mb-2">معلومات العميل</p>
         <p className="text-sm font-bold text-primary">{customerName}</p>
         {customerCode && <p className="text-[10px] text-text-secondary mt-0.5 font-mono" dir="ltr">{customerCode}</p>}
-        {customerPhone && <p className="text-xs text-text-secondary mt-0.5 text-left" dir="ltr">{customerPhone}</p>}
-        {customerAddress && customerMapsUrl ? (
-          <p className="text-xs text-primary mt-0.5 cursor-pointer underline" onClick={() => window.open(customerMapsUrl, '_blank')} title="فتح في خرائط جوجل">{customerAddress}</p>
+        <p className="text-xs text-text-secondary mt-0.5 text-left" dir="ltr">{customerPhone || 'غير متوفر'}</p>
+        {customerMapsUrl ? (
+          <p className="text-xs text-primary mt-0.5 cursor-pointer underline" onClick={() => window.open(customerMapsUrl, '_blank')} title="فتح في خرائط جوجل">{customerAddress || 'غير متوفر'}</p>
         ) : (
-          customerAddress && <p className="text-xs text-text-secondary mt-0.5">{customerAddress}</p>
+          <p className="text-xs text-text-secondary mt-0.5">{customerAddress || 'غير متوفر'}</p>
         )}
         <ContactActions phone={customerPhone} mapsUrl={customerMapsUrl} />
-        {orderVal(order, ['responsible_name', '']) && <p className="text-xs text-text-secondary mt-1">المسؤول: {orderVal(order, ['responsible_name', ''])}</p>}
       </div>
 
       {/* SECTION C: RESPONSIBLE USER */}
       <div className="bg-white rounded-xl border border-border p-4">
         <p className="text-[10px] font-bold text-text-secondary uppercase mb-2">المسؤول عن العميل</p>
         <p className="text-sm font-bold text-primary">{ownerName || 'غير متوفر'}</p>
-        {ownerPhone && <p className="text-xs text-text-secondary mt-0.5 text-left" dir="ltr">{ownerPhone}</p>}
-        {ownerAddress && <p className="text-xs text-text-secondary mt-0.5">{ownerAddress}</p>}
-        <ContactActions phone={ownerPhone} />
+        <p className="text-xs text-text-secondary mt-0.5 text-left" dir="ltr">{ownerPhone || 'غير متوفر'}</p>
       </div>
 
       {/* SECTION D: ORDER CREATOR */}
       <div className="bg-white rounded-xl border border-border p-4">
         <p className="text-[10px] font-bold text-text-secondary uppercase mb-2">مرسل الطلب</p>
-        <p className="text-sm font-bold text-text">{creatorName}</p>
-        <p className="text-xs text-text-secondary mt-0.5">{creatorLabel}</p>
-        {creatorPhone && <p className="text-xs text-text-secondary mt-0.5 text-left" dir="ltr">{creatorPhone}</p>}
-        {creatorAddress && <p className="text-xs text-text-secondary mt-0.5">{creatorAddress}</p>}
-        <ContactActions phone={creatorPhone} />
-        {creatorName && ownerName && creatorName === ownerName && creatorLabel !== 'عميل' && (
-          <div className="mt-2 text-[10px] bg-blue-50 text-blue-700 px-2 py-1 rounded-lg inline-block">
-            مرسل الطلب هو المسؤول عن العميل
-          </div>
-        )}
+        <p className="text-sm font-bold text-text">{creatorName || 'غير متوفر'}</p>
+        <p className="text-xs text-text-secondary mt-0.5">{creatorLabel || 'غير متوفر'}</p>
+        <p className="text-xs text-text-secondary mt-0.5 text-left" dir="ltr">{creatorPhone || 'غير متوفر'}</p>
       </div>
 
       {/* SECTION E: ORDER ITEMS */}

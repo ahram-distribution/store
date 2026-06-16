@@ -36,7 +36,6 @@ export function CustomerProfilePage() {
   const [orders, setOrders] = useState<any[]>([])
   const [visits, setVisits] = useState<any[]>([])
   const [collections, setCollections] = useState<any[]>([])
-  const [addresses, setAddresses] = useState<any[]>([])
   const [contacts, setContacts] = useState<any[]>([])
   const [location, setLocation] = useState<any>(null)
   const [ownershipHistory, setOwnershipHistory] = useState<any[]>([])
@@ -73,11 +72,10 @@ export function CustomerProfilePage() {
       supabase.rpc('get_customer_orders', { p_token: token, p_customer_id: id }),
       supabase.rpc('get_customer_collections', { p_token: token, p_customer_id: id }),
       supabase.rpc('get_customer_visits', { p_token: token, p_customer_id: id }),
-      supabase.rpc('get_governed_customer_addresses', { p_token: token, p_customer_id: id }),
       supabase.rpc('get_governed_customer_contacts', { p_token: token, p_customer_id: id }),
       supabase.rpc('get_governed_customer_ownership_history', { p_token: token, p_customer_id: id }),
       supabase.rpc('get_governed_employees', { p_token: token }),
-    ]).then(async ([custRes, ordRes, colRes, visRes, addrRes, contRes, ownRes, empRes]) => {
+    ]).then(async ([custRes, ordRes, colRes, visRes, contRes, ownRes, empRes]) => {
       if (custRes.data) {
         setCustomer(custRes.data)
         const c = Array.isArray(custRes.data) ? custRes.data[0] : custRes.data
@@ -89,7 +87,6 @@ export function CustomerProfilePage() {
       if (ordRes.data) setOrders(Array.isArray(ordRes.data) ? ordRes.data : [])
       if (colRes.data) setCollections(Array.isArray(colRes.data) ? colRes.data : [])
       if (visRes.data) setVisits(Array.isArray(visRes.data) ? visRes.data : [])
-      if (addrRes.data) setAddresses(Array.isArray(addrRes.data) ? addrRes.data : [])
       if (contRes.data) setContacts(Array.isArray(contRes.data) ? contRes.data : [])
       if (ownRes.data) setOwnershipHistory(Array.isArray(ownRes.data) ? ownRes.data : [])
       if (empRes.data) setEmployees(Array.isArray(empRes.data) ? empRes.data : [])
@@ -315,15 +312,10 @@ export function CustomerProfilePage() {
             </div>
           )}
 
-          {addresses.length > 0 && (
+          {location?.formatted_address && (
             <div className="bg-white rounded-xl border border-border p-4">
-              <h2 className="text-sm font-bold mb-2">العناوين</h2>
-              {addresses.map((a: any) => (
-                <div key={a.id} className="py-1.5 border-b border-border/50 last:border-0">
-                  <p className="text-xs">{a.address_line1}</p>
-                  <p className="text-[10px] text-text-secondary">{a.city}</p>
-                </div>
-              ))}
+              <h2 className="text-sm font-bold mb-2">العنوان</h2>
+              <p className="text-xs">{location.formatted_address}</p>
             </div>
           )}
 
