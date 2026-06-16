@@ -25,7 +25,7 @@ BEGIN
     FROM public.tracking_points WHERE session_id = v_session_record.id AND point_type = 'start' ORDER BY recorded_at LIMIT 1;
     SELECT jsonb_build_object('latitude', latitude, 'longitude', longitude, 'recorded_at', recorded_at) INTO v_end_point
     FROM public.tracking_points WHERE session_id = v_session_record.id AND point_type = 'end' ORDER BY recorded_at DESC LIMIT 1;
-    SELECT COALESCE(jsonb_agg(jsonb_build_object('latitude', latitude, 'longitude', longitude) ORDER BY recorded_at), '[]'::jsonb) INTO v_route
+    SELECT COALESCE(jsonb_agg(jsonb_build_object('latitude', latitude, 'longitude', longitude, 'time', recorded_at, 'type', point_type) ORDER BY recorded_at), '[]'::jsonb) INTO v_route
     FROM public.tracking_points WHERE session_id = v_session_record.id AND point_type IN ('periodic', 'start', 'end');
     SELECT COALESCE(jsonb_agg(jsonb_build_object('visit_id', vl.visit_id, 'latitude', tp.latitude, 'longitude', tp.longitude, 'checkin_at', vl.checkin_at, 'checkout_at', vl.checkout_at) ORDER BY vl.checkin_at), '[]'::jsonb) INTO v_visit_locations
     FROM public.visit_links vl JOIN public.tracking_points tp ON tp.id = vl.checkin_tracking_point_id WHERE vl.session_id = v_session_record.id;
