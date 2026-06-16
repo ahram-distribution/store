@@ -64,6 +64,37 @@
 
 ---
 
+### Sales Representatives Effort Dashboard (جديد)
+
+**Feature:** Full dashboard to analyze sales rep effort across attendance, sales, visits, customers, and targets — for a given date range.
+
+**Backend — RPC:**
+- `get_sales_reps_effort(p_token, p_from, p_to, p_search)` — aggregates sessions, orders (via `resolve_employee_id()`), customers, visits, and targets per employee
+- Performance score formula: attendance 40% + sales achievement 30% + successful visits 20% + new customers 10%
+- Returns `employees[]` + `summary` (avg_score, top_performer, worst_performer)
+- Uses `resolve_employee_id()` for identity resolution
+- Respects `attendance.view_all` capability or `get_visible_employee_ids()`
+
+**Frontend — Page:**
+- `SalesEffortPage.tsx` — TimeRangeFilter + search bar + Summary cards (total sales/orders/visits/avg score) + Top/Worst performer highlight cards + expandable employee cards with KPIs and progress bars
+- Route `/sales-effort` added to `src/routes/index.tsx`
+
+**Navigation entries:**
+- `ReportsPage.tsx`: "مجهود المناديب" tab in section buttons → navigates to `/sales-effort`
+- `ModuleLauncherPage.tsx` (reports module): icon "مجهود المناديب" in "التقارير والتحليلات" list
+- `SalesManagerCCPage.tsx`: gradient card below team overview + QuickBtn in الإجراءات السريعة
+
+**Files changed:**
+- `supabase/migrations/20260724_sales_reps_effort_dashboard.sql` (جديد, 208 lines)
+- `src/pages/sales-effort/SalesEffortPage.tsx` (جديد, 272 lines)
+- `src/pages/sales-effort/index.ts` (جديد)
+- `src/routes/index.tsx`
+- `src/pages/reports/ReportsPage.tsx`
+- `src/pages/dashboard/ModuleLauncherPage.tsx`
+- `src/pages/sales-manager/SalesManagerCCPage.tsx`
+
+---
+
 ## 2026-06-10
 
 ### Organizational Model Unification
