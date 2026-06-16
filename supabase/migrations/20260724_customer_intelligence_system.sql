@@ -283,6 +283,7 @@ SET search_path TO 'public', 'extensions'
 AS $function$
 DECLARE
     v_session app.sessions;
+    v_employee_ids uuid[];
     v_customer_ids uuid[];
     v_general jsonb;
     v_top_customers jsonb;
@@ -298,11 +299,16 @@ BEGIN
     IF p_from IS NULL THEN p_from := CURRENT_DATE - INTERVAL '12 months'; END IF;
     IF p_to IS NULL THEN p_to := CURRENT_DATE; END IF;
 
-    -- Visible customers
-    v_customer_ids := public.get_visible_employee_ids(p_token);
-    IF v_customer_ids IS NULL THEN
-        SELECT array_agg(DISTINCT o.customer_id) INTO v_customer_ids
-        FROM orders o WHERE o.status NOT IN ('draft');
+    -- Visible customers: get employee IDs then find their owned customers
+    v_employee_ids := public.get_visible_employee_ids(p_token);
+    IF v_employee_ids IS NULL THEN
+        -- Upper Management: all customers
+        SELECT array_agg(id) INTO v_customer_ids FROM customers WHERE is_active = true;
+    ELSE
+        -- Scoped: customers owned by visible employees
+        SELECT array_agg(c.id) INTO v_customer_ids
+        FROM customers c
+        WHERE c.owner_id = ANY(v_employee_ids) AND c.is_active = true;
     END IF;
 
     IF v_customer_ids IS NULL OR array_length(v_customer_ids, 1) IS NULL THEN
