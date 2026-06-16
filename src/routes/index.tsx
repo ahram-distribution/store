@@ -68,6 +68,7 @@ export function AppRoutes() {
         <Route path="/tiers" element={<TierSystemPage />} />
         <Route path="/auctions" element={<AuctionsPage />} />
         <Route path="/auctions/:id" element={<AuctionDetailPage />} />
+        <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
     )
