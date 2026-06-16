@@ -46,6 +46,24 @@
 
 ---
 
+### Map & Tracking Points UX Fixes
+
+**Problem:** Map markers were 14px colored dots with no visible name — had to click each one. Tracking points list showed raw coordinates (`30.0444, 31.2357`) instead of address and distance.
+
+**Fixes:**
+- `MapTab.tsx`: Markers now show employee name next to colored dot at all times (custom `L.divIcon` with name label + white background badge). Popup still available on click for details
+- `EmployeeWorkdayDetailPage.tsx`: Tracking points list converted to **striped colored table** (gradient blue header, alternating white/gray rows, hover highlight)
+  - Removed raw lat/lng → replaced with `LocationDisplay` component (🗺️ Google Maps link + reverse-geocoded address)
+  - Added Haversine distance from previous point (green < 100m, amber < 500m, orange ≥ 500m)
+  - Added "عرض القائمة" toggle button with point count
+- `EmployeeWorkdayDetailPage.tsx`: Long stops section also uses `LocationDisplay` instead of raw coordinates
+
+**Files changed:**
+- `src/pages/operations-center/components/MapTab.tsx`
+- `src/pages/attendance/EmployeeWorkdayDetailPage.tsx`
+
+---
+
 ## 2026-06-10
 
 ### Organizational Model Unification
