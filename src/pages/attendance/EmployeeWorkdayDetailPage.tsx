@@ -290,13 +290,13 @@ export default function EmployeeWorkdayDetailPage() {
                     return (
                       <div key={i} className="flex flex-col items-center shrink-0">
                         <span className="text-[9px] text-gray-400 mb-0.5">
-                          {new Date(d.date).toLocaleDateString('ar-EG', { weekday: 'short' })}
+                          {d.date ? new Date(d.date).toLocaleDateString('ar-EG', { weekday: 'short' }) : ''}
                         </span>
                         <div className="w-10 h-14 bg-gray-50 rounded-lg relative overflow-hidden">
                           <div className={`absolute bottom-0 w-full rounded-t-sm transition-all ${d.met_target ? 'bg-green-400' : pct >= 50 ? 'bg-amber-400' : 'bg-red-400'}`}
                             style={{ height: `${Math.min(pct, 100)}%` }} />
                         </div>
-                        <span className="text-[9px] font-bold mt-0.5">{d.net_hours.toFixed(1)}س</span>
+                        <span className="text-[9px] font-bold mt-0.5">{d.net_hours != null ? d.net_hours.toFixed(1) + 'س' : '--'}</span>
                       </div>
                     )
                   })}
@@ -326,7 +326,7 @@ export default function EmployeeWorkdayDetailPage() {
                         <tr key={i} className="border-b border-gray-50 hover:bg-gray-50 cursor-pointer"
                           onClick={() => navigate(`/attendance/employee/${employeeId}/${s.date}`)}>
                           <td className="py-1 px-1 text-gray-600">
-                            {new Date(s.date).toLocaleDateString('ar-EG', { weekday: 'short' })}
+                            {s.date ? new Date(s.date).toLocaleDateString('ar-EG', { weekday: 'short' }) : ''}
                           </td>
                           <td className="py-1 px-1 text-gray-500">{s.date}</td>
                           <td className="py-1 px-1 text-center font-bold text-gray-800">{fmtMin(s.net_work_minutes)}</td>
@@ -435,7 +435,7 @@ export default function EmployeeWorkdayDetailPage() {
               {expandedSections.trackingList && mapData?.route?.map((p, i) => (
                 <div key={i} className="flex items-center justify-between text-[10px] py-1 border-b border-gray-50 last:border-0">
                   <span className="text-gray-400">#{i + 1}</span>
-                  <span className="text-gray-600">{p.latitude.toFixed(4)}, {p.longitude.toFixed(4)}</span>
+                  <span className="text-gray-600">{p.latitude != null && p.longitude != null ? `${p.latitude.toFixed(4)}, ${p.longitude.toFixed(4)}` : '--'}</span>
                   <span className="text-gray-400">{formatTime(p.time)}</span>
                 </div>
               ))}
@@ -451,7 +451,7 @@ export default function EmployeeWorkdayDetailPage() {
                     <div key={i} className="bg-amber-50 rounded-lg p-2.5">
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-bold text-amber-700">⏸ توقف {fmtMin(stop.duration_minutes)}</span>
-                        {stop.latitude && (
+                        {stop.latitude != null && stop.longitude != null && (
                           <a href={`https://www.google.com/maps?q=${stop.latitude},${stop.longitude}`} target="_blank" rel="noopener noreferrer" className="text-[10px] text-blue-600">
                             <Navigation className="w-3 h-3 inline" />
                           </a>
@@ -460,7 +460,7 @@ export default function EmployeeWorkdayDetailPage() {
                       <div className="text-[10px] text-amber-600 mt-0.5">
                         {formatTime(stop.start_time)} ← {formatTime(stop.end_time)}
                       </div>
-                      {stop.latitude && (
+                      {stop.latitude != null && stop.longitude != null && (
                         <div className="text-[9px] text-amber-500 mt-0.5">{stop.latitude.toFixed(4)}, {stop.longitude.toFixed(4)}</div>
                       )}
                     </div>
@@ -486,7 +486,11 @@ export default function EmployeeWorkdayDetailPage() {
                     </thead>
                     <tbody>
                       {workHoursLedger
-                        .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())
+                        .sort((a, b) => {
+                          const aT = a.start_time ? new Date(a.start_time).getTime() : 0
+                          const bT = b.start_time ? new Date(b.start_time).getTime() : 0
+                          return aT - bT
+                        })
                         .map((e, i) => {
                           const typeLabel: Record<string, string> = {
                             work: '🔵 عمل', break: '🟡 استراحة',
@@ -570,7 +574,11 @@ function BreakHistoryTable({ events }: { events: TimelineEvent[] }) {
   const breaks: BreakInterval[] = []
   let currentBreak: TimelineEvent | null = null
 
-  const sorted = [...events].sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime())
+  const sorted = [...events].sort((a, b) => {
+    const aT = a.time ? new Date(a.time).getTime() : 0
+    const bT = b.time ? new Date(b.time).getTime() : 0
+    return aT - bT
+  })
 
   for (const ev of sorted) {
     if (ev.type === 'break_start') {
@@ -578,7 +586,9 @@ function BreakHistoryTable({ events }: { events: TimelineEvent[] }) {
     } else if (ev.type === 'break_end' && currentBreak) {
       const endTime = new Date(ev.time)
       const startTime = new Date(currentBreak.time)
-      const durMin = (endTime.getTime() - startTime.getTime()) / 60000
+      const durMin = !isNaN(endTime.getTime()) && !isNaN(startTime.getTime())
+        ? (endTime.getTime() - startTime.getTime()) / 60000
+        : 0
       breaks.push({
         start: currentBreak.time,
         end: ev.time,
@@ -589,10 +599,14 @@ function BreakHistoryTable({ events }: { events: TimelineEvent[] }) {
   }
 
   if (currentBreak) {
+    const breakStart = currentBreak.time ? new Date(currentBreak.time) : null
+    const durMin = breakStart && !isNaN(breakStart.getTime())
+      ? (Date.now() - breakStart.getTime()) / 60000
+      : 0
     breaks.push({
       start: currentBreak.time,
       end: '---',
-      duration_minutes: (Date.now() - new Date(currentBreak.time).getTime()) / 60000,
+      duration_minutes: durMin,
     })
   }
 

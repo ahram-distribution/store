@@ -149,7 +149,7 @@ class TrackingEngine {
     if (lastLocationJson) {
       try {
         const lastLoc = JSON.parse(lastLocationJson)
-        const age = Date.now() - new Date(lastLoc.capturedAt).getTime()
+        const age = lastLoc.capturedAt ? Date.now() - new Date(lastLoc.capturedAt).getTime() : Infinity
         if (lastLoc.latitude != null && lastLoc.longitude != null && age < this._intervalSeconds * 2000) {
           this._captureFromPositionImmediate(lastLoc)
         }

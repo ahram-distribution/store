@@ -165,15 +165,19 @@ export function VisitDetailPage() {
         const endTime = visit.check_out_at
         let durationText = ''
         if (startTime && endTime) {
-          const diff = new Date(endTime).getTime() - new Date(startTime).getTime()
-          const mins = Math.floor(diff / 60000)
-          if (mins < 1) durationText = 'أقل من دقيقة'
-          else {
-            const hours = Math.floor(mins / 60)
-            const rem = mins % 60
-            durationText = hours > 0
-              ? hours + 'س ' + (rem > 0 ? rem + 'د' : '')
-              : rem + ' دقيقة'
+          const s = new Date(startTime).getTime()
+          const e = new Date(endTime).getTime()
+          if (!isNaN(s) && !isNaN(e)) {
+            const diff = e - s
+            const mins = Math.floor(diff / 60000)
+            if (mins < 1) durationText = 'أقل من دقيقة'
+            else {
+              const hours = Math.floor(mins / 60)
+              const rem = mins % 60
+              durationText = hours > 0
+                ? hours + 'س ' + (rem > 0 ? rem + 'د' : '')
+                : rem + ' دقيقة'
+            }
           }
         }
 

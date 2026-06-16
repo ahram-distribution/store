@@ -13,9 +13,10 @@ export default function RuntimeTrackingStatus({ status }: RuntimeTrackingStatusP
   const gpsLabel = status.gpsAvailable ? 'GPS يعمل' : 'GPS غير متاح'
 
   const syncColor = status.lastSyncAt
-    ? (Date.now() - new Date(status.lastSyncAt).getTime()) < 60000
-      ? 'text-green-600'
-      : 'text-amber-600'
+    ? (() => {
+        const t = new Date(status.lastSyncAt).getTime()
+        return !isNaN(t) && (Date.now() - t) < 60000 ? 'text-green-600' : 'text-amber-600'
+      })()
     : 'text-gray-400'
 
   return (

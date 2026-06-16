@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase'
 import { useCapability } from '../../hooks/useCapability'
 import { formatCurrencyShort, formatDateTime } from '../../utils/format'
 import { StatusBadge } from '../../components/shared/StatusBadge'
+import { getCustomerState, getCustomerStateLabel, CUSTOMER_STATE_LABELS } from '../../utils/systemStates'
 import { VisitCard } from '../../components/visits/VisitCard'
 const BUSINESS_TYPES: { value: string; label: string }[] = [
   { value: 'wholesaler', label: 'تاجر جملة' },
@@ -103,24 +104,22 @@ export function CustomerProfilePage() {
   const lastOrderDays = useMemo(() => {
     if (orders.length === 0) return null
     const last = [...orders].sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''))[0]
-    return Math.floor((Date.now() - new Date(last.created_at).getTime()) / (1000 * 60 * 60 * 24))
+    if (!last?.created_at) return null
+    const lastTime = new Date(last.created_at).getTime()
+    if (isNaN(lastTime)) return null
+    return Math.floor((Date.now() - lastTime) / (1000 * 60 * 60 * 24))
   }, [orders])
 
-  const status = useMemo(() => {
-    if (!customer) return 'جديد'
-    if (customer.is_active === false) return 'متوقف'
-    if (!lastOrderDays) return 'جديد'
-    if (lastOrderDays <= 7) return 'نشط'
-    if (lastOrderDays <= 30) return 'يحتاج متابعة'
-    return 'غير نشط'
+  const state = useMemo(() => {
+    if (!customer) return null
+    return getCustomerState(customer.is_active, lastOrderDays)
   }, [customer, lastOrderDays])
 
   const statusColors: Record<string, string> = {
-    جديد: 'bg-success/10 text-success',
-    نشط: 'bg-primary/10 text-primary',
-    'يحتاج متابعة': 'bg-accent/10 text-accent',
-    'غير نشط': 'bg-danger/10 text-danger',
-    متوقف: 'bg-danger/20 text-danger',
+    [CUSTOMER_STATE_LABELS.complete]: 'bg-primary/10 text-primary',
+    [CUSTOMER_STATE_LABELS.partial]: 'bg-accent/10 text-accent',
+    [CUSTOMER_STATE_LABELS.blocked]: 'bg-danger/20 text-danger',
+    [CUSTOMER_STATE_LABELS.new]: 'bg-success/10 text-success',
   }
 
   async function handleEdit() {
@@ -231,7 +230,7 @@ export function CustomerProfilePage() {
       <div className="flex items-center gap-3">
         <button onClick={() => navigate('/customers')} className="text-text-secondary text-lg">&larr;</button>
         <h1 className="text-lg font-bold text-text">{customer.company_name}</h1>
-        <span className={`text-[10px] px-2 py-0.5 rounded ${statusColors[status] || ''}`}>{status}</span>
+        <span className={`text-[10px] px-2 py-0.5 rounded ${state ? statusColors[getCustomerStateLabel(state)] || '' : ''}`}>{state ? getCustomerStateLabel(state) : 'غير متوفر'}</span>
       </div>
 
       <div className="flex gap-1 bg-white rounded-lg border border-border p-1 overflow-x-auto">

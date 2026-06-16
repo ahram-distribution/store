@@ -110,7 +110,7 @@ export function CustomerAnalyticsPage() {
       <Section title="الوضع الائتماني">
         <StatRow label="الرصيد الحالي" value={card.credit_status.current_balance != null ? formatCurrencyShort(card.credit_status.current_balance) : ''} />
         <StatRow label="الحد الائتماني" value={card.credit_status.credit_limit != null ? formatCurrencyShort(card.credit_status.credit_limit) : ''} />
-        <StatRow label="نسبة الاستخدام" value={`${card.credit_status.credit_utilization_pct?.toFixed(1)}%`} />
+        <StatRow label="نسبة الاستخدام" value={card.credit_status.credit_utilization_pct != null ? `${card.credit_status.credit_utilization_pct.toFixed(1)}%` : 'غير متوفر'} />
       </Section>
 
       <Section title="مؤشرات المخاطر">
@@ -123,7 +123,7 @@ export function CustomerAnalyticsPage() {
 
       <Section title="مؤشرات السلوك">
         <StatRow label="متوسط فترة إعادة الطلب" value={card.behavior.avg_reorder_interval_days ? `${card.behavior.avg_reorder_interval_days.toFixed(0)} يوم` : 'غير متاح'} />
-        <StatRow label="معدل النمو" value={`${card.behavior.growth_trend_pct?.toFixed(1)}%`} valueClass={card.behavior.growth_trend_pct >= 0 ? 'text-success' : 'text-danger'} />
+        <StatRow label="معدل النمو" value={card.behavior.growth_trend_pct != null ? `${card.behavior.growth_trend_pct.toFixed(1)}%` : 'غير متوفر'} valueClass={card.behavior.growth_trend_pct != null && card.behavior.growth_trend_pct >= 0 ? 'text-success' : 'text-danger'} />
         {card.expected_next_order_date && <StatRow label="تاريخ الطلب المتوقع" value={new Date(card.expected_next_order_date).toLocaleDateString('ar-EG-u-nu-latn')} />}
         <StatRow label="العائد المحتمل" value={card.potential_revenue_score != null ? formatCurrencyShort(card.potential_revenue_score) : ''} valueClass="text-primary font-bold" />
       </Section>
@@ -177,7 +177,7 @@ export function CustomerAnalyticsPage() {
               <div key={b.company_id}>
                 <div className="flex justify-between text-[11px]">
                   <span className="text-text">{b.company_name}</span>
-                  <span className="text-text-secondary">{b.share_pct?.toFixed(1)}%</span>
+                  <span className="text-text-secondary">{b.share_pct != null ? `${b.share_pct.toFixed(1)}%` : '0%'}</span>
                 </div>
                 <div className="w-full bg-gray-100 rounded-full h-2 mt-1">
                   <div className="bg-primary h-2 rounded-full" style={{ width: `${Math.min(b.share_pct, 100)}%` }} />

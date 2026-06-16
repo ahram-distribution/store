@@ -327,7 +327,10 @@ export function VisitScreen() {
               <span className="text-text font-semibold">
                 {(() => {
                   if (!startTime || !endTime) return ''
-                  const diff = new Date(endTime).getTime() - new Date(startTime).getTime()
+                  const s = new Date(startTime).getTime()
+                  const e = new Date(endTime).getTime()
+                  if (isNaN(s) || isNaN(e)) return ''
+                  const diff = e - s
                   const mins = Math.floor(diff / 60000)
                   if (mins < 1) return 'أقل من دقيقة'
                   const hours = Math.floor(mins / 60)

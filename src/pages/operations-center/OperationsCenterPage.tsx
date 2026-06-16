@@ -173,9 +173,11 @@ export default function OperationsCenterPage() {
         return true
       })
       .sort((a, b) => {
-        if (a.ended_at && b.ended_at) return new Date(b.ended_at).getTime() - new Date(a.ended_at).getTime()
-        if (a.ended_at) return -1
-        if (b.ended_at) return 1
+        const aEnd = a.ended_at ? new Date(a.ended_at).getTime() : NaN
+        const bEnd = b.ended_at ? new Date(b.ended_at).getTime() : NaN
+        if (!isNaN(aEnd) && !isNaN(bEnd)) return bEnd - aEnd
+        if (!isNaN(aEnd)) return -1
+        if (!isNaN(bEnd)) return 1
         return 0
       })
   }, [data, deptFilter, areaFilter, searchQuery])

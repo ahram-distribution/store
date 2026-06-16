@@ -116,7 +116,7 @@ export function AnalyticsListPage() {
               </div>
               <div className="grid grid-cols-3 gap-2 mt-2 text-[10px] text-text-secondary">
                 <div>مشتريات: <span className="text-text font-medium">{r.total_purchases != null ? formatCurrencyShort(r.total_purchases) : ''}</span></div>
-                <div>أولوية: <span className="text-text font-medium">{r.followup_priority_score?.toFixed(0)}</span></div>
+                <div>أولوية: <span className="text-text font-medium">{r.followup_priority_score != null ? r.followup_priority_score.toFixed(0) : 'غير متوفر'}</span></div>
                 <div>العائد المحتمل: <span className="text-text font-medium">{r.potential_revenue_score != null ? formatCurrencyShort(r.potential_revenue_score) : ''}</span></div>
               </div>
             </div>

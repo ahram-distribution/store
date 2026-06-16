@@ -53,8 +53,10 @@ export function VisitsPage() {
       let result = (visRes.data as any[]) || []
       if (filter === 'today') {
         result = result.filter((v: any) => {
-          const d = new Date(v.check_in_at || v.created_at); const n = new Date()
-          return d.getFullYear() === n.getFullYear() && d.getMonth() === n.getMonth() && d.getDate() === n.getDate()
+          const dt = v.check_in_at || v.created_at
+          if (!dt) return false
+          const d = new Date(dt); const n = new Date()
+          return !isNaN(d.getTime()) && d.getFullYear() === n.getFullYear() && d.getMonth() === n.getMonth() && d.getDate() === n.getDate()
         })
       } else if (filter === 'active') {
         result = result.filter((v: any) => v.status === 'active')

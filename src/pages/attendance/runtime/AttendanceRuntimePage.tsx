@@ -144,7 +144,7 @@ export default function AttendanceRuntimePage() {
   const durationMinutes = status?.duration_minutes ?? 0
   const breakMinutes = status?.break_minutes ?? 0
   const netMinutes = isActive || isBreak
-    ? ((Date.now() - new Date(status!.started_at!).getTime()) / 60000) - breakMinutes
+    ? (status?.started_at ? ((Date.now() - new Date(status.started_at).getTime()) / 60000) - breakMinutes : 0)
     : (status?.net_work_minutes ?? (durationMinutes - breakMinutes))
 
   const targetInfo = status?.daily_target_vs_actual
