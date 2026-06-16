@@ -396,7 +396,7 @@ export function OrderDetailView({
           </div>
           <div className="flex justify-between text-xs">
             <span className="text-text-secondary">إجمالي الكميات</span>
-            <span className="font-semibold text-text">{totalQty.toLocaleString('ar-EG')}</span>
+            <span className="font-semibold text-text">{totalQty.toLocaleString('en-EG')}</span>
           </div>
           <hr className="border-border" />
           <div className="flex justify-between text-sm font-bold">

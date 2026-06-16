@@ -260,8 +260,8 @@ export default function EmployeeWorkdayDetailPage() {
               <div className="grid grid-cols-4 gap-1.5">
                 <KpiMini label="صافي العمل" value={fmtMin(session.net_minutes)} color="text-green-600" bg="bg-green-50" />
                 <KpiMini label="الطلبات" value={String(session.order_count ?? 0)} color="text-purple-600" bg="bg-purple-50" />
-                <KpiMini label="المبيعات" value={(session.sales_value ?? 0).toLocaleString('ar-EG')} color="text-emerald-600" bg="bg-emerald-50" />
-                <KpiMini label="التحصيل" value={(session.collection_amount ?? 0).toLocaleString('ar-EG')} color="text-cyan-600" bg="bg-cyan-50" />
+                <KpiMini label="المبيعات" value={(session.sales_value ?? 0).toLocaleString('en-EG')} color="text-emerald-600" bg="bg-emerald-50" />
+                <KpiMini label="التحصيل" value={(session.collection_amount ?? 0).toLocaleString('en-EG')} color="text-cyan-600" bg="bg-cyan-50" />
                 <KpiMini label="عملاء جدد" value={String(session.new_customer_count ?? 0)} color="text-rose-600" bg="bg-rose-50" />
                 <KpiMini label="الزيارات" value={String(session.visit_count)} color="text-blue-600" bg="bg-blue-50" />
                 <KpiMini label="المسافة" value={mapData ? `${mapData.total_distance_km} كم` : '--'} color="text-indigo-600" bg="bg-indigo-50" />
@@ -337,8 +337,8 @@ export default function EmployeeWorkdayDetailPage() {
                           <td className="py-1 px-1 text-gray-500">{s.date}</td>
                           <td className="py-1 px-1 text-center font-bold text-gray-800">{fmtMin(s.net_minutes)}</td>
                           <td className="py-1 px-1 text-center text-gray-700">{s.order_count ?? 0}</td>
-                          <td className="py-1 px-1 text-center text-gray-700">{(s.sales_value ?? 0).toLocaleString('ar-EG')}</td>
-                          <td className="py-1 px-1 text-center text-gray-700">{(s.collection_amount ?? 0).toLocaleString('ar-EG')}</td>
+                          <td className="py-1 px-1 text-center text-gray-700">{(s.sales_value ?? 0).toLocaleString('en-EG')}</td>
+                          <td className="py-1 px-1 text-center text-gray-700">{(s.collection_amount ?? 0).toLocaleString('en-EG')}</td>
                           <td className="py-1 px-1 text-center text-gray-700">{s.visit_count ?? 0}</td>
                           <td className="py-1 px-1 text-center"><BadgeSmall status={s.attendance_status} /></td>
                         </tr>

@@ -564,7 +564,7 @@ export function EmployeeProfilePage() {
                             <td className="py-1.5 px-1 text-center text-gray-600 tabular-nums">{fmtMin(brk)}</td>
                             <td className="py-1.5 px-1 text-center font-bold text-blue-600 tabular-nums">{fmtMin(net)}</td>
                             <td className="py-1.5 px-1 text-center text-gray-700">{s.order_count ?? 0}</td>
-                            <td className="py-1.5 px-1 text-center text-gray-700">{(s.sales_value ?? 0).toLocaleString('ar-EG')}</td>
+                            <td className="py-1.5 px-1 text-center text-gray-700">{(s.sales_value ?? 0).toLocaleString('en-EG')}</td>
                             <td className="py-1.5 px-1 text-center text-gray-700">{s.visit_count ?? 0}</td>
                             <td className="py-1.5 px-1 text-center"><BadgeAtt status={s.attendance_status} /></td>
                           </tr>
@@ -585,7 +585,7 @@ export function EmployeeProfilePage() {
                       <SummaryCard label="متوسط اليومي" value={fmtMin(attSummaryExtended.avg_net_minutes ?? 0)} color="text-indigo-600" />
                       <SummaryCard label="أطول يوم" value={fmtMin(attSummaryExtended.max_net_day ?? 0)} color="text-green-700" />
                       <SummaryCard label="أقصر يوم" value={fmtMin(attSummaryExtended.min_net_day ?? 0)} color="text-red-500" />
-                      <SummaryCard label="المبيعات" value={(attSummaryExtended.total_sales_value ?? 0).toLocaleString('ar-EG')} color="text-orange-600" />
+                      <SummaryCard label="المبيعات" value={(attSummaryExtended.total_sales_value ?? 0).toLocaleString('en-EG')} color="text-orange-600" />
                       <SummaryCard label="الطلبات" value={String(attSummaryExtended.total_orders ?? 0)} color="text-purple-600" />
                     </div>
                     <div className="grid grid-cols-3 gap-2">

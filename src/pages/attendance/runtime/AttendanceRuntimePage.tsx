@@ -59,7 +59,7 @@ function fmt(m: number): string {
 function fmtShort(n: number): string {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'م'
   if (n >= 1_000) return (n / 1_000).toFixed(1) + 'أ'
-  return n.toLocaleString('ar-EG')
+  return n.toLocaleString('en-EG')
 }
 
 function getToken(): string | null {

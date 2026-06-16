@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { supabase } from '../../lib/supabase'
 import { User } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import Header from './components/Header'
 import TimeFilterBar from './components/TimeFilterBar'
 import type { TimeFilter } from './components/TimeFilterBar'
@@ -60,6 +61,7 @@ const STATUS_PRIORITY: Record<string, number> = {
 }
 
 export default function OperationsCenterPage() {
+  const navigate = useNavigate()
   const [data, setData] = useState<LiveOverview | null>(null)
   const [loading, setLoading] = useState(true)
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null)
@@ -182,13 +184,14 @@ export default function OperationsCenterPage() {
       })
   }, [data, deptFilter, areaFilter, searchQuery])
 
+  const safeNum = (v: unknown): number => (typeof v === 'number' && !isNaN(v)) ? v : 0
   const totals = useMemo(() => {
     if (!data) return { orders: 0, sales: 0, newCustomers: 0, visits: 0 }
     return {
-      orders: (data.employees ?? []).reduce((s, e) => s + e.order_count, 0) + (data.ended_employees ?? []).reduce((s, e) => s + e.order_count, 0),
-      sales: (data.employees ?? []).reduce((s, e) => s + e.sales_value, 0) + (data.ended_employees ?? []).reduce((s, e) => s + e.sales_value, 0),
-      newCustomers: (data.employees ?? []).reduce((s, e) => s + e.new_customer_count, 0) + (data.ended_employees ?? []).reduce((s, e) => s + e.new_customer_count, 0),
-      visits: (data.employees ?? []).reduce((s, e) => s + e.visit_count, 0) + (data.ended_employees ?? []).reduce((s, e) => s + e.visit_count, 0),
+      orders: (data.employees ?? []).reduce((s, e) => s + safeNum(e.order_count), 0) + (data.ended_employees ?? []).reduce((s, e) => s + safeNum(e.order_count), 0),
+      sales: (data.employees ?? []).reduce((s, e) => s + safeNum(e.sales_value), 0) + (data.ended_employees ?? []).reduce((s, e) => s + safeNum(e.sales_value), 0),
+      newCustomers: (data.employees ?? []).reduce((s, e) => s + safeNum(e.new_customer_count), 0) + (data.ended_employees ?? []).reduce((s, e) => s + safeNum(e.new_customer_count), 0),
+      visits: (data.employees ?? []).reduce((s, e) => s + safeNum(e.visit_count), 0) + (data.ended_employees ?? []).reduce((s, e) => s + safeNum(e.visit_count), 0),
     }
   }, [data])
 
@@ -207,8 +210,16 @@ export default function OperationsCenterPage() {
       'لم يبدؤوا': 'no_start',
     }
     const tab = tabMap[label]
-    if (tab) setTeamTab(tab)
-  }, [])
+    if (tab) { setTeamTab(tab); return }
+    const navMap: Record<string, string> = {
+      'الطلبات': '/orders?filter=today',
+      'المبيعات': '/orders?filter=today',
+      'عملاء جدد': '/customers',
+      'الزيارات': '/visits?filter=today',
+    }
+    const path = navMap[label]
+    if (path) navigate(path)
+  }, [navigate])
 
   if (loading) {
     return (

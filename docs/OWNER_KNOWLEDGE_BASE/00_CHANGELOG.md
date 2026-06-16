@@ -4,6 +4,48 @@
 
 ---
 
+## 2026-06-16
+
+### Identity Integration Layer — Root Cause Fix
+
+**Problem:** `orders.owner_id` is polymorphic — 12/58 rows reference `identities.id` instead of `employees.id`. All JOINs between attendance sessions and orders silently returned zero for those employees (most notably حسن بكر with 3 orders on June 15-16, total 1,927.50 EGP).
+
+**Fix:** Created `public.resolve_employee_id(target_id uuid)` that normalizes any UUID (whether `identities.id` or `employees.id`) to `employees.id` via `employees.identity_id`. All analytics RPCs now use this function.
+
+**Affected RPCs (5 total):**
+- `get_employee_workday_history` — orders/collections/customers JOINs
+- `get_team_map` — today_orders/collections/customers CTEs
+- `get_my_workday_status` — KPI queries
+- `get_daily_target_vs_actual` — single + team aggregate actuals
+- `get_live_workday_overview` — **ADDED** missing `order_count`, `sales_value`, `collection_count`, `collection_amount`, `new_customer_count` fields (was returning undefined → NaN in frontend)
+
+**Secondary fixes:**
+- `get_live_workday_overview`: Fixed LATERAL JOIN from `visit_links.employee_id` (column does not exist) to `visits.employee_id` — dormant bug because `visit_links` had 0 rows
+- `OperationsCenterPage.tsx`: Added `safeNum()` guard in `totals` reduce to prevent `undefined + 0 = NaN`
+- `GlobalCounters.tsx` `EmployeeCard.tsx` `TeamMapPage.tsx` etc.: Changed `toLocaleString('ar-EG')` → `toLocaleString('en-EG')` for Western/Arabic numerals in 19 occurrences across 12 files
+- `OperationsCenterPage.tsx`: Counter boxes now navigate on click — الطلبات/المبيعات → `/orders?filter=today`, الزيارات → `/visits?filter=today`, عملاء جدد → `/customers`
+- Fixed `navigate is not defined` runtime error (missing `useNavigate()` import)
+
+**Data outcome:** 57/58 orders now resolve to an employee (was 46). The 1 remaining unresolved (ORD-2026-000094, owner `d09db019-...`) has no `employees` record with matching `identity_id` — pre-existing data issue.
+
+**Files changed:**
+- `supabase/migrations/20260724_identity_integration_layer.sql` (new, 525 lines)
+- `src/pages/operations-center/OperationsCenterPage.tsx`
+- `src/pages/operations-center/components/GlobalCounters.tsx`
+- `src/pages/operations-center/components/EmployeeCard.tsx`
+- `src/pages/attendance/TeamMapPage.tsx`
+- `src/pages/attendance/EmployeeWorkdayDetailPage.tsx`
+- `src/pages/attendance/runtime/AttendanceRuntimePage.tsx`
+- `src/pages/attendance/runtime/components/RuntimeKpiGrid.tsx`
+- `src/pages/attendance/runtime/components/RuntimeDailySummaryModal.tsx`
+- `src/pages/attendance/runtime/components/RuntimeTodaySummary.tsx`
+- `src/pages/employees/EmployeeProfilePage.tsx`
+- `src/pages/daily-deals/DailyDealsManagementPage.tsx`
+- `src/pages/flash-offers/FlashOffersManagementPage.tsx`
+- `src/components/orders/OrderDetailView.tsx`
+
+---
+
 ## 2026-06-10
 
 ### Organizational Model Unification

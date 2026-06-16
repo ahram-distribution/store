@@ -223,7 +223,7 @@ export function FlashOffersManagementPage() {
                 </div>
 
                 <div className="flex items-center gap-3 text-xs text-text-secondary">
-                  <span>السعر: {offer.fixed_price ? Number(offer.fixed_price).toLocaleString('ar-EG') : 0}</span>
+                  <span>السعر: {offer.fixed_price ? Number(offer.fixed_price).toLocaleString('en-EG') : 0}</span>
                   <span>المتبقي: {offer.available_quantity}/{offer.original_quantity}</span>
                   {offer.ends_at && (
                     <span>ينتهي: {new Date(offer.ends_at).toLocaleDateString('ar-EG-u-nu-latn')}</span>

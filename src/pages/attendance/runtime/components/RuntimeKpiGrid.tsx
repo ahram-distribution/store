@@ -10,7 +10,7 @@ interface RuntimeKpiGridProps {
 function fmtCurrency(n: number): string {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'م'
   if (n >= 1_000) return (n / 1_000).toFixed(1) + 'أ'
-  return n.toLocaleString('ar-EG')
+  return n.toLocaleString('en-EG')
 }
 
 export default function RuntimeKpiGrid({

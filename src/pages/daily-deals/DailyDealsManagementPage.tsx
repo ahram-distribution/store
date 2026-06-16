@@ -223,7 +223,7 @@ export function DailyDealsManagementPage() {
                 </div>
 
                 <div className="flex items-center gap-3 text-xs text-text-secondary">
-                  <span>السعر: {deal.fixed_price ? Number(deal.fixed_price).toLocaleString('ar-EG') : 0}</span>
+                  <span>السعر: {deal.fixed_price ? Number(deal.fixed_price).toLocaleString('en-EG') : 0}</span>
                   <span>المتبقي: {deal.available_quantity}/{deal.original_quantity}</span>
                   {deal.ends_at && (
                     <span>ينتهي: {new Date(deal.ends_at).toLocaleDateString('ar-EG-u-nu-latn')}</span>

@@ -36,7 +36,7 @@ export default function GlobalCounters({
     { icon: '🔴', label: 'منقطع', value: String(connectionLossCount), rawValue: connectionLossCount },
     { icon: '⚪', label: 'لم يبدؤوا', value: String(noStartCount), rawValue: noStartCount },
     { icon: '📦', label: 'الطلبات', value: String(totalOrders), rawValue: totalOrders },
-    { icon: '💰', label: 'المبيعات', value: totalSales.toLocaleString('ar-EG'), rawValue: totalSales },
+    { icon: '💰', label: 'المبيعات', value: totalSales.toLocaleString('en-EG'), rawValue: totalSales },
     { icon: '👤', label: 'عملاء جدد', value: String(totalNewCustomers), rawValue: totalNewCustomers },
     { icon: '📍', label: 'الزيارات', value: String(totalVisits), rawValue: totalVisits },
   ]

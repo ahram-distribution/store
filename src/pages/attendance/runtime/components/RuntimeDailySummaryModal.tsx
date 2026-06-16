@@ -60,8 +60,8 @@ export default function RuntimeDailySummaryModal({
             <>
               <Section title="📊 الإنتاجية">
                 <Row label="عدد الطلبيات" value={`${todayOrders}`} icon={<ShoppingCart className="w-4 h-4 text-blue-500" />} />
-                <Row label="قيمة المبيعات" value={`${todaySales.toLocaleString('ar-EG')} ج.م`} icon={<DollarSign className="w-4 h-4 text-green-500" />} />
-                <Row label="قيمة التحصيلات" value={`${todayCollections.toLocaleString('ar-EG')} ج.م`} icon={<HandCoins className="w-4 h-4 text-amber-500" />} />
+                <Row label="قيمة المبيعات" value={`${todaySales.toLocaleString('en-EG')} ج.م`} icon={<DollarSign className="w-4 h-4 text-green-500" />} />
+                <Row label="قيمة التحصيلات" value={`${todayCollections.toLocaleString('en-EG')} ج.م`} icon={<HandCoins className="w-4 h-4 text-amber-500" />} />
                 <Row label="العملاء الجدد" value={`${todayNewCustomers}`} icon={<Users className="w-4 h-4 text-purple-500" />} />
               </Section>
 
