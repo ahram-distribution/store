@@ -44,15 +44,21 @@ export function safeFormatDateTime(value: string | Date | null | undefined, fall
 }
 
 export function formatDate(date: string | Date): string {
+  if (!date) return '--'
+  const d = new Date(date)
+  if (isNaN(d.getTime())) return '--'
   return new Intl.DateTimeFormat('ar-EG-u-nu-latn', {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
     timeZone: CAIRO_TZ,
-  }).format(new Date(date))
+  }).format(d)
 }
 
 export function formatDateTime(date: string | Date): string {
+  if (!date) return '--'
+  const d = new Date(date)
+  if (isNaN(d.getTime())) return '--'
   return new Intl.DateTimeFormat('ar-EG-u-nu-latn', {
     year: 'numeric',
     month: 'short',
@@ -60,14 +66,17 @@ export function formatDateTime(date: string | Date): string {
     hour: '2-digit',
     minute: '2-digit',
     timeZone: CAIRO_TZ,
-  }).format(new Date(date))
+  }).format(d)
 }
 
 export function formatTime(date: string | Date, options?: Intl.DateTimeFormatOptions): string {
+  if (!date) return '--'
+  const d = new Date(date)
+  if (isNaN(d.getTime())) return '--'
   return new Intl.DateTimeFormat('ar-EG-u-nu-latn', {
     hour: '2-digit',
     minute: '2-digit',
     timeZone: CAIRO_TZ,
     ...options,
-  }).format(new Date(date))
+  }).format(d)
 }

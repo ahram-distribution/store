@@ -10,18 +10,24 @@ const homeIcon = L.divIcon({ className: 'bg-transparent', html: '<span style="fo
 const visitIcon = L.divIcon({ className: 'bg-transparent', html: '<span style="font-size:18px">📍</span>', iconSize: [18, 18], iconAnchor: [9, 9] })
 
 interface SessionData {
-  id: string; date: string; started_at: string; ended_at: string | null
-  status: string; duration_minutes: number; distance_meters: number | null
+  id: string; date: string; start_time: string; end_time: string | null
+  status: string; duration_minutes: number; distance_meters: number
   visit_count: number; attendance_status: string | null; late_minutes: number
-  early_departure_minutes: number; break_count: number; break_seconds: number
-  break_minutes: number; net_work_minutes: number; order_count: number
-  sales_amount: number; collection_amount: number; new_customer_count: number
-  target_minutes: number; attendance_score: number; productivity_score: number; composite_score: number
+  early_departure_minutes: number; break_count: number
+  break_minutes: number; net_minutes: number; order_count: number
+  sales_value: number; collection_count: number; collection_amount: number
+  new_customer_count: number
 }
 
 interface HistoryResponse {
-  sessions: SessionData[]; summary: { total_days: number; late_days: number; early_departure_days: number; ontime_days: number; schedule_type: string; required_daily_hours: number }
-  productivity: { total_orders: number; total_sales: number; total_collections: number; total_net_minutes: number; total_target_minutes: number; overall_attendance_rate: number; avg_daily_sales: number }
+  sessions: SessionData[]
+  summary: {
+    total_days: number; total_duration_minutes: number; total_break_minutes: number
+    total_net_minutes: number; avg_net_minutes: number; max_net_day: number; min_net_day: number
+    total_sales_value: number; total_orders: number; total_visits: number
+    total_collections: number; total_collections_amount: number; total_new_customers: number
+    late_days: number; early_departure_days: number; ontime_days: number
+  }
 }
 
 interface TargetResponse {
@@ -252,11 +258,11 @@ export default function EmployeeWorkdayDetailPage() {
                 <Badge status={session.attendance_status} />
               </div>
               <div className="grid grid-cols-4 gap-1.5">
-                <KpiMini label="صافي العمل" value={fmtMin(session.net_work_minutes)} color="text-green-600" bg="bg-green-50" />
-                <KpiMini label="الطلبات" value={String(session.order_count)} color="text-purple-600" bg="bg-purple-50" />
-                <KpiMini label="المبيعات" value={session.sales_amount?.toLocaleString('ar-EG')} color="text-emerald-600" bg="bg-emerald-50" />
-                <KpiMini label="التحصيل" value={session.collection_amount?.toLocaleString('ar-EG')} color="text-cyan-600" bg="bg-cyan-50" />
-                <KpiMini label="عملاء جدد" value={String(session.new_customer_count)} color="text-rose-600" bg="bg-rose-50" />
+                <KpiMini label="صافي العمل" value={fmtMin(session.net_minutes)} color="text-green-600" bg="bg-green-50" />
+                <KpiMini label="الطلبات" value={String(session.order_count ?? 0)} color="text-purple-600" bg="bg-purple-50" />
+                <KpiMini label="المبيعات" value={(session.sales_value ?? 0).toLocaleString('ar-EG')} color="text-emerald-600" bg="bg-emerald-50" />
+                <KpiMini label="التحصيل" value={(session.collection_amount ?? 0).toLocaleString('ar-EG')} color="text-cyan-600" bg="bg-cyan-50" />
+                <KpiMini label="عملاء جدد" value={String(session.new_customer_count ?? 0)} color="text-rose-600" bg="bg-rose-50" />
                 <KpiMini label="الزيارات" value={String(session.visit_count)} color="text-blue-600" bg="bg-blue-50" />
                 <KpiMini label="المسافة" value={mapData ? `${mapData.total_distance_km} كم` : '--'} color="text-indigo-600" bg="bg-indigo-50" />
                 <KpiMini label="الاستراحة" value={fmtMin(session.break_minutes)} color="text-amber-600" bg="bg-amber-50" />
@@ -329,11 +335,11 @@ export default function EmployeeWorkdayDetailPage() {
                             {s.date ? new Date(s.date).toLocaleDateString('ar-EG', { weekday: 'short' }) : ''}
                           </td>
                           <td className="py-1 px-1 text-gray-500">{s.date}</td>
-                          <td className="py-1 px-1 text-center font-bold text-gray-800">{fmtMin(s.net_work_minutes)}</td>
-                          <td className="py-1 px-1 text-center text-gray-700">{s.order_count}</td>
-                          <td className="py-1 px-1 text-center text-gray-700">{s.sales_amount?.toLocaleString('ar-EG')}</td>
-                          <td className="py-1 px-1 text-center text-gray-700">{s.collection_amount?.toLocaleString('ar-EG')}</td>
-                          <td className="py-1 px-1 text-center text-gray-700">{s.visit_count}</td>
+                          <td className="py-1 px-1 text-center font-bold text-gray-800">{fmtMin(s.net_minutes)}</td>
+                          <td className="py-1 px-1 text-center text-gray-700">{s.order_count ?? 0}</td>
+                          <td className="py-1 px-1 text-center text-gray-700">{(s.sales_value ?? 0).toLocaleString('ar-EG')}</td>
+                          <td className="py-1 px-1 text-center text-gray-700">{(s.collection_amount ?? 0).toLocaleString('ar-EG')}</td>
+                          <td className="py-1 px-1 text-center text-gray-700">{s.visit_count ?? 0}</td>
                           <td className="py-1 px-1 text-center"><BadgeSmall status={s.attendance_status} /></td>
                         </tr>
                       ))}
