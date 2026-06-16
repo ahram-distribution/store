@@ -4,6 +4,28 @@
 
 ---
 
+## 2026-06-16 (continued)
+
+### Address Source of Truth Fix
+
+**Problem:** Dual source of truth for customer address — `unified_locations` (canonical) and `customer_addresses` (legacy, 23 customers). Production `governed_create_order` only read from `unified_locations`, so customers without `location_id` got empty `snapshot_customer_address` in orders. Also missing `snapshot_customer_code`.
+
+**Migration logic deployed directly to production (3-step fix):**
+1. **Fix 1** — `governed_create_order` updated with `customer_addresses` fallback for `snapshot_customer_address` (both customer and sender) + `v_cust_code` + `snapshot_customer_code` column in INSERT
+2. **Fix 2** — Backfill of `snapshot_customer_address` + `snapshot_customer_code` for all existing orders with empty values → 0 empty left
+3. **Fix 3** — Migrated 23 customers from `customer_addresses` → `unified_locations` (each got a new `unified_locations` row with `formatted_address`, their `location_id` set). Total customers with `location_id`: 27
+
+**Frontend fix:**
+- `CustomerProfilePage.tsx` — Removed `get_governed_customer_addresses` RPC call (legacy table). Address now displayed from `location?.formatted_address` (from `unified_locations` only)
+- `OrderDetailView.tsx` — Cleaned up owner/sender sections (name + phone only, no address/ContactActions/badge)
+- `whatsapp.ts` — WhatsApp message shows customer name/phone/address, owner name/phone, sender name/phone/role (`creatorType`); all fields use `|| 'غير متوفر'`
+
+**Data outcome:** New orders now always capture the customer's address. Existing orders backfilled. Zero empty addresses/codes remaining.
+
+**Commit:** `3e25e41` — fix: unify customer address source
+
+---
+
 ## 2026-06-16
 
 ### Identity Integration Layer — Root Cause Fix
