@@ -49,7 +49,7 @@ function getToken(): string | null {
 }
 
 function fmt(n: number): string { return n.toLocaleString('ar-EG-u-nu-latn') }
-function fmtPct(n: number | null): string { return n != null ? n.toFixed(1) + '%' : '—' }
+function fmtPct(n: number | null): string { return n != null ? n.toFixed(1) + '%' : 'غير متوفر' }
 function pctColor(pct: number | null): string {
   if (pct == null) return 'text-text-secondary'
   if (pct >= 100) return 'text-success'
@@ -283,7 +283,7 @@ export default function EmployeeAnalysisPage() {
         if (!error && visitData && visitData.length > 0) {
           setVisits((visitData as any[]).map((v: any) => ({
             id: v.id,
-            customer_name: v.customer?.company_name || '—',
+            customer_name: v.customer?.company_name || 'غير متوفر',
             visit_date: v.visit_date,
             status: v.status,
           })))
@@ -490,7 +490,7 @@ export default function EmployeeAnalysisPage() {
         className="w-full flex items-center justify-between p-3.5 bg-white rounded-xl border border-border active:bg-surface transition-colors cursor-pointer">
         <div className="text-right min-w-0">
           <p className="text-xs font-bold text-text">{order.order_code}</p>
-          <p className="text-[9px] text-text-secondary mt-0.5">{order.delivered_at ? new Date(order.delivered_at).toLocaleDateString('ar-EG-u-nu-latn') : '—'}</p>
+          <p className="text-[9px] text-text-secondary mt-0.5">{order.delivered_at ? new Date(order.delivered_at).toLocaleDateString('ar-EG-u-nu-latn') : 'غير متوفر'}</p>
         </div>
         <div className="flex items-center gap-2">
           <span className="text-xs font-bold text-success ltr" style={{ direction: 'ltr', unicodeBidi: 'embed' }}>{fmt(order.total_amount)}</span>

@@ -137,11 +137,11 @@ export function ProductProfilePage() {
         <div className="space-y-2">
           <div className="flex justify-between py-1.5">
             <span className="text-xs text-text-secondary">تاريخ الإنشاء</span>
-            <span className="text-xs text-text-secondary">{product.created_at ? formatDateTime(product.created_at) : '—'}</span>
+            <span className="text-xs text-text-secondary">{product.created_at ? formatDateTime(product.created_at) : 'غير متوفر'}</span>
           </div>
           <div className="flex justify-between py-1.5">
             <span className="text-xs text-text-secondary">آخر تعديل</span>
-            <span className="text-xs text-text-secondary">{product.updated_at ? formatDateTime(product.updated_at) : '—'}</span>
+            <span className="text-xs text-text-secondary">{product.updated_at ? formatDateTime(product.updated_at) : 'غير متوفر'}</span>
           </div>
         </div>
       </div>

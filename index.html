@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no" />
-    <script>(function(){var r=sessionStorage.getItem('spa_r');sessionStorage.removeItem('spa_r');if(r&&r!==location.href){history.replaceState(null,null,r);return}var p=location.pathname;if(p!=='/store/'&&!p.match(/\.\w+$/)){sessionStorage.setItem('spa_r',location.href);location.replace(location.origin+'/store/')}})()</script>
+    <script>(function(){if(location.pathname==='/store'){location.replace('/store/');return}var r=sessionStorage.getItem('spa_r');sessionStorage.removeItem('spa_r');if(r&&r!==location.href){history.replaceState(null,null,r);return}var p=location.pathname;if(p!=='/store/'&&!p.match(/\.\w+$/)){sessionStorage.setItem('spa_r',location.href);location.replace(location.origin+'/store/')}})()</script>
     <meta name="spa-b" content="%BASE_URL%">
     <meta name="theme-color" content="#0B3D91" />
     <meta name="mobile-web-app-capable" content="yes" />

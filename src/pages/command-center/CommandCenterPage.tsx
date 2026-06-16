@@ -178,7 +178,7 @@ export function CommandCenterPage() {
     const emoji = MODULE_EMOJI[key] || '📦'
     const name = m?.display_name?.ar || key
     const statusCls = m ? STATUS_BADGE[m.status] || 'bg-gray-100 text-gray-800' : 'bg-gray-100 text-gray-800'
-    const statusLabel = m ? STATUS_LABEL[m.status] || m.status : '—'
+    const statusLabel = m ? STATUS_LABEL[m.status] || m.status : 'غير متوفر'
     const healthDot = m ? HEALTH_COLOR[m.health_status] || 'bg-gray-300' : 'bg-gray-300'
 
     return (
@@ -267,7 +267,7 @@ export function CommandCenterPage() {
         <div className="grid grid-cols-2 min-[420px]:grid-cols-3 gap-3">
           {MODULE_TIERS.primary.map((key) => {
             const m = moduleMap.get(key)
-            const sublabel = !m ? '—' :
+            const sublabel = !m ? 'غير متوفر' :
               key === 'orders' && counts.orders_new > 0 ? `${counts.orders_new} جديدة` :
               key === 'customers' && counts.customers_active > 0 ? `${counts.customers_active} نشط` :
               key === 'visits' && counts.visits_active > 0 ? `${counts.visits_active} نشطة` :

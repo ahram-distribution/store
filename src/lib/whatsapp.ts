@@ -52,22 +52,22 @@ export function buildWhatsAppMessageFromDisplay(display: OrderDisplayData): stri
   msg += 'التاريخ: ' + formatDateTime(createdAt) + '\n\n'
 
   msg += '👤 العميل\n\n'
-  msg += 'الاسم: ' + (cust.name || '—') + '\n'
-  msg += 'كود: ' + (cust.code || '—') + '\n'
-  msg += 'الهاتف: ' + (cust.phone || '—') + '\n'
+  msg += 'الاسم: ' + (cust.name || 'غير متوفر') + '\n'
+  msg += 'كود: ' + (cust.code || 'غير متوفر') + '\n'
+  msg += 'الهاتف: ' + (cust.phone || 'غير متوفر') + '\n'
   if (cust.responsibleName) msg += 'المسؤول: ' + cust.responsibleName + '\n'
   if (cust.address) msg += 'العنوان: ' + cust.address + '\n'
   if (cust.mapsUrl) msg += '📍 ' + cust.mapsUrl + '\n'
   msg += '\n'
 
   msg += '👨‍💼 المسؤول عن العميل\n\n'
-  msg += 'الاسم: ' + (owner?.name || '—') + '\n'
-  msg += 'الهاتف: ' + (owner?.phone || '—') + '\n'
+  msg += 'الاسم: ' + (owner?.name || 'غير متوفر') + '\n'
+  msg += 'الهاتف: ' + (owner?.phone || 'غير متوفر') + '\n'
   if (owner?.address) msg += 'العنوان: ' + owner.address + '\n\n'
 
   msg += '📤 مرسل الطلب\n\n'
-  msg += 'الاسم: ' + (creator.name || '—') + '\n'
-  msg += 'الهاتف: ' + (creator.phone || '—') + '\n'
+  msg += 'الاسم: ' + (creator.name || 'غير متوفر') + '\n'
+  msg += 'الهاتف: ' + (creator.phone || 'غير متوفر') + '\n'
   if (creator.address) msg += 'العنوان: ' + creator.address + '\n\n'
 
   msg += '━━━━━━━━━━━━━━\n'
@@ -75,7 +75,7 @@ export function buildWhatsAppMessageFromDisplay(display: OrderDisplayData): stri
   msg += '━━━━━━━━━━━━━━\n\n'
   msg += 'عدد الأصناف: ' + items.length + '\n'
   if (display.tierName) msg += 'الشريحة: ' + display.tierName + '\n'
-  msg += 'طريقة الدفع: ' + (display.paymentMethod === 'cash' ? 'نقداً' : display.paymentMethod === 'credit' ? 'آجل' : display.paymentMethod || '—') + '\n\n'
+  msg += 'طريقة الدفع: ' + (display.paymentMethod === 'cash' ? 'نقداً' : display.paymentMethod === 'credit' ? 'آجل' : display.paymentMethod || 'غير متوفر') + '\n\n'
   msg += 'إجمالي الطلب: ' + toEnUS(grandTotal) + ' جنيه\n\n'
 
   const grouped: Record<string, OrderDisplayItem[]> = {}
@@ -93,7 +93,7 @@ export function buildWhatsAppMessageFromDisplay(display: OrderDisplayData): stri
     companyItems.forEach((item, idx) => {
       const num = idx + 1
       msg += num + '. ' + item.productName + '\n\n'
-      msg += 'كود: ' + (item.legacyCode || '—') + '  (' + item.quantity + ' ' + item.unitLabel + ')  ' + toEnUS(item.unitPrice) + ' ج\n\n'
+      msg += 'كود: ' + (item.legacyCode || 'غير متوفر') + '  (' + item.quantity + ' ' + item.unitLabel + ')  ' + toEnUS(item.unitPrice) + ' ج\n\n'
     })
   }
 

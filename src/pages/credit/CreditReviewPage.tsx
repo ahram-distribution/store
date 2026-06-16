@@ -63,7 +63,7 @@ export function CreditReviewPage() {
 
       <div className="bg-white rounded-xl border border-border p-4 space-y-2">
         <p className="text-sm font-semibold text-text">{c?.company_name}</p>
-        <p className="text-xs text-text-secondary">البرنامج: {p?.name} - {p?.credit_limit != null ? formatCurrencyShort(p.credit_limit) : '—'} / {p?.credit_days} يوم</p>
+        <p className="text-xs text-text-secondary">البرنامج: {p?.name} - {p?.credit_limit != null ? formatCurrencyShort(p.credit_limit) : 'غير متوفر'} / {p?.credit_days} يوم</p>
         <p className="text-xs text-text-secondary">الحالة: <span className="font-semibold">{statusLabels[a?.status] || a?.status}</span></p>
         {a?.submitted_at && <p className="text-xs text-text-secondary">تاريخ التقديم: {new Date(a.submitted_at).toLocaleDateString('ar-EG-u-nu-latn')}</p>}
         {a?.rejection_reason && <p className="text-xs text-red-600">سبب الرفض: {a.rejection_reason}</p>}

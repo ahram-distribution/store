@@ -251,23 +251,23 @@ export function CustomerProfilePage() {
               <div className="text-[10px] text-text-secondary">مبيعات الشهر</div>
             </div>
             <div className="bg-white rounded-xl border border-border p-3 text-center">
-              <div className="text-lg font-bold text-accent">{lastOrderDays !== null ? `منذ ${lastOrderDays} يوم` : '—'}</div>
+              <div className="text-lg font-bold text-accent">{lastOrderDays !== null ? `منذ ${lastOrderDays} يوم` : 'غير متوفر'}</div>
               <div className="text-[10px] text-text-secondary">آخر طلب</div>
             </div>
           </div>
 
           <div className="bg-white rounded-xl border border-border p-4 space-y-3">
             <div className="flex justify-between"><span className="text-xs text-text-secondary">الكود</span><span className="text-sm font-semibold">{customer.code}</span></div>
-            <div className="flex justify-between"><span className="text-xs text-text-secondary">اسم المسؤول</span><span className="text-sm font-semibold">{customer.responsible_name || '—'}</span></div>
-            <div className="flex justify-between"><span className="text-xs text-text-secondary">نوع النشاط</span><span className="text-sm font-semibold">{customer.business_type ? BUSINESS_TYPES.find(bt => bt.value === customer.business_type)?.label || customer.business_type : '—'}</span></div>
-            <div className="flex justify-between"><span className="text-xs text-text-secondary">رقم الهاتف</span><span className="text-sm font-semibold" dir="ltr">{customer.phone || '—'}</span></div>
-            <div className="flex justify-between"><span className="text-xs text-text-secondary">البريد الإلكتروني</span><span className="text-sm font-semibold" dir="ltr">{customer.email || '—'}</span></div>
+            <div className="flex justify-between"><span className="text-xs text-text-secondary">اسم المسؤول</span><span className="text-sm font-semibold">{customer.responsible_name || 'غير متوفر'}</span></div>
+            <div className="flex justify-between"><span className="text-xs text-text-secondary">نوع النشاط</span><span className="text-sm font-semibold">{customer.business_type ? BUSINESS_TYPES.find(bt => bt.value === customer.business_type)?.label || customer.business_type : 'غير متوفر'}</span></div>
+            <div className="flex justify-between"><span className="text-xs text-text-secondary">رقم الهاتف</span><span className="text-sm font-semibold" dir="ltr">{customer.phone || 'غير متوفر'}</span></div>
+            <div className="flex justify-between"><span className="text-xs text-text-secondary">البريد الإلكتروني</span><span className="text-sm font-semibold" dir="ltr">{customer.email || 'غير متوفر'}</span></div>
             <div className="flex justify-between"><span className="text-xs text-text-secondary">الموظف المسؤول</span>
-              <span className="text-sm font-semibold">{customer.owner_name || '—'}</span>
+              <span className="text-sm font-semibold">{customer.owner_name || 'غير متوفر'}</span>
             </div>
             <div className="flex justify-between"><span className="text-xs text-text-secondary">الحد الائتماني</span><span className="text-sm font-semibold">{formatCurrencyShort(customer.credit_limit || 0)}</span></div>
             <div className="flex justify-between"><span className="text-xs text-text-secondary">فترة الائتمان</span><span className="text-sm font-semibold">{customer.credit_days || 0} يوم</span></div>
-            <div className="flex justify-between"><span className="text-xs text-text-secondary">تاريخ التسجيل</span><span className="text-sm font-semibold">{customer.created_at ? formatDateTime(customer.created_at) : '—'}</span></div>
+            <div className="flex justify-between"><span className="text-xs text-text-secondary">تاريخ التسجيل</span><span className="text-sm font-semibold">{customer.created_at ? formatDateTime(customer.created_at) : 'غير متوفر'}</span></div>
           </div>
 
           {contacts.length > 0 && (
@@ -467,11 +467,11 @@ export function CustomerProfilePage() {
                 return (
                   <div key={h.id} className="text-xs py-2 border-b border-border/50 last:border-0">
                     <div className="flex justify-between">
-                      <span>{prev?.full_name || '—'} → {next?.full_name}</span>
+                      <span>{prev?.full_name || 'غير متوفر'} → {next?.full_name}</span>
                       <span className="text-text-secondary">{formatDateTime(h.changed_at)}</span>
                     </div>
                     {h.reason && <div className="text-text-secondary mt-0.5">السبب: {h.reason}</div>}
-                    <div className="text-text-secondary">بواسطة: {changer?.full_name || '—'}</div>
+                    <div className="text-text-secondary">بواسطة: {changer?.full_name || 'غير متوفر'}</div>
                   </div>
                 )
               })}

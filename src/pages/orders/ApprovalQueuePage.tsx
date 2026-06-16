@@ -59,7 +59,7 @@ export function ApprovalQueuePage() {
                   <button onClick={() => navigate(`/orders/${o.id}`)} className="text-sm font-bold text-primary hover:underline">
                     {o.order_number || o.id?.slice(0, 8)}
                   </button>
-                  <p className="text-xs text-text-secondary">{o.customer_name || '—'}</p>
+                  <p className="text-xs text-text-secondary">{o.customer_name || 'غير متوفر'}</p>
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
                   {o.payment_method === 'credit' && (
@@ -69,7 +69,7 @@ export function ApprovalQueuePage() {
                 </div>
               </div>
               <div className="flex items-center justify-between text-xs text-text-secondary mb-2">
-                <span>{o.employee_name || o.responsible_name || '—'}</span>
+                <span>{o.employee_name || o.responsible_name || 'غير متوفر'}</span>
                 <span className="font-semibold text-text">{formatCurrencyShort(Number(o.total_amount || 0))}</span>
               </div>
               <div className="flex gap-2">

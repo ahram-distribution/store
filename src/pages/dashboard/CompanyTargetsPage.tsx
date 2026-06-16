@@ -176,7 +176,7 @@ export default function CompanyTargetsPage() {
             <div className="bg-surface rounded-lg p-3">
               <p className="text-[9px] text-text-secondary">متوسط الإنجاز</p>
               <p className={`text-sm font-bold mt-1 ${totalAchievement !== null && totalAchievement >= 50 ? 'text-success' : 'text-red-500'}`}>
-                {totalAchievement !== null ? totalAchievement.toFixed(1) + '%' : '—'}
+                {totalAchievement !== null ? totalAchievement.toFixed(1) + '%' : 'غير متوفر'}
               </p>
             </div>
             <div className="bg-surface rounded-lg p-3">

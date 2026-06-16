@@ -184,7 +184,7 @@ export function VisitDetailPage() {
           <div className="bg-white rounded-xl border border-border overflow-hidden">
             <div className={'px-4 py-2.5 flex items-center justify-between ' + headerBg}>
               <span className={'text-xs px-2.5 py-0.5 rounded-full font-semibold ' + codeBg}>
-                {visit.code || '—'}
+                {visit.code || 'غير متوفر'}
               </span>
               <StatusBadge status={visit.status} />
             </div>

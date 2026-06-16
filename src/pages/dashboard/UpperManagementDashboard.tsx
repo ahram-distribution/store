@@ -176,7 +176,7 @@ export default function UpperManagementDashboard() {
           <div className="flex items-center justify-between mb-2">
             <span className="text-[13px] font-semibold text-text">الحضور والانصراف</span>
             <span className="text-[10px] text-text-secondary">
-              {((attendance.employees ?? []).length > 0 ? (attendance.employees as unknown[]).length + ' موظف' : '—')}
+              {((attendance.employees ?? []).length > 0 ? (attendance.employees as unknown[]).length + ' موظف' : 'غير متوفر')}
             </span>
           </div>
           <div className="grid grid-cols-4 gap-2 text-center">

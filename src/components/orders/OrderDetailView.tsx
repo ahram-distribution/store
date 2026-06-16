@@ -73,7 +73,7 @@ function renderPdfHtml(order: any, items: OrderItem[]): string {
       const name = item.products?.product_name || ''
       const company = item.products?.companies?.company_name || ''
       const unit = UNIT_LABELS[item.unit_type] || item.unit_type || 'قطعة'
-      h += `<tr><td style="font-family:monospace;direction:ltr">${esc(code || '—')}</td><td>${esc(name)}</td><td>${esc(company)}</td><td>${esc(unit)}</td><td>${qty}</td><td>${money(price)}</td><td>${money(lineTotal)}</td></tr>`
+      h += `<tr><td style="font-family:monospace;direction:ltr">${esc(code || 'غير متوفر')}</td><td>${esc(name)}</td><td>${esc(company)}</td><td>${esc(unit)}</td><td>${qty}</td><td>${money(price)}</td><td>${money(lineTotal)}</td></tr>`
     }
     h += `</tbody><tfoot><tr class="total-row"><td colspan="6" style="text-align:left">الإجمالي النهائي</td><td>${money(grandTotal)}</td></tr></tfoot></table>`
     return h
@@ -125,7 +125,7 @@ function renderPdfHtml(order: any, items: OrderItem[]): string {
     ${customerMapsUrl ? `<div><a href="${esc(customerMapsUrl)}" style="color:#0052cc;font-size:8pt">🗺️ عرض الخريطة</a></div>` : ''}
   </div></div>
   <div class="section"><div class="section-title">المسؤول عن العميل</div><div class="section-body">
-    <div style="font-weight:700;font-size:11pt">${esc(ownerName || '—')}</div>
+    <div style="font-weight:700;font-size:11pt">${esc(ownerName || 'غير متوفر')}</div>
     ${ownerPhone ? `<div dir="ltr">📞 ${esc(ownerPhone)}</div>` : ''}
     ${ownerAddress ? `<div>📍 ${esc(ownerAddress)}</div>` : ''}
   </div></div>
@@ -229,7 +229,7 @@ export function OrderDetailView({
     : order.created_by === order.owner_id ? 'مندوب مبيعات'
     : 'موظف'
 
-  const customerName = orderVal(order, ['customer_name', 'snapshot_customer_name']) || '—'
+  const customerName = orderVal(order, ['customer_name', 'snapshot_customer_name']) || 'غير متوفر'
   const customerCode = orderVal(order, ['customer_code', 'snapshot_customer_code'])
   const customerPhone = orderVal(order, ['customer_phone', 'snapshot_customer_phone'])
   const customerAddress = orderVal(order, ['customer_address', 'snapshot_customer_address'])
@@ -269,19 +269,19 @@ export function OrderDetailView({
           <div className="mt-2 grid grid-cols-2 gap-3 text-[11px]">
             <div>
               <span className="text-text-secondary">تاريخ الإنشاء</span>
-              <p className="text-text font-medium">{order.created_at ? formatDateTime(order.created_at) : '—'}</p>
+              <p className="text-text font-medium">{order.created_at ? formatDateTime(order.created_at) : 'غير متوفر'}</p>
             </div>
             <div>
               <span className="text-text-secondary">آخر تحديث</span>
-              <p className="text-text font-medium">{order.updated_at ? formatDateTime(order.updated_at) : '—'}</p>
+              <p className="text-text font-medium">{order.updated_at ? formatDateTime(order.updated_at) : 'غير متوفر'}</p>
             </div>
             <div>
               <span className="text-text-secondary">الشريحة</span>
-              <p className="text-text font-medium">{order.tier_name || '—'}</p>
+              <p className="text-text font-medium">{order.tier_name || 'غير متوفر'}</p>
             </div>
             <div>
               <span className="text-text-secondary">طريقة الدفع</span>
-              <p className="text-text font-medium">{(order.payment_method === 'cash' ? 'نقداً' : order.payment_method === 'credit' ? 'آجل' : order.payment_method) || '—'}</p>
+              <p className="text-text font-medium">{(order.payment_method === 'cash' ? 'نقداً' : order.payment_method === 'credit' ? 'آجل' : order.payment_method) || 'غير متوفر'}</p>
             </div>
             <div className="col-span-2">
               <span className="text-text-secondary">الإجمالي</span>
@@ -309,7 +309,7 @@ export function OrderDetailView({
       {/* SECTION C: RESPONSIBLE USER */}
       <div className="bg-white rounded-xl border border-border p-4">
         <p className="text-[10px] font-bold text-text-secondary uppercase mb-2">المسؤول عن العميل</p>
-        <p className="text-sm font-bold text-primary">{ownerName || '—'}</p>
+        <p className="text-sm font-bold text-primary">{ownerName || 'غير متوفر'}</p>
         {ownerPhone && <p className="text-xs text-text-secondary mt-0.5 text-left" dir="ltr">{ownerPhone}</p>}
         {ownerAddress && <p className="text-xs text-text-secondary mt-0.5">{ownerAddress}</p>}
         <ContactActions phone={ownerPhone} />
@@ -368,8 +368,8 @@ export function OrderDetailView({
                             <div className="w-7 h-7 rounded bg-surface flex items-center justify-center text-text-secondary text-[8px]">—</div>
                           )}
                         </td>
-                        <td className="px-2 py-1.5 text-text-secondary font-mono text-[10px]" dir="ltr">{item.products?.legacy_code || '—'}</td>
-                        <td className="px-2 py-1.5 text-primary font-semibold cursor-pointer" onClick={() => item.product_id && navigate(`/products/${item.product_id}`)}>{item.products?.product_name || '—'}</td>
+                        <td className="px-2 py-1.5 text-text-secondary font-mono text-[10px]" dir="ltr">{item.products?.legacy_code || 'غير متوفر'}</td>
+                        <td className="px-2 py-1.5 text-primary font-semibold cursor-pointer" onClick={() => item.product_id && navigate(`/products/${item.product_id}`)}>{item.products?.product_name || 'غير متوفر'}</td>
                         <td className="px-2 py-1.5 text-center text-text-secondary text-[10px]">{item.products?.companies?.company_name || ''}</td>
                         <td className="px-2 py-1.5 text-center text-text-secondary">{UNIT_LABELS[item.unit_type] || item.unit_type}</td>
                         <td className="px-2 py-1.5 text-center text-text">{qty}</td>

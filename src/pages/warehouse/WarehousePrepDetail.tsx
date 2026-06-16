@@ -5,7 +5,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { formatCurrencyShort } from '../../utils/format';
 
 function formatDT(ts: string | null | undefined) {
-  if (!ts) return '—';
+  if (!ts) return 'غير متوفر';
   return new Date(ts).toLocaleString('ar-EG-u-nu-latn');
 }
 
@@ -112,9 +112,9 @@ export default function WarehousePrepDetail() {
         <div className="bg-white rounded-lg border p-4">
           <h3 className="text-sm font-semibold text-gray-700 mb-3">معلومات الطلب</h3>
           <div className="space-y-2 text-sm">
-            <div className="flex justify-between"><span className="text-gray-500">رقم الطلب</span><span className="font-semibold">{order?.order_number || '—'}</span></div>
-            <div className="flex justify-between"><span className="text-gray-500">حالة الطلب</span><span>{ORDER_STATUS_LABELS[order?.status] || order?.status || '—'}</span></div>
-            <div className="flex justify-between"><span className="text-gray-500">الإجمالي</span><span className="font-semibold">{order?.total_amount ? formatCurrencyShort(Number(order.total_amount)) : '—'}</span></div>
+            <div className="flex justify-between"><span className="text-gray-500">رقم الطلب</span><span className="font-semibold">{order?.order_number || 'غير متوفر'}</span></div>
+            <div className="flex justify-between"><span className="text-gray-500">حالة الطلب</span><span>{ORDER_STATUS_LABELS[order?.status] || order?.status || 'غير متوفر'}</span></div>
+            <div className="flex justify-between"><span className="text-gray-500">الإجمالي</span><span className="font-semibold">{order?.total_amount ? formatCurrencyShort(Number(order.total_amount)) : 'غير متوفر'}</span></div>
             <div className="flex justify-between"><span className="text-gray-500">تاريخ الطلب</span><span>{formatDT(order?.created_at)}</span></div>
           </div>
         </div>
@@ -122,15 +122,15 @@ export default function WarehousePrepDetail() {
         <div className="bg-white rounded-lg border p-4">
           <h3 className="text-sm font-semibold text-gray-700 mb-3">معلومات العميل</h3>
           <div className="space-y-2 text-sm">
-            <div className="flex justify-between"><span className="text-gray-500">اسم العميل</span><span className="font-semibold">{order?.customer_name || order?.snapshot_customer_name || '—'}</span></div>
-            <div className="flex justify-between"><span className="text-gray-500">رقم الهاتف</span><span>{order?.customer_phone || order?.snapshot_customer_phone || '—'}</span></div>
+            <div className="flex justify-between"><span className="text-gray-500">اسم العميل</span><span className="font-semibold">{order?.customer_name || order?.snapshot_customer_name || 'غير متوفر'}</span></div>
+            <div className="flex justify-between"><span className="text-gray-500">رقم الهاتف</span><span>{order?.customer_phone || order?.snapshot_customer_phone || 'غير متوفر'}</span></div>
           </div>
         </div>
 
         <div className="bg-white rounded-lg border p-4">
           <h3 className="text-sm font-semibold text-gray-700 mb-3">معلومات المالك</h3>
           <div className="space-y-2 text-sm">
-            <div className="flex justify-between"><span className="text-gray-500">اسم المالك</span><span className="font-semibold">{order?.owner_name || order?.snapshot_owner_name || '—'}</span></div>
+            <div className="flex justify-between"><span className="text-gray-500">اسم المالك</span><span className="font-semibold">{order?.owner_name || order?.snapshot_owner_name || 'غير متوفر'}</span></div>
           </div>
         </div>
 

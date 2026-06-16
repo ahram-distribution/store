@@ -534,7 +534,7 @@ export default function SalesManagerCCPage() {
                   </div>
                   <div className="bg-surface rounded p-1">
                     <p className={`text-xs font-bold ${pctColor(m.achievement_pct)}`}>
-                      {m.sales_target > 0 ? fmtPct(m.achievement_pct) : '—'}
+                      {m.sales_target > 0 ? fmtPct(m.achievement_pct) : 'غير متوفر'}
                     </p>
                     <p className="text-[8px] text-text-secondary">إنجاز</p>
                   </div>
@@ -703,7 +703,7 @@ export default function SalesManagerCCPage() {
                       <td className="py-2 px-2 text-center text-text-secondary">{formatCurrencyShort(m.month_sales)}</td>
                       <td className="py-2 px-2 text-center text-text-secondary">{fmt(m.month_visits)}</td>
                       <td className={`py-2 px-2 text-center font-bold ${pctColor(m.achievement_pct)}`}>
-                        {m.sales_target > 0 ? fmtPct(m.achievement_pct) : '—'}
+                      {m.sales_target > 0 ? fmtPct(m.achievement_pct) : 'غير متوفر'}
                       </td>
                     </tr>
                   ))}
@@ -887,7 +887,7 @@ export default function SalesManagerCCPage() {
             return (
               <div className="p-5 space-y-4">
                 <div className={'-mx-5 -mt-5 px-5 py-2.5 flex items-center justify-between ' + headerBg}>
-                  <span className={'text-xs px-2.5 py-0.5 rounded-full font-semibold ' + codeBg}>{v.code || '—'}</span>
+                  <span className={'text-xs px-2.5 py-0.5 rounded-full font-semibold ' + codeBg}>{v.code || 'غير متوفر'}</span>
                   <span className={`text-[10px] px-2 py-0.5 rounded font-semibold ${
                     isActive ? 'bg-accent/15 text-accent' : isCompleted ? 'bg-success/15 text-success' : 'bg-gray-100 text-text-secondary'
                   }`}>{isActive ? 'نشط' : isCompleted ? 'مكتمل' : v.status}</span>

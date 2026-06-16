@@ -129,7 +129,7 @@ export default function WarehouseReviewPage() {
               <div className="text-xs text-text-secondary space-y-0.5 mb-3">
                 <p>العميل: {r.customer_name}</p>
                 <p>بدء: {new Date(r.started_at).toLocaleDateString('ar-EG-u-nu-latn')}</p>
-                <p>إكمال: {r.completed_at ? new Date(r.completed_at).toLocaleDateString('ar-EG-u-nu-latn') : '—'}</p>
+                <p>إكمال: {r.completed_at ? new Date(r.completed_at).toLocaleDateString('ar-EG-u-nu-latn') : 'غير متوفر'}</p>
                 {r.notes && <p>ملاحظات: {r.notes}</p>}
               </div>
               <div className="flex gap-2">

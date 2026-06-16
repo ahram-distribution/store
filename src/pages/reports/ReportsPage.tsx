@@ -181,7 +181,7 @@ export function ReportsPage() {
                           ? formatCurrencyShort(val as number)
                           : key.includes('at') && val
                             ? new Date(val as string).toLocaleDateString('ar-EG-u-nu-latn')
-                            : String(val ?? '—')}
+                            : String(val ?? 'غير متوفر')}
                       </td>
                     ))}
                   </tr>
@@ -194,7 +194,7 @@ export function ReportsPage() {
               {Object.entries(data as any).map(([key, val]) => (
                 <div key={key} className="flex justify-between py-1 border-b border-border/50 last:border-0">
                   <span className="text-xs text-text-secondary">{key}</span>
-                  <span className="text-xs font-semibold">{String(val ?? '—')}</span>
+                  <span className="text-xs font-semibold">{String(val ?? 'غير متوفر')}</span>
                 </div>
               ))}
             </div>

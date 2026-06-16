@@ -9,7 +9,6 @@ const certPath = '.certs/dev-cert.pem'
 const keyPath = '.certs/dev-key.pem'
 const hasCerts = fs.existsSync(certPath) && fs.existsSync(keyPath)
 const isMobileBuild = process.env.MOBILE_BUILD === 'true'
-const basePath = process.env.VITE_BASE_PATH || '/'
 
 const pwaManifest = {
   name: 'شركة الأهرام للتجارة والتوزيع',
@@ -19,8 +18,8 @@ const pwaManifest = {
   background_color: '#0B3D91',
   display: 'standalone',
   orientation: 'portrait',
-  start_url: basePath,
-  scope: basePath,
+  start_url: '/store/',
+  scope: '/store/',
   lang: 'ar',
   dir: 'rtl',
   categories: ['business', 'shopping'],
@@ -52,7 +51,7 @@ const pwaManifest = {
 }
 
 export default defineConfig({
-  base: isMobileBuild ? './' : basePath,
+  base: isMobileBuild ? './' : '/store/',
   server: {
     host: '0.0.0.0',
     ...(hasCerts

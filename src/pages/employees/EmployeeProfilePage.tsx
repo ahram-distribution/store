@@ -478,10 +478,10 @@ export function EmployeeProfilePage() {
                   <div key={kpi.label} className="flex items-center justify-between py-1">
                     <span className="text-[11px] text-text-secondary font-semibold">{kpi.label}</span>
                     <span className="text-[11px] text-text-secondary">
-                      {kpi.value > 0 ? `${(kpi.actual || 0).toLocaleString('ar-EG-u-nu-latn')} / ${kpi.value.toLocaleString('ar-EG-u-nu-latn')}` : '—'}
+                      {kpi.value > 0 ? `${(kpi.actual || 0).toLocaleString('ar-EG-u-nu-latn')} / ${kpi.value.toLocaleString('ar-EG-u-nu-latn')}` : 'غير متوفر'}
                     </span>
                     <span className={`text-[11px] font-bold ${kpi.pct >= 100 ? 'text-success' : kpi.pct >= 50 ? 'text-warning' : 'text-red-500'}`}>
-                      {kpi.pct != null ? kpi.pct.toFixed(1) + '%' : '—'}
+                      {kpi.pct != null ? kpi.pct.toFixed(1) + '%' : 'غير متوفر'}
                     </span>
                   </div>
                 ))}
@@ -497,12 +497,12 @@ export function EmployeeProfilePage() {
               <div className="flex items-center gap-4">
                 <div className="flex-1">
                   <div className="text-2xl font-bold" style={{ color: performance.overall_pct >= 70 ? '#22c55e' : performance.overall_pct >= 40 ? '#eab308' : '#ef4444' }}>
-                    {performance.overall_pct != null ? performance.overall_pct.toFixed(1) + '%' : '—'}
+                    {performance.overall_pct != null ? performance.overall_pct.toFixed(1) + '%' : 'غير متوفر'}
                   </div>
                   <div className="text-[10px] text-text-secondary">نسبة الإنجاز</div>
                 </div>
                 <div className="text-left">
-                  <div className="text-sm font-semibold">{performance.overall_score != null ? performance.overall_score.toFixed(1) : '—'}</div>
+                  <div className="text-sm font-semibold">{performance.overall_score != null ? performance.overall_score.toFixed(1) : 'غير متوفر'}</div>
                   <div className="text-[10px] text-text-secondary">الدرجة</div>
                 </div>
               </div>

@@ -3,6 +3,7 @@ import { useAuthStore } from '../store/auth'
 import { useVisitsStore } from '../store/visits'
 import { BottomNav } from '../components/shared/BottomNav'
 import { TopBar } from '../components/shared/TopBar'
+import { ErrorBoundary } from '../components/shared/ErrorBoundary'
 import { useLocation, useNavigate } from 'react-router-dom'
 
 interface CartMeta {
@@ -48,14 +49,14 @@ export function AppLayout({ children }: AppLayoutProps) {
   }, [location])
 
   if (location.pathname === '/login' || location.pathname === '/register') {
-    return <>{children}</>
+    return <ErrorBoundary><>{children}</></ErrorBoundary>
   }
 
   if (!token) {
     return (
       <div className="mobile-container safe-top">
         <main className="px-4 pb-8 pt-4 min-h-screen">
-          {children}
+          <ErrorBoundary>{children}</ErrorBoundary>
         </main>
       </div>
     )
@@ -65,7 +66,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     <div className="mobile-container safe-top">
       <TopBar />
       <main className="px-4 pb-24 pt-4 min-h-screen">
-        {children}
+        <ErrorBoundary>{children}</ErrorBoundary>
       </main>
       {cartCount > 0 && !location.pathname.startsWith('/orders/new') && (
         <button

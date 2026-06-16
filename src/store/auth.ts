@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { authService, type RegisterParams } from '../services/auth'
 
-interface SessionUser {
+export interface SessionUser {
   identity_id: string
   identity_type: 'employee' | 'customer'
   employee_id?: string

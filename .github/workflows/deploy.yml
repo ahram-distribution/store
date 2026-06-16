@@ -24,8 +24,6 @@ concurrency:
 jobs:
   validate:
     runs-on: ubuntu-latest
-    outputs:
-      base_path: ${{ steps.set-base.outputs.base_path }}
     steps:
       - name: Validate required secrets
         id: check-secrets
@@ -41,12 +39,6 @@ jobs:
             echo "::error::Then re-run this workflow."
             exit 1
           fi
-
-      - name: Compute base path
-        id: set-base
-        run: |
-          REPO_NAME="${{ github.event.repository.name }}"
-          echo "base_path=/${REPO_NAME}/" >> "$GITHUB_OUTPUT"
 
   build:
     needs: validate
@@ -67,7 +59,6 @@ jobs:
       - name: Build
         run: npm run build
         env:
-          VITE_BASE_PATH: ${{ needs.validate.outputs.base_path }}
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || secrets.SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY || secrets.SUPABASE_ANON_KEY }}
           VITE_APP_NAME: ${{ vars.VITE_APP_NAME || 'Ahram Distribution' }}

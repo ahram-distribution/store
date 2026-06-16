@@ -142,7 +142,7 @@ export function CreditManagementPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-semibold text-text">{p.name}</p>
-                  <p className="text-xs text-text-secondary">{p.credit_limit != null ? formatCurrencyShort(p.credit_limit) : '—'} / {p.credit_days} يوم</p>
+                  <p className="text-xs text-text-secondary">{p.credit_limit != null ? formatCurrencyShort(p.credit_limit) : 'غير متوفر'} / {p.credit_days} يوم</p>
                 </div>
                 <button onClick={() => handleToggleProgram(p.id)}
                   className={`text-xs px-2 py-1 rounded-md ${

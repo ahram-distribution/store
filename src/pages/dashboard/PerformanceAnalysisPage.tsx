@@ -434,7 +434,7 @@ export default function PerformanceAnalysisPage() {
                   headers={['الاسم', 'المحقق', 'الهدف', 'النسبة']}
                   rows={(drill.teamMembers || []).map(m => ({
                     key: m.employee_id,
-                    cols: [m.employee_name, fmt(m.actual), m.target > 0 ? fmt(m.target) : '—', fmtPct(m.achievement_pct)],
+cols: [m.employee_name, fmt(m.actual), m.target > 0 ? fmt(m.target) : 'غير متوفر', fmtPct(m.achievement_pct)],
                     onClick: () => drillToTeamMember(m)
                   }))}
                 />
@@ -446,7 +446,7 @@ export default function PerformanceAnalysisPage() {
                 headers={['الاسم', 'المحقق', 'الهدف', 'النسبة']}
                 rows={(drill.data as DrillContributor[]).map(m => ({
                   key: m.employee_id,
-                  cols: [m.employee_name, fmt(m.actual), m.target > 0 ? fmt(m.target) : '—', fmtPct(m.achievement_pct)],
+                  cols: [m.employee_name, fmt(m.actual), m.target > 0 ? fmt(m.target) : 'غير متوفر', fmtPct(m.achievement_pct)],
                   onClick: () => drillToTeamMember(m)
                 }))}
               />
@@ -471,7 +471,7 @@ export default function PerformanceAnalysisPage() {
                   headers={['الاسم', 'النوع', 'المحقق', 'الهدف', 'النسبة']}
                   rows={sortedContributors.map(c => ({
                     key: c.employee_id,
-                    cols: [c.employee_name, c.role_type, fmt(c.actual), c.target > 0 ? fmt(c.target) : '—', fmtPct(c.achievement_pct)],
+                    cols: [c.employee_name, c.role_type, fmt(c.actual), c.target > 0 ? fmt(c.target) : 'غير متوفر', fmtPct(c.achievement_pct)],
                     onClick: () => drillToEmployee(c)
                   }))}
                 />

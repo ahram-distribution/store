@@ -157,7 +157,7 @@ export function OrderReviewPage() {
 
       <div className="bg-white rounded-lg border border-border p-3">
         <p className="text-[10px] font-bold text-text-secondary uppercase mb-2">معلومات العميل</p>
-        <p className="text-sm font-bold text-primary">{selectedCustomer?.name || user?.full_name || '—'}</p>
+        <p className="text-sm font-bold text-primary">{selectedCustomer?.name || user?.full_name || 'غير متوفر'}</p>
         {selectedCustomer?.code && <p className="text-[10px] text-text-secondary font-mono" dir="ltr">{selectedCustomer.code}</p>}
         {selectedCustomer?.phone && <p className="text-xs text-text-secondary mt-0.5" dir="ltr">{selectedCustomer.phone}</p>}
       </div>

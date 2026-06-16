@@ -262,9 +262,9 @@ export default function GpsTestPage() {
                 <InfoRow label="Latitude" value={currentFix.latitude.toFixed(7)} />
                 <InfoRow label="Longitude" value={currentFix.longitude.toFixed(7)} />
                 <InfoRow label="Accuracy" value={`${currentFix.accuracy}m`} />
-                <InfoRow label="Altitude" value={currentFix.altitude !== null ? `${currentFix.altitude.toFixed(1)}m` : '—'} />
-                <InfoRow label="Heading" value={currentFix.heading !== null ? `${currentFix.heading.toFixed(1)}°` : '—'} />
-                <InfoRow label="Speed" value={currentFix.speed !== null ? `${currentFix.speed.toFixed(1)} m/s` : '—'} />
+                <InfoRow label="Altitude" value={currentFix.altitude !== null ? `${currentFix.altitude.toFixed(1)}m` : 'غير متوفر'} />
+                <InfoRow label="Heading" value={currentFix.heading !== null ? `${currentFix.heading.toFixed(1)}°` : 'غير متوفر'} />
+                <InfoRow label="Speed" value={currentFix.speed !== null ? `${currentFix.speed.toFixed(1)} m/s` : 'غير متوفر'} />
               </div>
               <p className="text-[10px] text-gray-400 mt-1">{currentFix.capturedAt}</p>
             </div>

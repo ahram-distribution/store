@@ -283,7 +283,7 @@ export function StorefrontPage() {
                   <button
                     key={c.id}
                     onClick={() => {
-                      setSelectedCustomer({ id: c.id, name: c.customer_name || '—', phone: c.phone || '', code: c.code || '', address: '' })
+                      setSelectedCustomer({ id: c.id, name: c.customer_name || 'غير متوفر', phone: c.phone || '', code: c.code || '', address: '' })
                       setCustomerPickerOpen(false)
                       setCustomerSearch('')
                     }}
@@ -292,7 +292,7 @@ export function StorefrontPage() {
                     }`}
                   >
                     <div className="min-w-0 flex-1">
-                      <div className="text-sm font-semibold text-text">{c.customer_name || '—'}</div>
+                      <div className="text-sm font-semibold text-text">{c.customer_name || 'غير متوفر'}</div>
                       <div className="text-xs text-text-secondary ltr">{c.phone || ''}</div>
                     </div>
                     {selectedCustomer?.id === c.id && (

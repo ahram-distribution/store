@@ -9,7 +9,7 @@ import { InstallBanner } from './components/splash/InstallBanner'
 import { OfflinePage } from './components/splash/OfflinePage'
 import { ThemeProvider } from './context/ThemeContext'
 import { notificationService } from './services/notificationService'
-import { registerGeolocationGuard, registerWindowOpenGuard } from './utils/systemOfTruthGuard'
+import { healthMonitor } from './utils/pageHealthCheck'
 
 const isNative = typeof window !== 'undefined' && !!(window as any).Capacitor?.isNativePlatform?.()
 const Router = isNative ? HashRouter : BrowserRouter
@@ -17,14 +17,9 @@ export function App() {
   const [splashDone, setSplashDone] = useState(false)
   const { loading, restoreSession } = useAuthStore()
   const restored = useRef(false)
-  const guardsActivated = useRef(false)
 
   useEffect(() => {
-    if (!guardsActivated.current) {
-      guardsActivated.current = true
-      registerGeolocationGuard()
-      registerWindowOpenGuard()
-    }
+    healthMonitor.start()
   }, [])
 
   useEffect(() => {

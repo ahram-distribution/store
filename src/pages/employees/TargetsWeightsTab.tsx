@@ -40,7 +40,7 @@ function fmt(n: number): string {
 }
 
 function fmtPct(n: number | null): string {
-  return n !== null ? n.toFixed(1) + '%' : '—'
+  return n !== null ? n.toFixed(1) + '%' : 'غير متوفر'
 }
 
 function pctColor(pct: number | null): string {
@@ -452,10 +452,10 @@ function KpiSummaryRow({ label, unit, target, actual, pct }: {
     <div className="flex items-center justify-between py-0.5">
       <span className="text-[11px] text-text-secondary font-semibold shrink-0 ml-2" style={{ minWidth: '55px' }}>{label}</span>
       <span className="text-[11px] text-text-secondary" style={{ direction: 'ltr', unicodeBidi: 'embed' }}>
-        {target > 0 ? `${fmt(actual)} / ${fmt(target)}` : '—'}
+        {target > 0 ? `${fmt(actual)} / ${fmt(target)}` : 'غير متوفر'}
       </span>
       <span className={`text-[11px] font-bold shrink-0 mr-auto ${pctColor(pct)}`}>
-        {pct !== null ? fmtPct(pct) : '—'}
+        {pct !== null ? fmtPct(pct) : 'غير متوفر'}
       </span>
     </div>
   )

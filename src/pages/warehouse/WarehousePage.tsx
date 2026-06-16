@@ -379,7 +379,7 @@ export default function WarehousePage() {
               <div className="text-xs text-text-secondary space-y-0.5 mb-3">
                 <p>العميل: {r.customer_name}</p>
                 <p>بدء: {new Date(r.started_at).toLocaleDateString('ar-EG-u-nu-latn')}</p>
-                <p>إكمال: {r.completed_at ? new Date(r.completed_at).toLocaleDateString('ar-EG-u-nu-latn') : '—'}</p>
+                <p>إكمال: {r.completed_at ? new Date(r.completed_at).toLocaleDateString('ar-EG-u-nu-latn') : 'غير متوفر'}</p>
               </div>
               <div className="flex gap-2">
                 <button onClick={() => handleApprove(r.id)} className="flex-1 bg-indigo-600 text-white rounded-xl py-2 text-xs font-semibold active:opacity-90 transition-colors">اعتماد التجهيز</button>

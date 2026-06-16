@@ -1,4 +1,5 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
+import { NotFoundPage } from '../components/shared/NotFoundPage'
 import { useAuthStore } from '../store/auth'
 import { LoginPage, RegistrationPage } from '../pages/auth'
 import { ProtectedRoute } from '../components/auth/ProtectedRoute'
@@ -67,7 +68,7 @@ export function AppRoutes() {
         <Route path="/tiers" element={<TierSystemPage />} />
         <Route path="/auctions" element={<AuctionsPage />} />
         <Route path="/auctions/:id" element={<AuctionDetailPage />} />
-        <Route path="*" element={<Navigate to="/storefront" replace />} />
+        <Route path="*" element={<NotFoundPage />} />
       </Routes>
     )
   }
@@ -170,7 +171,7 @@ export function AppRoutes() {
 
       <Route path="/ops/gps-test" element={<ProtectedRoute requireUpperManagement><GpsTestPage /></ProtectedRoute>} />
 
-      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      <Route path="*" element={<NotFoundPage />} />
     </Routes>
   )
 }

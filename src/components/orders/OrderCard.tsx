@@ -33,7 +33,7 @@ export function OrderCard({ order, onClick }: OrderCardProps) {
         <div className="flex-1 min-w-0">
           <p className="text-xs text-text-secondary font-medium">{order.order_number}</p>
           <p className="text-sm font-bold text-text mt-0.5">
-            {order.customer_name || '—'}
+            {order.customer_name || 'غير متوفر'}
           </p>
           {order.customer_phone && (
             <p className="text-[10px] text-text-secondary mt-0.5" dir="ltr">{order.customer_phone}</p>

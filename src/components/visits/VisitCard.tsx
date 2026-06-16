@@ -56,7 +56,7 @@ export function VisitCard({ visit, customerName, employeeName, onClick }: VisitC
       className={'rounded-xl cursor-pointer active:scale-[0.98] transition-all bg-white ' + cardBorder}>
       <div className={'rounded-t-xl px-3 py-2 flex items-center justify-between ' + headerBg}>
         <span className={'text-[10px] px-2 py-0.5 rounded-full font-semibold ' + codeBg}>
-          {visit.code || '—'}
+          {visit.code || 'غير متوفر'}
         </span>
         <StatusBadge status={visit.status} />
       </div>

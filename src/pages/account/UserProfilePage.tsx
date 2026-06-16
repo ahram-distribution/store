@@ -87,7 +87,7 @@ export function UserProfilePage() {
               <h2 className="font-bold text-text">{employee.full_name}</h2>
               {!employee.is_active && <span className="text-[10px] bg-danger/10 text-danger px-2 py-0.5 rounded">موقوف</span>}
             </div>
-            <div className="text-xs text-text-secondary mt-1">{employee.code} | {employee.role_names || '—'}</div>
+            <div className="text-xs text-text-secondary mt-1">{employee.code} | {employee.role_names || 'غير متوفر'}</div>
           </div>
         </div>
         {manager && (
