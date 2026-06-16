@@ -5,6 +5,14 @@ import { ArrowRight, Clock, Coffee, MapPinned, Navigation } from 'lucide-react'
 import { MapContainer, TileLayer, Polyline, CircleMarker, Popup, Marker as LeafletMarker, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import { formatTime } from '../../utils/format'
+import { LocationDisplay } from '../../components/shared/LocationDisplay'
+import { locationService } from '../../services/location'
+
+function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371; const dLat = (lat2 - lat1) * Math.PI / 180; const dLng = (lng2 - lng1) * Math.PI / 180
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+}
 
 const homeIcon = L.divIcon({ className: 'bg-transparent', html: '<span style="font-size:20px">🏠</span>', iconSize: [20, 20], iconAnchor: [10, 10] })
 const visitIcon = L.divIcon({ className: 'bg-transparent', html: '<span style="font-size:18px">📍</span>', iconSize: [18, 18], iconAnchor: [9, 9] })
@@ -438,13 +446,18 @@ export default function EmployeeWorkdayDetailPage() {
                   {expandedSections.trackingList ? 'إخفاء القائمة' : `عرض القائمة (${mapData.route.length})`}
                 </button>
               )}
-              {expandedSections.trackingList && mapData?.route?.map((p, i) => (
-                <div key={i} className="flex items-center justify-between text-[10px] py-1 border-b border-gray-50 last:border-0">
-                  <span className="text-gray-400">#{i + 1}</span>
-                  <span className="text-gray-600">{p.latitude != null && p.longitude != null ? `${p.latitude.toFixed(4)}, ${p.longitude.toFixed(4)}` : '--'}</span>
-                  <span className="text-gray-400">{formatTime(p.time)}</span>
-                </div>
-              ))}
+              {expandedSections.trackingList && mapData?.route?.map((p, i) => {
+                const dist = i > 0 && mapData.route[i - 1].latitude != null && mapData.route[i - 1].longitude != null && p.latitude != null && p.longitude != null
+                  ? haversineKm(mapData.route[i - 1].latitude, mapData.route[i - 1].longitude, p.latitude, p.longitude) : 0
+                return (
+                  <div key={i} className="flex items-center gap-1 text-[10px] py-1 border-b border-gray-50 last:border-0">
+                    <span className="text-gray-400 shrink-0 w-5">#{i + 1}</span>
+                    <LocationDisplay lat={p.latitude} lng={p.longitude} size="sm" showAddress />
+                    <span className="text-gray-400 mr-auto shrink-0">{formatTime(p.time)}</span>
+                    {i > 0 && dist > 0 && <span className="text-amber-500 shrink-0">{dist < 1 ? `${(dist * 1000).toFixed(0)}م` : `${dist.toFixed(2)}كم`}</span>}
+                  </div>
+                )
+              })}
             </Section>
 
             {/* ===== 4. LONG STOPS ===== */}
@@ -467,7 +480,9 @@ export default function EmployeeWorkdayDetailPage() {
                         {formatTime(stop.start_time)} ← {formatTime(stop.end_time)}
                       </div>
                       {stop.latitude != null && stop.longitude != null && (
-                        <div className="text-[9px] text-amber-500 mt-0.5">{stop.latitude.toFixed(4)}, {stop.longitude.toFixed(4)}</div>
+                        <div className="mt-0.5">
+                          <LocationDisplay lat={stop.latitude} lng={stop.longitude} size="sm" showAddress />
+                        </div>
                       )}
                     </div>
                   ))}

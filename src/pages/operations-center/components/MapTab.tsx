@@ -21,16 +21,19 @@ function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
 }
 
-function createMarkerIcon(color: string): L.DivIcon {
+function createMarkerIcon(color: string, name: string): L.DivIcon {
   const colors: Record<string, string> = {
     green: '#22c55e', yellow: '#eab308', red: '#ef4444', gray: '#9ca3af',
   }
   const fill = colors[color] || colors.gray
   return L.divIcon({
     className: 'bg-transparent',
-    html: `<div style="width:14px;height:14px;background:${fill};border:2px solid white;border-radius:50%;box-shadow:0 1px 3px rgba(0,0,0,0.3)"></div>`,
-    iconSize: [14, 14],
-    iconAnchor: [7, 7],
+    html: `<div style="display:flex;align-items:center;gap:2px;white-space:nowrap;direction:rtl">
+      <div style="width:12px;height:12px;background:${fill};border:2px solid white;border-radius:50%;box-shadow:0 1px 3px rgba(0,0,0,0.3);flex-shrink:0"></div>
+      <span style="font-size:11px;font-weight:700;color:#1f2937;background:rgba(255,255,255,0.92);padding:1px 5px;border-radius:3px;box-shadow:0 1px 2px rgba(0,0,0,0.1)">${name}</span>
+    </div>`,
+    iconSize: [name.length * 9 + 20, 22],
+    iconAnchor: [0, 11],
   })
 }
 
@@ -99,7 +102,7 @@ export default function MapTab() {
         <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
         {employees.filter((e) => e.latitude && e.longitude).map((e) => (
           <Marker key={e.employee_id} position={[e.latitude, e.longitude]}
-            icon={createMarkerIcon(statusColor(e.connection_status))}>
+            icon={createMarkerIcon(statusColor(e.connection_status), e.name)}>
             <Popup>
               <div className="text-xs" style={{ direction: 'rtl', textAlign: 'right', minWidth: 120 }}>
                 <p className="font-bold text-gray-800">{e.name}</p>
