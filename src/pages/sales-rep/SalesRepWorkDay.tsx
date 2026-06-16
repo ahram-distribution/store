@@ -195,31 +195,31 @@ export function SalesRepWorkDay() {
         <h2 className="text-[15px] font-semibold text-text mb-3">إجراءات سريعة</h2>
         <div className="grid grid-cols-2 gap-2">
           <button onClick={() => navigate('/visits/screen')}
-            className="bg-primary rounded-xl p-[13px] text-center text-white active:opacity-80 transition-opacity">
+            className="bg-blue-600 rounded-xl p-[13px] text-center text-white active:opacity-80 transition-opacity">
             <div className="text-[15px] font-bold">ابدأ زيارة</div>
             <div className="text-[11px] opacity-80 mt-1">تسجيل زيارة جديدة</div>
           </button>
           <button onClick={() => navigate('/orders/new')}
-            className="bg-accent rounded-xl p-[13px] text-center text-white active:opacity-80 transition-opacity">
+            className="bg-blue-600 rounded-xl p-[13px] text-center text-white active:opacity-80 transition-opacity">
             <div className="text-[15px] font-bold">طلب سريع</div>
             <div className="text-[11px] opacity-80 mt-1">إنشاء طلب جديد</div>
           </button>
           <button onClick={() => navigate('/visits')}
-            className="bg-indigo-600 rounded-xl p-[13px] text-center text-white active:opacity-80 transition-opacity">
+            className="bg-blue-600 rounded-xl p-[13px] text-center text-white active:opacity-80 transition-opacity">
             <div className="text-[15px] font-bold">زياراتى</div>
             <div className="text-[11px] opacity-80 mt-1">جميع زياراتى</div>
           </button>
           <button onClick={() => navigate('/customers')}
-            className="bg-primary-dark rounded-xl p-[13px] text-center text-white active:opacity-80 transition-opacity">
+            className="bg-blue-600 rounded-xl p-[13px] text-center text-white active:opacity-80 transition-opacity">
             <div className="text-[15px] font-bold">عميل جديد</div>
           </button>
           <button onClick={() => navigate('/customers')}
-            className="bg-primary/80 rounded-xl p-[13px] text-center text-white active:opacity-80 transition-opacity">
+            className="bg-blue-600 rounded-xl p-[13px] text-center text-white active:opacity-80 transition-opacity">
             <div className="text-[15px] font-bold">عملائي</div>
             <div className="text-[11px] opacity-80 mt-1">قائمة العملاء</div>
           </button>
           <button onClick={() => navigate('/orders')}
-            className="bg-success/80 rounded-xl p-[13px] text-center text-white active:opacity-80 transition-opacity">
+            className="bg-blue-600 rounded-xl p-[13px] text-center text-white active:opacity-80 transition-opacity">
             <div className="text-[15px] font-bold">فواتيري</div>
             <div className="text-[11px] opacity-80 mt-1">فواتير وطلبات</div>
           </button>
