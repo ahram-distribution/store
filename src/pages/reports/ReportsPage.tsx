@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { formatCurrencyShort } from '../../utils/format'
@@ -70,6 +70,31 @@ export function ReportsPage() {
 
   useEffect(() => { loadReport(activeSection) }, [activeSection])
 
+  const [sortKey, setSortKey] = useState<string>('')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
+
+  const handleSort = useCallback((key: string) => {
+    if (sortKey === key) {
+      setSortDir(prev => prev === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortKey(key)
+      setSortDir('desc')
+    }
+  }, [sortKey])
+
+  const sortedData = useMemo(() => {
+    if (!data || !Array.isArray(data)) return data
+    if (!sortKey) return data
+    return [...data].sort((a, b) => {
+      const aVal = (a as any)[sortKey]
+      const bVal = (b as any)[sortKey]
+      if (aVal == null) return 1
+      if (bVal == null) return -1
+      const cmp = typeof aVal === 'number' ? aVal - bVal : String(aVal).localeCompare(String(bVal))
+      return sortDir === 'desc' ? -cmp : cmp
+    })
+  }, [data, sortKey, sortDir])
+
   const totalAmount = useMemo(() => {
     if (!data || !Array.isArray(data)) return 0
     return data.reduce((sum, row) => sum + Number(row.total_amount || row.totalAmount || 0), 0)
@@ -139,41 +164,43 @@ export function ReportsPage() {
         <div className="text-center py-12 text-text-secondary text-sm">لا توجد بيانات</div>
       ) : (
         <div className="bg-white rounded-xl border border-border overflow-hidden">
-          {Array.isArray(data) && data.length > 0 && (
+          {Array.isArray(sortedData) && sortedData.length > 0 && (
             <table className="w-full text-xs">
               <thead className="bg-surface">
                 <tr>
-                  {Object.keys(data[0]).filter(k => k !== 'id' && k !== 'product_id' && k !== 'customer_id' && k !== 'employee_id' && k !== 'company_id').map((key) => (
-                    <th key={key} className="px-2 py-2 text-right font-semibold text-text-secondary">
-                      {key === 'employee_name' || key === 'employee_code' ? 'المندوب' :
-                       key === 'manager_name' ? 'المدير' :
-                       key === 'customer_name' ? 'العميل' :
-                       key === 'product_name' ? 'المنتج' :
-                       key === 'company_name' ? 'الشركة' :
-                       key === 'total_orders' ? 'عدد الطلبات' :
-                       key === 'total_amount' ? 'الإجمالي' :
-                       key === 'total_quantity' ? 'الكمية' :
-                       key === 'order_count' ? 'عدد الطلبات' :
-                       key === 'customer_count' ? 'عدد العملاء' :
-                       key === 'rep_count' ? 'عدد المندوبين' :
-                       key === 'product_count' ? 'عدد المنتجات' :
-                       key === 'period' ? 'الفترة' :
-                       key === 'status' ? 'الحالة' :
-                       key === 'count' ? 'العدد' :
-                       key === 'total_visits' ? 'عدد الزيارات' :
-                       key === 'completed_visits' ? 'مكتملة' :
-                       key === 'active_visits' ? 'نشطة' :
-                       key === 'last_visit' ? 'آخر زيارة' :
-                       key === 'owner_name' ? 'المسؤول' :
-                       key === 'total_revenue' ? 'الإيرادات' :
-                       key === 'total_order_items' ? 'عدد عناصر الطلبات' :
-                       key}
-                    </th>
-                  ))}
+                  {Object.keys(sortedData[0]).filter(k => k !== 'id' && k !== 'product_id' && k !== 'customer_id' && k !== 'employee_id' && k !== 'company_id').map((key) => {
+                    const label: Record<string, string> = {
+                      employee_name: 'المندوب', employee_code: 'الكود',
+                      manager_name: 'المدير', customer_name: 'العميل',
+                      product_name: 'المنتج', company_name: 'الشركة',
+                      total_orders: 'عدد الطلبات', total_amount: 'الإجمالي',
+                      total_quantity: 'الكمية', order_count: 'الطلبات',
+                      customer_count: 'العملاء', rep_count: 'المندوبين',
+                      product_count: 'المنتجات', period: 'الفترة',
+                      status: 'الحالة', count: 'العدد',
+                      total_visits: 'الزيارات', completed_visits: 'مكتملة',
+                      active_visits: 'نشطة', last_visit: 'آخر زيارة',
+                      owner_name: 'المسؤول', total_revenue: 'الإيرادات',
+                      total_order_items: 'العناصر', sales_value: 'المبيعات',
+                      visit_count: 'الزيارات', collection_amount: 'التحصيل',
+                      new_customer_count: 'عملاء جدد', duration_minutes: 'مدة العمل',
+                      net_minutes: 'صافي العمل', break_minutes: 'استراحة',
+                      attendance_status: 'الحضور', target_pct: 'نسبة الهدف',
+                    }
+                    const isSortable = key !== 'employee_name' && key !== 'customer_name' && key !== 'manager_name' && key !== 'product_name' && key !== 'company_name' && key !== 'owner_name' && key !== 'period'
+                    return (
+                      <th key={key}
+                        onClick={() => isSortable && handleSort(key)}
+                        className={`px-2 py-2 text-right font-semibold text-text-secondary ${isSortable ? 'cursor-pointer hover:bg-gray-100 select-none' : ''}`}>
+                        {label[key] || key}
+                        {sortKey === key && <span className="mr-1 text-[9px]">{sortDir === 'desc' ? '▼' : '▲'}</span>}
+                      </th>
+                    )
+                  })}
                 </tr>
               </thead>
               <tbody>
-                {data.map((row: any, i: number) => (
+                {sortedData.map((row: any, i: number) => (
                   <tr key={i} className="border-t border-border/50">
                     {Object.entries(row).filter(([k]) => k !== 'id' && k !== 'product_id' && k !== 'customer_id' && k !== 'employee_id' && k !== 'company_id').map(([key, val]) => (
                       <td key={key} className="px-2 py-2">

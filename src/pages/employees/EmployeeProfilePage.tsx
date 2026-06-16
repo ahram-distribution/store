@@ -1,9 +1,10 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
-import { formatDateTime } from '../../utils/format'
+import { formatDateTime, formatTime } from '../../utils/format'
 import { targetService } from '../../services/targets'
 import toast from 'react-hot-toast'
+import TimeRangeFilter, { todayRange, type TimeRange } from '../../components/TimeRangeFilter'
 
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
@@ -54,6 +55,10 @@ export function EmployeeProfilePage() {
 
   // Attendance state
   const [attendanceSummary, setAttendanceSummary] = useState<any>(null)
+  const [attRange, setAttRange] = useState<TimeRange>(todayRange())
+  const [attSessions, setAttSessions] = useState<any[]>([])
+  const [attSummaryExtended, setAttSummaryExtended] = useState<any>(null)
+  const [attLoading, setAttLoading] = useState(false)
 
   useEffect(() => {
     if (!id) return
@@ -121,22 +126,28 @@ export function EmployeeProfilePage() {
     })
   }, [id, activeTab, selMonth, selYear])
 
-  useEffect(() => {
+  const fetchAttendance = useCallback(async (range: TimeRange) => {
     if (!id || activeTab !== 'attendance') return
     const token = getToken()
     if (!token) return
-    supabase.rpc('get_attendance_analysis', {
+    setAttLoading(true)
+    const { data } = await supabase.rpc('get_employee_workday_history', {
       p_token: token,
-      p_start_date: `${selYear}-${String(selMonth).padStart(2, '0')}-01`,
-      p_end_date: null,
-    }).then(r => {
-      if (r.data && !r.error) {
-        const data = Array.isArray(r.data) ? r.data : []
-        const empAtt = data.find((a: any) => a.employee_id === id || a.employee === id)
-        setAttendanceSummary(empAtt || null)
-      }
+      p_employee_id: id,
+      p_from: range.from,
+      p_to: range.to,
     })
-  }, [id, activeTab, selMonth, selYear])
+    if (data && typeof data === 'object' && !('error' in (data as Record<string, unknown>))) {
+      const d = data as Record<string, unknown>
+      setAttSessions(Array.isArray(d.sessions) ? d.sessions : [])
+      setAttSummaryExtended((d.summary as Record<string, unknown>) ?? null)
+    }
+    setAttLoading(false)
+  }, [id, activeTab])
+
+  useEffect(() => {
+    fetchAttendance(attRange)
+  }, [fetchAttendance, attRange])
 
   const subordinates = useMemo(() => {
     if (!id) return []
@@ -515,36 +526,85 @@ export function EmployeeProfilePage() {
       {activeTab === 'attendance' && (
         <div className="space-y-3">
           <div className="bg-white rounded-xl border border-border p-4">
-            <h3 className="text-sm font-bold mb-3">ملخص الحضور</h3>
-            {attendanceSummary ? (
-              <div className="space-y-3">
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="bg-surface rounded-lg p-3 text-center">
-                    <div className="text-lg font-bold text-primary">{(attendanceSummary.total_sessions || 0).toLocaleString('ar-EG-u-nu-latn')}</div>
-                    <div className="text-[10px] text-text-secondary">أيام العمل</div>
-                  </div>
-                  <div className="bg-surface rounded-lg p-3 text-center">
-                    <div className="text-lg font-bold text-success">{(attendanceSummary.total_net_hours || 0).toFixed(1)}</div>
-                    <div className="text-[10px] text-text-secondary">صافي الساعات</div>
-                  </div>
-                </div>
-                <div className="grid grid-cols-3 gap-2">
-                  <div className="bg-surface/50 rounded-lg p-2 text-center">
-                    <div className="text-sm font-bold text-success">{attendanceSummary.ontime_days || 0}</div>
-                    <div className="text-[9px] text-text-secondary">في الموعد</div>
-                  </div>
-                  <div className="bg-surface/50 rounded-lg p-2 text-center">
-                    <div className="text-sm font-bold text-warning">{attendanceSummary.late_days || 0}</div>
-                    <div className="text-[9px] text-text-secondary">متأخر</div>
-                  </div>
-                  <div className="bg-surface/50 rounded-lg p-2 text-center">
-                    <div className="text-sm font-bold text-danger">{attendanceSummary.early_departure_days || 0}</div>
-                    <div className="text-[9px] text-text-secondary">مغادرة مبكرة</div>
-                  </div>
-                </div>
-              </div>
+            <h3 className="text-sm font-bold mb-3">سجل الحضور والإنتاجية</h3>
+            <TimeRangeFilter value={attRange} onChange={setAttRange} />
+            {attLoading ? (
+              <p className="text-center py-8 text-text-secondary text-xs">جاري التحميل...</p>
+            ) : attSessions.length === 0 ? (
+              <p className="text-center py-8 text-text-secondary text-xs">لا توجد بيانات حضور في هذه الفترة</p>
             ) : (
-              <p className="text-center py-8 text-text-secondary text-xs">لا توجد بيانات حضور</p>
+              <div className="space-y-4">
+                {/* Daily Log Table */}
+                <div className="overflow-x-auto">
+                  <table className="w-full text-[11px] border-collapse">
+                    <thead>
+                      <tr className="border-b border-gray-200">
+                        <th className="text-right py-1.5 px-1 text-gray-500 font-bold">التاريخ</th>
+                        <th className="text-center py-1.5 px-1 text-gray-500 font-bold">المدة</th>
+                        <th className="text-center py-1.5 px-1 text-gray-500 font-bold">استراحة</th>
+                        <th className="text-center py-1.5 px-1 text-gray-500 font-bold">صافي</th>
+                        <th className="text-center py-1.5 px-1 text-gray-500 font-bold">طلبات</th>
+                        <th className="text-center py-1.5 px-1 text-gray-500 font-bold">مبيعات</th>
+                        <th className="text-center py-1.5 px-1 text-gray-500 font-bold">زيارات</th>
+                        <th className="text-center py-1.5 px-1 text-gray-500 font-bold">الحالة</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {attSessions.map((s: any, i: number) => {
+                        const dur = s.duration_minutes ?? 0
+                        const brk = (s.break_seconds ?? 0) / 60
+                        const net = dur - brk
+                        return (
+                          <tr key={i} className="border-b border-gray-50 hover:bg-gray-50 cursor-pointer"
+                            onClick={() => navigate(`/attendance/employee/${id}/${s.date}`)}>
+                            <td className="py-1.5 px-1 text-gray-700 font-medium">
+                              {s.date ? new Date(s.date).toLocaleDateString('ar-EG', { weekday: 'short', day: 'numeric', month: 'short' }) : '--'}
+                            </td>
+                            <td className="py-1.5 px-1 text-center text-gray-600 tabular-nums">{fmtMin(dur)}</td>
+                            <td className="py-1.5 px-1 text-center text-gray-600 tabular-nums">{fmtMin(brk)}</td>
+                            <td className="py-1.5 px-1 text-center font-bold text-blue-600 tabular-nums">{fmtMin(net)}</td>
+                            <td className="py-1.5 px-1 text-center text-gray-700">{s.order_count ?? 0}</td>
+                            <td className="py-1.5 px-1 text-center text-gray-700">{(s.sales_value ?? 0).toLocaleString('ar-EG')}</td>
+                            <td className="py-1.5 px-1 text-center text-gray-700">{s.visit_count ?? 0}</td>
+                            <td className="py-1.5 px-1 text-center"><BadgeAtt status={s.attendance_status} /></td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Monthly Summary */}
+                {attSummaryExtended && (
+                  <div className="bg-surface/30 rounded-xl p-3 border border-border/50">
+                    <h4 className="text-xs font-bold text-gray-700 mb-2">ملخص الفترة</h4>
+                    <div className="grid grid-cols-4 gap-2 mb-2">
+                      <SummaryCard label="أيام العمل" value={String(attSummaryExtended.total_days ?? 0)} color="text-blue-600" />
+                      <SummaryCard label="إجمالي الساعات" value={fmtMin(attSummaryExtended.total_duration_minutes ?? 0)} color="text-green-600" />
+                      <SummaryCard label="صافي الساعات" value={fmtMin(attSummaryExtended.total_net_minutes ?? 0)} color="text-emerald-600" />
+                      <SummaryCard label="متوسط اليومي" value={fmtMin(attSummaryExtended.avg_net_minutes ?? 0)} color="text-indigo-600" />
+                      <SummaryCard label="أطول يوم" value={fmtMin(attSummaryExtended.max_net_day ?? 0)} color="text-green-700" />
+                      <SummaryCard label="أقصر يوم" value={fmtMin(attSummaryExtended.min_net_day ?? 0)} color="text-red-500" />
+                      <SummaryCard label="المبيعات" value={(attSummaryExtended.total_sales_value ?? 0).toLocaleString('ar-EG')} color="text-orange-600" />
+                      <SummaryCard label="الطلبات" value={String(attSummaryExtended.total_orders ?? 0)} color="text-purple-600" />
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="bg-green-50 rounded-lg p-1.5 text-center">
+                        <div className="text-xs font-bold text-green-600">{attSummaryExtended.ontime_days ?? 0}</div>
+                        <div className="text-[9px] text-green-500">في الموعد</div>
+                      </div>
+                      <div className="bg-amber-50 rounded-lg p-1.5 text-center">
+                        <div className="text-xs font-bold text-amber-600">{attSummaryExtended.late_days ?? 0}</div>
+                        <div className="text-[9px] text-amber-500">متأخر</div>
+                      </div>
+                      <div className="bg-red-50 rounded-lg p-1.5 text-center">
+                        <div className="text-xs font-bold text-red-600">{attSummaryExtended.early_departure_days ?? 0}</div>
+                        <div className="text-[9px] text-red-500">مغادرة مبكرة</div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
             )}
           </div>
         </div>
@@ -573,6 +633,35 @@ export function EmployeeProfilePage() {
           )}
         </div>
       )}
+    </div>
+  )
+}
+
+function fmtMin(m?: number): string {
+  if (m == null || isNaN(m)) return '--:--'
+  const h = Math.floor(Math.abs(m))
+  const min = Math.round(Math.abs(m % 60))
+  return `${h.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}`
+}
+
+function BadgeAtt({ status }: { status: string | null }) {
+  if (!status) return null
+  const cfg: Record<string, { label: string; cls: string }> = {
+    late: { label: 'متأخر', cls: 'bg-red-100 text-red-600' },
+    early_departure: { label: 'مبكر', cls: 'bg-amber-100 text-amber-600' },
+    late_and_early: { label: 'مختلط', cls: 'bg-red-100 text-red-600' },
+    compliant: { label: 'ملتزم', cls: 'bg-green-100 text-green-600' },
+    ontime: { label: 'في الموعد', cls: 'bg-green-100 text-green-600' },
+  }
+  const c = cfg[status]
+  return c ? <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold ${c.cls}`}>{c.label}</span> : null
+}
+
+function SummaryCard({ label, value, color }: { label: string; value: string; color: string }) {
+  return (
+    <div className="bg-white rounded-lg p-2 text-center border border-border/50">
+      <div className={`text-xs font-bold ${color} tabular-nums`}>{value}</div>
+      <div className="text-[9px] text-gray-500 leading-tight">{label}</div>
     </div>
   )
 }

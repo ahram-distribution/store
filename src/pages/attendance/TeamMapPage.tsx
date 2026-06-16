@@ -90,15 +90,20 @@ export default function TeamMapPage() {
 
   useEffect(() => {
     if (!token) return
-    supabase.rpc('get_team_map', { p_token: token?.trim() }).then(({ data }) => {
-      if (data) {
-        const d = data as { counters: TeamCounters; employees: TeamMember[] }
-        setCounters(d.counters ?? null)
-        setMembers(d.employees ?? [])
-      }
-      setLastUpdate(new Date())
-      setLoading(false)
-    })
+    const fetchData = () => {
+      supabase.rpc('get_team_map', { p_token: token?.trim() }).then(({ data }) => {
+        if (data) {
+          const d = data as { counters: TeamCounters; employees: TeamMember[] }
+          setCounters(d.counters ?? null)
+          setMembers(d.employees ?? [])
+        }
+        setLastUpdate(new Date())
+        setLoading(false)
+      })
+    }
+    fetchData()
+    const interval = setInterval(fetchData, 30000)
+    return () => clearInterval(interval)
   }, [token])
 
   const filtered = useMemo(() => {

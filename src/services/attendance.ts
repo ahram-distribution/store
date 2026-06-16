@@ -66,7 +66,7 @@ export const attendanceService = {
     const { data, error } = await supabase.rpc('get_my_workday_status', { p_token: token })
     if (error) throw error
     return data as {
-      status: string
+      status: string | null
       session_id?: string
       started_at?: string
       ended_at?: string
@@ -75,6 +75,20 @@ export const attendanceService = {
       break_minutes?: number
       visit_count?: number
       net_work_minutes?: number
+      on_break?: boolean
+      open_break_id?: string
+      employee_name?: string
+      employee_code?: string
+      work_location?: string | null
+      schedule_type?: string | null
+      attendance_enabled?: boolean | null
+      required_daily_hours?: number
+      today_orders?: number
+      today_sales?: number
+      today_collections?: number
+      today_collection_amount?: number
+      today_new_customers?: number
+      daily_target_vs_actual?: Record<string, unknown>
     } | null
   },
 
