@@ -343,81 +343,89 @@ BEGIN
     -- ==========================================
     -- TOP CUSTOMERS (by purchase value)
     -- ==========================================
-    SELECT jsonb_agg(jsonb_build_object(
-        'customer_id', c.id,
-        'company_name', c.company_name,
-        'total_spent', COALESCE(SUM(o.total_amount), 0),
-        'order_count', COUNT(DISTINCT o.id)::int,
-        'last_order', MAX(o.created_at)
-    ) ORDER BY SUM(o.total_amount) DESC NULLS LAST LIMIT 20)
-    INTO v_top_customers
-    FROM customers c
-    JOIN orders o ON o.customer_id = c.id
-    WHERE c.id = ANY(v_customer_ids)
-      AND o.status NOT IN ('draft', 'cancelled')
-      AND o.created_at::date >= p_from
-      AND o.created_at::date <= p_to
-      AND (p_search IS NULL OR p_search = '' OR c.company_name ILIKE '%' || p_search || '%')
-    GROUP BY c.id, c.company_name;
+    SELECT jsonb_agg(sub.obj) INTO v_top_customers FROM (
+        SELECT jsonb_build_object(
+            'customer_id', c.id,
+            'company_name', c.company_name,
+            'total_spent', COALESCE(SUM(o.total_amount), 0),
+            'order_count', COUNT(DISTINCT o.id)::int,
+            'last_order', MAX(o.created_at)
+        ) AS obj
+        FROM customers c
+        JOIN orders o ON o.customer_id = c.id
+        WHERE c.id = ANY(v_customer_ids)
+          AND o.status NOT IN ('draft', 'cancelled')
+          AND o.created_at::date >= p_from
+          AND o.created_at::date <= p_to
+          AND (p_search IS NULL OR p_search = '' OR c.company_name ILIKE '%' || p_search || '%')
+        GROUP BY c.id, c.company_name
+        ORDER BY SUM(o.total_amount) DESC NULLS LAST
+        LIMIT 20
+    ) sub;
 
     -- ==========================================
     -- MOST DIVERSE (by unique products + brands)
     -- ==========================================
-    SELECT jsonb_agg(jsonb_build_object(
-        'customer_id', c.id,
-        'company_name', c.company_name,
-        'unique_products', COALESCE(d.unique_products, 0),
-        'unique_brands', COALESCE(d.unique_brands, 0),
-        'diversity_score', COALESCE(d.diversity_score, 0)
-    ) ORDER BY d.diversity_score DESC NULLS LAST LIMIT 20)
-    INTO v_most_diverse
-    FROM customers c
-    JOIN LATERAL (
-        SELECT
-            COUNT(DISTINCT oi.product_id)::int AS unique_products,
-            COUNT(DISTINCT p.company_id)::int AS unique_brands,
-            (COUNT(DISTINCT oi.product_id) + COUNT(DISTINCT p.company_id))::int AS diversity_score
-        FROM orders o
-        JOIN order_items oi ON oi.order_id = o.id
-        JOIN products p ON p.id = oi.product_id
-        WHERE o.customer_id = c.id
-          AND o.status NOT IN ('draft', 'cancelled')
-          AND o.created_at::date >= p_from
-          AND o.created_at::date <= p_to
-    ) d ON true
-    WHERE c.id = ANY(v_customer_ids)
-      AND (p_search IS NULL OR p_search = '' OR c.company_name ILIKE '%' || p_search || '%')
-      AND d.unique_products > 0;
+    SELECT jsonb_agg(sub.obj) INTO v_most_diverse FROM (
+        SELECT jsonb_build_object(
+            'customer_id', c.id,
+            'company_name', c.company_name,
+            'unique_products', COALESCE(d.unique_products, 0),
+            'unique_brands', COALESCE(d.unique_brands, 0),
+            'diversity_score', COALESCE(d.diversity_score, 0)
+        ) AS obj
+        FROM customers c
+        JOIN LATERAL (
+            SELECT
+                COUNT(DISTINCT oi.product_id)::int AS unique_products,
+                COUNT(DISTINCT p.company_id)::int AS unique_brands,
+                (COUNT(DISTINCT oi.product_id) + COUNT(DISTINCT p.company_id))::int AS diversity_score
+            FROM orders o
+            JOIN order_items oi ON oi.order_id = o.id
+            JOIN products p ON p.id = oi.product_id
+            WHERE o.customer_id = c.id
+              AND o.status NOT IN ('draft', 'cancelled')
+              AND o.created_at::date >= p_from
+              AND o.created_at::date <= p_to
+        ) d ON true
+        WHERE c.id = ANY(v_customer_ids)
+          AND (p_search IS NULL OR p_search = '' OR c.company_name ILIKE '%' || p_search || '%')
+          AND d.unique_products > 0
+        ORDER BY d.diversity_score DESC NULLS LAST
+        LIMIT 20
+    ) sub;
 
     -- ==========================================
     -- MOST FREQUENT (by order count)
     -- ==========================================
-    SELECT jsonb_agg(jsonb_build_object(
-        'customer_id', c.id,
-        'company_name', c.company_name,
-        'order_count', COALESCE(f.order_count, 0),
-        'avg_days_between', f.avg_days_between,
-        'first_order', f.first_order,
-        'last_order', f.last_order
-    ) ORDER BY f.order_count DESC NULLS LAST LIMIT 20)
-    INTO v_most_frequent
-    FROM customers c
-    JOIN LATERAL (
-        SELECT
-            COUNT(*)::int AS order_count,
-            CASE WHEN COUNT(*) > 1 THEN ROUND((EXTRACT(DAY FROM (MAX(created_at) - MIN(created_at))) / (COUNT(*) - 1)::numeric), 1) ELSE NULL END AS avg_days_between,
-            MIN(created_at) AS first_order,
-            MAX(created_at) AS last_order
-        FROM orders o
-        WHERE o.customer_id = c.id
-          AND o.status NOT IN ('draft', 'cancelled')
-          AND o.created_at::date >= p_from
-          AND o.created_at::date <= p_to
-    ) f ON true
-    WHERE c.id = ANY(v_customer_ids)
-      AND (p_search IS NULL OR p_search = '' OR c.company_name ILIKE '%' || p_search || '%')
-      AND f.order_count > 1
-    ORDER BY f.order_count DESC;
+    SELECT jsonb_agg(sub.obj) INTO v_most_frequent FROM (
+        SELECT jsonb_build_object(
+            'customer_id', c.id,
+            'company_name', c.company_name,
+            'order_count', COALESCE(f.order_count, 0),
+            'avg_days_between', f.avg_days_between,
+            'first_order', f.first_order,
+            'last_order', f.last_order
+        ) AS obj
+        FROM customers c
+        JOIN LATERAL (
+            SELECT
+                COUNT(*)::int AS order_count,
+                CASE WHEN COUNT(*) > 1 THEN ROUND((EXTRACT(DAY FROM (MAX(created_at) - MIN(created_at))) / (COUNT(*) - 1)::numeric), 1) ELSE NULL END AS avg_days_between,
+                MIN(created_at) AS first_order,
+                MAX(created_at) AS last_order
+            FROM orders o
+            WHERE o.customer_id = c.id
+              AND o.status NOT IN ('draft', 'cancelled')
+              AND o.created_at::date >= p_from
+              AND o.created_at::date <= p_to
+        ) f ON true
+        WHERE c.id = ANY(v_customer_ids)
+          AND (p_search IS NULL OR p_search = '' OR c.company_name ILIKE '%' || p_search || '%')
+          AND f.order_count > 1
+        ORDER BY f.order_count DESC
+        LIMIT 20
+    ) sub;
 
     RETURN jsonb_build_object(
         'general_stats', COALESCE(v_general, '{}'::jsonb),
