@@ -37,7 +37,7 @@ BEGIN
         'company_name', COALESCE(c.company_name, 'غير متوفر'),
         'email', COALESCE(c.email, 'غير متوفر'),
         'phone', COALESCE(i.phone, 'غير متوفر'),
-        'business_type', COALESCE(c.business_type, 'غير متوفر'),
+        'business_type', COALESCE(c.business_type::text, 'غير متوفر'),
         'responsible_name', COALESCE(c.responsible_name, 'غير متوفر'),
         'credit_limit', COALESCE(c.credit_limit, 0),
         'credit_days', COALESCE(c.credit_days, 0),
@@ -45,12 +45,17 @@ BEGIN
         'registered_at', c.registered_at,
         'created_at', c.created_at,
         'owner_name', COALESCE(e.full_name, 'غير متوفر'),
-        'tier_name', COALESCE(t.name, 'غير متوفر')
+        'tier_name', COALESCE(
+            (SELECT t.name FROM tiers t
+             JOIN orders o ON o.tier_id = t.id
+             WHERE o.customer_id = p_customer_id AND o.tier_id IS NOT NULL
+             ORDER BY o.created_at DESC LIMIT 1),
+            'غير متوفر'
+        )
     ) INTO v_customer_info
     FROM customers c
     LEFT JOIN identities i ON i.id = c.identity_id
     LEFT JOIN employees e ON e.id = c.owner_id
-    LEFT JOIN tiers t ON t.id = c.tier_id
     WHERE c.id = p_customer_id;
 
     -- Aggregated stats
@@ -128,26 +133,39 @@ BEGIN
     IF p_from IS NULL THEN p_from := CURRENT_DATE - INTERVAL '12 months'; END IF;
     IF p_to IS NULL THEN p_to := CURRENT_DATE; END IF;
 
+    WITH product_agg AS (
+        SELECT
+            p.id AS product_id,
+            p.product_name,
+            c.company_name,
+            oi.unit_type,
+            SUM(oi.unit_quantity)::int AS total_quantity,
+            COALESCE(SUM(oi.piece_quantity), 0)::int AS total_pieces,
+            COUNT(DISTINCT oi.order_id)::int AS total_orders_count,
+            COALESCE(SUM(oi.total_price), 0) AS total_value,
+            MAX(o.created_at) AS last_purchase
+        FROM order_items oi
+        JOIN orders o ON o.id = oi.order_id
+        JOIN products p ON p.id = oi.product_id
+        LEFT JOIN companies c ON c.id = p.company_id
+        WHERE o.customer_id = p_customer_id
+          AND o.status NOT IN ('draft')
+          AND o.created_at::date >= p_from
+          AND o.created_at::date <= p_to
+        GROUP BY p.id, p.product_name, c.company_name, oi.unit_type
+    )
     SELECT COALESCE(jsonb_agg(jsonb_build_object(
-        'product_id', p.id,
-        'product_name', COALESCE(p.product_name, 'غير متوفر'),
-        'company_name', COALESCE(c.company_name, 'غير متوفر'),
-        'unit_type', COALESCE(oi.unit_type, 'piece'),
-        'total_quantity', SUM(oi.unit_quantity)::int,
-        'total_pieces', COALESCE(SUM(oi.piece_quantity), 0)::int,
-        'total_orders_count', COUNT(DISTINCT oi.order_id)::int,
-        'total_value', COALESCE(SUM(oi.total_price), 0),
-        'last_purchase', MAX(o.created_at)
-    ) ORDER BY SUM(oi.total_price) DESC NULLS LAST), '[]'::jsonb) INTO v_products
-    FROM order_items oi
-    JOIN orders o ON o.id = oi.order_id
-    JOIN products p ON p.id = oi.product_id
-    LEFT JOIN companies c ON c.id = p.company_id
-    WHERE o.customer_id = p_customer_id
-      AND o.status NOT IN ('draft')
-      AND o.created_at::date >= p_from
-      AND o.created_at::date <= p_to
-    GROUP BY p.id, p.product_name, c.company_name, oi.unit_type;
+        'product_id', product_id,
+        'product_name', COALESCE(product_name, 'غير متوفر'),
+        'company_name', COALESCE(company_name, 'غير متوفر'),
+        'unit_type', COALESCE(unit_type, 'piece'),
+        'total_quantity', total_quantity,
+        'total_pieces', total_pieces,
+        'total_orders_count', total_orders_count,
+        'total_value', total_value,
+        'last_purchase', last_purchase
+    ) ORDER BY total_value DESC NULLS LAST), '[]'::jsonb) INTO v_products
+    FROM product_agg;
 
     RETURN jsonb_build_object('products', COALESCE(v_products, '[]'::jsonb));
 END;
