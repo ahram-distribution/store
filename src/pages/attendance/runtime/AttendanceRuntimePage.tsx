@@ -522,7 +522,7 @@ export default function AttendanceRuntimePage() {
         targetHours={targetInfo?.target_hours ?? 8}
         currentNetHours={targetInfo?.current_net_hours ?? 0}
         progressPct={targetInfo?.progress_pct ?? 0}
-        attendanceEnabled={true}
+        attendanceEnabled={status.attendance_enabled ?? true}
       />
     </div>
   )
