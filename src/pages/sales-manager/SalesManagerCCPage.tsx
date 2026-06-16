@@ -750,6 +750,7 @@ export default function SalesManagerCCPage() {
           <h3 className="text-sm font-bold text-text mb-3">إجراءات سريعة</h3>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             <QuickBtn label="كل العملاء" onClick={() => nav('/customers')} color="bg-primary text-white" />
+            <QuickBtn label="تحليلات العملاء" onClick={() => nav('/analytics/customers/intelligence')} color="bg-indigo-600 text-white" />
             <QuickBtn label="كل الطلبات" onClick={() => nav('/orders')} color="bg-accent text-white" />
             <QuickBtn label="الزيارات" onClick={() => nav('/visits')} color="bg-surface text-text" />
             <QuickBtn label="التحصيلات" onClick={() => nav('/collections')} color="bg-surface text-text" />

@@ -117,6 +117,7 @@ export default function UpperManagementDashboard() {
     { icon: '🔄', label: 'النشاط الموحد', path: '/activity' },
     { icon: '📄', label: 'طلبي', path: '/orders?my=1' },
     { icon: '👤', label: 'عملائي', path: '/customers?my=1' },
+    { icon: '📊', label: 'تحليلات العملاء', path: '/analytics/customers/intelligence' },
   ]
 
   const curMonthLabel = MONTHS[CUR_MONTH - 1] + ' ' + CUR_YEAR

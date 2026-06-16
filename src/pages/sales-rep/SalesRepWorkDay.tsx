@@ -223,6 +223,11 @@ export function SalesRepWorkDay() {
             <div className="text-[15px] font-bold">فواتيري</div>
             <div className="text-[11px] opacity-80 mt-1">فواتير وطلبات</div>
           </button>
+          <button onClick={() => navigate('/analytics/customers/intelligence')}
+            className="bg-indigo-600 rounded-xl p-[13px] text-center text-white active:opacity-80 transition-opacity">
+            <div className="text-[15px] font-bold">تحليلات</div>
+            <div className="text-[11px] opacity-80 mt-1">تحليلات العملاء</div>
+          </button>
         </div>
       </div>
 

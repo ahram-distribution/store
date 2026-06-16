@@ -5,8 +5,11 @@ import { useCapability } from '../../hooks/useCapability'
 import { formatCurrencyShort, formatDateTime } from '../../utils/format'
 import { StatusBadge } from '../../components/shared/StatusBadge'
 import { getCustomerState, getCustomerStateLabel, CUSTOMER_STATE_LABELS } from '../../utils/systemStates'
-import { VisitCard } from '../../components/visits/VisitCard'
-import CustomerIntelligencePanel from '../../components/customers/CustomerIntelligencePanel'
+import { locationService } from '../../services/location'
+import { LocationDisplay } from '../../components/shared/LocationDisplay'
+import { getCurrentLocation } from '../../services/gpsService'
+import toast from 'react-hot-toast'
+
 const BUSINESS_TYPES: { value: string; label: string }[] = [
   { value: 'wholesaler', label: 'تاجر جملة' },
   { value: 'distributor', label: 'موزع' },
@@ -18,13 +21,446 @@ const BUSINESS_TYPES: { value: string; label: string }[] = [
   { value: 'warehouse', label: 'مخزن' },
   { value: 'other', label: 'أخرى' },
 ]
-import { locationService } from '../../services/location'
-import { LocationDisplay } from '../../components/shared/LocationDisplay'
-import { getCurrentLocation } from '../../services/gpsService'
-import toast from 'react-hot-toast'
 
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
+}
+
+const fmt = (n: number) => Number.isFinite(n) ? n.toLocaleString('en-EG') : '0'
+const fmtPct = (n: number) => Number.isFinite(n) ? n.toFixed(1) + '%' : '0.0%'
+
+function safeNum(v: unknown, fallback = 0): number {
+  return typeof v === 'number' && !isNaN(v) ? v : fallback
+}
+
+function safeStr(v: unknown, fallback = 'غير متوفر'): string {
+  if (v === null || v === undefined || v === '') return fallback
+  return String(v)
+}
+
+function safeDate(v: unknown): string {
+  if (!v) return 'غير متوفر'
+  const d = new Date(v as string)
+  return isNaN(d.getTime()) ? 'غير متوفر' : d.toLocaleDateString('ar-EG-u-nu-latn')
+}
+
+type Tab = 'info' | 'overview' | 'products' | 'companies' | 'visits' | 'behavior' | 'history'
+
+function OverviewTab({ customerId }: { customerId: string }) {
+  const [data, setData] = useState<Record<string, unknown> | null>(null)
+  const [loading, setLoading] = useState(true)
+  const token = getToken()
+
+  const today = new Date()
+  const yearAgo = new Date(today.getTime() - 365 * 24 * 60 * 60 * 1000)
+  const [from, setFrom] = useState(yearAgo.toISOString().split('T')[0])
+  const [to, setTo] = useState(today.toISOString().split('T')[0])
+
+  const fetchData = async () => {
+    if (!token || !customerId) return
+    setLoading(true)
+    const { data: result, error } = await supabase.rpc('get_customer_full_profile', {
+      p_token: token, p_customer_id: customerId, p_from: from, p_to: to,
+    })
+    if (result && !error && !(result as any).error) setData(result as Record<string, unknown>)
+    setLoading(false)
+  }
+
+  useEffect(() => { fetchData() }, [customerId])
+
+  if (loading) return <div className="text-center py-8 text-text-secondary text-sm">جاري التحميل...</div>
+  if (!data) return <div className="text-center py-8 text-text-secondary text-sm">لا توجد بيانات</div>
+
+  const stats = (data.stats || {}) as Record<string, unknown>
+  const customer = (data.customer || {}) as Record<string, unknown>
+
+  return (
+    <div className="space-y-3">
+      <div className="bg-white rounded-xl border border-border p-3">
+        <div className="flex gap-2">
+          <input type="date" value={from} onChange={e => setFrom(e.target.value)}
+            className="flex-1 border border-border rounded-lg px-2 py-1.5 text-xs bg-white" />
+          <input type="date" value={to} onChange={e => setTo(e.target.value)}
+            className="flex-1 border border-border rounded-lg px-2 py-1.5 text-xs bg-white" />
+          <button onClick={fetchData} disabled={loading}
+            className="bg-primary text-white text-xs px-3 py-1.5 rounded-lg font-semibold disabled:opacity-50">
+            {loading ? '...' : 'تحديث'}
+          </button>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-xl border border-border p-3 space-y-1.5">
+        <h3 className="text-sm font-bold text-text mb-1.5">بيانات العميل</h3>
+        <div className="flex justify-between text-xs"><span className="text-text-secondary">الكود</span><span className="font-semibold">{safeStr(customer.code)}</span></div>
+        <div className="flex justify-between text-xs"><span className="text-text-secondary">الهاتف</span><span className="font-semibold" dir="ltr">{safeStr(customer.phone)}</span></div>
+        <div className="flex justify-between text-xs"><span className="text-text-secondary">المسؤول</span><span className="font-semibold">{safeStr(customer.responsible_name)}</span></div>
+        <div className="flex justify-between text-xs"><span className="text-text-secondary">الموظف</span><span className="font-semibold">{safeStr(customer.owner_name)}</span></div>
+        <div className="flex justify-between text-xs"><span className="text-text-secondary">التصنيف</span><span className="font-semibold">{safeStr(customer.tier_name)}</span></div>
+        <div className="flex justify-between text-xs"><span className="text-text-secondary">آخر طلب</span><span className="font-semibold">{safeDate(stats.last_order_date)}</span></div>
+        <div className="flex justify-between text-xs"><span className="text-text-secondary">آخر زيارة</span><span className="font-semibold">{safeDate(stats.last_visit_date)}</span></div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-2">
+        {[
+          { label: 'إجمالي الطلبات', value: fmt(safeNum(stats.total_orders)), color: 'text-primary' },
+          { label: 'إجمالي المشتريات', value: formatCurrencyShort(safeNum(stats.total_sales)), color: 'text-success' },
+          { label: 'متوسط الطلب', value: formatCurrencyShort(safeNum(stats.avg_order_value)), color: 'text-accent' },
+          { label: 'عدد الزيارات', value: fmt(safeNum(stats.visit_count)), color: 'text-blue-600' },
+          { label: 'الزيارات الناجحة', value: fmt(safeNum(stats.successful_visits)), color: 'text-success' },
+          { label: 'أيام نشطة', value: fmt(safeNum(stats.active_days)), color: 'text-text' },
+        ].map(item => (
+          <div key={item.label} className="bg-white rounded-xl border border-border p-2.5 text-center">
+            <div className={`text-sm font-bold ${item.color}`}>{item.value}</div>
+            <div className="text-[8px] text-text-secondary mt-0.5">{item.label}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function ProductsTab({ customerId }: { customerId: string }) {
+  const [products, setProducts] = useState<Record<string, unknown>[]>([])
+  const [loading, setLoading] = useState(true)
+  const [expanded, setExpanded] = useState(false)
+  const token = getToken()
+
+  const today = new Date()
+  const yearAgo = new Date(today.getTime() - 365 * 24 * 60 * 60 * 1000)
+  const [from, setFrom] = useState(yearAgo.toISOString().split('T')[0])
+  const [to, setTo] = useState(today.toISOString().split('T')[0])
+
+  const fetchData = async () => {
+    if (!token || !customerId) return
+    setLoading(true)
+    const { data, error } = await supabase.rpc('get_customer_products_analysis', {
+      p_token: token, p_customer_id: customerId, p_from: from, p_to: to,
+    })
+    if (data && !error && !(data as any).error) {
+      setProducts((data as any).products || [])
+    }
+    setLoading(false)
+  }
+
+  useEffect(() => { fetchData() }, [customerId])
+
+  const display = expanded ? products : products.slice(0, 10)
+
+  return (
+    <div className="space-y-3">
+      <div className="bg-white rounded-xl border border-border p-3">
+        <div className="flex gap-2">
+          <input type="date" value={from} onChange={e => setFrom(e.target.value)}
+            className="flex-1 border border-border rounded-lg px-2 py-1.5 text-xs bg-white" />
+          <input type="date" value={to} onChange={e => setTo(e.target.value)}
+            className="flex-1 border border-border rounded-lg px-2 py-1.5 text-xs bg-white" />
+          <button onClick={fetchData} disabled={loading}
+            className="bg-primary text-white text-xs px-3 py-1.5 rounded-lg font-semibold disabled:opacity-50">
+            {loading ? '...' : 'تحديث'}
+          </button>
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="text-center py-8 text-text-secondary text-sm">جاري التحميل...</div>
+      ) : products.length === 0 ? (
+        <div className="text-center py-8 text-text-secondary text-xs">لا توجد منتجات في هذه الفترة</div>
+      ) : (
+        <div className="bg-white rounded-xl border border-border p-3">
+          <h3 className="text-sm font-bold text-text mb-2">المنتجات</h3>
+          <div className="space-y-1.5">
+            {display.map((p, i) => (
+              <div key={i} className="flex items-center justify-between py-1.5 border-b border-border/30 last:border-0">
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs font-semibold text-text truncate">{safeStr(p.product_name)}</div>
+                  <div className="text-[9px] text-text-secondary">{safeStr(p.company_name)} | {safeStr(p.unit_type)}</div>
+                </div>
+                <div className="text-right shrink-0 mr-2">
+                  <div className="text-xs font-bold text-primary">{formatCurrencyShort(safeNum(p.total_value))}</div>
+                  <div className="text-[9px] text-text-secondary">
+                    {fmt(safeNum(p.total_quantity))} | {fmt(safeNum(p.total_orders_count))} طلب
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          {products.length > 10 && (
+            <button onClick={() => setExpanded(!expanded)}
+              className="w-full text-center text-[10px] text-primary font-semibold py-1.5 mt-1">
+              {expanded ? 'عرض أقل' : `عرض الكل (${products.length})`}
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function CompaniesTab({ customerId }: { customerId: string }) {
+  const [companies, setCompanies] = useState<Record<string, unknown>[]>([])
+  const [totalValue, setTotalValue] = useState(0)
+  const [loading, setLoading] = useState(true)
+  const [expanded, setExpanded] = useState(false)
+  const token = getToken()
+
+  const today = new Date()
+  const yearAgo = new Date(today.getTime() - 365 * 24 * 60 * 60 * 1000)
+  const [from, setFrom] = useState(yearAgo.toISOString().split('T')[0])
+  const [to, setTo] = useState(today.toISOString().split('T')[0])
+
+  const fetchData = async () => {
+    if (!token || !customerId) return
+    setLoading(true)
+    const { data, error } = await supabase.rpc('get_customer_companies_analysis', {
+      p_token: token, p_customer_id: customerId, p_from: from, p_to: to,
+    })
+    if (data && !error && !(data as any).error) {
+      setCompanies((data as any).companies || [])
+      setTotalValue(safeNum((data as any).total_value))
+    }
+    setLoading(false)
+  }
+
+  useEffect(() => { fetchData() }, [customerId])
+  const display = expanded ? companies : companies.slice(0, 10)
+
+  return (
+    <div className="space-y-3">
+      <div className="bg-white rounded-xl border border-border p-3">
+        <div className="flex gap-2">
+          <input type="date" value={from} onChange={e => setFrom(e.target.value)}
+            className="flex-1 border border-border rounded-lg px-2 py-1.5 text-xs bg-white" />
+          <input type="date" value={to} onChange={e => setTo(e.target.value)}
+            className="flex-1 border border-border rounded-lg px-2 py-1.5 text-xs bg-white" />
+          <button onClick={fetchData} disabled={loading}
+            className="bg-primary text-white text-xs px-3 py-1.5 rounded-lg font-semibold disabled:opacity-50">
+            {loading ? '...' : 'تحديث'}
+          </button>
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="text-center py-8 text-text-secondary text-sm">جاري التحميل...</div>
+      ) : companies.length === 0 ? (
+        <div className="text-center py-8 text-text-secondary text-xs">لا توجد شركات في هذه الفترة</div>
+      ) : (
+        <div className="bg-white rounded-xl border border-border p-3">
+          <h3 className="text-sm font-bold text-text mb-2">الشركات الموردة</h3>
+          <div className="space-y-1.5">
+            {display.map((c, i) => (
+              <div key={i} className="flex items-center justify-between py-1.5 border-b border-border/30 last:border-0">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="text-[10px] font-bold text-text-secondary w-5">{i + 1}</span>
+                  <div>
+                    <div className="text-xs font-semibold text-text truncate">{safeStr(c.company_name)}</div>
+                    <div className="text-[9px] text-text-secondary">{fmt(safeNum(c.orders_count))} طلبات</div>
+                  </div>
+                </div>
+                <div className="text-right shrink-0 mr-2">
+                  <div className="text-xs font-bold text-primary">{formatCurrencyShort(safeNum(c.total_value))}</div>
+                  <div className="text-[9px] text-text-secondary">{fmtPct(safeNum(c.percentage_share))} من الإجمالي</div>
+                </div>
+              </div>
+            ))}
+          </div>
+          {companies.length > 10 && (
+            <button onClick={() => setExpanded(!expanded)}
+              className="w-full text-center text-[10px] text-primary font-semibold py-1.5 mt-1">
+              {expanded ? 'عرض أقل' : `عرض الكل (${companies.length})`}
+            </button>
+          )}
+          {totalValue > 0 && (
+            <div className="mt-2 pt-2 border-t border-border/30 text-[10px] text-text-secondary text-center">
+              إجمالي المشتريات: {formatCurrencyShort(totalValue)}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function VisitsTab({ customerId }: { customerId: string }) {
+  const [visits, setVisits] = useState<Record<string, unknown>[]>([])
+  const [stats, setStats] = useState<Record<string, unknown>>({})
+  const [loading, setLoading] = useState(true)
+  const token = getToken()
+
+  const today = new Date()
+  const yearAgo = new Date(today.getTime() - 365 * 24 * 60 * 60 * 1000)
+  const [from, setFrom] = useState(yearAgo.toISOString().split('T')[0])
+  const [to, setTo] = useState(today.toISOString().split('T')[0])
+
+  const fetchData = async () => {
+    if (!token || !customerId) return
+    setLoading(true)
+    const { data, error } = await supabase.rpc('get_customer_visits_analysis', {
+      p_token: token, p_customer_id: customerId, p_from: from, p_to: to,
+    })
+    if (data && !error && !(data as any).error) {
+      setVisits((data as any).visits || [])
+      setStats((data as any).stats || {})
+    }
+    setLoading(false)
+  }
+
+  useEffect(() => { fetchData() }, [customerId])
+
+  return (
+    <div className="space-y-3">
+      <div className="bg-white rounded-xl border border-border p-3">
+        <div className="flex gap-2">
+          <input type="date" value={from} onChange={e => setFrom(e.target.value)}
+            className="flex-1 border border-border rounded-lg px-2 py-1.5 text-xs bg-white" />
+          <input type="date" value={to} onChange={e => setTo(e.target.value)}
+            className="flex-1 border border-border rounded-lg px-2 py-1.5 text-xs bg-white" />
+          <button onClick={fetchData} disabled={loading}
+            className="bg-primary text-white text-xs px-3 py-1.5 rounded-lg font-semibold disabled:opacity-50">
+            {loading ? '...' : 'تحديث'}
+          </button>
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="text-center py-8 text-text-secondary text-sm">جاري التحميل...</div>
+      ) : (
+        <>
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              { label: 'إجمالي الزيارات', value: fmt(safeNum(stats.total_visits)), color: 'text-primary' },
+              { label: 'ناجحة', value: fmt(safeNum(stats.successful_visits)), color: 'text-success' },
+              { label: 'متوسط المدة', value: fmt(safeNum(stats.avg_duration_minutes)) + ' د', color: 'text-accent' },
+            ].map(item => (
+              <div key={item.label} className="bg-white rounded-xl border border-border p-2.5 text-center">
+                <div className={`text-sm font-bold ${item.color}`}>{item.value}</div>
+                <div className="text-[8px] text-text-secondary mt-0.5">{item.label}</div>
+              </div>
+            ))}
+          </div>
+          <div className="bg-white rounded-xl border border-border p-3">
+            <div className="flex justify-between text-xs mb-2">
+              <span className="text-text-secondary">نسبة النجاح</span>
+              <span className="font-bold text-success">{fmtPct(safeNum(stats.success_rate))}</span>
+            </div>
+            <div className="flex justify-between text-xs mb-2">
+              <span className="text-text-secondary">آخر زيارة</span>
+              <span className="font-semibold">{safeDate(stats.last_visit_date)}</span>
+            </div>
+            <div className="flex justify-between text-xs">
+              <span className="text-text-secondary">أول زيارة</span>
+              <span className="font-semibold">{safeDate(stats.first_visit_date)}</span>
+            </div>
+          </div>
+          {visits.length === 0 ? (
+            <div className="text-center py-6 text-text-secondary text-xs">لا توجد زيارات</div>
+          ) : (
+            <div className="space-y-1.5 max-h-80 overflow-y-auto">
+              {visits.map((v, i) => (
+                <div key={i} className="bg-white rounded-lg border border-border p-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-text">{safeStr(v.code)}</span>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${v.status === 'completed' ? 'bg-success/10 text-success' : 'bg-amber-10 text-amber-600'}`}>
+                      {v.status === 'completed' ? 'مكتملة' : safeStr(v.status)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between mt-1 text-[10px] text-text-secondary">
+                    <span>{safeDate(v.check_in_at)}</span>
+                    {v.duration_minutes != null && <span>{fmt(safeNum(v.duration_minutes))} دقيقة</span>}
+                  </div>
+                  <div className="text-[9px] text-text-secondary mt-0.5">الموظف: {safeStr(v.employee_name)} | النتيجة: {safeStr(v.visit_result)}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
+function BehaviorTab({ customerId }: { customerId: string }) {
+  const [insights, setInsights] = useState<Record<string, unknown> | null>(null)
+  const [loading, setLoading] = useState(true)
+  const token = getToken()
+
+  const today = new Date()
+  const yearAgo = new Date(today.getTime() - 365 * 24 * 60 * 60 * 1000)
+  const [from, setFrom] = useState(yearAgo.toISOString().split('T')[0])
+  const [to, setTo] = useState(today.toISOString().split('T')[0])
+
+  const fetchData = async () => {
+    if (!token || !customerId) return
+    setLoading(true)
+    const { data, error } = await supabase.rpc('get_customer_behavior_insights', {
+      p_token: token, p_customer_id: customerId, p_from: from, p_to: to,
+    })
+    if (data && !error && !(data as any).error) {
+      setInsights((data as any).insights as Record<string, unknown> | null)
+    }
+    setLoading(false)
+  }
+
+  useEffect(() => { fetchData() }, [customerId])
+
+  if (loading) return <div className="text-center py-8 text-text-secondary text-sm">جاري التحميل...</div>
+  if (!insights || Object.keys(insights).length === 0) return <div className="text-center py-8 text-text-secondary text-xs">لا توجد بيانات كافية للتحليل</div>
+
+  return (
+    <div className="space-y-3">
+      <div className="bg-white rounded-xl border border-border p-3">
+        <div className="flex gap-2">
+          <input type="date" value={from} onChange={e => setFrom(e.target.value)}
+            className="flex-1 border border-border rounded-lg px-2 py-1.5 text-xs bg-white" />
+          <input type="date" value={to} onChange={e => setTo(e.target.value)}
+            className="flex-1 border border-border rounded-lg px-2 py-1.5 text-xs bg-white" />
+          <button onClick={fetchData} disabled={loading}
+            className="bg-primary text-white text-xs px-3 py-1.5 rounded-lg font-semibold disabled:opacity-50">
+            {loading ? '...' : 'تحديث'}
+          </button>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-xl border border-border p-3 space-y-3">
+        <h3 className="text-sm font-bold text-text">تحليل سلوك العميل</h3>
+        <div className="grid grid-cols-2 gap-2">
+          <div className="bg-surface rounded-lg p-2.5 text-center">
+            <div className="text-lg font-bold text-accent">{insights.repeat_customer ? '🔄 نعم' : '🆕 لا'}</div>
+            <div className="text-[9px] text-text-secondary">عميل متكرر</div>
+          </div>
+          <div className="bg-surface rounded-lg p-2.5 text-center">
+            <div className="text-lg font-bold text-primary">{safeStr(insights.most_active_day as string, '-')}</div>
+            <div className="text-[9px] text-text-secondary">أيام الذروة</div>
+          </div>
+          <div className="bg-surface rounded-lg p-2.5 text-center">
+            <div className="text-sm font-bold text-text">{insights.avg_days_between_orders ? fmt(safeNum(insights.avg_days_between_orders as number)) + ' يوم' : '-'}</div>
+            <div className="text-[9px] text-text-secondary">متوسط الفترة بين الطلبات</div>
+          </div>
+          <div className="bg-surface rounded-lg p-2.5 text-center">
+            <div className={`text-sm font-bold ${insights.growth_trend === 'زيادة' ? 'text-success' : insights.growth_trend === 'انخفاض' ? 'text-danger' : 'text-text'}`}>
+              {safeStr(insights.growth_trend as string, '-')}
+            </div>
+            <div className="text-[9px] text-text-secondary">اتجاه الشراء</div>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-2 text-xs">
+          <div className="flex justify-between bg-surface rounded-lg px-2.5 py-2">
+            <span className="text-text-secondary">درجة الاحتفاظ</span>
+            <span className="font-bold">{fmt(safeNum(insights.retention_score as number))}/5</span>
+          </div>
+          <div className="flex justify-between bg-surface rounded-lg px-2.5 py-2">
+            <span className="text-text-secondary">أشهر النشاط</span>
+            <span className="font-bold">{fmt(safeNum(insights.months_active as number))} شهر</span>
+          </div>
+        </div>
+        <div className="text-xs">
+          <div className="flex justify-between bg-surface rounded-lg px-2.5 py-2">
+            <span className="text-text-secondary">معدل التكرار (أيام)</span>
+            <span className="font-bold">{insights.purchase_frequency ? fmt(safeNum(insights.purchase_frequency as number)) + ' يوم' : '-'}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 export function CustomerProfilePage() {
@@ -41,7 +477,7 @@ export function CustomerProfilePage() {
   const [ownershipHistory, setOwnershipHistory] = useState<any[]>([])
   const [employees, setEmployees] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'info' | 'orders' | 'collections' | 'visits' | 'analytics' | 'history'>('info')
+  const [activeTab, setActiveTab] = useState<Tab>('info')
 
   const [showEdit, setShowEdit] = useState(false)
   const [editName, setEditName] = useState('')
@@ -211,18 +647,15 @@ export function CustomerProfilePage() {
   if (loading) return <div className="text-center py-12 text-text-secondary text-sm">جاري التحميل...</div>
   if (!customer) return <div className="text-center py-12 text-text-secondary text-sm">العميل غير موجود</div>
 
-  const tabs = [
+  const tabs: { key: Tab; label: string }[] = [
     { key: 'info', label: 'المعلومات' },
-    { key: 'orders', label: `الطلبات (${orders.length})` },
-    { key: 'collections', label: `التحصيلات (${collections.length})` },
-    { key: 'visits', label: `الزيارات (${visits.length})` },
-    { key: 'analytics', label: 'تحليلات' },
+    { key: 'overview', label: 'ملخص' },
+    { key: 'products', label: 'منتجات' },
+    { key: 'companies', label: 'شركات' },
+    { key: 'visits', label: 'زيارات' },
+    { key: 'behavior', label: 'سلوك' },
     { key: 'history', label: 'السجل' },
-  ] as const
-
-  const methodLabels: Record<string, string> = {
-    cash: 'نقداً', bank_transfer: 'تحويل بنكي', cheque: 'شيك', deposit: 'إيداع',
-  }
+  ]
 
   return (
     <div className="space-y-4">
@@ -389,66 +822,11 @@ export function CustomerProfilePage() {
         </>
       )}
 
-      {activeTab === 'orders' && (
-        <div className="space-y-2">
-          {orders.length === 0 ? (
-            <div className="text-center py-8 text-text-secondary text-sm">لا توجد طلبات</div>
-          ) : orders.map((o: any) => (
-            <div key={o.id} onClick={() => navigate(`/orders/${o.id}`)}
-              className="bg-white rounded-xl border border-border p-3 cursor-pointer active:bg-surface transition-colors">
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-sm font-bold text-text">{o.order_number}</span>
-                <StatusBadge status={o.status} />
-              </div>
-              <div className="flex items-center justify-between text-xs text-text-secondary">
-                <span>{formatDateTime(o.created_at)}</span>
-                {o.total_amount > 0 && <span className="font-semibold text-text">{formatCurrencyShort(o.total_amount)}</span>}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {activeTab === 'collections' && (
-        <div className="space-y-2">
-          {collections.length === 0 ? (
-            <div className="text-center py-8 text-text-secondary text-sm">لا توجد تحصيلات</div>
-          ) : collections.map((c: any) => (
-            <div key={c.id} className="bg-white rounded-xl border border-border p-3">
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-sm font-bold text-text">{c.code}</span>
-                <span className="text-[10px] px-2 py-0.5 rounded bg-success/10 text-success">{methodLabels[c.method] || c.method}</span>
-              </div>
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-text-secondary">{c.collected_at ? formatDateTime(c.collected_at) : ''}</span>
-                <span className="font-bold text-success">{formatCurrencyShort(c.amount)}</span>
-              </div>
-              {c.reference_number && <div className="text-[10px] text-text-secondary mt-0.5">مرجع: {c.reference_number}</div>}
-              <div className="text-[10px] text-text-secondary mt-0.5">الحالة: {c.status === 'approved' ? 'معتمد' : c.status === 'pending' ? 'معلق' : c.status}</div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {activeTab === 'visits' && (
-        <div className="space-y-3">
-          {visits.length === 0 ? (
-            <div className="text-center py-8 text-text-secondary text-sm">لا توجد زيارات</div>
-          ) : visits.map((v: any) => (
-            <VisitCard
-              key={v.id}
-              visit={v}
-              customerName={customer?.company_name || ''}
-              employeeName={v.employee_name || ''}
-              onClick={() => navigate(`/visits/${v.id}`)}
-            />
-          ))}
-        </div>
-      )}
-
-      {activeTab === 'analytics' && (
-        <CustomerIntelligencePanel customerId={id || ''} customerName={customer?.company_name} />
-      )}
+      {activeTab === 'overview' && <OverviewTab customerId={id || ''} />}
+      {activeTab === 'products' && <ProductsTab customerId={id || ''} />}
+      {activeTab === 'companies' && <CompaniesTab customerId={id || ''} />}
+      {activeTab === 'visits' && <VisitsTab customerId={id || ''} />}
+      {activeTab === 'behavior' && <BehaviorTab customerId={id || ''} />}
 
       {activeTab === 'history' && (
         <div className="bg-white rounded-xl border border-border p-4">
