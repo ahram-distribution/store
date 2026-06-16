@@ -30,6 +30,7 @@ import EmployeeAnalysisPage from '../pages/dashboard/EmployeeAnalysisPage'
 import { ModuleLauncherPage } from '../pages/dashboard/ModuleLauncherPage'
 import { AnalyticsListPage } from '../pages/analytics/AnalyticsListPage'
 import { CustomerAnalyticsPage } from '../pages/analytics/CustomerAnalyticsPage'
+import CustomerIntelligenceOverviewPage from '../pages/analytics/CustomerIntelligenceOverviewPage'
 import { CreditProgramsPage, CreditProgramsManagerPage, CreditApplicationsPage, CreditReviewPage, CustomerCreditPage, CreditManagementPage } from '../pages/credit'
 import { DeliveryPage, DeliveryDetailPage, CollectionFollowupPage } from '../pages/delivery'
 import { WarehousePage, WarehouseReviewPage, WarehousePrepDetail } from '../pages/warehouse'
@@ -111,6 +112,7 @@ export function AppRoutes() {
       <Route path="/customers/:id" element={<ProtectedRoute><CustomerProfilePage /></ProtectedRoute>} />
       <Route path="/customers/:id/analytics" element={<ProtectedRoute employeeOnly><CustomerAnalyticsPage /></ProtectedRoute>} />
       <Route path="/analytics/customers" element={<ProtectedRoute employeeOnly><AnalyticsListPage /></ProtectedRoute>} />
+      <Route path="/analytics/customers/intelligence" element={<ProtectedRoute employeeOnly><CustomerIntelligenceOverviewPage /></ProtectedRoute>} />
       <Route path="/collections" element={<ProtectedRoute requireCapability="collections.read"><CollectionsPage /></ProtectedRoute>} />
       <Route path="/collections/new" element={<ProtectedRoute requireCapability="collections.create"><NewCollectionPage /></ProtectedRoute>} />
       <Route path="/returns" element={<ProtectedRoute><ReturnsPage /></ProtectedRoute>} />

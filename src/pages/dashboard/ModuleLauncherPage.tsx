@@ -36,6 +36,7 @@ const MODULE_ICONS: Record<string, { title: string; icons: LauncherIcon[] }> = {
       { icon: '👤', label: 'عملائي', path: '/customers?my=1' },
       { icon: '💳', label: 'الائتمان', path: '/credit' },
       { icon: '📊', label: 'تقارير العملاء', path: '/analytics/customers' },
+      { icon: '🧠', label: 'ذكاء العملاء', path: '/analytics/customers/intelligence' },
       { icon: '📍', label: 'زيارات العملاء', path: '/visits' },
     ],
   },

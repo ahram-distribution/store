@@ -6,6 +6,7 @@ import { formatCurrencyShort, formatDateTime } from '../../utils/format'
 import { StatusBadge } from '../../components/shared/StatusBadge'
 import { getCustomerState, getCustomerStateLabel, CUSTOMER_STATE_LABELS } from '../../utils/systemStates'
 import { VisitCard } from '../../components/visits/VisitCard'
+import CustomerIntelligencePanel from '../../components/customers/CustomerIntelligencePanel'
 const BUSINESS_TYPES: { value: string; label: string }[] = [
   { value: 'wholesaler', label: 'تاجر جملة' },
   { value: 'distributor', label: 'موزع' },
@@ -41,7 +42,7 @@ export function CustomerProfilePage() {
   const [ownershipHistory, setOwnershipHistory] = useState<any[]>([])
   const [employees, setEmployees] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'info' | 'orders' | 'collections' | 'visits' | 'history'>('info')
+  const [activeTab, setActiveTab] = useState<'info' | 'orders' | 'collections' | 'visits' | 'analytics' | 'history'>('info')
 
   const [showEdit, setShowEdit] = useState(false)
   const [editName, setEditName] = useState('')
@@ -218,6 +219,7 @@ export function CustomerProfilePage() {
     { key: 'orders', label: `الطلبات (${orders.length})` },
     { key: 'collections', label: `التحصيلات (${collections.length})` },
     { key: 'visits', label: `الزيارات (${visits.length})` },
+    { key: 'analytics', label: 'تحليلات' },
     { key: 'history', label: 'السجل' },
   ] as const
 
@@ -450,6 +452,10 @@ export function CustomerProfilePage() {
             />
           ))}
         </div>
+      )}
+
+      {activeTab === 'analytics' && (
+        <CustomerIntelligencePanel customerId={id || ''} customerName={customer?.company_name} />
       )}
 
       {activeTab === 'history' && (
