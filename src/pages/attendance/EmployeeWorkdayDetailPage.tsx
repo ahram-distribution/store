@@ -446,18 +446,40 @@ export default function EmployeeWorkdayDetailPage() {
                   {expandedSections.trackingList ? 'إخفاء القائمة' : `عرض القائمة (${mapData.route.length})`}
                 </button>
               )}
-              {expandedSections.trackingList && mapData?.route?.map((p, i) => {
-                const dist = i > 0 && mapData.route[i - 1].latitude != null && mapData.route[i - 1].longitude != null && p.latitude != null && p.longitude != null
-                  ? haversineKm(mapData.route[i - 1].latitude, mapData.route[i - 1].longitude, p.latitude, p.longitude) : 0
-                return (
-                  <div key={i} className="flex items-center gap-1 text-[10px] py-1 border-b border-gray-50 last:border-0">
-                    <span className="text-gray-400 shrink-0 w-5">#{i + 1}</span>
-                    <LocationDisplay lat={p.latitude} lng={p.longitude} size="sm" showAddress />
-                    <span className="text-gray-400 mr-auto shrink-0">{formatTime(p.time)}</span>
-                    {i > 0 && dist > 0 && <span className="text-amber-500 shrink-0">{dist < 1 ? `${(dist * 1000).toFixed(0)}م` : `${dist.toFixed(2)}كم`}</span>}
-                  </div>
-                )
-              })}
+              {expandedSections.trackingList && mapData?.route && mapData.route.length > 0 && (
+                <div className="overflow-x-auto mt-2">
+                  <table className="w-full text-[10px] border-collapse">
+                    <thead>
+                      <tr className="bg-gradient-to-l from-blue-50 to-indigo-50 border-b border-blue-200">
+                        <th className="text-right py-2 px-2 text-blue-700 font-bold w-8">#</th>
+                        <th className="text-right py-2 px-2 text-blue-700 font-bold">الموقع</th>
+                        <th className="text-center py-2 px-2 text-blue-700 font-bold w-14">الوقت</th>
+                        <th className="text-center py-2 px-2 text-blue-700 font-bold w-14">المسافة</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {mapData.route.map((p, i) => {
+                        const dist = i > 0 && mapData.route[i - 1].latitude != null && mapData.route[i - 1].longitude != null && p.latitude != null && p.longitude != null
+                          ? haversineKm(mapData.route[i - 1].latitude, mapData.route[i - 1].longitude, p.latitude, p.longitude) : 0
+                        return (
+                          <tr key={i} className={`${i % 2 === 0 ? 'bg-white' : 'bg-gray-50/60'} border-b border-gray-100 hover:bg-blue-50/40 transition-colors`}>
+                            <td className="py-1.5 px-2 text-gray-400 font-bold align-middle">#{i + 1}</td>
+                            <td className="py-1.5 px-2 align-middle"><LocationDisplay lat={p.latitude} lng={p.longitude} size="sm" showAddress /></td>
+                            <td className="py-1.5 px-2 text-center text-gray-500 align-middle whitespace-nowrap">{formatTime(p.time)}</td>
+                            <td className="py-1.5 px-2 text-center align-middle whitespace-nowrap">
+                              {i > 0 && dist > 0 ? (
+                                <span className={`font-bold ${dist < 0.1 ? 'text-green-600' : dist < 0.5 ? 'text-amber-600' : 'text-orange-600'}`}>
+                                  {dist < 1 ? `${(dist * 1000).toFixed(0)} م` : `${dist.toFixed(2)} كم`}
+                                </span>
+                              ) : <span className="text-gray-300">--</span>}
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </Section>
 
             {/* ===== 4. LONG STOPS ===== */}
