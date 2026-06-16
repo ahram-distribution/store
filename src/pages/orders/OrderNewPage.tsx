@@ -140,6 +140,8 @@ export function OrderNewPage() {
     return { itemCount, subtotal }
   }, [cartItems])
 
+  const cartItemKeys = useMemo(() => new Set(cartItems.map(i => `${i.productId}:${i.unitType}`)), [cartItems])
+
   const handleAddToCart = useCallback((product: ProductWithPrice, unitType: UnitType, quantity: number) => {
     setCartItems((prev) => {
       const existing = prev.find((i) => i.productId === product.id && i.unitType === unitType)
@@ -428,6 +430,8 @@ export function OrderNewPage() {
                     hasTier={false}
                     tierName={null}
                     onAddToCart={handleAddToCart}
+                    onRemoveFromCart={handleRemoveItem}
+                    cartItemKeys={cartItemKeys}
                   />
                 ))}
               </div>
