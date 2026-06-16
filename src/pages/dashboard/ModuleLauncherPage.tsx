@@ -95,6 +95,7 @@ const MODULE_ICONS: Record<string, { title: string; icons: LauncherIcon[] }> = {
       { icon: '🔄', label: 'النشاط الموحد', path: '/activity' },
       { icon: '🎯', label: 'أهداف الشركة', path: '/dashboard/company-targets' },
       { icon: '🎯', label: 'أهداف الموظفين', path: '/dashboard/employee-targets' },
+      { icon: '💪', label: 'مجهود المناديب', path: '/sales-effort' },
     ],
   },
   targets: {
