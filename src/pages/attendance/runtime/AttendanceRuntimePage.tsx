@@ -295,11 +295,12 @@ export default function AttendanceRuntimePage() {
               <div className="text-6xl mb-3">🏁</div>
               <h2 className="text-xl font-bold text-gray-800 mb-1">اليوم لم يبدأ بعد</h2>
               <p className="text-xs text-gray-500 mb-4">أنت على وشك بدء يوم جديد</p>
-              <div className="w-full">
-                <DeviceReadinessPanel onReadyChange={setDeviceReady} />
-              </div>
             </div>
           )}
+
+          <div className="mb-3">
+            <DeviceReadinessPanel onReadyChange={setDeviceReady} />
+          </div>
 
           {/* Active / During Work */}
           {(isActive || isBreak) && (
