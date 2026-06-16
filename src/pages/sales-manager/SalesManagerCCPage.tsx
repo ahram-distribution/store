@@ -454,6 +454,19 @@ export default function SalesManagerCCPage() {
         <Card label="العملاء" value={fmt(tov?.customer_count ?? 0)} icon="👤" onClick={() => setActiveSection('customers')} />
       </div>
 
+      {/* Sales Effort Dashboard Entry */}
+      <button onClick={() => nav('/sales-effort')}
+        className="w-full bg-gradient-to-l from-indigo-600 to-blue-700 text-white rounded-xl p-4 text-right active:scale-[0.98] transition-all hover:shadow-lg hover:shadow-indigo-200 flex items-center justify-between">
+        <div>
+          <div className="text-lg font-bold">مجهود المناديب</div>
+          <div className="text-xs text-indigo-100 mt-1">تحليل أداء فريق البيع — الحضور، المبيعات، الزيارات، العملاء الجدد</div>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-2xl">{'\u{1F4AA}'}</span>
+          <span className="text-indigo-200 text-lg">←</span>
+        </div>
+      </button>
+
       {/* Team Members Cards */}
       {activeSection === 'members' && tp?.members && (
         <div>
