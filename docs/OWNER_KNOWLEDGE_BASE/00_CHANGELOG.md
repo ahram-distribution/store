@@ -6,6 +6,72 @@
 
 ## 2026-06-16 (continued)
 
+### Customer Intelligence System — Modular RPC Architecture
+
+Replaced monolithic `get_customer_intelligence` RPC with 5 focused modular RPCs. Each returns pre-aggregated data with safe defaults (NULL → 0, empty arrays, no NaN).
+
+**RPCs created and deployed to production:**
+1. `get_customer_full_profile(p_token, p_customer_id, p_from, p_to)` — customer info + order/visit KPIs (total_orders, total_sales, avg_order_value, visit_count, active_days)
+2. `get_customer_products_analysis(p_token, p_customer_id, p_from, p_to)` — product-level aggregation grouped by (product_id, unit_type): total_quantity, total_pieces, total_orders_count, total_value, last_purchase
+3. `get_customer_companies_analysis(p_token, p_customer_id, p_from, p_to)` — company/brand aggregation with percentage_share of total spend
+4. `get_customer_visits_analysis(p_token, p_customer_id, p_from, p_to)` — visit stats (total_visits, successful_visits, failed_visits, avg_duration_minutes, success_rate) + visit list with duration
+5. `get_customer_behavior_insights(p_token, p_customer_id, p_from, p_to)` — purchase_frequency, most_active_day, growth_trend, retention_score (0-5), repeat_customer, months_active
+
+**Safety features in every RPC:**
+- Session validation (`app.sessions` with expiry check)
+- Default date range: 12 months if NULL
+- All COALESCE: SUM → 0, COUNT → 0, AVG → 0, arrays → []
+- `GREATEST(..., 0)` for duration to prevent negative values
+- `NULLIF(denom, 0)` to prevent division by zero
+- Retention score: 0–5 scale based on order count
+
+**Frontend refactor:**
+- `CustomerIntelligencePanel.tsx` rewritten to call 5 RPCs independently
+- Each subtab fetches its own data on mount via `Promise.all`
+- Removed Orders sub-tab (redundant with main page orders tab)
+- Removed client-side product/company/status filters (no longer needed)
+- Summary tab shows customer info (code, phone, responsible, owner, tier) + KPIs + behavior insights
+- Products tab shows per-unit-type aggregation with expand/collapse
+- Companies tab shows ranked brands with share %
+- Visits tab shows stats grid + visit list with duration
+- Insights tab shows retention score, purchase frequency, peak day, trend
+
+**Migration file:** `supabase/migrations/20260725_customer_intelligence_modular.sql`
+
+**Deploy:** via Supabase Management API (node https, Status 201)
+
+**Commit:** (pending)
+
+---
+
+## 2026-06-16 (continued)
+
+### Device Readiness Panel — Start Day Check
+
+**New component:** `DeviceReadinessPanel` inserted into `AttendanceRuntimePage` (`/attendance/runtime`), shows unconditionally above the action buttons.
+
+**Panel features:**
+- **جاهزية الجهاز** title with live status indicator
+- 4 checks: الموقع (permission), GPS (fix acquisition), الإنترنت (connectivity), الإشعارات (notification permission)
+- Each check shows ✓/✗ with clear Arabic message
+- **📍 تفعيل الموقع** button — requests location permission + GPS fix
+- **✅ فحص الجهاز** button — re-runs all checks
+- Status banner: "الجهاز جاهز للعمل" (green) or "يوجد إعداد يحتاج تفعيل" (red)
+
+**Blocking rules:**
+- `deviceReady = false` → زر "بدء يوم العمل" معطل (`disabled`)
+- `deviceReady = true` → الزر مفعل (الموقع + GPS + إنترنت كلها تعمل)
+
+**Files:**
+- `src/components/attendance/DeviceReadinessPanel.tsx` (new, 177 lines)
+- `src/pages/attendance/runtime/AttendanceRuntimePage.tsx` (import + state + integration)
+
+**Commits:** `3cbbee5`, `aa2e3f6`
+
+---
+
+## 2026-06-16 (continued)
+
 ### Address Source of Truth Fix
 
 **Problem:** Dual source of truth for customer address — `unified_locations` (canonical) and `customer_addresses` (legacy, 23 customers). Production `governed_create_order` only read from `unified_locations`, so customers without `location_id` got empty `snapshot_customer_address` in orders. Also missing `snapshot_customer_code`.
