@@ -409,7 +409,7 @@ BEGIN
 
     WITH session_data AS (
         SELECT
-            wds.id, wds.date, wds.start_time, wds.end_time, wds.status,
+            wds.id, wds.employee_id, wds.date, wds.start_time, wds.end_time, wds.status,
             EXTRACT(EPOCH FROM (COALESCE(wds.end_time, now()) - wds.start_time)) / 60 AS duration_minutes,
             COALESCE(wb.break_seconds, 0) / 60 AS break_minutes,
             COALESCE(wb.break_count, 0) AS break_count,

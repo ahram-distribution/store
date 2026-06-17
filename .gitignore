@@ -79,5 +79,6 @@ docs/*.xlsx
 
 # Investigation / audit artifacts — temp analysis files
 docs/investigation/
+docs/*.md
 screenshot*.png
 *.screenshot.png
