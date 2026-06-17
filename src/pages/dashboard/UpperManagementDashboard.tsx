@@ -80,6 +80,7 @@ export default function UpperManagementDashboard() {
   const [autoClosedToday, setAutoClosedToday] = useState<AutoClosedSession[]>([])
   const [autoClosedMonth, setAutoClosedMonth] = useState<AutoClosedMonth | null>(null)
   const [showAutoClosedModal, setShowAutoClosedModal] = useState(false)
+  const [healthData, setHealthData] = useState<any>(null)
 
   useEffect(() => {
     const token = getToken()
@@ -91,7 +92,8 @@ export default function UpperManagementDashboard() {
       supabase.rpc('get_live_workday_overview', { p_token: token }),
       attendanceService.getAutoClosedToday().catch(() => []),
       attendanceService.getAutoClosedMonth().catch(() => null),
-    ]).then(([umd, mgmt, perfResult, attResult, autoToday, autoMonth]) => {
+      supabase.rpc('get_attendance_health', { p_token: token }).catch(() => null),
+    ]).then(([umd, mgmt, perfResult, attResult, autoToday, autoMonth, health]) => {
       if (!umd.error && umd.data) setData(umd.data as DashboardData)
       if (!mgmt.error && mgmt.data) setDashMgmt(mgmt.data as DashMgmt)
       if (!perfResult.error && perfResult.data) {
@@ -104,6 +106,7 @@ export default function UpperManagementDashboard() {
       if (!attResult.error && attResult.data) setAttendance(attResult.data as AttendanceOverview)
       if (autoToday) setAutoClosedToday(autoToday as AutoClosedSession[])
       if (autoMonth) setAutoClosedMonth(autoMonth as AutoClosedMonth)
+      if (health?.data && !health.error) setHealthData(health.data)
       setLoading(false)
     })
   }, [])
@@ -246,6 +249,39 @@ export default function UpperManagementDashboard() {
               <div className="text-lg font-bold text-orange-700">{autoClosedMonth?.total_count ?? 0}</div>
               <div className="text-[9px] text-text-secondary">هذا الشهر</div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Attendance Health Card */}
+      {healthData && (
+        <div className="bg-white rounded-xl border border-border p-3" dir="rtl">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[13px] font-semibold text-text">صحة الحضور</span>
+            <span className="text-[9px] text-text-secondary">اليوم</span>
+          </div>
+          <div className="grid grid-cols-4 gap-2 text-center mb-2">
+            <div className="bg-blue-50 rounded-lg py-2">
+              <div className="text-lg font-bold text-blue-700">{healthData.today?.active_sessions ?? 0}</div>
+              <div className="text-[9px] text-text-secondary">نشط</div>
+            </div>
+            <div className="bg-green-50 rounded-lg py-2">
+              <div className="text-lg font-bold text-green-700">{healthData.today?.completed_sessions ?? 0}</div>
+              <div className="text-[9px] text-text-secondary">منتهي</div>
+            </div>
+            <div className="bg-red-50 rounded-lg py-2">
+              <div className="text-lg font-bold text-red-700">{healthData.today?.auto_closed_sessions ?? 0}</div>
+              <div className="text-[9px] text-text-secondary">تلقائي</div>
+            </div>
+            <div className="bg-amber-50 rounded-lg py-2">
+              <div className="text-lg font-bold text-amber-700">{healthData.today?.recovery_events ?? 0}</div>
+              <div className="text-[9px] text-text-secondary">استرجاع</div>
+            </div>
+          </div>
+          <div className="border-t border-border pt-2 text-[10px] text-text-secondary flex justify-between">
+            <span>آخر 30 يوم — تلقائي: {healthData.month?.auto_closed_count ?? 0}</span>
+            <span>استرجاع: {healthData.month?.recovery_count ?? 0}</span>
+            <span>متوسط ساعات: {healthData.month?.avg_work_hours ?? 0}</span>
           </div>
         </div>
       )}

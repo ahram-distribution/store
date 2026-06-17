@@ -223,6 +223,7 @@ export default function SalesManagerCCPage() {
   const [autoClosedMonthCount, setAutoClosedMonthCount] = useState(0)
   const [autoClosedTodayDetails, setAutoClosedTodayDetails] = useState<any[]>([])
   const [showAutoClosedModal, setShowAutoClosedModal] = useState(false)
+  const [healthData, setHealthData] = useState<any>(null)
 
   const token = getToken()
 
@@ -249,6 +250,9 @@ export default function SalesManagerCCPage() {
     }).catch(() => {})
     attendanceService.getAutoClosedMonth().then((r) => {
       if (r) setAutoClosedMonthCount((r as any).total_count ?? 0)
+    }).catch(() => {})
+    supabase.rpc('get_attendance_health', { p_token: token }).then((r) => {
+      if (r.data && !r.error) setHealthData(r.data)
     }).catch(() => {})
   }, [token])
 
@@ -611,6 +615,34 @@ export default function SalesManagerCCPage() {
                     <div className="text-lg font-bold text-orange-700">{autoClosedMonthCount}</div>
                     <div className="text-[9px] text-text-secondary">إنهاء تلقائي الشهر</div>
                   </div>
+                </div>
+              </div>
+            )}
+            {healthData && (
+              <div className="mt-3 border-t border-border/50 pt-3">
+                <h4 className="text-[11px] font-semibold text-text-secondary mb-2">صحة الحضور</h4>
+                <div className="grid grid-cols-4 gap-2 text-center mb-2">
+                  <div className="bg-blue-50 rounded-lg py-2">
+                    <div className="text-base font-bold text-blue-700">{healthData.today?.active_sessions ?? 0}</div>
+                    <div className="text-[8px] text-text-secondary">نشط</div>
+                  </div>
+                  <div className="bg-green-50 rounded-lg py-2">
+                    <div className="text-base font-bold text-green-700">{healthData.today?.completed_sessions ?? 0}</div>
+                    <div className="text-[8px] text-text-secondary">منتهي</div>
+                  </div>
+                  <div className="bg-red-50 rounded-lg py-2">
+                    <div className="text-base font-bold text-red-700">{healthData.today?.auto_closed_sessions ?? 0}</div>
+                    <div className="text-[8px] text-text-secondary">تلقائي</div>
+                  </div>
+                  <div className="bg-amber-50 rounded-lg py-2">
+                    <div className="text-base font-bold text-amber-700">{healthData.today?.warning_events ?? 0}</div>
+                    <div className="text-[8px] text-text-secondary">تحذيرات</div>
+                  </div>
+                </div>
+                <div className="text-[9px] text-text-secondary flex justify-between">
+                  <span>آخر 30 يوم</span>
+                  <span>تلقائي: {healthData.month?.auto_closed_count ?? 0}</span>
+                  <span>استرجاع: {healthData.month?.recovery_count ?? 0}</span>
                 </div>
               </div>
             )}
