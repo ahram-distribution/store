@@ -7,6 +7,7 @@ import L from 'leaflet'
 interface CustomerPoint {
   id: string; code: string; name: string; responsible_name: string
   phone: string; governorate: string; city: string; formatted_address: string
+  location_source: string | null
   latitude: number; longitude: number
   owner_code: string; owner_name: string; created_at: string
   total_orders: number; total_sales: number; last_order_at: string | null; last_visit_at: string | null
@@ -49,10 +50,12 @@ const fmtDuration = (min?: number) => {
   return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`
 }
 
-function customerIcon(): L.DivIcon {
+function customerIcon(source: string | null): L.DivIcon {
+  const colors: Record<string, string> = { gps: '#22c55e', address_geocoded: '#eab308', manual: '#f97316' }
+  const fill = source && colors[source] ? colors[source] : '#3b82f6'
   return L.divIcon({
     className: 'bg-transparent',
-    html: '<div style="width:16px;height:16px;background:#3b82f6;border:2px solid white;border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,0.3)"></div>',
+    html: `<div style="width:16px;height:16px;background:${fill};border:2px solid white;border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,0.3)"></div>`,
     iconSize: [16, 16], iconAnchor: [8, 8],
   })
 }
@@ -132,7 +135,7 @@ export default function CoverageMapPage() {
         <button onClick={() => navigate(-1)} className="text-lg shrink-0 ml-1">→</button>
         <div className="flex gap-3 text-[10px] text-text-secondary shrink-0">
           <span className="whitespace-nowrap">📊 العملاء: <strong className="text-text">{fmtNum(summary?.total_customers)}</strong></span>
-          <span className="whitespace-nowrap">🟢 النشطون: <strong className="text-green-700">{fmtNum(summary?.active_employees)}</strong></span>
+          <span className="whitespace-nowrap"><span style="color:#22c55e">🟢</span> <span style="color:#eab308">🟡</span> <span style="color:#f97316">🟠</span> <strong className="text-green-700">{fmtNum(summary?.active_employees)}</strong></span>
           <span className="whitespace-nowrap">🏙 المحافظات: <strong className="text-text">{fmtNum(summary?.covered_governorates)}</strong></span>
           <span className="whitespace-nowrap">👤 زيارات اليوم: <strong className="text-blue-700">{fmtNum(summary?.visited_customers_today)}</strong></span>
           <span className="whitespace-nowrap">📦 طلبات اليوم: <strong className="text-amber-700">{fmtNum(summary?.today_orders)}</strong></span>
@@ -160,10 +163,13 @@ export default function CoverageMapPage() {
 
           {/* Customers */}
           {layer !== 'employees' && customers.filter(c => c.latitude && c.longitude).map(c => (
-            <Marker key={`c-${c.id}`} position={[c.latitude, c.longitude]} icon={customerIcon()}>
+            <Marker key={`c-${c.id}`} position={[c.latitude, c.longitude]} icon={customerIcon(c.location_source)}>
               <Popup>
                 <div className="text-right text-xs leading-relaxed min-w-[220px]" dir="rtl">
-                  <div className="font-bold text-sm text-blue-700 mb-1.5 border-b pb-1">{c.name || c.responsible_name}</div>
+                  <div className="font-bold text-sm mb-1.5 border-b pb-1" style={{ color: c.location_source === 'gps' ? '#22c55e' : c.location_source === 'address_geocoded' ? '#eab308' : '#f97316' }}>
+                    {c.name || c.responsible_name}
+                  </div>
+                  <div className="mb-1 text-[10px] font-semibold">{c.location_source === 'gps' ? '🟢 مصدر الموقع: GPS حقيقى' : c.location_source === 'address_geocoded' ? '🟡 مصدر الموقع: مستخرج من العنوان' : c.location_source === 'manual' ? '🟠 مصدر الموقع: مضاف يدوياً' : ''}</div>
                   {c.phone && <div className="mb-0.5"><span className="text-text-secondary">📞 </span>{c.phone}</div>}
                   {c.owner_name && <div className="mb-0.5"><span className="text-text-secondary">👤 </span>{c.owner_name} ({c.owner_code})</div>}
                   {c.governorate && <div className="mb-0.5"><span className="text-text-secondary">🌍 </span>{c.governorate}{c.city ? `، ${c.city}` : ''}</div>}

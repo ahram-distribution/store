@@ -37,10 +37,9 @@ BEGIN
     active_sessions AS (
         SELECT wds.id, wds.employee_id, wds.start_time, e.full_name AS employee_name,
             e.code AS employee_code, e.id AS eid,
-            COALESCE(r.name, '') AS role_name
+            COALESCE((SELECT r.name FROM public.employee_roles er2 JOIN public.roles r ON r.id = er2.role_id WHERE er2.employee_id = e.id LIMIT 1), '') AS role_name
         FROM public.workday_sessions wds
         JOIN public.employees e ON e.id = wds.employee_id
-        LEFT JOIN public.roles r ON r.id = e.role_id
         WHERE wds.date = CURRENT_DATE AND wds.status = 'active'
         AND (v_subtree_ids IS NULL OR wds.employee_id = ANY(v_subtree_ids))
     ),
@@ -61,7 +60,13 @@ BEGIN
             COALESCE(ca.governorate, '') AS governorate,
             COALESCE(ca.city, '') AS city,
             COALESCE(ul.formatted_address, '') AS formatted_address,
-            ul.latitude, ul.longitude,
+            COALESCE(ul.latitude, lo.latitude) AS latitude,
+            COALESCE(ul.longitude, lo.longitude) AS longitude,
+            CASE
+                WHEN ul.latitude IS NOT NULL THEN 'gps'
+                WHEN lo.source = 'manual' THEN 'manual'
+                WHEN lo.source = 'address_geocoded' THEN 'address_geocoded'
+            END AS location_source,
             e.code AS owner_code, e.full_name AS owner_name,
             c.created_at,
             (SELECT COUNT(*)::int FROM public.orders o WHERE o.customer_id = c.id) AS total_orders,
@@ -70,6 +75,7 @@ BEGIN
             (SELECT MAX(v.check_in_at) FROM public.visits v WHERE v.customer_id = c.id) AS last_visit_at
         FROM public.customers c
         LEFT JOIN public.unified_locations ul ON ul.id = c.location_id
+        LEFT JOIN public.location_overrides lo ON lo.location_id = c.location_id
         LEFT JOIN LATERAL (
             SELECT phone FROM public.customer_contacts
             WHERE customer_id = c.id AND is_primary = true LIMIT 1
@@ -79,7 +85,7 @@ BEGIN
             WHERE customer_id = c.id AND is_default = true LIMIT 1
         ) ca ON true
         LEFT JOIN public.employees e ON e.id = c.owner_id
-        WHERE ul.latitude IS NOT NULL AND ul.longitude IS NOT NULL
+        WHERE COALESCE(ul.latitude, lo.latitude) IS NOT NULL
         AND (v_subtree_ids IS NULL OR c.owner_id = ANY(v_subtree_ids) OR c.owner_id IS NULL)
     ),
     visited_customers_today AS (
@@ -100,6 +106,7 @@ BEGIN
             'responsible_name', cl.responsible_name, 'phone', cl.phone,
             'governorate', cl.governorate, 'city', cl.city,
             'formatted_address', cl.formatted_address,
+            'location_source', cl.location_source,
             'latitude', cl.latitude, 'longitude', cl.longitude,
             'owner_code', cl.owner_code, 'owner_name', cl.owner_name,
             'created_at', cl.created_at,
@@ -130,8 +137,7 @@ BEGIN
         LEFT JOIN last_points lp ON lp.employee_id = as2.employee_id
         LEFT JOIN today_orders to2 ON to2.employee_id = as2.employee_id
         LEFT JOIN today_visits tv ON tv.employee_id = as2.employee_id
-        LEFT JOIN today_customers_count tc ON tc.employee_id = as2.employee_id
-        ORDER BY as2.employee_name), '[]'::jsonb)
+        LEFT JOIN today_customers_count tc ON tc.employee_id = as2.employee_id), '[]'::jsonb)
     ) INTO v_result;
 
     RETURN v_result;
