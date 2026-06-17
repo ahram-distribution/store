@@ -11,7 +11,15 @@ export interface HeartbeatStatus {
   running: boolean
 }
 
+export interface SessionTimeoutEvent {
+  action: 'ok' | 'warning_issued' | 'warning_active' | 'auto_closed'
+  reason?: string
+  message?: string
+  inactive_hours?: number
+}
+
 type HeartbeatListener = (status: HeartbeatStatus) => void
+type SessionTimeoutListener = (event: SessionTimeoutEvent) => void
 
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
@@ -26,6 +34,7 @@ class HeartbeatService {
   private _lastHeartbeatAt: string | null = null
   private _consecutiveFailures = 0
   private _listeners: Set<HeartbeatListener> = new Set()
+  private _timeoutListeners: Set<SessionTimeoutListener> = new Set()
 
   get status(): HeartbeatStatus {
     return {
@@ -41,8 +50,17 @@ class HeartbeatService {
     return () => this._listeners.delete(fn)
   }
 
+  onSessionTimeout(fn: SessionTimeoutListener): () => void {
+    this._timeoutListeners.add(fn)
+    return () => this._timeoutListeners.delete(fn)
+  }
+
   private _notify() {
     this._listeners.forEach((fn) => fn(this.status))
+  }
+
+  private _notifyTimeout(event: SessionTimeoutEvent) {
+    this._timeoutListeners.forEach((fn) => fn(event))
   }
 
   setEmployeeId(id: string) {
@@ -85,6 +103,17 @@ class HeartbeatService {
       this._lastHeartbeatAt = new Date().toISOString()
       this._consecutiveFailures = 0
       this._onSuccess()
+
+      const { data: timeoutData } = await supabase.rpc('check_session_timeout', {
+        p_token: token,
+        p_session_id: this._sessionId,
+      })
+      if (timeoutData && typeof timeoutData === 'object' && (timeoutData as any).action !== 'ok') {
+        this._notifyTimeout(timeoutData as SessionTimeoutEvent)
+        if ((timeoutData as any).action === 'auto_closed') {
+          this.stop()
+        }
+      }
     } catch (err) {
       this._onFail(err instanceof Error ? err.message : 'UNKNOWN')
       if (!navigator.onLine) {

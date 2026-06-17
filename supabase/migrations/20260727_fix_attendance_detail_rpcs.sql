@@ -57,7 +57,11 @@ BEGIN
 
     SELECT wds.* INTO v_session_record FROM public.workday_sessions wds
     WHERE wds.employee_id = p_employee_id AND wds.date = p_date
-    ORDER BY wds.start_time DESC
+    ORDER BY
+        CASE WHEN p_date < CURRENT_DATE AND wds.status = 'completed' THEN 0
+             WHEN p_date >= CURRENT_DATE AND wds.status = 'active' THEN 0
+             ELSE 1 END,
+        wds.start_time DESC
     LIMIT 1;
 
     SELECT jsonb_build_object(
@@ -227,7 +231,11 @@ BEGIN
 
     SELECT * INTO v_session_record FROM public.workday_sessions wds
     WHERE wds.employee_id = p_employee_id AND wds.date = p_date
-    ORDER BY wds.start_time DESC
+    ORDER BY
+        CASE WHEN p_date < CURRENT_DATE AND wds.status = 'completed' THEN 0
+             WHEN p_date >= CURRENT_DATE AND wds.status = 'active' THEN 0
+             ELSE 1 END,
+        wds.start_time DESC
     LIMIT 1;
 
     -- Build route array with drift-filtered distance calculation + long stop detection
@@ -450,7 +458,11 @@ BEGIN
         SELECT *,
             ROW_NUMBER() OVER (
                 PARTITION BY employee_id, date
-                ORDER BY start_time DESC
+                ORDER BY
+                    CASE WHEN date < CURRENT_DATE AND status = 'completed' THEN 0
+                         WHEN date >= CURRENT_DATE AND status = 'active' THEN 0
+                         ELSE 1 END,
+                    start_time DESC
             ) AS rn
         FROM session_data
     )
