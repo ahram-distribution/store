@@ -136,7 +136,8 @@ export default function EmployeeWorkdayDetailPage() {
     map: true, timeline: true, tracking: false, stops: false, ledger: true, breakDetail: false, weekHistory: true,
   })
 
-  const today = date ?? new Date().toISOString().slice(0, 10)
+  const todayRaw = date ?? new Date().toISOString().slice(0, 10)
+  const today = isNaN(new Date(todayRaw).getTime()) ? new Date().toISOString().slice(0, 10) : todayRaw
 
   const toggle = (key: string) => setExpandedSections(prev => ({ ...prev, [key]: !prev[key] }))
 
