@@ -52,6 +52,7 @@ import { OperationsCenterPage } from '../pages/operations-center'
 import { SalesManagerCCPage } from '../pages/sales-manager'
 import { SalesEffortPage } from '../pages/sales-effort'
 import { GpsTestPage } from '../pages/diagnostics'
+import CoverageMapPage from '../pages/coverage/CoverageMapPage'
 
 export function AppRoutes() {
   const { token } = useAuthStore()
@@ -175,6 +176,7 @@ export function AppRoutes() {
       <Route path="/sales-effort" element={<ProtectedRoute employeeOnly><SalesEffortPage /></ProtectedRoute>} />
 
       <Route path="/ops/gps-test" element={<ProtectedRoute requireUpperManagement><GpsTestPage /></ProtectedRoute>} />
+      <Route path="/coverage-map" element={<ProtectedRoute requireUpperManagement><CoverageMapPage /></ProtectedRoute>} />
 
       <Route path="*" element={<NotFoundPage />} />
     </Routes>

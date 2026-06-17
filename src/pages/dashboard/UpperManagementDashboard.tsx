@@ -142,6 +142,7 @@ export default function UpperManagementDashboard() {
 
   const groups: LauncherGroup[] = [
     { icon: '📋', label: 'الطلبات', path: '/launcher/orders', isSubLauncher: true, badge: pendingOrders },
+    { icon: '📍', label: 'الانتشار', path: '/coverage-map' },
     { icon: '📍', label: 'الزيارات', path: '/launcher/visits', isSubLauncher: true, badge: data?.active_visits },
     { icon: '👥', label: 'العملاء', path: '/launcher/customers', isSubLauncher: true, badge: data?.total_customers },
     { icon: '👤', label: 'الموظفون', path: '/launcher/employees', isSubLauncher: true },
