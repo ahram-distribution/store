@@ -76,3 +76,8 @@ docs/units_debug.txt
 # Excel files (source price lists excluded from git)
 docs/*.xlsx
 *.xlsx
+
+# Investigation / audit artifacts — temp analysis files
+docs/investigation/
+screenshot*.png
+*.screenshot.png
