@@ -47,6 +47,20 @@ ADD COLUMN IF NOT EXISTS warning_sent_at timestamptz DEFAULT NULL;
 ALTER TABLE public.workday_sessions
 ADD COLUMN IF NOT EXISTS warning_cleared_at timestamptz DEFAULT NULL;
 
+-- session_recovery_log — records auto-recovery of stale sessions
+-- at start_workday (last defense against orphaned sessions)
+CREATE TABLE IF NOT EXISTS public.session_recovery_log (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    employee_id uuid NOT NULL REFERENCES public.employees(id) ON DELETE CASCADE,
+    stale_session_id uuid NOT NULL REFERENCES public.workday_sessions(id) ON DELETE CASCADE,
+    new_session_id uuid REFERENCES public.workday_sessions(id) ON DELETE SET NULL,
+    recovered_at timestamptz NOT NULL DEFAULT now(),
+    event_type text NOT NULL DEFAULT 'stale_session_recovered'
+);
+
+CREATE INDEX IF NOT EXISTS idx_session_recovery_employee ON public.session_recovery_log(employee_id, recovered_at DESC);
+CREATE INDEX IF NOT EXISTS idx_session_recovery_event ON public.session_recovery_log(event_type);
+
 -- ================================================================
 -- 2. Helper: touch_session_activity
 --    Called by heartbeat, tracking sync, visits, orders, etc.
@@ -204,33 +218,40 @@ DECLARE
     v_session app.sessions;
     v_employee_id uuid;
     v_existing_id uuid;
-    v_stale_session uuid;
-    v_stale_date date;
-    v_stale_start timestamptz;
-    v_stale_seen timestamptz;
+    v_stale record;
+    v_stale_count int := 0;
+    v_recovery_count int := 0;
     v_policy_id uuid;
+    v_now timestamptz := now();
 BEGIN
-    SELECT * INTO v_session FROM app.sessions WHERE token = p_token AND expires_at > now();
+    SELECT * INTO v_session FROM app.sessions WHERE token = p_token AND expires_at > v_now;
     IF NOT FOUND THEN RETURN jsonb_build_object('error', 'INVALID_SESSION'); END IF;
 
     IF v_session.identity_type != 'employee' THEN RETURN jsonb_build_object('error', 'FORBIDDEN'); END IF;
     v_employee_id := v_session.employee_id;
 
-    -- CHECK 1: Stale active session from a previous day?
-    SELECT id, date, start_time, last_seen_at INTO v_stale_session, v_stale_date, v_stale_start, v_stale_seen
-    FROM public.workday_sessions
-    WHERE employee_id = v_employee_id AND status IN ('active', 'inactive_warning') AND date < CURRENT_DATE
-    ORDER BY date DESC LIMIT 1;
+    -- CHECK 1: Auto-recover stale active sessions from previous days
+    -- This is the last defense — does not depend on cron jobs or notifications
+    FOR v_stale IN
+        SELECT id, date, start_time, last_seen_at
+        FROM public.workday_sessions
+        WHERE employee_id = v_employee_id AND status IN ('active', 'inactive_warning') AND date < CURRENT_DATE
+        ORDER BY date ASC
+    LOOP
+        UPDATE public.workday_sessions
+        SET end_time = COALESCE(v_stale.last_seen_at, v_stale.start_time),
+            status = 'completed',
+            attendance_status = 'auto_closed',
+            close_reason = 'admin_closed',
+            updated_at = v_now
+        WHERE id = v_stale.id;
 
-    IF FOUND THEN
-        RETURN jsonb_build_object(
-            'error', 'STALE_SESSION_EXISTS',
-            'session_id', v_stale_session,
-            'stale_date', v_stale_date,
-            'stale_start_time', v_stale_start,
-            'last_seen_at', v_stale_seen
-        );
-    END IF;
+        INSERT INTO public.session_recovery_log (employee_id, stale_session_id, recovered_at, event_type)
+        VALUES (v_employee_id, v_stale.id, v_now, 'stale_session_recovered');
+
+        v_stale_count := v_stale_count + 1;
+        v_recovery_count := v_recovery_count + 1;
+    END LOOP;
 
     -- CHECK 2: Already active today?
     SELECT id INTO v_existing_id FROM public.workday_sessions
@@ -248,12 +269,25 @@ BEGIN
     VALUES (v_employee_id, p_latitude, p_longitude, p_device_status, v_policy_id)
     RETURNING id INTO v_existing_id;
 
+    -- Link new session to the most recent recovery log
+    IF v_recovery_count > 0 THEN
+        UPDATE public.session_recovery_log
+        SET new_session_id = v_existing_id
+        WHERE employee_id = v_employee_id AND new_session_id IS NULL
+          AND event_type = 'stale_session_recovered';
+    END IF;
+
     PERFORM public.touch_session_activity(v_existing_id);
 
     INSERT INTO public.tracking_points (session_id, employee_id, latitude, longitude, recorded_at, point_type)
-    VALUES (v_existing_id, v_employee_id, p_latitude, p_longitude, now(), 'start');
+    VALUES (v_existing_id, v_employee_id, p_latitude, p_longitude, v_now, 'start');
 
-    RETURN jsonb_build_object('session_id', v_existing_id, 'started_at', now());
+    RETURN jsonb_build_object(
+        'session_id', v_existing_id,
+        'started_at', v_now,
+        'stale_recovered', v_stale_count,
+        'recovery_count', v_recovery_count
+    );
 END;
 $function$;
 
@@ -757,3 +791,6 @@ GRANT EXECUTE ON FUNCTION public.auto_close_stale_sessions TO authenticated;
 GRANT EXECUTE ON FUNCTION public.touch_session_activity TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_auto_closed_sessions_today TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_auto_closed_sessions_month TO authenticated;
+
+-- Recovery log access
+GRANT SELECT, INSERT ON public.session_recovery_log TO authenticated;

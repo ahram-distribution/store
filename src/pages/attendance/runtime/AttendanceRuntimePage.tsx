@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../../../lib/supabase'
 import toast from 'react-hot-toast'
-import { Clock, Play, Coffee, LogOut, ArrowLeftFromLine, MapPin, Wifi, WifiOff, Database, AlertTriangle, X } from 'lucide-react'
+import { Clock, Play, Coffee, LogOut, ArrowLeftFromLine, MapPin, Wifi, WifiOff, Database, AlertTriangle } from 'lucide-react'
 import { trackingEngine } from '../../../services/trackingEngine'
 import { heartbeatService, type SessionTimeoutEvent } from '../../../services/heartbeatService'
 import { attendanceService } from '../../../services/attendance'
@@ -88,13 +88,6 @@ export default function AttendanceRuntimePage() {
   const [deviceReady, setDeviceReady] = useState(false)
   const [trackingStatus, setTrackingStatus] = useState(trackingEngine.status)
   const [trackingInterval, setTrackingInterval] = useState(300)
-  const [staleSession, setStaleSession] = useState<{
-    session_id: string
-    stale_date: string
-    stale_start_time: string
-    last_seen_at: string | null
-  } | null>(null)
-
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
@@ -223,16 +216,6 @@ export default function AttendanceRuntimePage() {
       if (error) { toast.error(error.message || 'حدث خطأ'); setActionLoading(null); return }
       const errCode = (data as any)?.error
       if (errCode) {
-        if (errCode === 'STALE_SESSION_EXISTS') {
-          const d = data as any
-          setStaleSession({
-            session_id: d.session_id,
-            stale_date: d.stale_date,
-            stale_start_time: d.stale_start_time,
-            last_seen_at: d.last_seen_at,
-          })
-          setActionLoading(null); return
-        }
         const msgs: Record<string, string> = {
           GPS_REQUIRED: 'لم يتم الحصول على موقع GPS دقيق — تأكد من فتح GPS وحاول مرة أخرى',
           ALREADY_ACTIVE: 'لديك يوم عمل نشط بالفعل',
@@ -243,6 +226,10 @@ export default function AttendanceRuntimePage() {
         setActionLoading(null); return
       }
       const sessionId = (data as any)?.session_id
+      const staleRecovered = (data as any)?.stale_recovered
+      if (staleRecovered > 0) {
+        toast(`تم إنهاء ${staleRecovered} يوم سابق تلقائياً`, { icon: '🔒', duration: 5000 })
+      }
       toast.success('بدأ يوم العمل بنجاح')
       await fetchStatus()
       if (sessionId) startTracking(sessionId)
@@ -283,28 +270,6 @@ export default function AttendanceRuntimePage() {
       }
       trackingEngine.stop()
       await fetchStatus()
-    } catch { toast.error('حدث خطأ في الاتصال') }
-    finally { setActionLoading(null) }
-  }
-
-  const handleResolveStaleSession = async (action: 'close_and_continue' | 'request_review') => {
-    if (!staleSession) return
-    setActionLoading('resolve')
-    try {
-      const { data, error } = await supabase.rpc('resolve_stale_session', {
-        p_token: token,
-        p_stale_session_id: staleSession.session_id,
-        p_action: action,
-      })
-      if (error) { toast.error(error.message); setActionLoading(null); return }
-      if ((data as any)?.ok) {
-        setStaleSession(null)
-        if (action === 'close_and_continue') {
-          toast.success('تم إنهاء اليوم السابق — يمكنك بدء يوم جديد')
-        } else {
-          toast.success('تم إرسال الطلب للمراجعة')
-        }
-      }
     } catch { toast.error('حدث خطأ في الاتصال') }
     finally { setActionLoading(null) }
   }
@@ -377,44 +342,6 @@ export default function AttendanceRuntimePage() {
               {currentTime.toLocaleDateString('ar-EG', { weekday: 'long', day: 'numeric', month: 'long' })}
             </span>
           </div>
-
-          {/* Stale Session Alert — exists from previous day */}
-          {staleSession && (
-            <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-3">
-              <div className="flex items-start gap-2">
-                <AlertTriangle className="w-5 h-5 text-red-600 mt-0.5 shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <h3 className="text-sm font-bold text-red-800 mb-1">يوجد يوم عمل لم يتم إنهاؤه</h3>
-                  <p className="text-xs text-red-700 mb-2">
-                    تاريخ: {staleSession.stale_date}<br />
-                    وقت البدء: {formatTime(staleSession.stale_start_time)}<br />
-                    {staleSession.last_seen_at && <>آخر نشاط: {formatTime(staleSession.last_seen_at)}</>}
-                  </p>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => handleResolveStaleSession('close_and_continue')}
-                      disabled={actionLoading === 'resolve'}
-                      className="flex-1 py-2 px-3 bg-red-600 text-white rounded-lg text-xs font-bold hover:bg-red-700 active:scale-[0.97] transition-all disabled:opacity-50"
-                    >
-                      {actionLoading === 'resolve' ? (
-                        <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      ) : 'إنهاء وبدء يوم جديد'}
-                    </button>
-                    <button
-                      onClick={() => handleResolveStaleSession('request_review')}
-                      disabled={actionLoading === 'resolve'}
-                      className="flex-1 py-2 px-3 bg-gray-100 text-gray-700 rounded-lg text-xs font-bold hover:bg-gray-200 active:scale-[0.97] transition-all disabled:opacity-50"
-                    >
-                      طلب مراجعة المشرف
-                    </button>
-                  </div>
-                </div>
-                <button onClick={() => setStaleSession(null)} className="text-red-400 hover:text-red-600">
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-          )}
 
           {/* Inactive Warning Banner */}
           {isInactiveWarning && (
