@@ -92,7 +92,7 @@ export default function UpperManagementDashboard() {
       supabase.rpc('get_live_workday_overview', { p_token: token }),
       attendanceService.getAutoClosedToday().catch(() => []),
       attendanceService.getAutoClosedMonth().catch(() => null),
-      supabase.rpc('get_attendance_health', { p_token: token }).catch(() => null),
+      supabase.rpc('get_attendance_health', { p_token: token }).then(r => r, () => null),
     ]).then(([umd, mgmt, perfResult, attResult, autoToday, autoMonth, health]) => {
       if (!umd.error && umd.data) setData(umd.data as DashboardData)
       if (!mgmt.error && mgmt.data) setDashMgmt(mgmt.data as DashMgmt)

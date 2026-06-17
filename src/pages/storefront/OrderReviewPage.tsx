@@ -91,14 +91,14 @@ export function OrderReviewPage() {
       // flash offers (best-effort)
       if (flashOfferItems.length > 0) {
         const offerPayload = flashOfferItems.map((d) => ({ offer_id: d.dealId, quantity: d.quantity }))
-        await supabase.rpc('governed_add_order_flash_offers', { p_token: token, p_order_id: order.id, p_offers: offerPayload })
+        await supabase.rpc('governed_add_order_flash_offers', { p_token: token, p_order_id: order.id, p_offers: offerPayload }).then(() => {})
           .catch(() => {})
       }
 
       // daily deals (best-effort)
       if (dealItems.length > 0) {
         const dealPayload = dealItems.map((d) => ({ deal_id: d.dealId, quantity: d.quantity }))
-        await supabase.rpc('governed_add_order_daily_deals', { p_token: token, p_order_id: order.id, p_deals: dealPayload })
+        await supabase.rpc('governed_add_order_daily_deals', { p_token: token, p_order_id: order.id, p_deals: dealPayload }).then(() => {})
           .catch(() => {})
       }
 
