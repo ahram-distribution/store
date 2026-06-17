@@ -15,6 +15,7 @@ import ProductivityArea from './components/ProductivityArea'
 import AlertsArea from './components/AlertsArea'
 import { computeAlerts } from './components/AlertsArea'
 import MapTab from './components/MapTab'
+import HistoricalPerformancePanel from './components/HistoricalPerformancePanel'
 
 interface LiveOverview {
   active_count: number
@@ -251,7 +252,7 @@ export default function OperationsCenterPage() {
 
         <TimeFilterBar active={timeFilter} onChange={setTimeFilter} />
 
-        {!simpleMode && (
+        {!simpleMode && teamTab !== 'history' && (
           <FilterBar
             departments={departments}
             areas={areas}
@@ -262,19 +263,21 @@ export default function OperationsCenterPage() {
           />
         )}
 
-        <GlobalCounters
-          activeCount={data?.active_count ?? 0}
-          onBreakCount={data?.on_break_count ?? 0}
-          connectionLossCount={data?.connection_loss_count ?? 0}
-          noStartCount={data?.no_start_count ?? 0}
-          totalOrders={totals.orders}
-          totalSales={totals.sales}
-          totalNewCustomers={totals.newCustomers}
-          totalVisits={totals.visits}
-          onCounterClick={handleCounterClick}
-        />
+        {teamTab !== 'history' && (
+          <GlobalCounters
+            activeCount={data?.active_count ?? 0}
+            onBreakCount={data?.on_break_count ?? 0}
+            connectionLossCount={data?.connection_loss_count ?? 0}
+            noStartCount={data?.no_start_count ?? 0}
+            totalOrders={totals.orders}
+            totalSales={totals.sales}
+            totalNewCustomers={totals.newCustomers}
+            totalVisits={totals.visits}
+            onCounterClick={handleCounterClick}
+          />
+        )}
 
-        {!isHistoryFilter && data?.team_aggregates && (
+        {teamTab !== 'history' && !isHistoryFilter && data?.team_aggregates && (
           <ProductivityArea
             team={data.team_aggregates}
             endedCount={data.ended_count}
@@ -283,7 +286,7 @@ export default function OperationsCenterPage() {
           />
         )}
 
-        {!isHistoryFilter && (
+        {teamTab !== 'history' && !isHistoryFilter && (
           <div id="ops-alerts-area">
             <AlertsArea
               employees={data?.employees ?? []}
@@ -299,7 +302,7 @@ export default function OperationsCenterPage() {
           </div>
         )}
 
-        {isHistoryFilter && data && (
+        {teamTab !== 'history' && isHistoryFilter && data && (
           <div className="bg-white rounded-xl shadow-sm p-4 mb-4">
             <p className="text-xs text-gray-500 text-center">وضع العرض التاريخي — المعلومات المعروضة تعكس بيانات أمس / الأسبوع</p>
           </div>
@@ -314,6 +317,8 @@ export default function OperationsCenterPage() {
         />
 
         {teamTab === 'map' && <MapTab />}
+
+        {teamTab === 'history' && <HistoricalPerformancePanel />}
 
         {teamTab === 'active' && (
           <>

@@ -303,4 +303,28 @@ export const attendanceService = {
     if (error) throw error
     return data as Record<string, unknown>
   },
+
+  async getCompletedWorkdaysHistory(params: {
+    p_from: string
+    p_to: string
+    p_search?: string | null
+    p_sort_by?: string
+    p_sort_order?: string
+    p_page?: number
+    p_per_page?: number
+  }) {
+    const token = getToken()
+    const { data, error } = await supabase.rpc('get_completed_workdays_history', {
+      p_token: token,
+      p_from: params.p_from,
+      p_to: params.p_to,
+      p_search: params.p_search ?? null,
+      p_sort_by: params.p_sort_by ?? 'total_net_minutes',
+      p_sort_order: params.p_sort_order ?? 'desc',
+      p_page: params.p_page ?? 1,
+      p_per_page: params.p_per_page ?? 20,
+    })
+    if (error) throw error
+    return data as Record<string, unknown>
+  },
 }

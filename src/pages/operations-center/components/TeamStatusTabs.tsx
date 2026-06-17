@@ -1,4 +1,4 @@
-export type TeamTab = 'active' | 'ended' | 'no_start' | 'map'
+export type TeamTab = 'active' | 'ended' | 'no_start' | 'map' | 'history'
 
 interface TeamStatusTabsProps {
   active: TeamTab
@@ -8,11 +8,12 @@ interface TeamStatusTabsProps {
   noStartCount: number
 }
 
-const TABS: { key: TeamTab; label: string; color: string }[] = [
-  { key: 'active', label: 'النشطون', color: 'text-green-600' },
-  { key: 'ended', label: 'المنتهون', color: 'text-green-700' },
-  { key: 'no_start', label: 'لم يبدؤوا', color: 'text-gray-500' },
+const TABS: { key: TeamTab; label: string; color: string; badge?: boolean }[] = [
+  { key: 'active', label: 'النشطون', color: 'text-green-600', badge: true },
+  { key: 'ended', label: 'منتهو اليوم', color: 'text-green-700', badge: true },
+  { key: 'no_start', label: 'لم يبدؤوا', color: 'text-gray-500', badge: true },
   { key: 'map', label: '🗺️ الخريطة', color: 'text-blue-500' },
+  { key: 'history', label: '📊 الأداء التاريخي', color: 'text-purple-500' },
 ]
 
 export default function TeamStatusTabs({ active, onChange, activeCount, endedCount, noStartCount }: TeamStatusTabsProps) {
@@ -32,9 +33,9 @@ export default function TeamStatusTabs({ active, onChange, activeCount, endedCou
             }`}
           >
             {tab.label}
-            {tab.key !== 'map' && (
+            {tab.badge && (
               <span className={`mr-1.5 ${active === tab.key ? 'text-white/80' : tab.color}`}>
-                ({counts[tab.key as keyof typeof counts]})
+                ({counts[tab.key as keyof typeof counts] ?? 0})
               </span>
             )}
           </button>
