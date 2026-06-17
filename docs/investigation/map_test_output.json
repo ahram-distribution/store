@@ -1,0 +1,398 @@
+{
+  "route": [
+    {
+      "time": "2026-06-16T11:58:22.342+00:00",
+      "type": "periodic",
+      "latitude": 30.1112063,
+      "longitude": 31.2152228
+    },
+    {
+      "time": "2026-06-16T11:58:22.349+00:00",
+      "type": "periodic",
+      "latitude": 30.1112063,
+      "longitude": 31.2152228
+    },
+    {
+      "time": "2026-06-16T11:58:22.963982+00:00",
+      "type": "start",
+      "latitude": 30.1112063,
+      "longitude": 31.2152228
+    },
+    {
+      "time": "2026-06-16T11:58:46.487152+00:00",
+      "type": "end",
+      "latitude": 30.1110668,
+      "longitude": 31.215308
+    },
+    {
+      "time": "2026-06-16T11:58:52.616+00:00",
+      "type": "periodic",
+      "latitude": 30.1108516,
+      "longitude": 31.2154534
+    },
+    {
+      "time": "2026-06-16T11:58:52.622+00:00",
+      "type": "periodic",
+      "latitude": 30.1108516,
+      "longitude": 31.2154534
+    },
+    {
+      "time": "2026-06-16T11:58:53.469671+00:00",
+      "type": "start",
+      "latitude": 30.1108516,
+      "longitude": 31.2154534
+    },
+    {
+      "time": "2026-06-16T11:59:26.708827+00:00",
+      "type": "end",
+      "latitude": 30.1109506,
+      "longitude": 31.2153923
+    },
+    {
+      "time": "2026-06-16T11:59:37.27+00:00",
+      "type": "periodic",
+      "latitude": 30.1112417,
+      "longitude": 31.2151879
+    },
+    {
+      "time": "2026-06-16T11:59:37.276+00:00",
+      "type": "periodic",
+      "latitude": 30.1112417,
+      "longitude": 31.2151879
+    },
+    {
+      "time": "2026-06-16T11:59:38.108055+00:00",
+      "type": "start",
+      "latitude": 30.1112417,
+      "longitude": 31.2151879
+    },
+    {
+      "time": "2026-06-16T12:01:32.732+00:00",
+      "type": "periodic",
+      "latitude": 30.1108988,
+      "longitude": 31.215412
+    },
+    {
+      "time": "2026-06-16T12:03:28.133+00:00",
+      "type": "periodic",
+      "latitude": 30.1117628,
+      "longitude": 31.2151822
+    },
+    {
+      "time": "2026-06-16T12:03:28.133+00:00",
+      "type": "periodic",
+      "latitude": 30.1117628,
+      "longitude": 31.2151822
+    },
+    {
+      "time": "2026-06-16T12:03:28.133+00:00",
+      "type": "periodic",
+      "latitude": 30.1117628,
+      "longitude": 31.2151822
+    },
+    {
+      "time": "2026-06-16T12:03:28.133+00:00",
+      "type": "periodic",
+      "latitude": 30.1117628,
+      "longitude": 31.2151822
+    },
+    {
+      "time": "2026-06-16T12:04:27.875+00:00",
+      "type": "periodic",
+      "latitude": 30.1117258,
+      "longitude": 31.2155689
+    },
+    {
+      "time": "2026-06-16T12:04:27.875+00:00",
+      "type": "periodic",
+      "latitude": 30.1117258,
+      "longitude": 31.2155689
+    },
+    {
+      "time": "2026-06-16T12:04:27.875+00:00",
+      "type": "periodic",
+      "latitude": 30.1117258,
+      "longitude": 31.2155689
+    },
+    {
+      "time": "2026-06-16T12:04:27.875+00:00",
+      "type": "periodic",
+      "latitude": 30.1117258,
+      "longitude": 31.2155689
+    },
+    {
+      "time": "2026-06-16T12:04:52.368+00:00",
+      "type": "periodic",
+      "latitude": 30.111507,
+      "longitude": 31.215272
+    },
+    {
+      "time": "2026-06-16T12:05:10.032+00:00",
+      "type": "periodic",
+      "latitude": 30.1113374,
+      "longitude": 31.2152566
+    },
+    {
+      "time": "2026-06-16T12:12:06.958+00:00",
+      "type": "periodic",
+      "latitude": 30.1110665,
+      "longitude": 31.2151563
+    },
+    {
+      "time": "2026-06-16T12:13:22.302+00:00",
+      "type": "periodic",
+      "latitude": 30.1112819,
+      "longitude": 31.2151655
+    },
+    {
+      "time": "2026-06-16T13:51:42.452+00:00",
+      "type": "periodic",
+      "latitude": 30.1388476,
+      "longitude": 31.374124
+    },
+    {
+      "time": "2026-06-16T13:52:51.976+00:00",
+      "type": "periodic",
+      "latitude": 30.1389115,
+      "longitude": 31.3740923
+    },
+    {
+      "time": "2026-06-16T14:37:14.544+00:00",
+      "type": "periodic",
+      "latitude": 30.1388317,
+      "longitude": 31.3741427
+    },
+    {
+      "time": "2026-06-16T14:44:44.605+00:00",
+      "type": "periodic",
+      "latitude": 30.1355204,
+      "longitude": 31.3778225
+    },
+    {
+      "time": "2026-06-16T14:50:25.446+00:00",
+      "type": "periodic",
+      "latitude": 30.1389153,
+      "longitude": 31.3741498
+    },
+    {
+      "time": "2026-06-16T14:50:25.506+00:00",
+      "type": "periodic",
+      "latitude": 30.1389153,
+      "longitude": 31.3741498
+    },
+    {
+      "time": "2026-06-16T14:52:14.179+00:00",
+      "type": "periodic",
+      "latitude": 30.1381122,
+      "longitude": 31.3747742
+    },
+    {
+      "time": "2026-06-16T14:53:14.978+00:00",
+      "type": "periodic",
+      "latitude": 30.1379858,
+      "longitude": 31.3748489
+    },
+    {
+      "time": "2026-06-16T14:55:04.334+00:00",
+      "type": "periodic",
+      "latitude": 30.1375713,
+      "longitude": 31.3749623
+    },
+    {
+      "time": "2026-06-16T14:59:26.874+00:00",
+      "type": "periodic",
+      "latitude": 30.1388854,
+      "longitude": 31.3741427
+    },
+    {
+      "time": "2026-06-16T18:18:48.766+00:00",
+      "type": "periodic",
+      "latitude": 30.1403822,
+      "longitude": 31.3268188
+    },
+    {
+      "time": "2026-06-16T18:20:15.392+00:00",
+      "type": "periodic",
+      "latitude": 30.1403829,
+      "longitude": 31.3268181
+    },
+    {
+      "time": "2026-06-16T18:20:58.024+00:00",
+      "type": "periodic",
+      "latitude": 30.1396898,
+      "longitude": 31.3286168
+    },
+    {
+      "time": "2026-06-16T18:23:59.459+00:00",
+      "type": "periodic",
+      "latitude": 30.1398743,
+      "longitude": 31.3307415
+    },
+    {
+      "time": "2026-06-16T18:24:29.004+00:00",
+      "type": "periodic",
+      "latitude": 30.1415913,
+      "longitude": 31.3330431
+    },
+    {
+      "time": "2026-06-16T18:25:12.190159+00:00",
+      "type": "end",
+      "latitude": 30.1414781,
+      "longitude": 31.3356395
+    }
+  ],
+  "session": {
+    "date": "2026-06-16",
+    "end_time": "2026-06-16T18:25:12.190159+00:00",
+    "start_time": "2026-06-16T11:59:38.108055+00:00",
+    "employee_id": "c4c55b1e-e2f3-4d97-859d-a1b19a583b79",
+    "attendance_status": "late"
+  },
+  "long_stops": [
+    {
+      "type": "gap",
+      "end_time": "2026-06-16T12:12:06.958+00:00",
+      "latitude": 30.1113374,
+      "longitude": 31.2152566,
+      "start_time": "2026-06-16T12:05:10.032+00:00",
+      "duration_minutes": 7
+    },
+    {
+      "type": "gap",
+      "end_time": "2026-06-16T13:51:42.452+00:00",
+      "latitude": 30.1112819,
+      "longitude": 31.2151655,
+      "start_time": "2026-06-16T12:13:22.302+00:00",
+      "duration_minutes": 98
+    },
+    {
+      "type": "gap",
+      "end_time": "2026-06-16T14:37:14.544+00:00",
+      "latitude": 30.1389115,
+      "longitude": 31.3740923,
+      "start_time": "2026-06-16T13:52:51.976+00:00",
+      "duration_minutes": 44
+    },
+    {
+      "type": "gap",
+      "end_time": "2026-06-16T14:44:44.605+00:00",
+      "latitude": 30.1388317,
+      "longitude": 31.3741427,
+      "start_time": "2026-06-16T14:37:14.544+00:00",
+      "duration_minutes": 8
+    },
+    {
+      "type": "gap",
+      "end_time": "2026-06-16T14:50:25.446+00:00",
+      "latitude": 30.1355204,
+      "longitude": 31.3778225,
+      "start_time": "2026-06-16T14:44:44.605+00:00",
+      "duration_minutes": 6
+    },
+    {
+      "type": "gap",
+      "end_time": "2026-06-16T18:18:48.766+00:00",
+      "latitude": 30.1388854,
+      "longitude": 31.3741427,
+      "start_time": "2026-06-16T14:59:26.874+00:00",
+      "duration_minutes": 199
+    }
+  ],
+  "filter_stats": {
+    "max_speed": 5,
+    "max_accuracy": 50,
+    "skipped_speed": 2,
+    "skipped_accuracy": 1,
+    "skipped_min_distance": 20,
+    "min_distance_threshold": 20
+  },
+  "total_points": 40,
+  "visit_locations": [
+    {
+      "latitude": 30.1376976,
+      "visit_id": "efb00769-da8c-4e08-b042-bb9678de7417",
+      "longitude": 31.3750804,
+      "check_in_at": "2026-06-16T14:53:38.834776+00:00",
+      "customer_id": "7f51b4a1-4d5d-492e-8318-cbd696abec51",
+      "check_out_at": "2026-06-16T16:46:15.200879+00:00",
+      "visit_result": "follow_up",
+      "customer_name": "بينك"
+    },
+    {
+      "latitude": 30.1397633,
+      "visit_id": "8face4db-8d5c-45a8-8df4-dc0ff0a9c9f1",
+      "longitude": 31.3428101,
+      "check_in_at": "2026-06-16T16:53:44.689981+00:00",
+      "customer_id": "b68eba7a-4ed9-4a07-ad40-a4073bec9dad",
+      "check_out_at": "2026-06-16T16:53:54.913006+00:00",
+      "visit_result": "follow_up",
+      "customer_name": "مكتب حسين"
+    },
+    {
+      "latitude": 30.1415144,
+      "visit_id": "e9e0718c-f323-4647-96b9-42b30c870262",
+      "longitude": 31.3377045,
+      "check_in_at": "2026-06-16T17:10:55.333943+00:00",
+      "customer_id": "6fd54877-5aa4-415f-a5a3-d3eb4a5abf18",
+      "check_out_at": "2026-06-16T17:11:03.803637+00:00",
+      "visit_result": "no_responsible_person",
+      "customer_name": "سندريلا"
+    },
+    {
+      "latitude": 30.1414972,
+      "visit_id": "7bebfab8-cf59-4df1-8371-219d223816bb",
+      "longitude": 31.3361634,
+      "check_in_at": "2026-06-16T17:15:24.802338+00:00",
+      "customer_id": "44a50f90-8545-4873-a791-fa36cc628d26",
+      "check_out_at": "2026-06-16T17:15:28.938896+00:00",
+      "visit_result": "no_responsible_person",
+      "customer_name": "اولاد نصار"
+    },
+    {
+      "latitude": 30.139543,
+      "visit_id": "1cdc4a71-36cf-4560-b870-9174ffae6308",
+      "longitude": 31.3221072,
+      "check_in_at": "2026-06-16T17:52:02.76476+00:00",
+      "customer_id": "39b93508-89d4-447d-8af4-086257c679de",
+      "check_out_at": "2026-06-16T17:52:09.020139+00:00",
+      "visit_result": "follow_up",
+      "customer_name": "فريده"
+    },
+    {
+      "latitude": 30.1400551,
+      "visit_id": "fd7fe064-f2bd-42e9-90a4-34816c2bfce0",
+      "longitude": 31.3214418,
+      "check_in_at": "2026-06-16T18:06:36.796727+00:00",
+      "customer_id": "a1bbf95f-5599-41de-962f-c54dc693ef4f",
+      "check_out_at": "2026-06-16T18:06:40.139949+00:00",
+      "visit_result": "follow_up",
+      "customer_name": "لمار"
+    },
+    {
+      "latitude": 30.1400551,
+      "visit_id": "27f59732-d701-47a8-8100-473dd17954fb",
+      "longitude": 31.3214418,
+      "check_in_at": "2026-06-16T18:06:45.022755+00:00",
+      "customer_id": "39b93508-89d4-447d-8af4-086257c679de",
+      "check_out_at": "2026-06-16T18:08:29.202239+00:00",
+      "visit_result": "follow_up",
+      "customer_name": "فريده"
+    },
+    {
+      "latitude": 30.141558,
+      "visit_id": "24918699-fff0-4162-9e48-5e7b45cea2bc",
+      "longitude": 31.3345376,
+      "check_in_at": "2026-06-16T18:24:43.460902+00:00",
+      "customer_id": "3188a854-8891-489f-8c97-8aec85c4be5d",
+      "check_out_at": "2026-06-16T18:24:47.597756+00:00",
+      "visit_result": "no_responsible_person",
+      "customer_name": "قضاعى المؤسسه"
+    }
+  ],
+  "long_stops_count": 6,
+  "total_distance_km": 22.21,
+  "total_distance_meters": 22210,
+  "total_counted_segments": 16,
+  "long_stops_total_minutes": 362,
+  "max_consecutive_distance": 15592
+}

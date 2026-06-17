@@ -128,14 +128,18 @@ export default function AttendanceRuntimePage() {
     const unsub = trackingEngine.subscribe(setTrackingStatus)
 
     const unsubTimeout = heartbeatService.onSessionTimeout((ev: SessionTimeoutEvent) => {
-      if (ev.action === 'warning_issued' || ev.action === 'warning_active') {
-        toast(ev.message || 'تحذير: عدم نشاط', {
-          icon: '⚠️',
-          duration: 10000,
-        })
+      if (ev.action === 'warning_issued') {
+        toast(ev.message || 'تحذير: عدم نشاط', { icon: '⚠️', duration: 15000 })
+      }
+      if (ev.action === 'warning_active') {
+        toast(ev.message || 'لم يتم رصد نشاط', { icon: '⏳', duration: 10000 })
+      }
+      if (ev.action === 'warning_cleared') {
+        toast.success('تم تسجيل نشاط جديد. تم إلغاء تحذير الخمول.')
+        fetchStatus()
       }
       if (ev.action === 'auto_closed') {
-        toast(ev.message || 'تم إنهاء يوم العمل تلقائياً', { icon: '🔒', duration: 8000 })
+        toast(ev.message || 'تم إنهاء يوم العمل تلقائياً', { icon: '🔒', duration: 10000 })
         fetchStatus()
       }
     })
@@ -171,7 +175,7 @@ export default function AttendanceRuntimePage() {
           p_session_id: sid,
           p_latitude: lastLoc?.latitude ?? null,
           p_longitude: lastLoc?.longitude ?? null,
-          p_close_reason: lastLoc ? 'manual_close' : 'auto_closed_no_activity',
+          p_close_reason: lastLoc ? 'manual_close' : 'no_activity_timeout',
         }),
       })
     }

@@ -1,0 +1,366 @@
+{
+  "events": [
+    {
+      "time": "2026-06-16T11:59:38.108055+00:00",
+      "type": "workday_start",
+      "title": "بدء يوم العمل",
+      "latitude": "30.1112417",
+      "metadata": {
+        "session_id": "274b9b0c-1165-42bd-8da3-287f46dd78f2"
+      },
+      "longitude": "31.2151879",
+      "description": ""
+    },
+    {
+      "time": "2026-06-16T14:52:56.597322+00:00",
+      "type": "new_customer",
+      "title": "عميل جديد",
+      "latitude": null,
+      "metadata": {
+        "customer_id": "7f51b4a1-4d5d-492e-8318-cbd696abec51",
+        "customer_name": "بينك"
+      },
+      "longitude": null,
+      "description": "بينك"
+    },
+    {
+      "time": "2026-06-16T14:53:38.834776+00:00",
+      "type": "visit_start",
+      "title": "بداية زيارة",
+      "latitude": "30.1376976",
+      "metadata": {
+        "visit_id": "efb00769-da8c-4e08-b042-bb9678de7417",
+        "customer_id": "7f51b4a1-4d5d-492e-8318-cbd696abec51",
+        "customer_name": "بينك"
+      },
+      "longitude": "31.3750804",
+      "description": "بينك"
+    },
+    {
+      "time": "2026-06-16T14:59:26.581255+00:00",
+      "type": "order_created",
+      "title": "طلب جديد",
+      "latitude": null,
+      "metadata": {
+        "status": "submitted",
+        "order_id": "e300a490-7e16-4979-8d65-417bb883924c",
+        "order_number": "ORD-2026-000100",
+        "total_amount": 38448
+      },
+      "longitude": null,
+      "description": "طلب رقم ORD-2026-000100 — 38448.00 ج.م"
+    },
+    {
+      "time": "2026-06-16T15:55:44.037666+00:00",
+      "type": "new_customer",
+      "title": "عميل جديد",
+      "latitude": null,
+      "metadata": {
+        "customer_id": "a50b4ea3-1903-41bc-ad50-f6e9abe663c3",
+        "customer_name": "فرغلى لتوزيع المنظفات"
+      },
+      "longitude": null,
+      "description": "فرغلى لتوزيع المنظفات"
+    },
+    {
+      "time": "2026-06-16T16:46:15.200879+00:00",
+      "type": "visit_end",
+      "title": "نهاية زيارة",
+      "latitude": "30.1387172",
+      "metadata": {
+        "visit_id": "efb00769-da8c-4e08-b042-bb9678de7417",
+        "customer_id": "7f51b4a1-4d5d-492e-8318-cbd696abec51",
+        "visit_result": "follow_up",
+        "customer_name": "بينك"
+      },
+      "longitude": "31.3464775",
+      "description": "بينك — follow_up"
+    },
+    {
+      "time": "2026-06-16T16:53:35.165001+00:00",
+      "type": "new_customer",
+      "title": "عميل جديد",
+      "latitude": null,
+      "metadata": {
+        "customer_id": "b68eba7a-4ed9-4a07-ad40-a4073bec9dad",
+        "customer_name": "مكتب حسين"
+      },
+      "longitude": null,
+      "description": "مكتب حسين"
+    },
+    {
+      "time": "2026-06-16T16:53:44.689981+00:00",
+      "type": "visit_start",
+      "title": "بداية زيارة",
+      "latitude": "30.1397633",
+      "metadata": {
+        "visit_id": "8face4db-8d5c-45a8-8df4-dc0ff0a9c9f1",
+        "customer_id": "b68eba7a-4ed9-4a07-ad40-a4073bec9dad",
+        "customer_name": "مكتب حسين"
+      },
+      "longitude": "31.3428101",
+      "description": "مكتب حسين"
+    },
+    {
+      "time": "2026-06-16T16:53:54.913006+00:00",
+      "type": "visit_end",
+      "title": "نهاية زيارة",
+      "latitude": "30.1399739",
+      "metadata": {
+        "visit_id": "8face4db-8d5c-45a8-8df4-dc0ff0a9c9f1",
+        "customer_id": "b68eba7a-4ed9-4a07-ad40-a4073bec9dad",
+        "visit_result": "follow_up",
+        "customer_name": "مكتب حسين"
+      },
+      "longitude": "31.3425925",
+      "description": "مكتب حسين — follow_up"
+    },
+    {
+      "time": "2026-06-16T17:10:42.514871+00:00",
+      "type": "new_customer",
+      "title": "عميل جديد",
+      "latitude": null,
+      "metadata": {
+        "customer_id": "6fd54877-5aa4-415f-a5a3-d3eb4a5abf18",
+        "customer_name": "سندريلا"
+      },
+      "longitude": null,
+      "description": "سندريلا"
+    },
+    {
+      "time": "2026-06-16T17:10:55.333943+00:00",
+      "type": "visit_start",
+      "title": "بداية زيارة",
+      "latitude": "30.1415144",
+      "metadata": {
+        "visit_id": "e9e0718c-f323-4647-96b9-42b30c870262",
+        "customer_id": "6fd54877-5aa4-415f-a5a3-d3eb4a5abf18",
+        "customer_name": "سندريلا"
+      },
+      "longitude": "31.3377045",
+      "description": "سندريلا"
+    },
+    {
+      "time": "2026-06-16T17:11:03.803637+00:00",
+      "type": "visit_end",
+      "title": "نهاية زيارة",
+      "latitude": "30.1415144",
+      "metadata": {
+        "visit_id": "e9e0718c-f323-4647-96b9-42b30c870262",
+        "customer_id": "6fd54877-5aa4-415f-a5a3-d3eb4a5abf18",
+        "visit_result": "no_responsible_person",
+        "customer_name": "سندريلا"
+      },
+      "longitude": "31.3377045",
+      "description": "سندريلا — no_responsible_person"
+    },
+    {
+      "time": "2026-06-16T17:14:35.597258+00:00",
+      "type": "new_customer",
+      "title": "عميل جديد",
+      "latitude": null,
+      "metadata": {
+        "customer_id": "44a50f90-8545-4873-a791-fa36cc628d26",
+        "customer_name": "اولاد نصار"
+      },
+      "longitude": null,
+      "description": "اولاد نصار"
+    },
+    {
+      "time": "2026-06-16T17:15:24.802338+00:00",
+      "type": "visit_start",
+      "title": "بداية زيارة",
+      "latitude": "30.1414972",
+      "metadata": {
+        "visit_id": "7bebfab8-cf59-4df1-8371-219d223816bb",
+        "customer_id": "44a50f90-8545-4873-a791-fa36cc628d26",
+        "customer_name": "اولاد نصار"
+      },
+      "longitude": "31.3361634",
+      "description": "اولاد نصار"
+    },
+    {
+      "time": "2026-06-16T17:15:28.938896+00:00",
+      "type": "visit_end",
+      "title": "نهاية زيارة",
+      "latitude": "30.1414972",
+      "metadata": {
+        "visit_id": "7bebfab8-cf59-4df1-8371-219d223816bb",
+        "customer_id": "44a50f90-8545-4873-a791-fa36cc628d26",
+        "visit_result": "no_responsible_person",
+        "customer_name": "اولاد نصار"
+      },
+      "longitude": "31.3361634",
+      "description": "اولاد نصار — no_responsible_person"
+    },
+    {
+      "time": "2026-06-16T17:51:47.984137+00:00",
+      "type": "new_customer",
+      "title": "عميل جديد",
+      "latitude": null,
+      "metadata": {
+        "customer_id": "39b93508-89d4-447d-8af4-086257c679de",
+        "customer_name": "فريده"
+      },
+      "longitude": null,
+      "description": "فريده"
+    },
+    {
+      "time": "2026-06-16T17:52:02.76476+00:00",
+      "type": "visit_start",
+      "title": "بداية زيارة",
+      "latitude": "30.1395430",
+      "metadata": {
+        "visit_id": "1cdc4a71-36cf-4560-b870-9174ffae6308",
+        "customer_id": "39b93508-89d4-447d-8af4-086257c679de",
+        "customer_name": "فريده"
+      },
+      "longitude": "31.3221072",
+      "description": "فريده"
+    },
+    {
+      "time": "2026-06-16T17:52:09.020139+00:00",
+      "type": "visit_end",
+      "title": "نهاية زيارة",
+      "latitude": "30.1395430",
+      "metadata": {
+        "visit_id": "1cdc4a71-36cf-4560-b870-9174ffae6308",
+        "customer_id": "39b93508-89d4-447d-8af4-086257c679de",
+        "visit_result": "follow_up",
+        "customer_name": "فريده"
+      },
+      "longitude": "31.3221072",
+      "description": "فريده — follow_up"
+    },
+    {
+      "time": "2026-06-16T18:06:16.905407+00:00",
+      "type": "new_customer",
+      "title": "عميل جديد",
+      "latitude": null,
+      "metadata": {
+        "customer_id": "a1bbf95f-5599-41de-962f-c54dc693ef4f",
+        "customer_name": "لمار"
+      },
+      "longitude": null,
+      "description": "لمار"
+    },
+    {
+      "time": "2026-06-16T18:06:36.796727+00:00",
+      "type": "visit_start",
+      "title": "بداية زيارة",
+      "latitude": "30.1400551",
+      "metadata": {
+        "visit_id": "fd7fe064-f2bd-42e9-90a4-34816c2bfce0",
+        "customer_id": "a1bbf95f-5599-41de-962f-c54dc693ef4f",
+        "customer_name": "لمار"
+      },
+      "longitude": "31.3214418",
+      "description": "لمار"
+    },
+    {
+      "time": "2026-06-16T18:06:40.139949+00:00",
+      "type": "visit_end",
+      "title": "نهاية زيارة",
+      "latitude": "30.1400551",
+      "metadata": {
+        "visit_id": "fd7fe064-f2bd-42e9-90a4-34816c2bfce0",
+        "customer_id": "a1bbf95f-5599-41de-962f-c54dc693ef4f",
+        "visit_result": "follow_up",
+        "customer_name": "لمار"
+      },
+      "longitude": "31.3214418",
+      "description": "لمار — follow_up"
+    },
+    {
+      "time": "2026-06-16T18:06:45.022755+00:00",
+      "type": "visit_start",
+      "title": "بداية زيارة",
+      "latitude": "30.1400551",
+      "metadata": {
+        "visit_id": "27f59732-d701-47a8-8100-473dd17954fb",
+        "customer_id": "39b93508-89d4-447d-8af4-086257c679de",
+        "customer_name": "فريده"
+      },
+      "longitude": "31.3214418",
+      "description": "فريده"
+    },
+    {
+      "time": "2026-06-16T18:08:29.202239+00:00",
+      "type": "visit_end",
+      "title": "نهاية زيارة",
+      "latitude": "30.1395518",
+      "metadata": {
+        "visit_id": "27f59732-d701-47a8-8100-473dd17954fb",
+        "customer_id": "39b93508-89d4-447d-8af4-086257c679de",
+        "visit_result": "follow_up",
+        "customer_name": "فريده"
+      },
+      "longitude": "31.3217528",
+      "description": "فريده — follow_up"
+    },
+    {
+      "time": "2026-06-16T18:24:33.20051+00:00",
+      "type": "new_customer",
+      "title": "عميل جديد",
+      "latitude": null,
+      "metadata": {
+        "customer_id": "3188a854-8891-489f-8c97-8aec85c4be5d",
+        "customer_name": "قضاعى المؤسسه"
+      },
+      "longitude": null,
+      "description": "قضاعى المؤسسه"
+    },
+    {
+      "time": "2026-06-16T18:24:43.460902+00:00",
+      "type": "visit_start",
+      "title": "بداية زيارة",
+      "latitude": "30.1415580",
+      "metadata": {
+        "visit_id": "24918699-fff0-4162-9e48-5e7b45cea2bc",
+        "customer_id": "3188a854-8891-489f-8c97-8aec85c4be5d",
+        "customer_name": "قضاعى المؤسسه"
+      },
+      "longitude": "31.3345376",
+      "description": "قضاعى المؤسسه"
+    },
+    {
+      "time": "2026-06-16T18:24:47.597756+00:00",
+      "type": "visit_end",
+      "title": "نهاية زيارة",
+      "latitude": "30.1415586",
+      "metadata": {
+        "visit_id": "24918699-fff0-4162-9e48-5e7b45cea2bc",
+        "customer_id": "3188a854-8891-489f-8c97-8aec85c4be5d",
+        "visit_result": "no_responsible_person",
+        "customer_name": "قضاعى المؤسسه"
+      },
+      "longitude": "31.3350491",
+      "description": "قضاعى المؤسسه — no_responsible_person"
+    },
+    {
+      "time": "2026-06-16T18:25:12.190159+00:00",
+      "type": "workday_end",
+      "title": "إنهاء يوم العمل",
+      "latitude": "30.1414781",
+      "metadata": {
+        "session_id": "274b9b0c-1165-42bd-8da3-287f46dd78f2"
+      },
+      "longitude": "31.3356395",
+      "description": ""
+    }
+  ],
+  "session": {
+    "id": "274b9b0c-1165-42bd-8da3-287f46dd78f2",
+    "status": "completed",
+    "end_time": "2026-06-16T18:25:12.190159+00:00",
+    "start_time": "2026-06-16T11:59:38.108055+00:00",
+    "attendance_status": "late"
+  },
+  "employee": {
+    "id": "c4c55b1e-e2f3-4d97-859d-a1b19a583b79",
+    "code": "EMP-2026-000012",
+    "full_name": "حسين علي",
+    "role_name": "مندوب مبيعات",
+    "manager_name": "خالد سعيد"
+  }
+}

@@ -12,10 +12,11 @@ export interface HeartbeatStatus {
 }
 
 export interface SessionTimeoutEvent {
-  action: 'ok' | 'warning_issued' | 'warning_active' | 'auto_closed'
+  action: 'ok' | 'warning_issued' | 'warning_active' | 'warning_cleared' | 'auto_closed' | 'completed'
   reason?: string
   message?: string
-  inactive_hours?: number
+  inactive_minutes?: number
+  warning_remaining_seconds?: number
 }
 
 type HeartbeatListener = (status: HeartbeatStatus) => void

@@ -116,6 +116,28 @@ export const attendanceService = {
     return data as Record<string, unknown>
   },
 
+  async getAutoClosedToday() {
+    const token = getToken()
+    const { data, error } = await supabase.rpc('get_auto_closed_sessions_today', { p_token: token })
+    if (error) throw error
+    return data as Array<{
+      employee_name: string
+      employee_code: string
+      close_reason: string
+      last_seen_at: string
+      auto_closed_at: string
+      start_time: string
+      date: string
+    }>
+  },
+
+  async getAutoClosedMonth() {
+    const token = getToken()
+    const { data, error } = await supabase.rpc('get_auto_closed_sessions_month', { p_token: token })
+    if (error) throw error
+    return data as { total_count: number; by_reason: Record<string, number>; details: Array<Record<string, unknown>> }
+  },
+
   async getEmployeeTimeline(employeeId: string, date?: string) {
     const token = getToken()
     const { data, error } = await supabase.rpc('get_employee_day_timeline', {

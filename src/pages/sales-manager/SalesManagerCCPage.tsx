@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { formatCurrencyShort, toEnglishDigits, safeFormatDateTime } from '../../utils/format'
 import { locationService } from '../../services/location'
+import { attendanceService } from '../../services/attendance'
 import { getCurrentLocation } from '../../services/gpsService'
 import { VisitCard } from '../../components/visits/VisitCard'
 import toast from 'react-hot-toast'
@@ -217,6 +218,12 @@ export default function SalesManagerCCPage() {
   const [visitDetailStartAddr, setVisitDetailStartAddr] = useState('')
   const [visitDetailEndAddr, setVisitDetailEndAddr] = useState('')
 
+  /* Auto-closed session counters */
+  const [autoClosedTodayCount, setAutoClosedTodayCount] = useState(0)
+  const [autoClosedMonthCount, setAutoClosedMonthCount] = useState(0)
+  const [autoClosedTodayDetails, setAutoClosedTodayDetails] = useState<any[]>([])
+  const [showAutoClosedModal, setShowAutoClosedModal] = useState(false)
+
   const token = getToken()
 
   const fetchData = useCallback(async () => {
@@ -234,6 +241,15 @@ export default function SalesManagerCCPage() {
       setData(result as unknown as SalesManagerCC)
       setLoading(false)
     }
+    attendanceService.getAutoClosedToday().then((r) => {
+      if (r) {
+        setAutoClosedTodayDetails(r as any[])
+        setAutoClosedTodayCount(r.length)
+      }
+    }).catch(() => {})
+    attendanceService.getAutoClosedMonth().then((r) => {
+      if (r) setAutoClosedMonthCount((r as any).total_count ?? 0)
+    }).catch(() => {})
   }, [token])
 
   useEffect(() => { fetchData(); const id = setInterval(fetchData, POLLING_INTERVAL); return () => clearInterval(id) }, [fetchData])
@@ -565,14 +581,40 @@ export default function SalesManagerCCPage() {
         </div>
       )}
 
-      {/* 2. Attendance redirects to Operations Center */}
+      {/* 2. Attendance */}
       {activeSection === 'attendance' && (
-        <div className="bg-white rounded-xl border border-border p-8 text-center space-y-3">
-          <p className="text-sm text-text-secondary">يتم تحويلك إلى شاشة الحضور والانصراف كاملة...</p>
-          <button onClick={() => nav('/attendance/operations')}
-            className="text-sm bg-primary/10 text-primary px-6 py-2 rounded-lg font-semibold border border-primary/20">
-            اضغط هنا إذا لم يتم التحويل تلقائياً
-          </button>
+        <div className="space-y-3">
+          <div className="bg-white rounded-xl border border-border p-8 text-center space-y-3">
+            <p className="text-sm text-text-secondary">يتم تحويلك إلى شاشة الحضور والانصراف كاملة...</p>
+            <button onClick={() => nav('/attendance/operations')}
+              className="text-sm bg-primary/10 text-primary px-6 py-2 rounded-lg font-semibold border border-primary/20">
+              اضغط هنا إذا لم يتم التحويل تلقائياً
+            </button>
+          </div>
+          <div className="bg-white rounded-xl border border-border p-4">
+            <h3 className="text-sm font-bold text-text mb-3">ملخص الحضور</h3>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <MiniStat label="يعمل الآن" value={fmt(att?.active_count ?? 0)} color="text-blue-700" />
+              <MiniStat label="في استراحة" value={fmt(att?.on_break_count ?? 0)} color="text-amber-700" />
+              <MiniStat label="أنهوا اليوم" value={fmt(att?.ended_count ?? 0)} color="text-green-700" />
+              <MiniStat label="لم يبدأوا" value={fmt(att?.no_start_count ?? 0)} color="text-gray-500" />
+            </div>
+            {(autoClosedTodayCount > 0 || autoClosedMonthCount > 0) && (
+              <div className="mt-3 border-t border-border/50 pt-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <button onClick={() => setShowAutoClosedModal(true)}
+                    className="bg-red-50 rounded-xl py-3 text-center active:bg-red-100 transition-colors">
+                    <div className="text-lg font-bold text-red-700">{autoClosedTodayCount}</div>
+                    <div className="text-[9px] text-text-secondary">إنهاء تلقائي اليوم</div>
+                  </button>
+                  <div className="bg-orange-50 rounded-xl py-3 text-center">
+                    <div className="text-lg font-bold text-orange-700">{autoClosedMonthCount}</div>
+                    <div className="text-[9px] text-text-secondary">إنهاء تلقائي الشهر</div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -1036,6 +1078,38 @@ export default function SalesManagerCCPage() {
         </div>
       )}
 
+      {/* Auto-Closed Today Modal */}
+      {showAutoClosedModal && (
+        <div className="fixed inset-0 z-20 flex items-end sm:items-center justify-center bg-black/30">
+          <div className="w-full sm:max-w-sm bg-white rounded-t-2xl sm:rounded-2xl p-4 max-h-[70vh] overflow-y-auto space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-bold text-text">جلسات الإنهاء التلقائي اليوم</h3>
+              <button type="button" onClick={() => setShowAutoClosedModal(false)} className="text-xs text-text-secondary">إغلاق</button>
+            </div>
+            {autoClosedTodayDetails.length === 0 ? (
+              <p className="text-center text-xs text-text-secondary py-6">لا توجد جلسات</p>
+            ) : (
+              <div className="space-y-2">
+                {autoClosedTodayDetails.map((s: any, i: number) => (
+                  <div key={i} className="bg-surface rounded-lg p-3 border border-border/50">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-semibold text-text">{s.employee_name}</span>
+                      <span className="text-[10px] text-text-secondary">{s.employee_code}</span>
+                    </div>
+                    <div className="text-[11px] text-text-secondary mt-1">
+                      السبب: {s.close_reason === 'no_activity_timeout' ? 'انتهت المهلة' : s.close_reason === 'day_rollover' ? 'تجاوز منتصف الليل' : s.close_reason}
+                    </div>
+                    <div className="text-[10px] text-text-secondary">
+                      {s.start_time ? 'البداية: ' + s.start_time : ''}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       <div className="text-center text-[10px] text-text-secondary pb-4">
         يتم التحديث تلقائياً كل 30 ثانية
       </div>
@@ -1098,3 +1172,4 @@ function TargetCard({ label, target, actual, pct }: { label: string; target: num
     </div>
   )
 }
+
