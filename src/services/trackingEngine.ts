@@ -77,6 +77,8 @@ class TrackingEngine {
     return () => this._listeners.delete(fn)
   }
 
+  private _telemetry = { captured: 0, synced: 0, queued: 0, failed: 0, dropped: 0 }
+
   private _notify() {
     trackingQueue.count().then((pendingCount) => {
       const s: TrackingStatus = {
@@ -99,12 +101,38 @@ class TrackingEngine {
   }
 
   private async _storeAuth() {
-    if (this._authStored) return
+    if (this._authStored && this._sessionId) return
     const token = getToken()
-    if (!token || !this._employeeId) return
-    const info = { supabaseUrl: SUPABASE_URL, anonKey: SUPABASE_ANON_KEY, token, employeeId: this._employeeId }
+    if (!token || !this._employeeId) {
+      failureLogger.log('auth_missing', `Cannot store auth: missing ${!token ? 'token' : 'employeeId'}`, { sessionId: this._sessionId })
+      return
+    }
+    const info = { supabaseUrl: SUPABASE_URL, anonKey: SUPABASE_ANON_KEY, token, employeeId: this._employeeId, sessionId: this._sessionId ?? undefined }
     await trackingQueue.storeAuth(info)
+    if (this._sessionId) await trackingQueue.storeSessionId(this._sessionId)
     this._authStored = true
+  }
+
+  private async _restoreSession(): Promise<boolean> {
+    if (this._sessionId) return true
+    try {
+      const stored = await trackingQueue.getSessionId()
+      if (stored) {
+        this._sessionId = stored
+        failureLogger.log('session_restored', `Session restored from storage: ${stored}`, { sessionId: stored })
+        return true
+      }
+    } catch {
+      try {
+        const legacy = localStorage.getItem('tracking_session_id')
+        if (legacy) {
+          this._sessionId = legacy
+          failureLogger.log('session_restored', `Session restored from localStorage: ${legacy}`, { sessionId: legacy })
+          return true
+        }
+      } catch {}
+    }
+    return false
   }
 
   private async _registerBackgroundSync() {
@@ -113,7 +141,9 @@ class TrackingEngine {
       if ('sync' in reg) {
         await (reg as any).sync.register('sync-tracking-points')
       }
-    } catch {}
+    } catch (err) {
+      failureLogger.log('sync_failed', `Background sync registration failed: ${err instanceof Error ? err.message : String(err)}`, { sessionId: this._sessionId })
+    }
   }
 
   async start(sessionId: string, employeeId?: string, intervalSeconds?: number) {
@@ -221,7 +251,12 @@ class TrackingEngine {
     try {
       const { default: TrackingService } = await import('../capacitor-plugins/tracking-service')
       const token = getToken()
-      if (!token || !this._sessionId) return
+      if (!token || !this._sessionId) {
+        failureLogger.log('gps_denied', `Native service not started: missing ${!token ? 'token' : 'sessionId'}`, { sessionId: this._sessionId })
+        this._nativeService = false
+        this._startWatch()
+        return
+      }
       await TrackingService.start({
         sessionId: this._sessionId,
         token,
@@ -301,6 +336,7 @@ class TrackingEngine {
 
   private _captureFromPositionImmediate(loc: { latitude: number; longitude: number; accuracy: number }) {
     this._lastPointAt = new Date().toISOString()
+    this._telemetry.captured++
     try {
       localStorage.setItem('tracking_last_location', JSON.stringify({
         latitude: loc.latitude,
@@ -328,9 +364,12 @@ class TrackingEngine {
           this._lastSyncAt = new Date().toISOString()
           lastSeenTracker.setSync(this._lastSyncAt!)
         }).catch(() => {
+          this._telemetry.queued++
+          failureLogger.log('point_queued', 'Point queued after send failure', { sessionId: this._sessionId })
           trackingQueue.addPoint(point).then(() => this._registerBackgroundSync())
         })
       } else {
+        this._telemetry.queued++
         trackingQueue.addPoint(point).then(() => this._registerBackgroundSync())
       }
       this._notify()
@@ -341,9 +380,28 @@ class TrackingEngine {
 
   private async _sendPoints(points: Array<Omit<any, 'id' | 'retries'>>) {
     const token = getToken()
-    if (!token || !this._sessionId) return
+    if (!token || !this._sessionId) {
+      const restored = !this._sessionId ? await this._restoreSession() : false
+      if (!token || (!this._sessionId && !restored)) {
+        failureLogger.log('send_points_skipped', `Cannot send ${points.length} points: missing ${!token ? 'token' : 'sessionId'}. Points queued for retry.`, { sessionId: this._sessionId, count: points.length })
+        this._telemetry.dropped += points.length
+        throw new Error(`Cannot send points: ${!token ? 'no token' : 'no sessionId'}`)
+      }
+    }
+
+    const invalid = points.filter((p) => p.latitude == null || p.longitude == null)
     const validPoints = points.filter((p) => p.latitude != null && p.longitude != null)
-    if (validPoints.length === 0) return
+
+    if (invalid.length > 0) {
+      failureLogger.log('send_points_invalid', `${invalid.length} of ${points.length} points have null lat/lng`, { sessionId: this._sessionId, count: invalid.length })
+    }
+
+    if (validPoints.length === 0) {
+      failureLogger.log('send_points_invalid', `All ${points.length} points have null lat/lng — throwing for retry`, { sessionId: this._sessionId })
+      this._telemetry.dropped += points.length
+      throw new Error('No valid points to send')
+    }
+
     const { error } = await supabase.rpc('sync_tracking_points', {
       p_token: token,
       p_session_id: this._sessionId,
@@ -359,11 +417,21 @@ class TrackingEngine {
         point_type: p.point_type,
       })),
     })
-    if (error) throw error
+    if (error) {
+      failureLogger.log('sync_failed', `sync_tracking_points RPC error: ${error.message}`, { sessionId: this._sessionId, count: validPoints.length })
+      throw error
+    }
+    this._telemetry.synced += validPoints.length
   }
 
   private async _flush() {
-    if (!navigator.onLine) return
+    if (!navigator.onLine) {
+      this._telemetry.failed++
+      return
+    }
+    if (!this._sessionId) {
+      await this._restoreSession()
+    }
     const pending = await trackingQueue.getPending()
     if (pending.length === 0) return
     const batchSize = 50
@@ -376,7 +444,8 @@ class TrackingEngine {
         )
         this._lastSyncAt = new Date().toISOString()
         lastSeenTracker.setSync(this._lastSyncAt)
-      } catch {
+      } catch (err) {
+        failureLogger.log('flush_failed', `Flush batch failed: ${err instanceof Error ? err.message : String(err)}`, { sessionId: this._sessionId, batchSize: batch.length })
         await trackingQueue.incrementRetries(
           batch.filter((p) => p.id != null).map((p) => p.id!)
         )

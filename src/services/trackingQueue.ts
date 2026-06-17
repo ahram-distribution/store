@@ -21,6 +21,7 @@ export interface AuthInfo {
   anonKey: string
   token: string
   employeeId: string
+  sessionId?: string
 }
 
 const DB_NAME = 'ahram-tracking'
@@ -189,6 +190,34 @@ export const trackingQueue = {
         tx.onerror = () => reject(tx.error)
       })
     } catch {}
+  },
+
+  async storeSessionId(sessionId: string): Promise<void> {
+    try {
+      const db = await openDB()
+      const tx = db.transaction('auth_store', 'readwrite')
+      tx.objectStore('auth_store').put({ key: 'current_session', sessionId })
+      await new Promise<void>((resolve, reject) => {
+        tx.oncomplete = () => resolve()
+        tx.onerror = () => reject(tx.error)
+      })
+    } catch {
+      try { localStorage.setItem('tracking_session_id', sessionId) } catch {}
+    }
+  },
+
+  async getSessionId(): Promise<string | null> {
+    try {
+      const db = await openDB()
+      const tx = db.transaction('auth_store', 'readonly')
+      const req = tx.objectStore('auth_store').get('current_session')
+      return new Promise((resolve) => {
+        tx.oncomplete = () => resolve(req.result?.sessionId ?? null)
+        tx.onerror = () => resolve(null)
+      })
+    } catch {
+      try { return localStorage.getItem('tracking_session_id') } catch { return null }
+    }
   },
 
   async storeAuth(info: AuthInfo): Promise<void> {

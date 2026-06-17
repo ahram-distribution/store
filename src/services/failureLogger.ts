@@ -1,10 +1,12 @@
-const MAX_LOGS = 100
+const MAX_LOGS = 200
 const STORAGE_KEY = 'pwa_tracking_failures'
+
+export type FailureType = 'gps_denied' | 'offline' | 'tab_suspended' | 'browser_closed' | 'sync_failed' | 'heartbeat_failed' | 'visibility' | 'session_recovery' | 'send_points_skipped' | 'send_points_invalid' | 'session_restored' | 'point_queued' | 'flush_failed' | 'queue_add_failed' | 'auth_missing'
 
 export interface FailureLog {
   id: string
   timestamp: string
-  type: 'gps_denied' | 'offline' | 'tab_suspended' | 'browser_closed' | 'sync_failed' | 'heartbeat_failed' | 'visibility' | 'session_recovery'
+  type: FailureType
   message: string
   details?: Record<string, unknown>
 }
@@ -23,12 +25,20 @@ function save(logs: FailureLog[]) {
 }
 
 export const failureLogger = {
-  log(type: FailureLog['type'], message: string, details?: Record<string, unknown>) {
+  log(typeOrObj: FailureType | { category: string; detail: string; sessionId?: string | null }, message?: string, details?: Record<string, unknown>) {
+    if (typeof typeOrObj === 'string') {
+      this._log(typeOrObj, message || '', details)
+    } else {
+      this._log(typeOrObj.category as FailureType, typeOrObj.detail, { sessionId: typeOrObj.sessionId })
+    }
+  },
+
+  _log(type: string, message: string, details?: Record<string, unknown>) {
     const logs = load()
     logs.unshift({
       id: `${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
       timestamp: new Date().toISOString(),
-      type,
+      type: type as FailureType,
       message,
       details,
     })

@@ -84,11 +84,13 @@ async function syncTrackingPoints(batch: any[], auth: any, supabaseUrl: string) 
     if (p.point_type === 'heartbeat') return true
     return p.latitude != null && p.longitude != null
   })
-  if (validBatch.length === 0) return { synced: 0, rejected: batch.length }
+  if (validBatch.length === 0) return { synced: 0, syncedIds: [], rejected: batch.length, rejectedDetails: 'all null lat/lng' }
 
   const sessionIds = [...new Set(validBatch.map((p: any) => p.session_id).filter(Boolean))]
   let synced = 0
+  let syncedIds: number[] = []
   let rejected = 0
+  let rejectedDetails = ''
 
   for (const sid of sessionIds) {
     const sessionBatch = validBatch.filter((p: any) => p.session_id === sid)
@@ -123,15 +125,20 @@ async function syncTrackingPoints(batch: any[], auth: any, supabaseUrl: string) 
         if (res.ok) {
           const result = await res.json()
           if (!result.error) {
-            synced += gpsPoints.filter((p: any) => p.id != null).length
+            const ids = gpsPoints.filter((p: any) => p.id != null).map((p: any) => p.id)
+            synced += ids.length
+            syncedIds.push(...ids)
           } else {
             rejected += gpsPoints.length
+            rejectedDetails += `session ${sid} RPC error; `
           }
         } else {
           rejected += gpsPoints.length
+          rejectedDetails += `session ${sid} HTTP ${res.status}; `
         }
-      } catch {
+      } catch (err) {
         rejected += gpsPoints.length
+        rejectedDetails += `session ${sid} network error; `
       }
     }
 
@@ -149,7 +156,9 @@ async function syncTrackingPoints(batch: any[], auth: any, supabaseUrl: string) 
         if (res.ok) {
           const result = await res.json()
           if (!result.error) {
-            synced += heartbeats.filter((p: any) => p.id != null).length
+            const ids = heartbeats.filter((p: any) => p.id != null).map((p: any) => p.id)
+            synced += ids.length
+            syncedIds.push(...ids)
           } else {
             rejected += heartbeats.length
           }
@@ -162,13 +171,20 @@ async function syncTrackingPoints(batch: any[], auth: any, supabaseUrl: string) 
     }
   }
 
-  return { synced, rejected }
+  return { synced, syncedIds, rejected, rejectedDetails }
 }
 
 async function flushQueue() {
   try {
     const auth = await getAuth()
-    if (!auth || !auth.token || !auth.supabaseUrl) return
+    if (!auth || !auth.token || !auth.supabaseUrl) {
+      const cnt = await getPendingPoints().then(p => p.length).catch(() => 0)
+      if (cnt > 0) {
+        console.warn(`[SW] flushQueue: no auth available, ${cnt} points pending (will retry)`)
+        await setFlag('last_auth_missing', new Date().toISOString())
+      }
+      return
+    }
 
     const supabaseUrl = (auth.supabaseUrl || SUPABASE_URL).replace(/\/+$/, '')
     const points = await getPendingPoints()
@@ -181,21 +197,20 @@ async function flushQueue() {
     for (let i = 0; i < points.length; i += batchSize) {
       const batch = points.slice(i, i + batchSize)
       try {
-        const { synced } = await syncTrackingPoints(batch, auth, supabaseUrl)
+        const { synced, syncedIds } = await syncTrackingPoints(batch, auth, supabaseUrl)
 
-        const idsToRemove = batch
-          .filter((p: any) => p.id != null)
-          .map((p: any) => p.id)
-        if (idsToRemove.length > 0) {
+        // ONLY delete points that were successfully synced
+        // Failed/rejected/invalid points stay in queue for retry
+        if (syncedIds.length > 0) {
           const db = await openDB()
           const tx = db.transaction('pending_points', 'readwrite')
           const store = tx.objectStore('pending_points')
-          for (const id of idsToRemove) store.delete(id)
+          for (const id of syncedIds) store.delete(id)
           await new Promise<void>((resolve, reject) => {
             tx.oncomplete = () => resolve()
             tx.onerror = () => reject(tx.error)
           })
-          totalRemoved += idsToRemove.length
+          totalRemoved += syncedIds.length
         }
         totalSynced += synced
       } catch {

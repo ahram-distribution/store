@@ -6,6 +6,17 @@ import { attendanceService } from '../../services/attendance'
 import { useAuthStore } from '../../store/auth'
 import { formatCurrencyShort } from '../../utils/format'
 
+interface TrackingSessionStat {
+  employee_code: string
+  employee_name: string
+  start_time: string
+  end_time: string
+  duration_minutes: number
+  expected_points: number
+  captured_points: number
+  capture_rate: number
+}
+
 interface DashboardData {
   new_orders: number; pending_orders: number; active_visits: number; today_visits: number
   new_customers: number; stagnant_customers: number; daily_sales: number; monthly_sales: number
@@ -81,6 +92,11 @@ export default function UpperManagementDashboard() {
   const [autoClosedMonth, setAutoClosedMonth] = useState<AutoClosedMonth | null>(null)
   const [showAutoClosedModal, setShowAutoClosedModal] = useState(false)
   const [healthData, setHealthData] = useState<any>(null)
+  const [trackingStats, setTrackingStats] = useState<TrackingSessionStat[]>([])
+
+  function getToken(): string | null {
+    try { return localStorage.getItem('session_token') } catch { return null }
+  }
 
   useEffect(() => {
     const token = getToken()
@@ -93,7 +109,8 @@ export default function UpperManagementDashboard() {
       attendanceService.getAutoClosedToday().catch(() => []),
       attendanceService.getAutoClosedMonth().catch(() => null),
       supabase.rpc('get_attendance_health', { p_token: token }).then(r => r, () => null),
-    ]).then(([umd, mgmt, perfResult, attResult, autoToday, autoMonth, health]) => {
+      supabase.rpc('get_tracking_session_stats', { p_token: token, p_employee_id: null, p_date: new Date().toISOString().slice(0,10) }).then(r => r, () => null),
+    ]).then(([umd, mgmt, perfResult, attResult, autoToday, autoMonth, health, tracking]) => {
       if (!umd.error && umd.data) setData(umd.data as DashboardData)
       if (!mgmt.error && mgmt.data) setDashMgmt(mgmt.data as DashMgmt)
       if (!perfResult.error && perfResult.data) {
@@ -107,6 +124,7 @@ export default function UpperManagementDashboard() {
       if (autoToday) setAutoClosedToday(autoToday as AutoClosedSession[])
       if (autoMonth) setAutoClosedMonth(autoMonth as AutoClosedMonth)
       if (health?.data && !health.error) setHealthData(health.data)
+      if (tracking?.data && !tracking.error) setTrackingStats(tracking.data as TrackingSessionStat[])
       setLoading(false)
     })
   }, [])
@@ -282,6 +300,42 @@ export default function UpperManagementDashboard() {
             <span>آخر 30 يوم — تلقائي: {healthData.month?.auto_closed_count ?? 0}</span>
             <span>استرجاع: {healthData.month?.recovery_count ?? 0}</span>
             <span>متوسط ساعات: {healthData.month?.avg_work_hours ?? 0}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Tracking Reliability Report */}
+      {trackingStats.length > 0 && (
+        <div className="bg-white rounded-xl border border-border p-3" dir="rtl">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[13px] font-semibold text-text">موثوقية التتبع GPS</span>
+            <span className="text-[9px] text-text-secondary">اليوم</span>
+          </div>
+          <div className="space-y-1.5">
+            {trackingStats.map((s, i) => (
+              <div key={i} className="flex items-center justify-between bg-surface rounded-lg px-2.5 py-1.5 border border-border/50">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="text-[11px] font-semibold text-text truncate">{s.employee_name}</span>
+                  <span className="text-[9px] text-text-secondary">{s.employee_code}</span>
+                </div>
+                <div className="flex items-center gap-3 text-[10px] text-text-secondary shrink-0">
+                  <span>{s.captured_points}/{s.expected_points}</span>
+                  <span className={`font-bold ${s.capture_rate >= 80 ? 'text-green-600' : s.capture_rate >= 50 ? 'text-amber-600' : 'text-red-600'}`}>
+                    {s.capture_rate}%
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="border-t border-border pt-1.5 mt-1.5 text-[9px] text-text-secondary flex justify-between">
+            <span>
+              الإجمالي: {trackingStats.reduce((a, s) => a + s.captured_points, 0)} / {trackingStats.reduce((a, s) => a + s.expected_points, 0)} نقطة
+            </span>
+            <span>
+              {trackingStats.length > 0
+                ? Math.round(trackingStats.reduce((a, s) => a + s.captured_points, 0) / Math.max(trackingStats.reduce((a, s) => a + s.expected_points, 0), 1) * 100) + '%'
+                : '0%'}
+            </span>
           </div>
         </div>
       )}
