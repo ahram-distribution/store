@@ -135,7 +135,7 @@ export default function CoverageMapPage() {
         <button onClick={() => navigate(-1)} className="text-lg shrink-0 ml-1">→</button>
         <div className="flex gap-3 text-[10px] text-text-secondary shrink-0">
           <span className="whitespace-nowrap">📊 العملاء: <strong className="text-text">{fmtNum(summary?.total_customers)}</strong></span>
-          <span className="whitespace-nowrap"><span style="color:#22c55e">🟢</span> <span style="color:#eab308">🟡</span> <span style="color:#f97316">🟠</span> <strong className="text-green-700">{fmtNum(summary?.active_employees)}</strong></span>
+          <span className="whitespace-nowrap"><span style={{color:'#22c55e'}}>🟢</span><span style={{color:'#eab308'}}>🟡</span><span style={{color:'#f97316'}}>🟠</span> <strong className="text-green-700">{fmtNum(summary?.active_employees)}</strong></span>
           <span className="whitespace-nowrap">🏙 المحافظات: <strong className="text-text">{fmtNum(summary?.covered_governorates)}</strong></span>
           <span className="whitespace-nowrap">👤 زيارات اليوم: <strong className="text-blue-700">{fmtNum(summary?.visited_customers_today)}</strong></span>
           <span className="whitespace-nowrap">📦 طلبات اليوم: <strong className="text-amber-700">{fmtNum(summary?.today_orders)}</strong></span>
