@@ -198,7 +198,10 @@ export default function EmployeeWorkdayDetailPage() {
       const ledgerRes = await supabase.rpc('get_work_hours_ledger', {
         p_token: token, p_employee_id: employeeId, p_from: today, p_to: today,
       })
-      if (ledgerRes.data && Array.isArray(ledgerRes.data)) setWorkHoursLedger(ledgerRes.data as WorkHoursLedgerEntry[])
+      if (ledgerRes.data && typeof ledgerRes.data === 'object' && !('error' in (ledgerRes.data as Record<string, unknown>))) {
+        const ledgerData = ledgerRes.data as Record<string, unknown>
+        if (Array.isArray(ledgerData.ledger)) setWorkHoursLedger(ledgerData.ledger as WorkHoursLedgerEntry[])
+      }
 
       setLoading(false)
     }
@@ -259,12 +262,58 @@ export default function EmployeeWorkdayDetailPage() {
 
         {session && (
           <>
-            {/* ===== KPI SUMMARY (compact) ===== */}
+            {/* ===== SUMMARY CARD ===== */}
             <div className="bg-white rounded-xl shadow-sm p-3 mb-3">
               <div className="flex items-center justify-between mb-2">
-                <h2 className="text-xs font-bold text-gray-700">ملخص الإنتاج اليومي</h2>
+                <h2 className="text-xs font-bold text-gray-700">ملخص اليوم</h2>
                 <Badge status={session.attendance_status} />
               </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="bg-gray-50 rounded-lg p-2">
+                  <div className="text-[9px] text-gray-500">بداية اليوم</div>
+                  <div className="text-xs font-bold">{formatTime(session.start_time)}</div>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-2">
+                  <div className="text-[9px] text-gray-500">نهاية اليوم</div>
+                  <div className="text-xs font-bold">{session.end_time ? formatTime(session.end_time) : <span className="text-amber-500">مستمر</span>}</div>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-2">
+                  <div className="text-[9px] text-gray-500">إجمالي المدة</div>
+                  <div className="text-xs font-bold">{fmtMin(session.duration_minutes)}</div>
+                </div>
+                <div className="bg-green-50 rounded-lg p-2">
+                  <div className="text-[9px] text-gray-500">صافي العمل</div>
+                  <div className="text-xs font-bold text-green-700">{fmtMin(session.net_minutes)}</div>
+                </div>
+                <div className="bg-amber-50 rounded-lg p-2">
+                  <div className="text-[9px] text-gray-500">الاستراحة</div>
+                  <div className="text-xs font-bold text-amber-700">{fmtMin(session.break_minutes)}</div>
+                </div>
+                <div className="bg-indigo-50 rounded-lg p-2">
+                  <div className="text-[9px] text-gray-500">المسافة</div>
+                  <div className="text-xs font-bold text-indigo-700">{mapData ? `${mapData.total_distance_km} كم` : '--'}</div>
+                </div>
+                <div className="bg-blue-50 rounded-lg p-2">
+                  <div className="text-[9px] text-gray-500">الزيارات</div>
+                  <div className="text-xs font-bold text-blue-700">{session.visit_count}</div>
+                </div>
+                <div className="bg-purple-50 rounded-lg p-2">
+                  <div className="text-[9px] text-gray-500">الطلبات</div>
+                  <div className="text-xs font-bold text-purple-700">{session.order_count ?? 0}</div>
+                </div>
+                <div className="bg-emerald-50 rounded-lg p-2">
+                  <div className="text-[9px] text-gray-500">المبيعات</div>
+                  <div className="text-xs font-bold text-emerald-700">{(session.sales_value ?? 0).toLocaleString('en-EG')} ج.م</div>
+                </div>
+                <div className="bg-rose-50 rounded-lg p-2">
+                  <div className="text-[9px] text-gray-500">عملاء جدد</div>
+                  <div className="text-xs font-bold text-rose-700">{session.new_customer_count ?? 0}</div>
+                </div>
+              </div>
+            </div>
+
+            {/* ===== KPI SUMMARY (compact) ===== */}
+            <div className="bg-white rounded-xl shadow-sm p-3 mb-3">
               <div className="grid grid-cols-4 gap-1.5">
                 <KpiMini label="صافي العمل" value={fmtMin(session.net_minutes)} color="text-green-600" bg="bg-green-50" />
                 <KpiMini label="الطلبات" value={String(session.order_count ?? 0)} color="text-purple-600" bg="bg-purple-50" />
