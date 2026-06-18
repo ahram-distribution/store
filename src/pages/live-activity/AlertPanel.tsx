@@ -30,49 +30,48 @@ export function AlertPanel({ anomalies }: { anomalies: Anomaly[] }) {
 
   return (
     <div className="bg-white rounded-xl border border-border">
-      {/* Header */}
+      {/* Header — fully collapsible */}
       <button type="button" onClick={() => setCollapsed(!collapsed)}
         className="w-full flex items-center justify-between p-3 hover:bg-surface/50 transition-colors">
         <div className="flex items-center gap-1.5">
           <span className="text-sm">⚠️</span>
           <h2 className="text-xs font-semibold text-text">التنبيهات</h2>
           {anomalies.length > 0 && (
-            <span className="bg-danger text-white text-[9px] px-1.5 py-0.5 rounded-full font-bold">{anomalies.length}</span>
+            <span className="bg-danger text-white text-[11px] px-1.5 py-0.5 rounded-full font-bold">{anomalies.length}</span>
           )}
         </div>
         <div className="flex items-center gap-2">
-          {/* Severity counters */}
           {SEVERITY_ORDER.map((sev) => {
             const cfg = SEV_CONFIG[sev]
             return counts[sev] > 0 ? (
               <button key={sev} type="button" onClick={(e) => { e.stopPropagation(); setFilter(filter === sev ? null : sev) }}
-                className={`flex items-center gap-0.5 text-[9px] px-1.5 py-0.5 rounded-full border transition-all ${filter === sev ? `${cfg.bg} ${cfg.border} ring-1 ring-offset-1 ${cfg.border.replace('border-', 'ring-')}` : 'border-transparent hover:bg-surface'}`}>
+                className={`flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded-full border transition-all ${filter === sev ? `${cfg.bg} ${cfg.border} ring-1 ring-offset-1 ${cfg.border.replace('border-', 'ring-')}` : 'border-transparent hover:bg-surface'}`}>
                 <span>{cfg.icon}</span>
                 <span className={`font-bold ${cfg.color}`}>{counts[sev]}</span>
                 <span className="text-text-secondary">{cfg.label}</span>
               </button>
             ) : null
           })}
-          <span className="text-text-secondary text-[10px] transition-transform" style={{ transform: collapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }}>▾</span>
+          <span className="text-text-secondary text-xs transition-transform" style={{ transform: collapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }}>▾</span>
         </div>
       </button>
 
       {/* Body */}
       {!collapsed && (
-        <div className="px-3 pb-3 space-y-1 max-h-[200px] overflow-y-auto">
+        <div className="px-3 pb-3 space-y-1 max-h-[400px] overflow-y-auto">
           {filter && (
             <div className="flex items-center justify-between mb-1">
-              <span className="text-[9px] text-text-secondary">تصفية: {SEV_CONFIG[filter]?.label}</span>
-              <button type="button" onClick={() => setFilter(null)} className="text-[9px] text-primary">إظهار الكل</button>
+              <span className="text-xs text-text-secondary">تصفية: {SEV_CONFIG[filter]?.label}</span>
+              <button type="button" onClick={() => setFilter(null)} className="text-xs text-primary">إظهار الكل</button>
             </div>
           )}
           {filtered.length === 0 ? (
-            <p className="text-[11px] text-text-secondary text-center py-4">لا توجد تنبيهات</p>
+            <p className="text-xs text-text-secondary text-center py-4">لا توجد تنبيهات</p>
           ) : (
             filtered.map((a, i) => {
               const cfg = SEV_CONFIG[a.severity] || SEV_CONFIG.low
               return (
-                <div key={i} className={`flex items-start gap-2 text-[10px] rounded-lg border ${cfg.bg} ${cfg.border} p-2`}>
+                <div key={i} className={`flex items-start gap-2 text-xs rounded-lg border ${cfg.bg} ${cfg.border} p-2`}>
                   <span className={`mt-0.5 w-2 h-2 rounded-full shrink-0 ${cfg.dot}`} />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-2">

@@ -1,9 +1,12 @@
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 interface ActivityEvent {
   time: string; type: string; actor: string; summary: string
   ref_type: string; ref_id: string
 }
+
+const COLLAPSED_KEY = 'live_timeline_collapsed'
 
 const TYPE_CONFIG: Record<string, { icon: string; label: string; dot: string }> = {
   workday_start: { icon: '▶️', label: 'بدء يوم', dot: 'bg-green-500' },
@@ -40,39 +43,59 @@ function fmtTime(d: string): string {
 
 export function LiveTimeline({ events }: { events: ActivityEvent[] }) {
   const navigate = useNavigate()
+  const [collapsed, setCollapsed] = useState(() => {
+    try { return localStorage.getItem(COLLAPSED_KEY) === 'true' } catch { return false }
+  })
+
+  function toggleCollapsed() {
+    const next = !collapsed
+    setCollapsed(next)
+    try { localStorage.setItem(COLLAPSED_KEY, String(next)) } catch {}
+  }
+
   return (
-    <div className="bg-white rounded-xl border border-border p-3">
-      <div className="flex items-center gap-1.5 mb-3">
-        <span className="text-sm">📋</span>
-        <h2 className="text-xs font-semibold text-text">النشاط اللحظي</h2>
-      </div>
-      <div className="relative max-h-[300px] overflow-y-auto">
-        {events.length === 0 ? (
-          <p className="text-[11px] text-text-secondary text-center py-6">لا توجد أحداث حديثة</p>
-        ) : (
-          <div className="relative pr-4 before:absolute before:right-[7px] before:top-1 before:bottom-1 before:w-0.5 before:bg-border">
-            {events.map((ev, i) => {
-              const cfg = getTypeConfig(ev.type)
-              return (
-                <button key={i} type="button" onClick={() => handleActivityClick(ev, navigate)}
-                  className="w-full text-right block relative pb-3 last:pb-0 group">
-                  {/* Timeline dot */}
-                  <span className={`absolute right-[-10px] top-[5px] w-[10px] h-[10px] rounded-full border-2 border-white ${cfg.dot} shadow-sm`} />
-                  {/* Content */}
-                  <div className="pr-3 group-hover:bg-surface rounded-lg px-2 py-1 transition-colors active:bg-surface/80 -mr-2">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-[11px]">{cfg.icon}</span>
-                      <span className="text-[9px] text-text-secondary shrink-0">{fmtTime(ev.time)}</span>
-                      <span className="text-[10px] font-semibold text-text truncate">{ev.actor}</span>
+    <div className="bg-white rounded-xl border border-border">
+      {/* Header */}
+      <button type="button" onClick={toggleCollapsed}
+        className="w-full flex items-center justify-between p-3 hover:bg-surface/50 transition-colors">
+        <div className="flex items-center gap-1.5">
+          <span className="text-sm">📋</span>
+          <h2 className="text-xs font-semibold text-text">النشاط اللحظي</h2>
+          {events.length > 0 && (
+            <span className="bg-primary text-white text-[11px] px-1.5 py-0.5 rounded-full font-bold">{events.length}</span>
+          )}
+        </div>
+        <span className="text-text-secondary text-xs transition-transform" style={{ transform: collapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }}>▾</span>
+      </button>
+
+      {/* Body */}
+      {!collapsed && (
+        <div className="px-3 pb-3 max-h-[400px] overflow-y-auto">
+          {events.length === 0 ? (
+            <p className="text-xs text-text-secondary text-center py-6">لا توجد أحداث حديثة</p>
+          ) : (
+            <div className="relative pr-4 before:absolute before:right-[7px] before:top-1 before:bottom-1 before:w-0.5 before:bg-border">
+              {events.map((ev, i) => {
+                const cfg = getTypeConfig(ev.type)
+                return (
+                  <button key={i} type="button" onClick={() => handleActivityClick(ev, navigate)}
+                    className="w-full text-right block relative pb-3 last:pb-0 group">
+                    <span className={`absolute right-[-10px] top-[5px] w-[10px] h-[10px] rounded-full border-2 border-white ${cfg.dot} shadow-sm`} />
+                    <div className="pr-3 group-hover:bg-surface rounded-lg px-2 py-1.5 transition-colors active:bg-surface/80 -mr-2">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-sm">{cfg.icon}</span>
+                        <span className="text-xs text-text-secondary shrink-0">{fmtTime(ev.time)}</span>
+                        <span className="text-xs font-semibold text-text truncate">{ev.actor}</span>
+                      </div>
+                      <div className="text-xs text-text-secondary pr-6 truncate">{ev.summary}</div>
                     </div>
-                    <div className="text-[10px] text-text-secondary pr-5 truncate">{ev.summary}</div>
-                  </div>
-                </button>
-              )
-            })}
-          </div>
-        )}
-      </div>
+                  </button>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }

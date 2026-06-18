@@ -52,8 +52,8 @@ interface DrawerProps {
 function Drawer({ open, onClose, title, children }: DrawerProps) {
   if (!open) return null
   return (
-    <div className="fixed inset-0 z-30 flex items-end sm:items-center justify-center bg-black/30" onClick={onClose}>
-      <div className="w-full sm:max-w-lg bg-white rounded-t-2xl sm:rounded-2xl p-4 max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()} dir="rtl">
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/30" onClick={onClose}>
+      <div className="w-full sm:max-w-lg bg-white rounded-2xl p-4 max-h-[85vh] overflow-y-auto mx-3" onClick={(e) => e.stopPropagation()} dir="rtl">
         <div className="flex items-center justify-between mb-3 sticky top-0 bg-white pb-2 border-b border-border">
           <h3 className="text-sm font-bold text-text">{title}</h3>
           <button type="button" onClick={onClose} className="text-xs text-text-secondary hover:text-text transition-colors">إغلاق</button>
@@ -96,15 +96,15 @@ export function OrdersDrill({ open, onClose, orders, titleOverride }: { open: bo
             className="w-full text-right bg-surface rounded-lg px-3 py-2 hover:bg-surface/80 transition-colors active:scale-[0.99] border border-border/50">
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-text">{o.order_number || '#' + o.id.slice(0, 8)}</span>
-              <span className={`text-[10px] px-1.5 py-0.5 rounded ${STATUS_COLORS[o.status] || 'text-gray-600 bg-gray-50'}`}>
+              <span className={`text-xs px-1.5 py-0.5 rounded ${STATUS_COLORS[o.status] || 'text-gray-600 bg-gray-50'}`}>
                 {STATUS_LABELS[o.status] || o.status}
               </span>
             </div>
             <div className="flex items-center justify-between mt-0.5">
-              <span className="text-[10px] text-text-secondary truncate">{o.customer_name || '---'}</span>
-              <span className="text-[11px] font-bold text-green-600">{formatCurrencyShort(o.total_amount)}</span>
+              <span className="text-xs text-text-secondary truncate">{o.customer_name || '---'}</span>
+              <span className="text-xs font-bold text-green-600">{formatCurrencyShort(o.total_amount)}</span>
             </div>
-            <div className="text-[9px] text-text-secondary mt-0.5">{o.employee_name} · {fmtTime(o.created_at)}</div>
+            <div className="text-xs text-text-secondary mt-0.5">{o.employee_name} · {fmtTime(o.created_at)}</div>
           </button>
         ))}
       </div>
@@ -124,14 +124,14 @@ export function VisitsDrill({ open, onClose, visits }: { open: boolean; onClose:
             className="w-full text-right bg-surface rounded-lg px-3 py-2 hover:bg-surface/80 transition-colors active:scale-[0.99] border border-border/50">
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-text truncate">{v.customer_name}</span>
-              <span className={`text-[10px] px-1.5 py-0.5 rounded ${v.status === 'active' ? 'text-green-600 bg-green-50' : 'text-gray-600 bg-gray-50'}`}>
+              <span className={`text-xs px-1.5 py-0.5 rounded ${v.status === 'active' ? 'text-green-600 bg-green-50' : 'text-gray-600 bg-gray-50'}`}>
                 {v.status === 'active' ? 'جاري' : 'مكتمل'}
               </span>
             </div>
-            <div className="text-[10px] text-text-secondary mt-0.5">
+            <div className="text-xs text-text-secondary mt-0.5">
               {v.employee_name}
             </div>
-            <div className="text-[9px] text-text-secondary">
+            <div className="text-xs text-text-secondary">
               {fmtTime(v.check_in_at)} → {v.check_out_at ? fmtTime(v.check_out_at) : '---'}
             </div>
           </button>
@@ -153,9 +153,9 @@ export function CustomersDrill({ open, onClose, customers }: { open: boolean; on
             className="w-full text-right bg-surface rounded-lg px-3 py-2 hover:bg-surface/80 transition-colors active:scale-[0.99] border border-border/50">
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-text truncate">{c.company_name}</span>
-              <span className="text-[10px] text-text-secondary">{c.code}</span>
+              <span className="text-xs text-text-secondary">{c.code}</span>
             </div>
-            <div className="text-[9px] text-text-secondary">{c.employee_name !== '-' ? c.employee_name : ''}</div>
+            <div className="text-xs text-text-secondary">{c.employee_name !== '-' ? c.employee_name : ''}</div>
           </button>
         ))}
       </div>
@@ -175,9 +175,9 @@ export function CollectionsDrill({ open, onClose, collections }: { open: boolean
             className="w-full text-right bg-surface rounded-lg px-3 py-2 hover:bg-surface/80 transition-colors active:scale-[0.99] border border-border/50">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-green-600">{formatCurrencyShort(c.amount)}</span>
-              <span className="text-[10px] text-text-secondary">{c.employee_name || ''}</span>
+              <span className="text-xs text-text-secondary">{c.employee_name || ''}</span>
             </div>
-            <div className="text-[9px] text-text-secondary">{fmtTime(c.created_at)}</div>
+            <div className="text-xs text-text-secondary">{fmtTime(c.created_at)}</div>
           </button>
         ))}
       </div>
@@ -201,23 +201,23 @@ export function EmployeesDrill({ open, onClose, employees }: { open: boolean; on
           <div key={e.id} className="bg-surface rounded-lg px-3 py-2 border border-border/50">
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-text">{e.name}</span>
-              <span className={`text-[9px] px-1.5 py-0.5 rounded ${conColor(e.connection_status)}`}>{conLabel(e.connection_status)}</span>
+              <span className={`text-xs px-1.5 py-0.5 rounded ${conColor(e.connection_status)}`}>{conLabel(e.connection_status)}</span>
             </div>
             <div className="grid grid-cols-3 gap-2 mt-1">
               <div className="text-center bg-white rounded-md py-1 border border-border/50">
                 <div className="text-xs font-bold text-primary">{e.visit_count}</div>
-                <div className="text-[8px] text-text-secondary">زيارات</div>
+                <div className="text-[10px] text-text-secondary">زيارات</div>
               </div>
               <div className="text-center bg-white rounded-md py-1 border border-border/50">
                 <div className="text-xs font-bold text-primary">{e.order_count}</div>
-                <div className="text-[8px] text-text-secondary">طلبات</div>
+                <div className="text-[10px] text-text-secondary">طلبات</div>
               </div>
               <div className="text-center bg-white rounded-md py-1 border border-border/50">
                 <div className="text-xs font-bold text-green-600">{formatCurrencyShort(e.sales_value)}</div>
-                <div className="text-[8px] text-text-secondary">مبيعات</div>
+                <div className="text-[10px] text-text-secondary">مبيعات</div>
               </div>
             </div>
-            <div className="text-[9px] text-text-secondary mt-1">
+            <div className="text-xs text-text-secondary mt-1">
               آخر ظهور: {e.last_seen_at ? fmtTime(e.last_seen_at) : '---'}
             </div>
           </div>

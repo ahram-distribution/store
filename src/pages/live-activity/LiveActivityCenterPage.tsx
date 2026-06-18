@@ -95,7 +95,6 @@ export default function LiveActivityCenterPage() {
   const [mapLayer, setMapLayer] = useState<MapLayer>('all')
   const mapRef = useRef<L.Map | null>(null)
 
-  // Drawer state
   const [drawer, setDrawer] = useState<string | null>(null)
 
   const fetchData = useCallback(async () => {
@@ -136,6 +135,19 @@ export default function LiveActivityCenterPage() {
     })
   }, [token])
 
+  function handleNowItemClick(key: string) {
+    switch (key) {
+      case 'visits':
+      case 'employees_working':
+      case 'employees_break':
+        setDrawer('employees'); break
+      case 'orders':
+        setDrawer('orders'); break
+      case 'collections':
+        setDrawer('collections'); break
+    }
+  }
+
   const kpiItems = kpis ? [
     { key: 'orders', icon: '📦', label: 'طلبات اليوم', value: fmtNum(kpis.today_orders), subtext: `+${kpis.hourly_orders} آخر ساعة`, color: 'text-blue-600', bg: 'bg-blue-50 border-blue-200' },
     { key: 'sales', icon: '💰', label: 'مبيعات اليوم', value: formatCurrencyShort(kpis.today_sales), subtext: `+${formatCurrencyShort(kpis.hourly_sales)}`, color: 'text-green-600', bg: 'bg-green-50 border-green-200' },
@@ -161,14 +173,14 @@ export default function LiveActivityCenterPage() {
           <span className="text-lg">⚡</span>
           <h1 className="text-base font-bold text-text">مركز القيادة التنفيذي</h1>
         </div>
-        <div className="flex items-center gap-2 text-[10px] text-text-secondary">
+        <div className="flex items-center gap-2 text-xs text-text-secondary">
           <span className="hidden sm:inline">{lastUpdate && `آخر تحديث: ${lastUpdate}`}</span>
           <button type="button" onClick={fetchData} className="text-primary hover:text-primary-dark transition-colors text-sm">⟳</button>
         </div>
       </div>
 
-      {/* Row 1: Now Panel (يحدث الآن) */}
-      <NowPanel data={nowPanel} />
+      {/* Row 1: Now Panel (يحدث الآن) — clickable items */}
+      <NowPanel data={nowPanel} onItemClick={handleNowItemClick} />
 
       {/* Row 2: KPI Cards — clickable, drill-down */}
       <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
@@ -177,8 +189,8 @@ export default function LiveActivityCenterPage() {
             className={`text-center rounded-xl border ${k.bg} ${k.border} p-3 hover:shadow-sm active:scale-[0.97] transition-all min-w-0`}>
             <div className="text-lg mb-0.5">{k.icon}</div>
             <div className={`text-sm font-bold ${k.color} truncate`}>{k.value}</div>
-            <div className="text-[9px] text-text-secondary leading-tight truncate">{k.label}</div>
-            {k.subtext && <div className="text-[8px] text-text-secondary opacity-70 truncate">{k.subtext}</div>}
+            <div className="text-xs text-text-secondary leading-tight truncate">{k.label}</div>
+            {k.subtext && <div className="text-[10px] text-text-secondary opacity-70 truncate">{k.subtext}</div>}
           </button>
         ))}
       </div>
@@ -193,7 +205,7 @@ export default function LiveActivityCenterPage() {
           <div className="flex gap-1">
             {(['all', 'employees', 'customers'] as MapLayer[]).map((layer) => (
               <button key={layer} type="button" onClick={() => setMapLayer(layer)}
-                className={`text-[9px] px-2 py-1 rounded-full border transition-colors ${
+                className={`text-xs px-2 py-1 rounded-full border transition-colors ${
                   mapLayer === layer
                     ? 'bg-primary text-white border-primary'
                     : 'bg-white text-text-secondary border-border hover:bg-surface'
@@ -208,7 +220,6 @@ export default function LiveActivityCenterPage() {
             <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
             {employees.length === 0 && customers.length === 0 && <EmptyMapPlaceholder />}
 
-            {/* Employee markers */}
             {(mapLayer === 'all' || mapLayer === 'employees') && (
               employees.filter(e => e.latitude && e.longitude).map((e) => {
                 const ec = e.status === 'working' ? '#22c55e' : e.status === 'on_visit' ? '#3b82f6' : e.status === 'on_break' ? '#f59e0b' : '#6b7280'
@@ -216,7 +227,7 @@ export default function LiveActivityCenterPage() {
                   <Marker key={e.employee_id} position={[e.latitude!, e.longitude!]}
                     icon={L.divIcon({ className: '', html: `<div style="width:14px;height:14px;border-radius:50%;background:${ec};border:2.5px solid white;box-shadow:0 2px 6px rgba(0,0,0,.3)" />` })}>
                     <Popup>
-                      <div className="text-[11px] leading-relaxed" dir="rtl">
+                      <div className="text-xs leading-relaxed" dir="rtl">
                         <div className="font-bold">{e.name}</div>
                         <div className={e.connection_status === 'active' ? 'text-green-600' : 'text-red-600'}>
                           {e.connection_status === 'active' ? '🟢 متصل' : '🔴 منقطع'}
@@ -230,7 +241,6 @@ export default function LiveActivityCenterPage() {
               })
             )}
 
-            {/* Customer markers */}
             {(mapLayer === 'all' || mapLayer === 'customers') && (
               customers.filter(c => c.latitude && c.longitude).map((c) => {
                 const isGps = c.location_source === 'gps'
@@ -240,7 +250,7 @@ export default function LiveActivityCenterPage() {
                   <Marker key={`c-${c.id}`} position={[c.latitude, c.longitude]}
                     icon={L.divIcon({ className: '', iconSize: [8, 8], html: `<div style="width:8px;height:8px;border-radius:50%;background:${color};border:1px solid white;opacity:0.7" />` })}>
                     <Popup>
-                      <div className="text-[10px] leading-relaxed" dir="rtl">
+                      <div className="text-xs leading-relaxed" dir="rtl">
                         <div className="font-bold">{c.name}</div>
                         <div className="text-text-secondary">
                           {isGps ? '🟢 GPS حقيقى' : isGeocoded ? '🟡 مستخرج من العنوان' : '🟠 مضاف يدوياً'}
@@ -265,14 +275,11 @@ export default function LiveActivityCenterPage() {
         </div>
       </div>
 
-      {/* Mobile: last update timestamp */}
-      <div className="text-center text-[9px] text-text-secondary md:hidden">{lastUpdate && `آخر تحديث: ${lastUpdate}`}</div>
+      <div className="text-center text-xs text-text-secondary md:hidden">{lastUpdate && `آخر تحديث: ${lastUpdate}`}</div>
 
-      {/* ==================== Drill-Down Drawers ==================== */}
+      {/* Drawers — fixed overlay above everything (z-40) */}
       <OrdersDrill open={drawer === 'orders'} onClose={() => setDrawer(null)} orders={todayOrders} />
       <VisitsDrill open={drawer === 'visits'} onClose={() => setDrawer(null)} visits={todayVisits} />
-
-      {/* Sales reuses order drill but shows amounts */}
       <OrdersDrill open={drawer === 'sales'} onClose={() => setDrawer(null)} orders={todayOrders} titleOverride="تفاصيل مبيعات اليوم" />
       <CustomersDrill open={drawer === 'customers'} onClose={() => setDrawer(null)} customers={todayCustomers} />
       <CollectionsDrill open={drawer === 'collections'} onClose={() => setDrawer(null)} collections={todayCollections} />
