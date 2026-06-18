@@ -15,6 +15,7 @@ import { CompanyManagerPage } from '../pages/companies/CompanyManagerPage'
 import { VisitsPage, VisitDetailPage, VisitScreen, NewVisitPage } from '../pages/visits'
 import { CollectionsPage, NewCollectionPage } from '../pages/collections'
 import { ReturnsPage, ReturnDetailPage, ReturnNewPage } from '../pages/returns'
+import { LiveActivityCenterPage } from '../pages/live-activity'
 import { ProductsPage, ProductProfilePage } from '../pages/products'
 import { DealsPage } from '../pages/deals'
 import { DailyDealsPage, DailyDealDetailPage, DailyDealsManagementPage } from '../pages/daily-deals'
@@ -163,6 +164,7 @@ export function AppRoutes() {
 
       <Route path="/command-center" element={<ProtectedRoute employeeOnly><CommandCenterPage /></ProtectedRoute>} />
       <Route path="/command-center/modules/:moduleKey" element={<ProtectedRoute employeeOnly><ModuleWorkspacePage /></ProtectedRoute>} />
+      <Route path="/command-center/live" element={<ProtectedRoute requireUpperManagement><LiveActivityCenterPage /></ProtectedRoute>} />
 
       {/* Attendance module routes */}
       <Route path="/attendance" element={<ProtectedRoute employeeOnly><AttendanceRouter /></ProtectedRoute>} />
