@@ -41,7 +41,7 @@ BEGIN
   UPDATE public.orders SET status = 'dispatched', updated_at = now() WHERE id = p_id;
 
   INSERT INTO public.order_status_history (order_id, from_status, to_status, changed_by, changed_at)
-  VALUES (p_id, v_old_status, 'dispatched', v_employee_id, now());
+  VALUES (p_id, v_old_status, 'dispatched', v_session.identity_id, now());
 
   -- NEW: Create delivery_tracking record if p_assigned_to is provided
   -- This fixes the bug where WarehousePage passed p_assigned_to but the function ignored it
