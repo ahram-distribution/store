@@ -84,7 +84,12 @@ export interface UnifiedCustomerSummary {
   code: string
   company_name: string
   phone: string | null
-  address: string | null
+  address_line1: string | null
+  address_line2: string | null
+  city: string | null
+  governorate: string | null
+  address_latitude: number | null
+  address_longitude: number | null
 }
 
 export interface UnifiedOrderItem {
@@ -129,7 +134,9 @@ export interface UnifiedDeliveryTracking {
   tracking_url: string | null
   delivery_mode?: DeliveryMode
   assigned_to_name: string | null
+  assigned_to_phone: string | null
   external_carrier_name: string | null
+  updated_at: string | null
 }
 
 export interface UnifiedPreparationRecord {
