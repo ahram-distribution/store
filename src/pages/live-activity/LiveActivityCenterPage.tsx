@@ -93,6 +93,8 @@ export default function LiveActivityCenterPage() {
   const [todayCustomers, setTodayCustomers] = useState<CustomerDrill[]>([])
   const [todayCollections, setTodayCollections] = useState<CollectionDrill[]>([])
   const [mapLayer, setMapLayer] = useState<MapLayer>('all')
+  const [mapFullscreen, setMapFullscreen] = useState(false)
+  const [mapCollapsed, setMapCollapsed] = useState(false)
   const mapRef = useRef<L.Map | null>(null)
 
   const [drawer, setDrawer] = useState<string | null>(null)
@@ -148,6 +150,22 @@ export default function LiveActivityCenterPage() {
     }
   }
 
+  function toggleMapCollapsed() {
+    setMapCollapsed((prev) => {
+      const next = !prev
+      if (!next && mapRef.current) setTimeout(() => mapRef.current!.invalidateSize(), 100)
+      return next
+    })
+  }
+
+  function toggleMapFullscreen() {
+    setMapFullscreen((prev) => {
+      const next = !prev
+      if (next && mapRef.current) setTimeout(() => mapRef.current!.invalidateSize(), 200)
+      return next
+    })
+  }
+
   const kpiItems = kpis ? [
     { key: 'orders', icon: '📦', label: 'طلبات اليوم', value: fmtNum(kpis.today_orders), subtext: `+${kpis.hourly_orders} آخر ساعة`, color: 'text-blue-600', bg: 'bg-blue-50 border-blue-200' },
     { key: 'sales', icon: '💰', label: 'مبيعات اليوم', value: formatCurrencyShort(kpis.today_sales), subtext: `+${formatCurrencyShort(kpis.hourly_sales)}`, color: 'text-green-600', bg: 'bg-green-50 border-green-200' },
@@ -195,74 +213,96 @@ export default function LiveActivityCenterPage() {
         ))}
       </div>
 
-      {/* Row 3: Map — Large, with layer control */}
-      <div className="bg-white rounded-xl border border-border overflow-hidden">
+      {/* Row 3: Map — Large, with fullscreen + collapse controls */}
+      <div className={`bg-white rounded-xl border border-border overflow-hidden transition-all duration-300 ${
+        mapFullscreen ? 'fixed inset-0 z-40 rounded-none border-0' : ''
+      } ${mapCollapsed && !mapFullscreen ? '!h-auto' : ''}`} style={mapFullscreen ? { top: 0, left: 0, right: 0, bottom: 0 } : {}}>
         <div className="flex items-center justify-between p-2 pb-0">
           <div className="flex items-center gap-1.5">
             <span className="text-sm">🗺️</span>
             <h2 className="text-xs font-semibold text-text">الخريطة الحية</h2>
           </div>
-          <div className="flex gap-1">
-            {(['all', 'employees', 'customers'] as MapLayer[]).map((layer) => (
-              <button key={layer} type="button" onClick={() => setMapLayer(layer)}
-                className={`text-xs px-2 py-1 rounded-full border transition-colors ${
-                  mapLayer === layer
-                    ? 'bg-primary text-white border-primary'
-                    : 'bg-white text-text-secondary border-border hover:bg-surface'
-                }`}>
-                {layer === 'all' ? 'الكل' : layer === 'employees' ? 'الموظفون' : 'العملاء'}
-              </button>
-            ))}
+          <div className="flex items-center gap-1.5">
+            <div className="flex gap-1 ml-2">
+              {(['all', 'employees', 'customers'] as MapLayer[]).map((layer) => (
+                <button key={layer} type="button" onClick={() => setMapLayer(layer)}
+                  className={`text-xs px-2 py-1 rounded-full border transition-colors ${
+                    mapLayer === layer
+                      ? 'bg-primary text-white border-primary'
+                      : 'bg-white text-text-secondary border-border hover:bg-surface'
+                  }`}>
+                  {layer === 'all' ? 'الكل' : layer === 'employees' ? 'الموظفون' : 'العملاء'}
+                </button>
+              ))}
+            </div>
+            <button type="button" onClick={toggleMapCollapsed}
+              className="text-xs px-1.5 py-1 rounded-md border border-border text-text-secondary hover:bg-surface transition-colors"
+              title={mapCollapsed ? 'توسيع الخريطة' : 'طي الخريطة'}>
+              {mapCollapsed ? '⤵' : '⤴'}
+            </button>
+            <button type="button" onClick={toggleMapFullscreen}
+              className="text-xs px-1.5 py-1 rounded-md border border-border text-text-secondary hover:bg-surface transition-colors"
+              title={mapFullscreen ? 'خروج من ملء الشاشة' : 'عرض بملء الشاشة'}>
+              {mapFullscreen ? '✕' : '⛶'}
+            </button>
           </div>
         </div>
-        <div className="h-[45vh] min-h-[280px] w-full">
-          <MapContainer center={[30.05, 31.25]} zoom={7} scrollWheelZoom={true} className="h-full w-full" ref={mapRef}>
-            <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-            {employees.length === 0 && customers.length === 0 && <EmptyMapPlaceholder />}
-
-            {(mapLayer === 'all' || mapLayer === 'employees') && (
-              employees.filter(e => e.latitude && e.longitude).map((e) => {
-                const ec = e.status === 'working' ? '#22c55e' : e.status === 'on_visit' ? '#3b82f6' : e.status === 'on_break' ? '#f59e0b' : '#6b7280'
-                return (
-                  <Marker key={e.employee_id} position={[e.latitude!, e.longitude!]}
-                    icon={L.divIcon({ className: '', html: `<div style="width:14px;height:14px;border-radius:50%;background:${ec};border:2.5px solid white;box-shadow:0 2px 6px rgba(0,0,0,.3)" />` })}>
-                    <Popup>
-                      <div className="text-xs leading-relaxed" dir="rtl">
-                        <div className="font-bold">{e.name}</div>
-                        <div className={e.connection_status === 'active' ? 'text-green-600' : 'text-red-600'}>
-                          {e.connection_status === 'active' ? '🟢 متصل' : '🔴 منقطع'}
-                        </div>
-                        <div>طلبات: {e.order_count} | مبيعات: {formatCurrencyShort(e.sales_value)}</div>
-                        <div>زيارات: {e.visit_count}</div>
-                      </div>
-                    </Popup>
-                  </Marker>
-                )
-              })
+        {!mapCollapsed && (
+          <div className={`relative w-full ${mapFullscreen ? 'h-[calc(100vh-48px)]' : 'h-[45vh] min-h-[280px]'}`}>
+            {mapFullscreen && (
+              <div className="absolute top-2 right-2 z-[1000] flex gap-1">
+                <button type="button" onClick={toggleMapFullscreen}
+                  className="bg-white/90 backdrop-blur text-xs px-2 py-1 rounded-lg border border-border shadow-md hover:bg-white transition-colors">
+                  ✕ خروج
+                </button>
+              </div>
             )}
-
-            {(mapLayer === 'all' || mapLayer === 'customers') && (
-              customers.filter(c => c.latitude && c.longitude).map((c) => {
-                const isGps = c.location_source === 'gps'
-                const isGeocoded = c.location_source === 'address_geocoded'
-                const color = isGps ? '#22c55e' : isGeocoded ? '#eab308' : '#f97316'
-                return (
-                  <Marker key={`c-${c.id}`} position={[c.latitude, c.longitude]}
-                    icon={L.divIcon({ className: '', iconSize: [8, 8], html: `<div style="width:8px;height:8px;border-radius:50%;background:${color};border:1px solid white;opacity:0.7" />` })}>
-                    <Popup>
-                      <div className="text-xs leading-relaxed" dir="rtl">
-                        <div className="font-bold">{c.name}</div>
-                        <div className="text-text-secondary">
-                          {isGps ? '🟢 GPS حقيقى' : isGeocoded ? '🟡 مستخرج من العنوان' : '🟠 مضاف يدوياً'}
+            <MapContainer center={[30.05, 31.25]} zoom={7} scrollWheelZoom={true} className="h-full w-full" ref={mapRef}>
+              <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+              {employees.length === 0 && customers.length === 0 && <EmptyMapPlaceholder />}
+              {(mapLayer === 'all' || mapLayer === 'employees') && (
+                employees.filter(e => e.latitude && e.longitude).map((e) => {
+                  const ec = e.status === 'working' ? '#22c55e' : e.status === 'on_visit' ? '#3b82f6' : e.status === 'on_break' ? '#f59e0b' : '#6b7280'
+                  return (
+                    <Marker key={e.employee_id} position={[e.latitude!, e.longitude!]}
+                      icon={L.divIcon({ className: '', html: `<div style="width:14px;height:14px;border-radius:50%;background:${ec};border:2.5px solid white;box-shadow:0 2px 6px rgba(0,0,0,.3)" />` })}>
+                      <Popup>
+                        <div className="text-xs leading-relaxed" dir="rtl">
+                          <div className="font-bold">{e.name}</div>
+                          <div className={e.connection_status === 'active' ? 'text-green-600' : 'text-red-600'}>
+                            {e.connection_status === 'active' ? '🟢 متصل' : '🔴 منقطع'}
+                          </div>
+                          <div>طلبات: {e.order_count} | مبيعات: {formatCurrencyShort(e.sales_value)}</div>
+                          <div>زيارات: {e.visit_count}</div>
                         </div>
-                      </div>
-                    </Popup>
-                  </Marker>
-                )
-              })
-            )}
-          </MapContainer>
-        </div>
+                      </Popup>
+                    </Marker>
+                  )
+                })
+              )}
+              {(mapLayer === 'all' || mapLayer === 'customers') && (
+                customers.filter(c => c.latitude && c.longitude).map((c) => {
+                  const isGps = c.location_source === 'gps'
+                  const isGeocoded = c.location_source === 'address_geocoded'
+                  const color = isGps ? '#22c55e' : isGeocoded ? '#eab308' : '#f97316'
+                  return (
+                    <Marker key={`c-${c.id}`} position={[c.latitude, c.longitude]}
+                      icon={L.divIcon({ className: '', iconSize: [8, 8], html: `<div style="width:8px;height:8px;border-radius:50%;background:${color};border:1px solid white;opacity:0.7" />` })}>
+                      <Popup>
+                        <div className="text-xs leading-relaxed" dir="rtl">
+                          <div className="font-bold">{c.name}</div>
+                          <div className="text-text-secondary">
+                            {isGps ? '🟢 GPS حقيقى' : isGeocoded ? '🟡 مستخرج من العنوان' : '🟠 مضاف يدوياً'}
+                          </div>
+                        </div>
+                      </Popup>
+                    </Marker>
+                  )
+                })
+              )}
+            </MapContainer>
+          </div>
+        )}
       </div>
 
       {/* Row 4: Alerts + Timeline side by side */}
