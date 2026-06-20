@@ -42,11 +42,16 @@ jobs:
           VITE_APP_VERSION: ${{ vars.VITE_APP_VERSION || '1.0.0' }}
           VITE_WHATSAPP_NUMBER: ${{ vars.VITE_WHATSAPP_NUMBER }}
 
-      - name: Prepare SPA output
+      - name: Prepare deploy directory
         run: |
+          ls -la dist/
           mkdir -p deploy
-          cp -r dist/store/* deploy/
-          cp dist/store/index.html deploy/404.html
+          cp dist/index.html deploy/index.html
+          [ -f dist/404.html ] && cp dist/404.html deploy/404.html || cp dist/index.html deploy/404.html
+          [ -d dist/assets ] && cp -r dist/assets deploy/
+          [ -d dist/pwa ] && cp -r dist/pwa deploy/
+          [ -f dist/manifest.webmanifest ] && cp dist/manifest.webmanifest deploy/
+          [ -f dist/registerSW.js ] && cp dist/registerSW.js deploy/
           touch deploy/.nojekyll
 
       - name: Configure Pages to serve from gh-pages branch
