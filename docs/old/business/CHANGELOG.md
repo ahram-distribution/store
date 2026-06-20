@@ -1,9 +1,21 @@
 # CHANGELOG — Ahram Distribution Management System
 
-**Last updated:** 2026-06-05  
-**Full history:** PROJECT_CHANGELOG.md (907 lines) — the authoritative historical record.
+**Last updated:** 2026-06-21  
+**Full history:** PROJECT_CHANGELOG.md — the authoritative historical record.
 
 ---
+
+## 2026-06-21 — Executive Workspace: OrderCard Integration + Collection Filters
+- **OrderCard.tsx**: extended with optional `delivery_mode`, `revision_number`, `governorate`, `collection_badge` (backward-compatible)
+- **ExecutiveOperationsWorkspace.tsx**: replaced manual order list with `<OrderCard>`; added collection status filter (غير محصل / محصل جزئى / محصل بالكامل)
+- **Migration `20260820_executive_queue_customer_owner.sql`**: added `customer_owner_name`, `customer_owner_role` to `get_governed_executive_queue` RPC
+
+## 2026-06-20 — Executive Workspace Phases 1-3
+- Initial executive workspace creation, permission fixes, INVALID_STATE fix
+- Added `carrier_name text`, `carrier_delivery_date` to delivery_tracking (free-text carrier)
+- `governed_dispatch_order` updated with `p_carrier_name`, `p_carrier_delivery_date`
+- `governed_create_collection` updated with `p_order_id`
+- Full lifecycle tested end-to-end: prepare → dispatch → deliver → collect → approve
 
 ## 2026-06-05 — Phase 3 Database Recovery
 - Created `20260603_recovery_missing_tables.sql`: 9 tables (1 app + 8 public), 3 enums, 25 constraints, 8 indexes

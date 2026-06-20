@@ -4,6 +4,64 @@
 
 ---
 
+## 2026-06-21 — Executive Workspace: OrderCard Integration + Collection Filters
+
+**Phase**: Implementation  
+**Objective**: Unify order card design between Orders Page and Executive Operations Workspace. Add collection status filter, delivery mode text carrier, collection order_id linkage, and customer_owner_name to executive queue RPC.
+
+### DB Migrations
+- `20260810_executive_workspace_final.sql` (applied 2026-06-20):
+  - Added `collections.create`, `collections.approve`, `orders.review` capabilities to `مشرف تنفيذي` role
+  - Added `carrier_name text`, `carrier_delivery_date timestamptz` to `delivery_tracking`
+  - Updated `governed_dispatch_order` with `p_carrier_name`, `p_carrier_delivery_date` (free-text carrier, no FK)
+  - Updated `governed_create_collection` with `p_order_id uuid DEFAULT NULL`
+- `20260820_executive_queue_customer_owner.sql` (applied 2026-06-21):
+  - Added `customer_owner_name`, `customer_owner_role` to `get_governed_executive_queue` RPC output
+
+### Frontend Changes
+
+#### `OrderCard.tsx` — Extended with executive fields
+Added optional display props (backward-compatible):
+- `delivery_mode?: string` — shown as tag (توصيل داخلي / شركة شحن)
+- `revision_number?: number` — shown beside order number (مراجعة #N)
+- `governorate?: string` — shown as location tag
+- `collection_badge?: { label: string; className: string }` — shown as colored badge
+- New bottom section with border-top separator displaying all optional tags
+
+#### `ExecutiveOperationsWorkspace.tsx` — Rewritten queue display
+- Replaced manual `button`-based order list with `<OrderCard>` (same component used in `OrdersPage`)
+- Removed `StatusBadge` import (handled internally by OrderCard)
+- Added `collectionStatusFilter` state + dropdown: كل حالات التحصيل / غير محصل / محصل جزئى / محصل بالكامل
+- Added `useMemo` for `filteredQueue`: computes `collection_badge` per item + client-side filter by collection status
+- Updated `QueueItem` interface: added `revision_number`, `customer_owner_name`, `customer_owner_role`
+- Moved employee search into 2×2 filters grid alongside governorate, delivery mode, collection status
+- Increased queue scroll area from `max-h-80` to `max-h-96`
+
+### Full Order Lifecycle Verified (2026-06-20)
+End-to-end test with محمد عبد الباسط (REP-001, token `3576c94a`):
+
+| Step | Order | Result |
+|---|---|---|
+| Prepare → Confirm Preparation | ORD-2026-000119 | ✅ `prepared` |
+| Internal Dispatch (vehicle ت1234) | ORD-2026-000119 | ✅ `dispatched` (internal) |
+| Complete Delivery | ORD-2026-000119 | ✅ `delivered` |
+| Create Collection (10775.13 EGP cash) | ORD-2026-000119 | ✅ `COL-2026-000008` (pending) |
+| Approve Collection | ORD-2026-000119 | ✅ `approved` |
+| External Dispatch (carrier_name text) | ORD-2026-000117 | ✅ `dispatched` (external, شركة الشحن السريع) |
+
+### Files Affected
+- Modified: `src/components/orders/OrderCard.tsx`
+- Modified: `src/pages/dashboard/ExecutiveOperationsWorkspace.tsx`
+- Created: `supabase/migrations/20260810_executive_workspace_final.sql`
+- Created: `supabase/migrations/20260820_executive_queue_customer_owner.sql`
+
+### Environment
+- **Commit**: `80f2494` (feat: reuse OrderCard in executive workspace + collection status filter + customer_owner in RPC)
+- **Deploy**: GitHub Pages — `https://ahram-distribution.github.io/store/`
+- **Supabase Project**: `gbcbejejgpvltuhbztbx`
+
+---
+
 ## 2026-06-04 — Unified Identity & Location Standard
 
 **Phase**: Implementation
@@ -901,7 +959,11 @@ Approved → Preparation Started → Preparation Completed → Preparation Revie
 | 2026-06-03 | Daily Deals Module (صفقة اليوم) |
 | 2026-06-04 | Credit Program Module V2 |
 | 2026-06-04 | Unified Identity & Location Standard |
+| 2026-06-20 | Executive Workspace Phase 1 (Initial) |
+| 2026-06-20 | Executive Workspace Phase 2 (Permissions + State Fix) |
+| 2026-06-20 | Executive Workspace Phase 3 (Carrier Text + Collection Order ID) |
+| 2026-06-21 | Executive Workspace Phase 4 (OrderCard Integration + Collection Filters) |
 
 ---
 
-*Last updated: 2026-06-04* (Unified Identity & Location Standard)
+*Last updated: 2026-06-21* (Executive Workspace: OrderCard Integration + Collection Filters)
