@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { supabase } from '../../lib/supabase'
-import { StatusBadge } from '../../components/shared/StatusBadge'
+import { OrderCard } from '../../components/orders/OrderCard'
 import { formatCurrencyShort } from '../../utils/format'
 import { useAuthStore } from '../../store/auth'
 import { OrderDetailView } from '../../components/orders/OrderDetailView'
@@ -31,6 +31,7 @@ interface QueueItem {
   delivery_mode: string | null
   payment_method: string | null
   total_amount: number
+  revision_number: number
   customer_name: string
   customer_phone: string | null
   governorate: string | null
@@ -44,6 +45,8 @@ interface QueueItem {
   owner_name: string | null
   created_by_name: string | null
   item_count: number
+  customer_owner_name: string | null
+  customer_owner_role: string | null
 }
 
 const TAB_IDS: TabFilter[] = ['all', 'approved', 'preparing', 'prepared', 'dispatched', 'delivered']
@@ -103,6 +106,7 @@ export function ExecutiveOperationsWorkspace() {
   const [employeeSearch, setEmployeeSearch] = useState('')
   const [governorateFilter, setGovernorateFilter] = useState('')
   const [deliveryModeFilter, setDeliveryModeFilter] = useState('')
+  const [collectionStatusFilter, setCollectionStatusFilter] = useState('')
   const [dateFilter, setDateFilter] = useState<DateFilter>('all')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
@@ -164,7 +168,7 @@ export function ExecutiveOperationsWorkspace() {
     } finally {
       setLoading(false)
     }
-  }, [activeTab, search, employeeSearch, governorateFilter, deliveryModeFilter, dateFilter, dateFrom, dateTo])
+  }, [activeTab, search, employeeSearch, governorateFilter, deliveryModeFilter, collectionStatusFilter, dateFilter, dateFrom, dateTo])
 
   useEffect(() => { loadData() }, [loadData])
 
@@ -360,6 +364,21 @@ export function ExecutiveOperationsWorkspace() {
     return { label: 'محصل جزئى', color: 'bg-orange-100 text-orange-700' }
   }
 
+  const filteredQueue = useMemo(() => {
+    return queue
+      .map((item) => {
+        const cs = getCollectionStatus(item.total_amount, item.collected_amount)
+        let csKey = 'uncollected'
+        if (item.collected_amount >= item.total_amount) csKey = 'fully_collected'
+        else if (item.collected_amount > 0) csKey = 'partially_collected'
+        return { ...item, _collectionStatusKey: csKey, _collectionBadge: { label: cs.label, className: cs.color } }
+      })
+      .filter((item) => {
+        if (!collectionStatusFilter) return true
+        return item._collectionStatusKey === collectionStatusFilter
+      })
+  }, [queue, collectionStatusFilter])
+
   if (loading && !kpis) {
     return <div className="text-center py-12 text-text-secondary text-sm">جاري التحميل...</div>
   }
@@ -418,11 +437,6 @@ export function ExecutiveOperationsWorkspace() {
             onChange={(e) => setSearch(e.target.value)}
             className="flex-1 border border-border rounded-lg px-3 py-2 text-xs bg-surface" />
         </div>
-        <div className="mb-3">
-          <input type="text" placeholder="بحث باسم المندوب..." value={employeeSearch}
-            onChange={(e) => setEmployeeSearch(e.target.value)}
-            className="w-full border border-border rounded-lg px-3 py-2 text-xs bg-surface" />
-        </div>
         <div className="flex gap-2 mb-3 overflow-x-auto pb-1">
           {TAB_IDS.map((t) => (
             <button key={t} onClick={() => setActiveTab(t)}
@@ -433,48 +447,55 @@ export function ExecutiveOperationsWorkspace() {
             </button>
           ))}
         </div>
-        <div className="flex gap-2 mb-3">
+        <div className="grid grid-cols-2 gap-2 mb-3">
+          <input type="text" placeholder="بحث باسم المندوب..." value={employeeSearch}
+            onChange={(e) => setEmployeeSearch(e.target.value)}
+            className="w-full border border-border rounded-lg px-2 py-1.5 text-[10px] bg-white" />
           <select value={governorateFilter} onChange={(e) => setGovernorateFilter(e.target.value)}
-            className="flex-1 border border-border rounded-lg px-2 py-1.5 text-[10px] bg-white">
+            className="w-full border border-border rounded-lg px-2 py-1.5 text-[10px] bg-white">
             <option value="">كل المحافظات</option>
             {governorates.map((g) => <option key={g} value={g}>{g}</option>)}
           </select>
           <select value={deliveryModeFilter} onChange={(e) => setDeliveryModeFilter(e.target.value)}
-            className="flex-1 border border-border rounded-lg px-2 py-1.5 text-[10px] bg-white">
+            className="w-full border border-border rounded-lg px-2 py-1.5 text-[10px] bg-white">
             <option value="">كل أنواع الشحن</option>
             <option value="internal">توصيل داخلي</option>
             <option value="external">شركة شحن</option>
           </select>
+          <select value={collectionStatusFilter} onChange={(e) => setCollectionStatusFilter(e.target.value)}
+            className="w-full border border-border rounded-lg px-2 py-1.5 text-[10px] bg-white">
+            <option value="">كل حالات التحصيل</option>
+            <option value="uncollected">غير محصل</option>
+            <option value="partially_collected">محصل جزئى</option>
+            <option value="fully_collected">محصل بالكامل</option>
+          </select>
         </div>
-        <div className="space-y-1.5 max-h-80 overflow-y-auto">
-          {queue.length === 0 ? (
+        <div className="space-y-1.5 max-h-96 overflow-y-auto">
+          {filteredQueue.length === 0 ? (
             <div className="text-center py-8 text-text-secondary text-xs">لا توجد طلبات</div>
-          ) : queue.map((item) => {
-            const collStatus = getCollectionStatus(item.total_amount, item.collected_amount)
-            return (
-              <button key={item.id} onClick={() => openOrder(item)}
-                className={`w-full text-right bg-white rounded-lg border p-2.5 transition-colors hover:bg-surface ${
-                  selectedOrder?.id === item.id ? 'border-primary ring-1 ring-primary' : 'border-border'
-                }`}>
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs font-bold text-text">{item.order_number}</span>
-                  <StatusBadge status={item.status} size="sm" />
-                </div>
-                <div className="text-[10px] text-text-secondary space-y-0.5">
-                  <span>{item.customer_name}</span>
-                  {item.governorate && <span className="mr-2">• {item.governorate}</span>}
-                  {item.owner_name && <span className="mr-2">• {item.owner_name}</span>}
-                </div>
-                <div className="flex items-center justify-between mt-1 text-[10px]">
-                  <span className="font-semibold text-text">{formatCurrencyShort(item.total_amount)}</span>
-                  <span className={`px-1.5 py-0.5 rounded ${collStatus.color}`}>{collStatus.label}</span>
-                </div>
-                <div className="text-[9px] text-text-secondary mt-0.5">
-                  {new Date(item.updated_at || item.created_at).toLocaleDateString('ar-EG-u-nu-latn')}
-                </div>
-              </button>
-            )
-          })}
+          ) : filteredQueue.map((item) => (
+            <OrderCard
+              key={item.id}
+              order={{
+                id: item.id,
+                order_number: item.order_number,
+                status: item.status,
+                customer_name: item.customer_name,
+                customer_phone: item.customer_phone,
+                created_by_name: item.created_by_name,
+                customer_owner_name: item.customer_owner_name || undefined,
+                customer_owner_role: item.customer_owner_role || undefined,
+                total_amount: item.total_amount,
+                created_at: item.created_at,
+                updated_at: item.updated_at,
+                delivery_mode: item.delivery_mode || undefined,
+                revision_number: item.revision_number,
+                governorate: item.governorate || undefined,
+                collection_badge: item._collectionBadge,
+              }}
+              onClick={() => openOrder(item)}
+            />
+          ))}
         </div>
       </div>
     </div>

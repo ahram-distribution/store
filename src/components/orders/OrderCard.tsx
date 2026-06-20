@@ -18,6 +18,10 @@ interface OrderCardProps {
     status: string
     created_at: string
     updated_at?: string
+    delivery_mode?: string
+    revision_number?: number
+    governorate?: string
+    collection_badge?: { label: string; className: string }
   }
   onClick?: () => void
 }
@@ -34,7 +38,12 @@ export function OrderCard({ order, onClick }: OrderCardProps) {
     >
       <div className="flex items-start justify-between mb-2">
         <div className="flex-1 min-w-0">
-          <p className="text-xs text-text-secondary font-medium">{order.order_number}</p>
+          <div className="flex items-center gap-1.5">
+            <p className="text-xs text-text-secondary font-medium">{order.order_number}</p>
+            {order.revision_number !== undefined && order.revision_number > 0 && (
+              <span className="text-[9px] text-text-secondary bg-surface px-1 py-0.5 rounded">مراجعة #{order.revision_number}</span>
+            )}
+          </div>
           <p className="text-sm font-bold text-text mt-0.5">
             {order.customer_name || 'غير متوفر'}
           </p>
@@ -66,6 +75,26 @@ export function OrderCard({ order, onClick }: OrderCardProps) {
           {formatCurrencyShort(Number(order.total_amount) || 0)}
         </p>
       </div>
+
+      {(order.delivery_mode || order.governorate || order.collection_badge) && (
+        <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-border">
+          {order.governorate && (
+            <span className="text-[10px] text-text-secondary bg-surface px-1.5 py-0.5 rounded">{order.governorate}</span>
+          )}
+          {order.delivery_mode && (
+            <span className={`text-[10px] px-1.5 py-0.5 rounded ${
+              order.delivery_mode === 'external' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
+            }`}>
+              {order.delivery_mode === 'external' ? 'شركة شحن' : 'توصيل داخلي'}
+            </span>
+          )}
+          {order.collection_badge && (
+            <span className={`text-[10px] px-1.5 py-0.5 rounded ${order.collection_badge.className}`}>
+              {order.collection_badge.label}
+            </span>
+          )}
+        </div>
+      )}
     </div>
   )
 }
