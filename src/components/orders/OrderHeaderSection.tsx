@@ -13,13 +13,13 @@ interface OrderHeaderSectionProps {
 }
 
 function renderCreator(order: UnifiedOrder['order']) {
-  if (!order.order_creator_name) {
-    return <span className="text-text-secondary">العميل مباشرة</span>
-  }
+  const name = order.order_creator_name
+  const role = order.order_creator_role || 'عميل'
+  if (!name) return <span className="text-text-secondary">—</span>
   return (
     <span>
-      {order.order_creator_name}
-      {order.order_creator_role && <span className="text-text-secondary"> — {order.order_creator_role}</span>}
+      {name}
+      <span className="text-text-secondary"> — {role}</span>
     </span>
   )
 }
