@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom'
 import { StatusBadge } from '../shared/StatusBadge'
 import { ORDER_STATUS_LABELS } from '../../types/order-display'
 import { formatDateTime } from '../../utils/format'
@@ -12,19 +13,25 @@ interface OrderHeaderSectionProps {
   onBack?: () => void
 }
 
-function renderCreator(order: UnifiedOrder['order']) {
-  const name = order.order_creator_name
-  const role = order.order_creator_role || 'عميل'
-  if (!name) return <span className="text-text-secondary">—</span>
-  return (
-    <span>
-      {name}
-      <span className="text-text-secondary"> — {role}</span>
-    </span>
-  )
-}
-
 export function OrderHeaderSection({ order, currentOwner, overLimit, lastAction, actions, onBack }: OrderHeaderSectionProps) {
+  const navigate = useNavigate()
+
+  function renderCreator(creator: UnifiedOrder['order']) {
+    const name = creator.order_creator_name
+    const role = creator.order_creator_role || 'عميل'
+    if (!name) return <span className="text-text-secondary">—</span>
+    const target = creator.order_creator_type === 'customer'
+      ? `/customers/${creator.order_creator_id}`
+      : `/employees/${creator.order_creator_id}`
+    if (!creator.order_creator_id) return <span>{name}<span className="text-text-secondary"> — {role}</span></span>
+    return (
+      <span className="cursor-pointer hover:opacity-70 transition-opacity" onClick={() => navigate(target)}>
+        {name}
+        <span className="text-text-secondary"> — {role}</span>
+        <svg className="w-3 h-3 inline-block mr-0.5 -mt-0.5 text-text-secondary/40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+      </span>
+    )
+  }
   return (
     <div className="bg-white rounded-xl border border-border overflow-hidden">
       <div className="p-4">

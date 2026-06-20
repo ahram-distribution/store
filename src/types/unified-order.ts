@@ -79,8 +79,11 @@ export interface UnifiedOrderHeader {
   snapshot_sender_address: string | null
   customer_owner_name: string
   customer_owner_role: string
+  customer_owner_id: string | null
   order_creator_name: string
   order_creator_role: string | null
+  order_creator_id: string | null
+  order_creator_type: string | null
 }
 
 export interface UnifiedCustomerSummary {
@@ -202,4 +205,7 @@ export interface UnifiedOrderListItem {
   has_collections: boolean
   customer_owner_name: string
   customer_owner_role: string
+  customer_owner_id: string | null
+  created_by_id: string | null
+  created_by_type: string | null
 }

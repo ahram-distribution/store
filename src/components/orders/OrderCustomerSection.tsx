@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { MapButton } from '../shared/MapButton'
 import { getFullAddress } from './order-detail.utils'
 import type { UnifiedCustomerSummary, UnifiedOrderHeader } from '../../types/unified-order'
@@ -28,6 +29,7 @@ function ContactActions({ phone }: { phone?: string }) {
 }
 
 export function OrderCustomerSection({ customer, order }: OrderCustomerSectionProps) {
+  const navigate = useNavigate()
   const displayName = customer?.company_name || order.snapshot_customer_name || 'غير متوفر'
   const displayPhone = customer?.phone || order.snapshot_customer_phone || 'غير متوفر'
   const fullAddress = useMemo(() => getFullAddress(customer, order), [customer, order])
@@ -38,7 +40,10 @@ export function OrderCustomerSection({ customer, order }: OrderCustomerSectionPr
       <p className="text-[10px] font-bold text-text-secondary uppercase mb-2">العميل</p>
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-sm font-bold text-primary">{displayName}</p>
+          <p className="text-sm font-bold text-primary cursor-pointer hover:opacity-70 transition-opacity" onClick={() => customer?.id && navigate(`/customers/${customer.id}`)}>
+            {displayName}
+            <svg className="w-3 h-3 inline-block mr-1 -mt-0.5 text-text-secondary/40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+          </p>
           {customer?.code && <p className="text-[10px] text-text-secondary font-mono" dir="ltr">{customer.code}</p>}
         </div>
         {displayPhone !== 'غير متوفر' && (
@@ -56,7 +61,10 @@ export function OrderCustomerSection({ customer, order }: OrderCustomerSectionPr
       )}
       <div className="mt-2 pt-2 border-t border-border">
         <p className="text-[10px] font-bold text-text-secondary uppercase mb-1">التابع لـ:</p>
-        <p className="text-sm font-medium text-text">{order.customer_owner_name || 'غير متوفر'}</p>
+        <p className="text-sm font-medium text-text cursor-pointer hover:opacity-70 transition-opacity" onClick={() => order.customer_owner_id && navigate(`/employees/${order.customer_owner_id}`)}>
+          {order.customer_owner_name || 'غير متوفر'}
+          <svg className="w-3 h-3 inline-block mr-1 -mt-0.5 text-text-secondary/40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+        </p>
         {order.customer_owner_role && (
           <p className="text-[10px] text-text-secondary">{order.customer_owner_role}</p>
         )}

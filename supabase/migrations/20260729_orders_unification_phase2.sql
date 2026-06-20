@@ -95,7 +95,14 @@ BEGIN
         'order_creator_role', CASE
           WHEN oc_i.identity_type = 'employee' THEN COALESCE((SELECT r.name FROM public.employee_roles er2 JOIN public.roles r ON r.id = er2.role_id WHERE er2.employee_id = oc_emp.id LIMIT 1), '')
           ELSE NULL
-        END
+        END,
+        'customer_owner_id', c.owner_id,
+        'order_creator_id', CASE
+          WHEN oc_i.identity_type = 'employee' THEN oc_emp.id
+          WHEN oc_i.identity_type = 'customer' THEN oc_cust.id
+          ELSE NULL
+        END,
+        'order_creator_type', oc_i.identity_type
       ),
       'customer', (
         SELECT jsonb_build_object(
@@ -314,7 +321,14 @@ BEGIN
         ),
         'customer_owner_name', COALESCE(co_emp.full_name, ''),
         'customer_owner_role', COALESCE((SELECT r.name FROM public.employee_roles er2 JOIN public.roles r ON r.id = er2.role_id WHERE er2.employee_id = c.owner_id LIMIT 1), ''),
-        'owner_name', COALESCE(o.snapshot_owner_name, e.full_name)
+        'customer_owner_id', c.owner_id,
+        'owner_name', COALESCE(o.snapshot_owner_name, e.full_name),
+        'created_by_id', CASE
+          WHEN oc_i.identity_type = 'employee' THEN oc_emp.id
+          WHEN oc_i.identity_type = 'customer' THEN oc_cust.id
+          ELSE NULL
+        END,
+        'created_by_type', oc_i.identity_type
       ) ORDER BY o.created_at DESC), '[]'::jsonb)
       FROM public.orders o
       JOIN public.customers c ON c.id = o.customer_id
@@ -366,7 +380,14 @@ BEGIN
           WHERE col.customer_id = o.customer_id
         ),
         'customer_owner_name', COALESCE(co_emp.full_name, ''),
-        'customer_owner_role', COALESCE((SELECT r.name FROM public.employee_roles er2 JOIN public.roles r ON r.id = er2.role_id WHERE er2.employee_id = c.owner_id LIMIT 1), '')
+        'customer_owner_role', COALESCE((SELECT r.name FROM public.employee_roles er2 JOIN public.roles r ON r.id = er2.role_id WHERE er2.employee_id = c.owner_id LIMIT 1), ''),
+        'customer_owner_id', c.owner_id,
+        'created_by_id', CASE
+          WHEN oc_i.identity_type = 'employee' THEN oc_emp.id
+          WHEN oc_i.identity_type = 'customer' THEN oc_cust.id
+          ELSE NULL
+        END,
+        'created_by_type', oc_i.identity_type
       )
       ORDER BY o.created_at DESC
     ), '[]'::jsonb)

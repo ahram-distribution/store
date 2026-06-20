@@ -1,5 +1,4 @@
 import { Fragment, useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { formatCurrencyShort } from '../../utils/format'
 import { UNIT_LABELS } from '../../types/order-display'
 import type { UnifiedOrder, UnifiedOrderItem } from '../../types/unified-order'
@@ -16,8 +15,6 @@ interface OrderProductsSectionProps {
 }
 
 export function OrderProductsSection({ items, order }: OrderProductsSectionProps) {
-  const navigate = useNavigate()
-
   const grandTotal = useMemo(() => items.reduce((s, i) => s + Number(i.total_price || 0), 0), [items])
   const totalPieces = useMemo(() => items.reduce((s, i) => s + Number(i.piece_quantity || 0), 0), [items])
   const totalQty = useMemo(() => items.reduce((s, i) => s + Number(i.unit_quantity || 0), 0), [items])
@@ -73,7 +70,7 @@ export function OrderProductsSection({ items, order }: OrderProductsSectionProps
                         )}
                       </td>
                       <td className="px-2 py-1.5">
-                        <p className="text-primary font-semibold cursor-pointer" onClick={() => item.product_id && navigate(`/products/${item.product_id}`)}>{item.product_name || 'غير متوفر'}</p>
+                        <p className="text-text font-medium">{item.product_name || 'غير متوفر'}</p>
                         {item.legacy_code && <p className="text-[9px] text-text-secondary font-mono" dir="ltr">{item.legacy_code}</p>}
                       </td>
                       <td className="px-2 py-1.5 text-center text-text-secondary">{UNIT_LABELS[item.unit_type] || item.unit_type}</td>
