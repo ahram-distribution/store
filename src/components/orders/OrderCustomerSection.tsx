@@ -28,7 +28,9 @@ function ContactActions({ phone }: { phone?: string }) {
 }
 
 export function OrderCustomerSection({ customer, order }: OrderCustomerSectionProps) {
-  const fullAddress = useMemo(() => getFullAddress(customer), [customer])
+  const displayName = customer?.company_name || order.snapshot_customer_name || 'غير متوفر'
+  const displayPhone = customer?.phone || order.snapshot_customer_phone || 'غير متوفر'
+  const fullAddress = useMemo(() => getFullAddress(customer, order), [customer, order])
   const hasAddressCoords = customer?.address_latitude != null && customer?.address_longitude != null
 
   return (
@@ -36,14 +38,14 @@ export function OrderCustomerSection({ customer, order }: OrderCustomerSectionPr
       <p className="text-[10px] font-bold text-text-secondary uppercase mb-2">العميل</p>
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-sm font-bold text-primary">{customer?.company_name || 'غير متوفر'}</p>
+          <p className="text-sm font-bold text-primary">{displayName}</p>
           {customer?.code && <p className="text-[10px] text-text-secondary font-mono" dir="ltr">{customer.code}</p>}
         </div>
-        {customer?.phone && (
-          <ContactActions phone={customer.phone} />
+        {displayPhone !== 'غير متوفر' && (
+          <ContactActions phone={displayPhone} />
         )}
       </div>
-      <p className="text-xs text-text-secondary mt-1" dir="ltr">{customer?.phone || 'غير متوفر'}</p>
+      <p className="text-xs text-text-secondary mt-1" dir="ltr">{displayPhone}</p>
       {fullAddress && (
         <p className="text-xs text-text-secondary mt-1 leading-relaxed">{fullAddress}</p>
       )}
