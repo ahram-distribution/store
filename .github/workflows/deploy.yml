@@ -15,11 +15,8 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  build-and-deploy:
+  build:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: https://ahram-distribution.github.io/store/
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -42,31 +39,28 @@ jobs:
           VITE_APP_VERSION: ${{ vars.VITE_APP_VERSION || '1.0.0' }}
           VITE_WHATSAPP_NUMBER: ${{ vars.VITE_WHATSAPP_NUMBER }}
 
-      - name: Prepare deploy directory
-        run: |
-          ls -la dist/
-          mkdir -p deploy
-          cp dist/index.html deploy/index.html
-          [ -f dist/404.html ] && cp dist/404.html deploy/404.html || cp dist/index.html deploy/404.html
-          [ -d dist/assets ] && cp -r dist/assets deploy/
-          [ -d dist/pwa ] && cp -r dist/pwa deploy/
-          [ -f dist/manifest.webmanifest ] && cp dist/manifest.webmanifest deploy/
-          [ -f dist/registerSW.js ] && cp dist/registerSW.js deploy/
-          touch deploy/.nojekyll
-
-      - name: Configure Pages to serve from gh-pages branch
-        continue-on-error: true
-        run: |
-          curl -s -X PUT "https://api.github.com/repos/${{ github.repository }}/pages" \
-            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-            -H "Accept: application/vnd.github+json" \
-            -H "Content-Type: application/json" \
-            -d '{"source":{"branch":"gh-pages","path":"/"}}'
-
-      - name: Deploy to gh-pages
-        uses: peaceiris/actions-gh-pages@v4
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./deploy
-          publish_branch: gh-pages
-          force_orphan: true
+          path: ./dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+      - name: Enable SPA routing (set Pages source to gh-pages branch)
+        run: |
+          echo "Trying to set Pages source to gh-pages branch for SPA routing..."
+          gh api -X PUT /repos/${{ github.repository }}/pages \
+            -f source[branch]=gh-pages -f source[path]='/' \
+            --silent && echo "SUCCESS: Pages source set to gh-pages" || echo "NOTE: Could not set Pages source. If SPA routes return 404, go to Settings -> Pages and set source to 'gh-pages branch / root', then re-run this workflow."
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
