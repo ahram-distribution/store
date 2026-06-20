@@ -341,10 +341,20 @@ self.addEventListener('notificationclick', (event) => {
   )
 })
 
-// ---- Fetch (precache + offline support) ----
+// ---- Fetch (precache + offline + SPA navigation) ----
 
 self.addEventListener('fetch', (event) => {
   if (event.request.url.includes('/rest/v1/rpc/')) return
+
+  // SPA navigation: serve index.html for any navigation to non-asset URLs
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      caches.match('/store/index.html').then((cached) => {
+        return cached || fetch('/store/index.html')
+      })
+    )
+    return
+  }
 
   event.respondWith(
     caches.match(event.request).then((cached) => {
