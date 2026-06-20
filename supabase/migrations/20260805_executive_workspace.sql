@@ -97,6 +97,7 @@ DECLARE
   v_session app.sessions;
   v_visible uuid[];
   v_is_super boolean;
+  v_can_see_all boolean;
   v_waiting_prep bigint;
   v_in_prep bigint;
   v_ready_for_dispatch bigint;
@@ -110,44 +111,45 @@ BEGIN
   IF NOT FOUND THEN RETURN jsonb_build_object('error', 'INVALID_SESSION'); END IF;
 
   v_is_super := public.is_upper_management(v_session.employee_id);
+  v_can_see_all := v_is_super OR public.check_capability(p_token, 'orders.manage');
   v_visible := COALESCE(public.get_visible_employee_ids(p_token), '{}'::uuid[]);
 
   -- Waiting for preparation: approved
   SELECT count(*) INTO v_waiting_prep FROM public.orders o
   JOIN public.customers c ON c.id = o.customer_id
   WHERE o.status = 'approved'
-    AND (v_is_super OR c.owner_id = ANY(v_visible));
+    AND (v_can_see_all OR c.owner_id = ANY(v_visible));
 
   -- In preparation: preparing
   SELECT count(*) INTO v_in_prep FROM public.orders o
   JOIN public.customers c ON c.id = o.customer_id
   WHERE o.status = 'preparing'
-    AND (v_is_super OR c.owner_id = ANY(v_visible));
+    AND (v_can_see_all OR c.owner_id = ANY(v_visible));
 
   -- Ready for dispatch: prepared
   SELECT count(*) INTO v_ready_for_dispatch FROM public.orders o
   JOIN public.customers c ON c.id = o.customer_id
   WHERE o.status = 'prepared'
-    AND (v_is_super OR c.owner_id = ANY(v_visible));
+    AND (v_can_see_all OR c.owner_id = ANY(v_visible));
 
   -- In delivery: dispatched, sent_to_delivery, deferred
   SELECT count(*) INTO v_in_delivery FROM public.orders o
   JOIN public.customers c ON c.id = o.customer_id
   WHERE o.status IN ('dispatched', 'sent_to_delivery', 'deferred')
-    AND (v_is_super OR c.owner_id = ANY(v_visible));
+    AND (v_can_see_all OR c.owner_id = ANY(v_visible));
 
   -- Delivered: delivered
   SELECT count(*) INTO v_delivered FROM public.orders o
   JOIN public.customers c ON c.id = o.customer_id
   WHERE o.status = 'delivered'
-    AND (v_is_super OR c.owner_id = ANY(v_visible));
+    AND (v_can_see_all OR c.owner_id = ANY(v_visible));
 
   -- Collection KPIs: based on orders + collections
   -- Uncollected: delivered orders with no approved collections
   SELECT count(*) INTO v_uncollected FROM public.orders o
   JOIN public.customers c ON c.id = o.customer_id
   WHERE o.status = 'delivered'
-    AND (v_is_super OR c.owner_id = ANY(v_visible))
+    AND (v_can_see_all OR c.owner_id = ANY(v_visible))
     AND NOT EXISTS (
       SELECT 1 FROM public.collections col
       WHERE (col.order_id = o.id OR col.customer_id = o.customer_id)
@@ -158,7 +160,7 @@ BEGIN
   SELECT count(*) INTO v_fully_collected FROM public.orders o
   JOIN public.customers c ON c.id = o.customer_id
   WHERE o.status = 'delivered'
-    AND (v_is_super OR c.owner_id = ANY(v_visible))
+    AND (v_can_see_all OR c.owner_id = ANY(v_visible))
     AND (
       SELECT COALESCE(SUM(col.amount), 0) FROM public.collections col
       WHERE (col.order_id = o.id OR col.customer_id = o.customer_id)
@@ -169,7 +171,7 @@ BEGIN
   SELECT count(*) INTO v_partially_collected FROM public.orders o
   JOIN public.customers c ON c.id = o.customer_id
   WHERE o.status = 'delivered'
-    AND (v_is_super OR c.owner_id = ANY(v_visible))
+    AND (v_can_see_all OR c.owner_id = ANY(v_visible))
     AND EXISTS (
       SELECT 1 FROM public.collections col
       WHERE (col.order_id = o.id OR col.customer_id = o.customer_id)
@@ -213,11 +215,13 @@ DECLARE
   v_session app.sessions;
   v_visible uuid[];
   v_is_super boolean;
+  v_can_see_all boolean;
 BEGIN
   SELECT * INTO v_session FROM app.sessions WHERE token = p_token AND expires_at > now();
   IF NOT FOUND THEN RETURN '[]'::jsonb; END IF;
 
   v_is_super := public.is_upper_management(v_session.employee_id);
+  v_can_see_all := v_is_super OR public.check_capability(p_token, 'orders.manage');
   v_visible := COALESCE(public.get_visible_employee_ids(p_token), '{}'::uuid[]);
 
   RETURN (
@@ -267,8 +271,8 @@ BEGIN
     LEFT JOIN public.identities oc_i ON oc_i.id = o.created_by
     LEFT JOIN public.employees oc_emp ON oc_emp.identity_id = oc_i.id AND oc_i.identity_type = 'employee'
     LEFT JOIN public.customers oc_cust ON oc_cust.identity_id = oc_i.id AND oc_i.identity_type = 'customer'
-    WHERE (v_is_super OR c.owner_id = ANY(v_visible))
-      AND o.status IN ('approved', 'preparing', 'prepared', 'dispatched', 'sent_to_delivery', 'delivered', 'deferred')
+    WHERE (v_can_see_all OR c.owner_id = ANY(v_visible))
+      AND o.status IN ('approved', 'preparing', 'prepared', 'ready_for_dispatch', 'dispatched', 'sent_to_delivery', 'delivered', 'deferred')
       AND (p_status IS NULL OR o.status = p_status)
       AND (p_delivery_mode IS NULL OR o.delivery_mode = p_delivery_mode)
       AND (p_governorate IS NULL OR ca.governorate = p_governorate)
@@ -299,3 +303,22 @@ BEGIN
   );
 END;
 $function$;
+
+-- =============================================================================
+-- 5. Create missing capabilities and add them to Executive Supervisor role
+-- =============================================================================
+INSERT INTO capabilities (code, name)
+VALUES
+  ('orders.prepare', 'بدء التجهيز'),
+  ('orders.dispatch', 'شحن الطلب')
+ON CONFLICT (code) DO NOTHING;
+
+-- Add required capabilities to the Executive Supervisor role (المشرف التنفيذي)
+INSERT INTO role_capabilities (role_id, capability_id)
+SELECT r.id, c.id FROM roles r CROSS JOIN capabilities c
+WHERE r.name = 'مشرف تنفيذي'
+  AND c.code IN ('orders.prepare', 'warehouse.prepare', 'orders.dispatch', 'delivery.deliver', 'orders.manage')
+  AND NOT EXISTS (
+    SELECT 1 FROM role_capabilities rc
+    WHERE rc.role_id = r.id AND rc.capability_id = c.id
+  );
