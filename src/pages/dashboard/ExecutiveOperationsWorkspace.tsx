@@ -9,6 +9,7 @@ function getToken(): string | null {
 }
 
 type TabFilter = 'all' | 'approved' | 'preparing' | 'prepared' | 'dispatched' | 'delivered'
+type DateFilter = 'all' | 'today' | 'yesterday' | 'this_week' | 'this_month' | 'custom'
 
 interface KPIs {
   waiting_preparation: number
@@ -33,9 +34,14 @@ interface QueueItem {
   governorate: string | null
   created_at: string
   updated_at: string
+  submitted_at: string | null
+  approved_at: string | null
   current_delivery_status: string | null
   has_collections: boolean
   collected_amount: number
+  owner_name: string | null
+  created_by_name: string | null
+  item_count: number
 }
 
 interface FullOrder {
@@ -71,16 +77,31 @@ const COLORS: Record<string, string> = {
   fully_collected: 'from-green-500 to-green-700',
 }
 
-const KPI_CONFIG: { key: keyof KPIs; label: string; icon: string; color: string }[] = [
-  { key: 'waiting_preparation', label: 'بانتظار التجهيز', icon: '📦', color: COLORS.waiting_preparation },
-  { key: 'in_preparation', label: 'جارى التجهيز', icon: '⚙️', color: COLORS.in_preparation },
-  { key: 'ready_for_dispatch', label: 'جاهز للشحن', icon: '🚚', color: COLORS.ready_for_dispatch },
-  { key: 'in_delivery', label: 'لدى التوصيل', icon: '📬', color: COLORS.in_delivery },
-  { key: 'delivered', label: 'تم التسليم', icon: '✅', color: COLORS.delivered },
+const KPI_CONFIG: { key: keyof KPIs; label: string; icon: string; color: string; filterStatus?: string }[] = [
+  { key: 'waiting_preparation', label: 'بانتظار التجهيز', icon: '📦', color: COLORS.waiting_preparation, filterStatus: 'approved' },
+  { key: 'in_preparation', label: 'جارى التجهيز', icon: '⚙️', color: COLORS.in_preparation, filterStatus: 'preparing' },
+  { key: 'ready_for_dispatch', label: 'جاهز للشحن', icon: '🚚', color: COLORS.ready_for_dispatch, filterStatus: 'prepared' },
+  { key: 'in_delivery', label: 'لدى التوصيل', icon: '📬', color: COLORS.in_delivery, filterStatus: 'dispatched' },
+  { key: 'delivered', label: 'تم التسليم', icon: '✅', color: COLORS.delivered, filterStatus: 'delivered' },
   { key: 'uncollected', label: 'غير محصل', icon: '💰', color: COLORS.uncollected },
   { key: 'partially_collected', label: 'محصل جزئى', icon: '💳', color: COLORS.partially_collected },
   { key: 'fully_collected', label: 'محصل بالكامل', icon: '🏆', color: COLORS.fully_collected },
 ]
+
+function getDateRange(filter: DateFilter): { from: string | null; to: string | null } {
+  const now = new Date()
+  const today = now.toISOString().split('T')[0]
+  const yesterday = new Date(now.getTime() - 86400000).toISOString().split('T')[0]
+  const weekAgo = new Date(now.getTime() - 7 * 86400000).toISOString().split('T')[0]
+  const monthAgo = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
+  switch (filter) {
+    case 'today': return { from: today, to: today }
+    case 'yesterday': return { from: yesterday, to: yesterday }
+    case 'this_week': return { from: weekAgo, to: today }
+    case 'this_month': return { from: monthAgo, to: today }
+    default: return { from: null, to: null }
+  }
+}
 
 export function ExecutiveOperationsWorkspace() {
   const user = useAuthStore((s) => s.user)
@@ -89,8 +110,12 @@ export function ExecutiveOperationsWorkspace() {
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<TabFilter>('all')
   const [search, setSearch] = useState('')
+  const [employeeSearch, setEmployeeSearch] = useState('')
   const [governorateFilter, setGovernorateFilter] = useState('')
   const [deliveryModeFilter, setDeliveryModeFilter] = useState('')
+  const [dateFilter, setDateFilter] = useState<DateFilter>('all')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
   const [governorates, setGovernorates] = useState<string[]>([])
   const [selectedOrder, setSelectedOrder] = useState<QueueItem | null>(null)
   const [orderDetail, setOrderDetail] = useState<FullOrder | null>(null)
@@ -98,6 +123,7 @@ export function ExecutiveOperationsWorkspace() {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [employees, setEmployees] = useState<{ id: string; code: string; full_name: string }[]>([])
   const [carriers, setCarriers] = useState<{ id: string; name: string }[]>([])
+  const [fullScreen, setFullScreen] = useState(false)
 
   const [deliveryMode, setDeliveryMode] = useState<'internal' | 'external'>('internal')
   const [internalDriver, setInternalDriver] = useState('')
@@ -114,14 +140,23 @@ export function ExecutiveOperationsWorkspace() {
     const token = getToken()
     if (!token) { setLoading(false); return }
     try {
+      const dr = dateFilter === 'custom' ? { from: dateFrom || null, to: dateTo || null } : getDateRange(dateFilter)
       const [kpiRes, queueRes, empRes, carrierRes] = await Promise.all([
-        supabase.rpc('get_governed_executive_kpis', { p_token: token }),
+        supabase.rpc('get_governed_executive_kpis', {
+          p_token: token,
+          p_date_from: dr.from,
+          p_date_to: dr.to,
+        }),
         supabase.rpc('get_governed_executive_queue', {
           p_token: token,
           p_status: activeTab === 'all' ? null : activeTab,
           p_search: search || null,
           p_governorate: governorateFilter || null,
           p_delivery_mode: deliveryModeFilter || null,
+          p_date_from: dr.from,
+          p_date_to: dr.to,
+          p_employee_name: employeeSearch || null,
+          p_date_filter: dateFilter === 'all' ? null : dateFilter,
         }),
         supabase.rpc('get_governed_employees', { p_token: token }),
         supabase.rpc('get_governed_external_carriers', { p_token: token }),
@@ -139,7 +174,7 @@ export function ExecutiveOperationsWorkspace() {
     } finally {
       setLoading(false)
     }
-  }, [activeTab, search, governorateFilter, deliveryModeFilter])
+  }, [activeTab, search, employeeSearch, governorateFilter, deliveryModeFilter, dateFilter, dateFrom, dateTo])
 
   useEffect(() => { loadData() }, [loadData])
 
@@ -175,11 +210,13 @@ export function ExecutiveOperationsWorkspace() {
     setInternalDriver(''); setInternalVehicle(''); setInternalNotes('')
     setExternalCarrier(''); setExternalWaybill(''); setExternalTrackingUrl(''); setExternalNotes('')
     loadOrderDetail(item.id)
+    setFullScreen(true)
   }
 
   const closeOrder = () => {
     setSelectedOrder(null)
     setOrderDetail(null)
+    setFullScreen(false)
   }
 
   const handleStartPrep = async () => {
@@ -230,6 +267,9 @@ export function ExecutiveOperationsWorkspace() {
         p_external_carrier_id: deliveryMode === 'external' ? externalCarrier || null : null,
         p_waybill_number: deliveryMode === 'external' ? externalWaybill || null : null,
         p_tracking_url: deliveryMode === 'external' ? externalTrackingUrl || null : null,
+        p_vehicle_number: deliveryMode === 'internal' ? internalVehicle || null : null,
+        p_departure_date: deliveryMode === 'internal' ? new Date().toISOString() : null,
+        p_notes: deliveryMode === 'internal' ? internalNotes || null : externalNotes || null,
       }
       const { data, error } = await supabase.rpc('governed_dispatch_order', params)
       if (error) throw error
@@ -266,7 +306,9 @@ export function ExecutiveOperationsWorkspace() {
     if (!token) return
     try {
       const { data, error } = await supabase.rpc('governed_return_order_for_revision', {
-        p_token: token, p_id: selectedOrder.id, p_reason: returnReason,
+        p_token: token,
+        p_id: selectedOrder.id,
+        p_reason: returnReason,
       })
       if (error) throw error
       if (data?.error) throw new Error(data.error)
@@ -280,6 +322,12 @@ export function ExecutiveOperationsWorkspace() {
     }
   }
 
+  const handleKpiClick = (kpi: typeof KPI_CONFIG[0]) => {
+    if (kpi.filterStatus) {
+      setActiveTab(kpi.filterStatus as TabFilter)
+    }
+  }
+
   const getCollectionStatus = (total: number, collected: number): { label: string; color: string } => {
     if (!collected || collected === 0) return { label: 'غير محصل', color: 'bg-red-100 text-red-700' }
     if (collected >= total) return { label: 'محصل بالكامل', color: 'bg-green-100 text-green-700' }
@@ -290,7 +338,7 @@ export function ExecutiveOperationsWorkspace() {
     return <div className="text-center py-12 text-text-secondary text-sm">جاري التحميل...</div>
   }
 
-  return (
+  const orderContent = () => (
     <div className="space-y-4 pb-12" dir="rtl">
       {/* Header */}
       <div className="bg-gradient-to-br from-secondary to-[#0F2B5B] text-white rounded-xl p-5">
@@ -307,14 +355,37 @@ export function ExecutiveOperationsWorkspace() {
         </div>
       )}
 
-      {/* Section 1 — Executive KPIs */}
+      {/* Date Filter */}
+      <div className="bg-white rounded-xl border border-border p-3">
+        <div className="flex gap-1.5 overflow-x-auto pb-1">
+          {(['all', 'today', 'yesterday', 'this_week', 'this_month', 'custom'] as DateFilter[]).map((df) => (
+            <button key={df} onClick={() => setDateFilter(df)}
+              className={`whitespace-nowrap px-3 py-1.5 rounded-full text-[10px] font-semibold ${
+                dateFilter === df ? 'bg-primary text-white' : 'bg-surface border border-border text-text-secondary'
+              }`}>
+              {df === 'all' ? 'الكل' : df === 'today' ? 'اليوم' : df === 'yesterday' ? 'أمس' : df === 'this_week' ? 'الأسبوع الحالي' : df === 'this_month' ? 'الشهر الحالي' : 'فترة مخصصة'}
+            </button>
+          ))}
+        </div>
+        {dateFilter === 'custom' && (
+          <div className="flex gap-2 mt-2">
+            <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
+              className="flex-1 border border-border rounded-lg px-2 py-1.5 text-[10px] bg-white" />
+            <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
+              className="flex-1 border border-border rounded-lg px-2 py-1.5 text-[10px] bg-white" />
+          </div>
+        )}
+      </div>
+
+      {/* Section 1 — Executive KPIs (clickable) */}
       <div className="grid grid-cols-4 gap-2">
         {KPI_CONFIG.map((cfg) => (
-          <div key={cfg.key} className={`rounded-xl p-2.5 text-white bg-gradient-to-br ${cfg.color} shadow-sm`}>
+          <button key={cfg.key} onClick={() => handleKpiClick(cfg)}
+            className={`rounded-xl p-2.5 text-white bg-gradient-to-br ${cfg.color} shadow-sm text-right transition-transform active:scale-95 ${cfg.filterStatus ? 'cursor-pointer' : 'cursor-default'}`}>
             <div className="text-lg">{cfg.icon}</div>
             <div className="text-lg font-bold mt-0.5">{kpis?.[cfg.key] ?? 0}</div>
             <div className="text-[10px] opacity-90 leading-tight mt-0.5">{cfg.label}</div>
-          </div>
+          </button>
         ))}
       </div>
 
@@ -327,6 +398,15 @@ export function ExecutiveOperationsWorkspace() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="flex-1 border border-border rounded-lg px-3 py-2 text-xs bg-surface"
+          />
+        </div>
+        <div className="mb-3">
+          <input
+            type="text"
+            placeholder="بحث باسم المندوب..."
+            value={employeeSearch}
+            onChange={(e) => setEmployeeSearch(e.target.value)}
+            className="w-full border border-border rounded-lg px-3 py-2 text-xs bg-surface"
           />
         </div>
 
@@ -372,6 +452,7 @@ export function ExecutiveOperationsWorkspace() {
                 <div className="text-[10px] text-text-secondary space-y-0.5">
                   <span>{item.customer_name}</span>
                   {item.governorate && <span className="mr-2">• {item.governorate}</span>}
+                  {item.owner_name && <span className="mr-2">• {item.owner_name}</span>}
                 </div>
                 <div className="flex items-center justify-between mt-1 text-[10px]">
                   <span className="font-semibold text-text">{formatCurrencyShort(item.total_amount)}</span>
@@ -385,204 +466,265 @@ export function ExecutiveOperationsWorkspace() {
           })}
         </div>
       </div>
+    </div>
+  )
 
-      {/* Section 3 — Order Command Panel */}
-      {selectedOrder && (
-        <div className="bg-white rounded-xl border border-border p-3 space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold text-text">{selectedOrder.order_number}</h3>
-            <button onClick={closeOrder} className="text-text-secondary text-lg leading-none">&times;</button>
-          </div>
+  const fullOrderDetail = () => (
+    <div className="fixed inset-0 z-50 bg-white overflow-y-auto" dir="rtl">
+      <div className="sticky top-0 bg-white border-b border-border z-10 px-4 py-3 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <h3 className="font-bold text-text">{selectedOrder?.order_number}</h3>
+          {selectedOrder && <StatusBadge status={selectedOrder.status} size="sm" />}
+        </div>
+        <button onClick={closeOrder} className="text-text-secondary text-2xl leading-none p-1">&times;</button>
+      </div>
 
-          {detailLoading ? (
-            <div className="text-center py-4 text-text-secondary text-xs">جاري تحميل بيانات الطلب...</div>
-          ) : orderDetail ? (
-            <>
-              {/* Customer Block */}
-              <div className="bg-surface rounded-lg p-3">
-                <h4 className="text-xs font-bold text-text mb-2">👤 بيانات العميل</h4>
-                <div className="text-[11px] space-y-1">
-                  <p><span className="text-text-secondary">الاسم: </span>{orderDetail.order.snapshot_customer_name || orderDetail.customer?.company_name || '-'}</p>
-                  <p><span className="text-text-secondary">الهاتف: </span>{orderDetail.order.snapshot_customer_phone || orderDetail.customer?.phone || '-'}</p>
-                  <p><span className="text-text-secondary">العنوان: </span>{orderDetail.order.snapshot_customer_address || `${orderDetail.customer?.address_line1 || ''} ${orderDetail.customer?.city || ''} ${orderDetail.customer?.governorate || ''}` || '-'}</p>
-                </div>
-                <div className="flex gap-2 mt-2">
-                  {orderDetail.customer?.address_latitude && orderDetail.customer?.address_longitude && (
-                    <>
-                      <a href={`https://maps.google.com/?q=${orderDetail.customer.address_latitude},${orderDetail.customer.address_longitude}`}
-                        target="_blank" rel="noopener noreferrer"
-                        className="flex-1 bg-primary text-white text-[10px] py-1.5 rounded-lg text-center">
-                        🗺️ فتح الخريطة
-                      </a>
-                      <button onClick={() => {
-                        navigator.clipboard.writeText(`https://maps.google.com/?q=${orderDetail.customer.address_latitude},${orderDetail.customer.address_longitude}`)
-                        setMessage({ type: 'success', text: 'تم نسخ الرابط' })
-                      }}
-                        className="flex-1 bg-surface text-text border border-border text-[10px] py-1.5 rounded-lg text-center">
-                        📋 نسخ الرابط
-                      </button>
-                    </>
-                  )}
+      <div className="p-4 space-y-4 pb-24">
+        {detailLoading ? (
+          <div className="text-center py-12 text-text-secondary text-sm">جاري تحميل بيانات الطلب...</div>
+        ) : orderDetail ? (
+          <>
+            {/* Customer Info */}
+            <div className="bg-surface rounded-xl p-4 border border-border">
+              <h4 className="text-sm font-bold text-text mb-3">👤 بيانات العميل</h4>
+              <div className="space-y-2 text-[13px]">
+                <div className="flex justify-between"><span className="text-text-secondary">الاسم:</span><span className="font-semibold">{orderDetail.order.snapshot_customer_name || orderDetail.customer?.company_name || '-'}</span></div>
+                <div className="flex justify-between"><span className="text-text-secondary">الهاتف:</span><span dir="ltr" className="font-semibold">{orderDetail.order.snapshot_customer_phone || orderDetail.customer?.phone || '-'}</span></div>
+                <div className="flex justify-between"><span className="text-text-secondary">العنوان:</span><span className="font-semibold text-left">{orderDetail.order.snapshot_customer_address || `${orderDetail.customer?.address_line1 || ''} ${orderDetail.customer?.city || ''} ${orderDetail.customer?.governorate || ''}` || '-'}</span></div>
+                {orderDetail.customer?.address_latitude && orderDetail.customer?.address_longitude && (
+                  <div className="flex gap-2 mt-2">
+                    <a href={`https://maps.google.com/?q=${orderDetail.customer.address_latitude},${orderDetail.customer.address_longitude}`}
+                      target="_blank" rel="noopener noreferrer"
+                      className="flex-1 bg-primary text-white text-xs py-2 rounded-lg text-center">
+                      🗺️ فتح الخريطة
+                    </a>
+                    <button onClick={() => {
+                      navigator.clipboard.writeText(`https://maps.google.com/?q=${orderDetail.customer.address_latitude},${orderDetail.customer.address_longitude}`)
+                      setMessage({ type: 'success', text: 'تم نسخ الرابط' })
+                    }}
+                      className="flex-1 bg-surface text-text border border-border text-xs py-2 rounded-lg text-center">
+                      📋 نسخ الرابط
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Ownership */}
+            <div className="bg-surface rounded-xl p-4 border border-border">
+              <h4 className="text-sm font-bold text-text mb-3">👥 الملكية والإنشاء</h4>
+              <div className="space-y-2 text-[13px]">
+                <div className="flex justify-between"><span className="text-text-secondary">مالك العميل:</span><span className="font-semibold">{selectedOrder?.owner_name || '-'}</span></div>
+                <div className="flex justify-between"><span className="text-text-secondary">منشئ الطلب:</span><span className="font-semibold">{selectedOrder?.created_by_name || '-'}</span></div>
+                <div className="flex justify-between"><span className="text-text-secondary">طريقة الدفع:</span><span className="font-semibold">{orderDetail.order.payment_method === 'credit' ? 'آجل' : orderDetail.order.payment_method === 'cash' ? 'نقدي' : orderDetail.order.payment_method || '-'}</span></div>
+                <div className="flex justify-between"><span className="text-text-secondary">الإجمالي:</span><span className="font-semibold">{formatCurrencyShort(orderDetail.order.total_amount)}</span></div>
+                <div className="flex justify-between"><span className="text-text-secondary">رقم المراجعة:</span><span className="font-semibold">{orderDetail.order.revision_number || 0}</span></div>
+              </div>
+            </div>
+
+            {/* Order Items */}
+            {orderDetail.items && orderDetail.items.length > 0 && (
+              <div className="bg-surface rounded-xl p-4 border border-border">
+                <h4 className="text-sm font-bold text-text mb-3">📦 الأصناف</h4>
+                <div className="space-y-2">
+                  {orderDetail.items.map((item: any, idx: number) => (
+                    <div key={idx} className="bg-white rounded-lg p-3 border border-border text-[13px]">
+                      <div className="flex justify-between font-semibold">
+                        <span>{item.product_name || item.product_code || 'منتج'}</span>
+                        <span>{formatCurrencyShort(item.total_price)}</span>
+                      </div>
+                      <div className="text-text-secondary text-[11px] mt-1">
+                        الكمية: {item.unit_quantity || 0} {item.unit_type || 'وحدة'}
+                        {item.piece_quantity ? ` + ${item.piece_quantity} قطعة` : ''}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
+            )}
 
-              {/* Ownership Block */}
-              <div className="bg-surface rounded-lg p-3">
-                <h4 className="text-xs font-bold text-text mb-2">👥 الملكية</h4>
-                <div className="text-[11px] space-y-1">
-                  <p><span className="text-text-secondary">مالك العميل: </span>{orderDetail.order.customer_owner_name || '-'}</p>
-                  <p><span className="text-text-secondary">منشئ الطلب: </span>{orderDetail.order.order_creator_name || '-'}</p>
-                  <p><span className="text-text-secondary">رقم المراجعة: </span>{orderDetail.order.revision_number || 0}</p>
-                </div>
-              </div>
+            {/* Delivery Management */}
+            <div className="bg-surface rounded-xl p-4 border border-border">
+              <h4 className="text-sm font-bold text-text mb-3">🚚 التوصيل</h4>
 
-              {/* Delivery Mode Decision */}
-              {['approved', 'prepared'].includes(orderDetail.order.status) && (
-                <div className="bg-surface rounded-lg p-3">
-                  <h4 className="text-xs font-bold text-text mb-2">🚚 نوع الشحن</h4>
+              {['approved', 'prepared', 'preparing'].includes(orderDetail.order.status) && (
+                <>
                   <div className="flex gap-2 mb-3">
                     <button onClick={() => setDeliveryMode('internal')}
-                      className={`flex-1 py-2 rounded-lg text-[11px] font-semibold border ${
+                      className={`flex-1 py-2 rounded-lg text-xs font-semibold border ${
                         deliveryMode === 'internal' ? 'bg-primary text-white border-primary' : 'bg-white text-text-secondary border-border'
-                      }`}>
-                      توصيل داخلي
-                    </button>
+                      }`}>توصيل داخلي</button>
                     <button onClick={() => setDeliveryMode('external')}
-                      className={`flex-1 py-2 rounded-lg text-[11px] font-semibold border ${
+                      className={`flex-1 py-2 rounded-lg text-xs font-semibold border ${
                         deliveryMode === 'external' ? 'bg-primary text-white border-primary' : 'bg-white text-text-secondary border-border'
-                      }`}>
-                      شركة شحن
-                    </button>
+                      }`}>شركة شحن</button>
                   </div>
 
                   {deliveryMode === 'internal' ? (
                     <div className="space-y-2">
                       <select value={internalDriver} onChange={(e) => setInternalDriver(e.target.value)}
-                        className="w-full border border-border rounded-lg px-3 py-2 text-[11px] bg-white">
+                        className="w-full border border-border rounded-lg px-3 py-2 text-xs bg-white">
                         <option value="">اختر السائق...</option>
                         {employees.map((e) => <option key={e.id} value={e.id}>{e.full_name || e.code}</option>)}
                       </select>
                       <input type="text" placeholder="رقم السيارة" value={internalVehicle}
                         onChange={(e) => setInternalVehicle(e.target.value)}
-                        className="w-full border border-border rounded-lg px-3 py-2 text-[11px] bg-white" />
+                        className="w-full border border-border rounded-lg px-3 py-2 text-xs bg-white" />
                       <textarea placeholder="ملاحظات" value={internalNotes}
                         onChange={(e) => setInternalNotes(e.target.value)}
-                        className="w-full border border-border rounded-lg px-3 py-2 text-[11px] bg-white" rows={2} />
+                        className="w-full border border-border rounded-lg px-3 py-2 text-xs bg-white" rows={2} />
+                      <button onClick={handleDispatch}
+                        disabled={!internalDriver}
+                        className="w-full bg-success text-white rounded-lg py-3 text-sm font-bold disabled:opacity-40">
+                        تأكيد الشحن الداخلي
+                      </button>
                     </div>
                   ) : (
                     <div className="space-y-2">
                       <select value={externalCarrier} onChange={(e) => setExternalCarrier(e.target.value)}
-                        className="w-full border border-border rounded-lg px-3 py-2 text-[11px] bg-white">
+                        className="w-full border border-border rounded-lg px-3 py-2 text-xs bg-white">
                         <option value="">اختر شركة الشحن...</option>
                         {carriers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                       </select>
                       <input type="text" placeholder="رقم البوليصة" value={externalWaybill}
                         onChange={(e) => setExternalWaybill(e.target.value)}
-                        className="w-full border border-border rounded-lg px-3 py-2 text-[11px] bg-white" />
+                        className="w-full border border-border rounded-lg px-3 py-2 text-xs bg-white" />
                       <input type="text" placeholder="رابط التتبع" value={externalTrackingUrl}
                         onChange={(e) => setExternalTrackingUrl(e.target.value)}
-                        className="w-full border border-border rounded-lg px-3 py-2 text-[11px] bg-white" />
+                        className="w-full border border-border rounded-lg px-3 py-2 text-xs bg-white" />
                       <textarea placeholder="ملاحظات" value={externalNotes}
                         onChange={(e) => setExternalNotes(e.target.value)}
-                        className="w-full border border-border rounded-lg px-3 py-2 text-[11px] bg-white" rows={2} />
+                        className="w-full border border-border rounded-lg px-3 py-2 text-xs bg-white" rows={2} />
+                      <button onClick={handleDispatch}
+                        disabled={!externalCarrier}
+                        className="w-full bg-success text-white rounded-lg py-3 text-sm font-bold disabled:opacity-40">
+                        تأكيد الشحن الخارجي
+                      </button>
                     </div>
                   )}
-
-                  <button onClick={handleDispatch}
-                    disabled={deliveryMode === 'internal' ? !internalDriver : !externalCarrier}
-                    className="w-full mt-3 bg-success text-white rounded-lg py-2.5 text-xs font-bold disabled:opacity-40">
-                    تأكيد الشحن
-                  </button>
-                </div>
+                </>
               )}
 
-              {/* Delivery Info (when already dispatched) */}
               {orderDetail.current_delivery && ['dispatched'].includes(orderDetail.order.status) && (
-                <div className="bg-surface rounded-lg p-3">
-                  <h4 className="text-xs font-bold text-text mb-2">🚚 معلومات الشحن</h4>
-                  <div className="text-[11px] space-y-1">
-                    <p><span className="text-text-secondary">النوع: </span>{orderDetail.order.delivery_mode === 'external' ? 'شركة شحن' : 'توصيل داخلي'}</p>
-                    {orderDetail.current_delivery.assigned_to_name && (
-                      <p><span className="text-text-secondary">السائق: </span>{orderDetail.current_delivery.assigned_to_name}</p>
-                    )}
-                    {orderDetail.current_delivery.external_carrier_name && (
-                      <p><span className="text-text-secondary">شركة الشحن: </span>{orderDetail.current_delivery.external_carrier_name}</p>
-                    )}
-                    {orderDetail.current_delivery.waybill_number && (
-                      <p><span className="text-text-secondary">البوليصة: </span>{orderDetail.current_delivery.waybill_number}</p>
-                    )}
+                <div className="space-y-2">
+                  <div className="bg-white rounded-lg p-3 border border-border text-[13px] space-y-1">
+                    <div className="flex justify-between"><span className="text-text-secondary">النوع:</span><span>{orderDetail.order.delivery_mode === 'external' ? 'شركة شحن' : 'توصيل داخلي'}</span></div>
+                    {orderDetail.current_delivery.assigned_to_name && <div className="flex justify-between"><span className="text-text-secondary">السائق:</span><span>{orderDetail.current_delivery.assigned_to_name}</span></div>}
+                    {orderDetail.current_delivery.external_carrier_name && <div className="flex justify-between"><span className="text-text-secondary">شركة الشحن:</span><span>{orderDetail.current_delivery.external_carrier_name}</span></div>}
+                    {orderDetail.current_delivery.waybill_number && <div className="flex justify-between"><span className="text-text-secondary">البوليصة:</span><span>{orderDetail.current_delivery.waybill_number}</span></div>}
+                    {orderDetail.current_delivery.vehicle_number && <div className="flex justify-between"><span className="text-text-secondary">السيارة:</span><span>{orderDetail.current_delivery.vehicle_number}</span></div>}
                     {orderDetail.current_delivery.tracking_url && (
-                      <p><a href={orderDetail.current_delivery.tracking_url} target="_blank" rel="noopener noreferrer"
-                        className="text-primary underline">رابط التتبع</a></p>
+                      <a href={orderDetail.current_delivery.tracking_url} target="_blank" rel="noopener noreferrer"
+                        className="text-primary underline text-xs block mt-1">رابط التتبع</a>
                     )}
-                    <p><span className="text-text-secondary">الحالة: </span>
-                      <StatusBadge status={orderDetail.current_delivery.status} size="sm" /></p>
+                    <div className="flex justify-between"><span className="text-text-secondary">الحالة:</span><StatusBadge status={orderDetail.current_delivery.status} size="sm" /></div>
                   </div>
                   <button onClick={handleCompleteDelivery}
-                    className="w-full mt-3 bg-success text-white rounded-lg py-2.5 text-xs font-bold">
+                    className="w-full bg-success text-white rounded-lg py-3 text-sm font-bold">
                     تسجيل التسليم
                   </button>
                 </div>
               )}
+            </div>
 
-              {/* Collections Panel */}
-              <div className="bg-surface rounded-lg p-3">
-                <h4 className="text-xs font-bold text-text mb-2">💰 التحصيل</h4>
-                {(() => {
-                  const total = selectedOrder.total_amount
-                  const collected = orderDetail.collections
-                    ?.filter((c: any) => c.status !== 'pending')
-                    .reduce((s: number, c: any) => s + Number(c.amount), 0) || 0
-                  const remaining = total - collected
-                  const collStatus = getCollectionStatus(total, collected)
-                  return (
-                    <div className="space-y-1 text-[11px]">
-                      <div className="flex items-center justify-between">
-                        <span className="text-text-secondary">الحالة:</span>
-                        <span className={`px-2 py-0.5 rounded text-[10px] ${collStatus.color}`}>{collStatus.label}</span>
-                      </div>
-                      <p><span className="text-text-secondary">المطلوب: </span>{formatCurrencyShort(total)}</p>
-                      <p><span className="text-text-secondary">المحصل: </span>{formatCurrencyShort(collected)}</p>
-                      {remaining > 0 && <p><span className="text-text-secondary">المتبقى: </span>{formatCurrencyShort(remaining)}</p>}
+            {/* Collections */}
+            <div className="bg-surface rounded-xl p-4 border border-border">
+              <h4 className="text-sm font-bold text-text mb-3">💰 التحصيل</h4>
+              {(() => {
+                const total = selectedOrder?.total_amount || 0
+                const collected = orderDetail.collections
+                  ?.filter((c: any) => c.status !== 'pending')
+                  .reduce((s: number, c: any) => s + Number(c.amount), 0) || 0
+                const remaining = total - collected
+                const collStatus = getCollectionStatus(total, collected)
+                return (
+                  <div className="space-y-2 text-[13px]">
+                    <div className="flex items-center justify-between">
+                      <span className="text-text-secondary">الحالة:</span>
+                      <span className={`px-2 py-0.5 rounded text-xs ${collStatus.color}`}>{collStatus.label}</span>
                     </div>
-                  )
-                })()}
-              </div>
+                    <div className="flex justify-between"><span className="text-text-secondary">المطلوب:</span><span className="font-semibold">{formatCurrencyShort(total)}</span></div>
+                    <div className="flex justify-between"><span className="text-text-secondary">المحصل:</span><span className="font-semibold">{formatCurrencyShort(collected)}</span></div>
+                    {remaining > 0 && <div className="flex justify-between"><span className="text-text-secondary">المتبقى:</span><span className="font-semibold text-red-600">{formatCurrencyShort(remaining)}</span></div>}
+                  </div>
+                )
+              })()}
+            </div>
 
-              {/* Action Buttons */}
-              <div className="flex flex-wrap gap-2">
-                {orderDetail.order.status === 'approved' && (
-                  <button onClick={handleStartPrep}
-                    className="flex-1 min-w-[100px] bg-accent text-white rounded-lg py-2.5 text-xs font-bold">
-                    بدء التجهيز
-                  </button>
-                )}
-                {orderDetail.order.status === 'preparing' && orderDetail.preparation?.id && (
-                  <button onClick={handleCompletePrep}
-                    className="flex-1 min-w-[100px] bg-success text-white rounded-lg py-2.5 text-xs font-bold">
-                    إكمال التجهيز
-                  </button>
-                )}
-                {orderDetail.order.status === 'delivered' && (
-                  <StatusBadge status="delivered" size="md" />
-                )}
-                {!['delivered', 'cancelled', 'draft'].includes(orderDetail.order.status) && (
-                  <button onClick={() => setShowReturnDialog(true)}
-                    className="flex-1 min-w-[100px] bg-red-500 text-white rounded-lg py-2.5 text-xs font-bold">
-                    إعادة للتعديل
-                  </button>
-                )}
+            {/* Status History */}
+            {orderDetail.status_history && orderDetail.status_history.length > 0 && (
+              <div className="bg-surface rounded-xl p-4 border border-border">
+                <h4 className="text-sm font-bold text-text mb-3">📋 سجل الحالات</h4>
+                <div className="space-y-2">
+                  {orderDetail.status_history.map((h: any, idx: number) => (
+                    <div key={idx} className="flex items-center gap-2 text-[12px]">
+                      <div className="w-2 h-2 rounded-full bg-primary flex-shrink-0" />
+                      <div className="flex-1">
+                        <span className="font-semibold">{h.from_status || '-'}</span>
+                        <span className="mx-1">→</span>
+                        <span className="font-semibold">{h.to_status}</span>
+                      </div>
+                      <div className="text-text-secondary text-[10px]">
+                        {new Date(h.changed_at || h.created_at).toLocaleString('ar-EG-u-nu-latn')}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </>
-          ) : (
-            <div className="text-center py-4 text-text-secondary text-xs">تعذر تحميل بيانات الطلب</div>
-          )}
-        </div>
-      )}
+            )}
+
+            {/* Preparation Status */}
+            {orderDetail.preparation && (
+              <div className="bg-surface rounded-xl p-4 border border-border">
+                <h4 className="text-sm font-bold text-text mb-3">⚙️ التجهيز</h4>
+                <div className="space-y-2 text-[13px]">
+                  <div className="flex justify-between"><span className="text-text-secondary">الحالة:</span><StatusBadge status={orderDetail.preparation.status} size="sm" /></div>
+                  {orderDetail.preparation.notes && <div className="flex justify-between"><span className="text-text-secondary">ملاحظات:</span><span>{orderDetail.preparation.notes}</span></div>}
+                </div>
+              </div>
+            )}
+
+            {/* Notes on Order */}
+            {orderDetail.order.notes && (
+              <div className="bg-surface rounded-xl p-4 border border-border">
+                <h4 className="text-sm font-bold text-text mb-3">📝 ملاحظات الطلب</h4>
+                <p className="text-[13px]">{orderDetail.order.notes}</p>
+              </div>
+            )}
+
+            {/* Action Buttons */}
+            <div className="flex flex-wrap gap-2">
+              {orderDetail.order.status === 'approved' && (
+                <button onClick={handleStartPrep}
+                  className="flex-1 min-w-[120px] bg-accent text-white rounded-xl py-3 text-sm font-bold">
+                  بدء التجهيز
+                </button>
+              )}
+              {orderDetail.order.status === 'preparing' && orderDetail.preparation?.id && (
+                <button onClick={handleCompletePrep}
+                  className="flex-1 min-w-[120px] bg-success text-white rounded-xl py-3 text-sm font-bold">
+                  إكمال التجهيز
+                </button>
+              )}
+              {orderDetail.order.status === 'delivered' && (
+                <div className="flex-1 text-center"><StatusBadge status="delivered" size="md" /></div>
+              )}
+              {!['delivered', 'cancelled', 'draft', 'returned_for_revision'].includes(orderDetail.order.status) && (
+                <button onClick={() => setShowReturnDialog(true)}
+                  className="flex-1 min-w-[120px] bg-red-500 text-white rounded-xl py-3 text-sm font-bold">
+                  إعادة للتعديل
+                </button>
+              )}
+            </div>
+          </>
+        ) : (
+          <div className="text-center py-12 text-text-secondary text-sm">تعذر تحميل بيانات الطلب</div>
+        )}
+      </div>
 
       {/* Return for Revision Dialog */}
       {showReturnDialog && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[60] px-4">
           <div className="bg-white rounded-xl p-5 w-full max-w-sm shadow-xl">
             <h3 className="font-bold text-text mb-3 text-sm">إعادة الطلب للتعديل</h3>
             <textarea placeholder="سبب الإعادة (مطلوب)" value={returnReason}
@@ -598,5 +740,11 @@ export function ExecutiveOperationsWorkspace() {
         </div>
       )}
     </div>
+  )
+
+  return (
+    <>
+      {fullScreen ? fullOrderDetail() : orderContent()}
+    </>
   )
 }
