@@ -6,6 +6,7 @@ export type TargetRole =
   | 'مدير مخزن'
   | 'سيلز داخلي'
   | 'عميل'
+  | 'مدير عمليات تنفيذية'
 
 const roleMapping: Record<string, TargetRole> = {
   'الإدارة العليا': 'الإدارة العليا',
@@ -59,6 +60,13 @@ const roleMapping: Record<string, TargetRole> = {
   'مستودع': 'مدير مخزن',
 
   'سيلز داخلي': 'سيلز داخلي',
+
+  'مدير عمليات تنفيذية': 'مدير عمليات تنفيذية',
+  'مدير العمليات التنفيذية': 'مدير عمليات تنفيذية',
+  'المشرف التنفيذي': 'مدير عمليات تنفيذية',
+  'Executive Operations Manager': 'مدير عمليات تنفيذية',
+  'executive_operations_manager': 'مدير عمليات تنفيذية',
+  'executive_supervisor': 'مدير عمليات تنفيذية',
 }
 
 export function normalizeEmployeeRole(roleName: string): TargetRole {

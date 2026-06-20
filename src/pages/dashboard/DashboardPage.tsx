@@ -7,6 +7,7 @@ import WarehouseDashboard from './WarehouseDashboard'
 import { ManagementDashboard } from './ManagementDashboard'
 import UpperManagementDashboard from './UpperManagementDashboard'
 import { WarehouseManagerWorkspace } from './WarehouseManagerWorkspace'
+import { ExecutiveOperationsWorkspace } from './ExecutiveOperationsWorkspace'
 
 import { normalizeEmployeeRole, type TargetRole } from '../../utils/roleNormalization'
 
@@ -17,6 +18,7 @@ const WORKSPACE_HIERARCHY: { target: TargetRole; component: React.ReactNode }[] 
   { target: 'مندوب مبيعات', component: <SalesRepWorkDay /> },
   { target: 'مدير مخزن', component: <WarehouseManagerWorkspace /> },
   { target: 'سيلز داخلي', component: <ManagementDashboard /> },
+  { target: 'مدير عمليات تنفيذية', component: <ExecutiveOperationsWorkspace /> },
 ]
 
 const DEPRECATED_ROUTES: Record<string, React.ReactNode> = {
@@ -38,6 +40,10 @@ export function DashboardPage() {
 
   if (empCode === 'WRQ1001') {
     return <WarehouseDashboard />
+  }
+
+  if (empCode === 'REP-001') {
+    return <ExecutiveOperationsWorkspace />
   }
 
   for (const { target, component } of WORKSPACE_HIERARCHY) {
