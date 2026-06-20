@@ -13,6 +13,7 @@ import { OrderCollectionsSection } from './OrderCollectionsSection'
 import { OrderReturnsSection } from './OrderReturnsSection'
 import { OrderTimelineSection } from './OrderTimelineSection'
 import { OrderActionsSection } from './OrderActionsSection'
+import { ModificationHistoryPanel } from './ModificationHistoryPanel'
 import type { UnifiedOrder } from '../../types/unified-order'
 
 interface OrderDetailViewProps {
@@ -22,7 +23,7 @@ interface OrderDetailViewProps {
 }
 
 export function OrderDetailView({ data, actions, onBack }: OrderDetailViewProps) {
-  const { order, customer, items, collections, current_delivery } = data
+  const { order, customer, items, collections, current_delivery, modification_history } = data
   const [overLimit, setOverLimit] = useState<boolean | null>(null)
 
   const grandTotal = useMemo(() => items.reduce((s, i) => s + Number(i.total_price || 0), 0), [items])
@@ -78,6 +79,7 @@ export function OrderDetailView({ data, actions, onBack }: OrderDetailViewProps)
         currentOwner={currentOwner}
         overLimit={overLimit}
         lastAction={lastAction}
+        modificationEntries={modification_history}
         actions={actions}
         onBack={onBack}
       />
@@ -99,6 +101,13 @@ export function OrderDetailView({ data, actions, onBack }: OrderDetailViewProps)
         <OrderCollectionsSection collections={collections} grandTotal={grandTotal} />
       )}
       <OrderReturnsSection returns={data.returns} />
+      {modification_history && modification_history.length > 0 && (
+        <ModificationHistoryPanel
+          entries={modification_history}
+          revisionNumber={order.revision_number}
+          lastRevisedAt={order.last_revised_at}
+        />
+      )}
       <OrderTimelineSection timelineEvents={timelineEvents} />
       <OrderActionsSection
         onPdf={handlePdf}

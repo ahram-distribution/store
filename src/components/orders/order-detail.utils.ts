@@ -70,7 +70,7 @@ export function buildTimelineEvents(data: UnifiedOrder): TimelineEvent[] {
       label: fromLabel ? `تغيير الحالة من "${fromLabel}" إلى "${toLabel}"` : toLabel,
       timestamp: h.changed_at,
       color: h.to_status === 'cancelled' ? 'red' : h.to_status === 'delivered' ? 'green' : 'blue',
-      actor: h.changed_by_name || undefined,
+      actor: undefined,
     })
   }
 
@@ -140,6 +140,18 @@ export function buildTimelineEvents(data: UnifiedOrder): TimelineEvent[] {
       timestamp: r.created_at,
       color: 'orange',
     })
+  }
+
+  for (const m of data.modification_history || []) {
+    if (m.field_name === 'REVISION_SNAPSHOT') {
+      events.push({
+        id: `mod-snap-${m.id}`,
+        label: `إعادة الطلب للتعديل (المرة #${m.revision_number})`,
+        timestamp: m.modified_at,
+        color: 'orange',
+        actor: m.reason || undefined,
+      })
+    }
   }
 
   events.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())

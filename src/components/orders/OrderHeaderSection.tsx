@@ -2,19 +2,23 @@ import { useNavigate } from 'react-router-dom'
 import { StatusBadge } from '../shared/StatusBadge'
 import { ORDER_STATUS_LABELS } from '../../types/order-display'
 import { formatDateTime } from '../../utils/format'
-import type { UnifiedOrder } from '../../types/unified-order'
+import type { UnifiedOrder, UnifiedModificationEntry } from '../../types/unified-order'
 
 interface OrderHeaderSectionProps {
   order: UnifiedOrder['order']
   currentOwner: string
   overLimit: boolean | null
   lastAction: { label: string; time: string } | null
+  modificationEntries?: UnifiedModificationEntry[]
   actions?: React.ReactNode
   onBack?: () => void
 }
 
-export function OrderHeaderSection({ order, currentOwner, overLimit, lastAction, actions, onBack }: OrderHeaderSectionProps) {
+export function OrderHeaderSection({ order, currentOwner, overLimit, lastAction, modificationEntries, actions, onBack }: OrderHeaderSectionProps) {
   const navigate = useNavigate()
+
+  const revisionCount = order.revision_number
+  const totalEditCount = modificationEntries?.filter(e => e.field_name === 'REVISION_SNAPSHOT').length || 0
 
   function renderCreator(creator: UnifiedOrder['order']) {
     const name = creator.order_creator_name
@@ -32,6 +36,11 @@ export function OrderHeaderSection({ order, currentOwner, overLimit, lastAction,
       </span>
     )
   }
+
+  const lastRevision = modificationEntries?.filter(e => e.field_name === 'REVISION_SNAPSHOT').sort((a, b) =>
+    new Date(b.modified_at).getTime() - new Date(a.modified_at).getTime()
+  )[0]
+
   return (
     <div className="bg-white rounded-xl border border-border overflow-hidden">
       <div className="p-4">
@@ -42,9 +51,6 @@ export function OrderHeaderSection({ order, currentOwner, overLimit, lastAction,
             )}
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-[10px] text-text-secondary bg-surface px-2 py-0.5 rounded-full border border-border">
-              Revision #{order.revision_number + 1}
-            </span>
             <StatusBadge status={order.status} size="md" />
             {overLimit && (
               <span className="text-[10px] bg-danger/10 text-danger px-2 py-0.5 rounded-full border border-danger/30">
@@ -56,6 +62,22 @@ export function OrderHeaderSection({ order, currentOwner, overLimit, lastAction,
         </div>
 
         <p className="text-lg font-bold text-text mb-3">{order.order_number}</p>
+
+        {(revisionCount > 0 || order.status === 'returned_for_revision') && (
+          <div className="flex flex-wrap items-center gap-2 mb-3">
+            <span className="text-[10px] bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full border border-amber-200">
+              Revision #{revisionCount + 1}
+            </span>
+            <span className="text-[10px] bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full border border-blue-200">
+              {totalEditCount} تعديل{totalEditCount !== 1 ? 'ات' : ''}
+            </span>
+            {lastRevision && (
+              <span className="text-[10px] text-text-secondary">
+                {lastRevision.reason && `سبب آخر تعديل: ${lastRevision.reason}`}
+              </span>
+            )}
+          </div>
+        )}
 
         <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-[11px]">
           <div className="flex items-center gap-2">
@@ -78,6 +100,12 @@ export function OrderHeaderSection({ order, currentOwner, overLimit, lastAction,
             <span className="text-text-secondary shrink-0">آخر تحديث</span>
             <span className="font-medium text-text">{formatDateTime(order.updated_at)}</span>
           </div>
+          {order.last_revised_at && (
+            <div className="flex items-center gap-2">
+              <span className="text-text-secondary shrink-0">آخر تعديل</span>
+              <span className="font-medium text-text">{formatDateTime(order.last_revised_at)}</span>
+            </div>
+          )}
         </div>
 
         {lastAction && (

@@ -45,6 +45,8 @@ export function OrderStatusManager({ orderId, currentStatus, canReview, canCompl
   const [showReasonModal, setShowReasonModal] = useState<string | null>(null)
   const [reason, setReason] = useState('')
   const [showDropdown, setShowDropdown] = useState(false)
+  const [showReturnModal, setShowReturnModal] = useState(false)
+  const [returnReason, setReturnReason] = useState('')
 
   function getAllowedTargets(): OrderStatus[] {
     if (canManage) return ALL_STATUSES.filter(s => s !== currentStatus)
@@ -121,6 +123,35 @@ export function OrderStatusManager({ orderId, currentStatus, canReview, canCompl
     setLoading(null)
   }
 
+  async function handleReturnForRevision() {
+    if (!returnReason.trim()) return
+    setLoading('returned_for_revision')
+    const token = getToken()
+    if (!token) return
+
+    const { data, error } = await supabase.rpc('governed_return_order_for_revision', {
+      p_token: token,
+      p_id: orderId,
+      p_reason: returnReason.trim(),
+    })
+    if (error) {
+      onError?.(error.message)
+      setLoading(null)
+      setShowReturnModal(false)
+      return
+    }
+    if (data && typeof data === 'object' && 'error' in data && data.error) {
+      onError?.(String(data.error))
+      setLoading(null)
+      setShowReturnModal(false)
+      return
+    }
+    setShowReturnModal(false)
+    setReturnReason('')
+    onSuccess?.('returned_for_revision')
+    setLoading(null)
+  }
+
   const targets = getAllowedTargets()
   if (targets.length === 0) { return null }
 
@@ -135,6 +166,12 @@ export function OrderStatusManager({ orderId, currentStatus, canReview, canCompl
             className="w-full bg-purple-600 text-white text-xs py-2.5 rounded-lg active:opacity-90 disabled:opacity-40 flex items-center justify-center gap-1">
             {loading ? 'جاري...' : 'تغيير الحالة'}
           </button>
+          {currentStatus !== 'returned_for_revision' && currentStatus !== 'draft' && currentStatus !== 'cancelled' && (
+            <button onClick={() => setShowReturnModal(true)} disabled={loading !== null}
+              className="w-full bg-amber-500 text-white text-xs py-2.5 rounded-lg active:opacity-90 disabled:opacity-40 flex items-center justify-center gap-1 mt-1">
+              {loading === 'returned_for_revision' ? 'جاري...' : 'إعادة الطلب للتعديل'}
+            </button>
+          )}
           {showDropdown && (
             <div className="fixed inset-0 z-50 flex flex-col justify-end bg-black/40" onClick={() => setShowDropdown(false)}>
               <div className="bg-white rounded-t-2xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
@@ -188,6 +225,26 @@ export function OrderStatusManager({ orderId, currentStatus, canReview, canCompl
                 className="flex-1 bg-surface text-text text-xs py-2.5 rounded-lg active:opacity-80 transition-opacity">إلغاء</button>
               <button onClick={handleReasonConfirm} disabled={!reason.trim() || loading !== null}
                 className="flex-1 bg-purple-600 text-white text-xs py-2.5 rounded-lg active:opacity-90 disabled:opacity-40">تأكيد</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showReturnModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="bg-white rounded-xl w-full max-w-sm p-5 space-y-4">
+            <h3 className="text-sm font-bold text-text">إعادة الطلب للتعديل</h3>
+            <p className="text-xs text-text-secondary">
+              إعادة الطلب من <span className="font-semibold text-amber-600">{ORDER_STATUS_LABELS[currentStatus]}</span> إلى <span className="font-semibold text-amber-600">معاد للتعديل</span>
+            </p>
+            <p className="text-[10px] text-danger/70">هذا الإجراء سيعيد المخزون ويعكس الفواتير الائتمانية إن وجدت</p>
+            <textarea value={returnReason} onChange={(e) => setReturnReason(e.target.value)} rows={3} placeholder="الرجاء كتابة سبب إعادة الطلب للتعديل (إجباري)..."
+              className="w-full border border-border rounded-lg px-3 py-2 text-xs bg-white resize-none" />
+            <div className="flex gap-2">
+              <button onClick={() => { setShowReturnModal(false); setReturnReason('') }}
+                className="flex-1 bg-surface text-text text-xs py-2.5 rounded-lg active:opacity-80 transition-opacity">إلغاء</button>
+              <button onClick={handleReturnForRevision} disabled={!returnReason.trim() || loading !== null}
+                className="flex-1 bg-amber-500 text-white text-xs py-2.5 rounded-lg active:opacity-90 disabled:opacity-40">تأكيد الإعادة للتعديل</button>
             </div>
           </div>
         </div>

@@ -48,22 +48,34 @@ export function OrderDetailPage() {
   if (loading) return <div className="text-center py-12 text-text-secondary text-sm">جاري التحميل...</div>
   if (!data) return <div className="text-center py-12 text-text-secondary text-sm">الطلب غير موجود</div>
 
+  const canEdit = data.order.status === 'returned_for_revision'
+
   return (
     <OrderDetailView
       data={data}
       onBack={() => navigate('/orders')}
-      actions={data?.order?.status ? (
-        <OrderStatusManager
-          orderId={id!}
-          currentStatus={data.order.status}
-          canReview={canReview}
-          canCompletePreparation={canCompletePreparation}
-          canSendToDelivery={canSendToDelivery}
-          canManage={canManage}
-          onSuccess={handleStatusSuccess}
-          onError={handleStatusError}
-        />
-      ) : undefined}
+      actions={
+        <div className="flex flex-col gap-1">
+          {canEdit && (
+            <button onClick={() => navigate(`/orders/${id}/edit`)}
+              className="w-full bg-accent text-white text-xs py-2.5 rounded-lg active:opacity-90 flex items-center justify-center gap-1">
+              تعديل الطلب
+            </button>
+          )}
+          {data?.order?.status && (
+            <OrderStatusManager
+              orderId={id!}
+              currentStatus={data.order.status}
+              canReview={canReview}
+              canCompletePreparation={canCompletePreparation}
+              canSendToDelivery={canSendToDelivery}
+              canManage={canManage}
+              onSuccess={handleStatusSuccess}
+              onError={handleStatusError}
+            />
+          )}
+        </div>
+      }
     />
   )
 }

@@ -28,6 +28,7 @@ export interface UnifiedOrder {
   customer: UnifiedCustomerSummary | null
   items: UnifiedOrderItem[]
   status_history: UnifiedStatusHistoryEntry[]
+  modification_history: UnifiedModificationEntry[]
   current_delivery: UnifiedDeliveryTracking | null
   delivery_history: UnifiedDeliveryTracking[]
   preparation: UnifiedPreparationRecord | null
@@ -47,6 +48,7 @@ export interface UnifiedOrderHeader {
   total_amount: number
   notes: string | null
   revision_number: number
+  last_revised_at: string | null
   customer_id: string
   owner_type: string
   owner_id: string
@@ -178,6 +180,23 @@ export interface UnifiedCollectionSummary {
   reference_number: string | null
   collected_at: string | null
   order_id: string | null
+}
+
+export interface UnifiedModificationEntry {
+  id: string
+  revision_number: number
+  field_name: string
+  old_value: string | null
+  new_value: string | null
+  old_order_items: any | null
+  new_order_items: any | null
+  old_daily_deals: any | null
+  new_daily_deals: any | null
+  old_flash_offers: any | null
+  new_flash_offers: any | null
+  modified_by: string | null
+  reason: string | null
+  modified_at: string
 }
 
 export interface UnifiedOrderListItem {
