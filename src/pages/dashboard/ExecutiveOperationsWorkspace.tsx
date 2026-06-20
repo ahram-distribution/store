@@ -3,6 +3,8 @@ import { supabase } from '../../lib/supabase'
 import { StatusBadge } from '../../components/shared/StatusBadge'
 import { formatCurrencyShort } from '../../utils/format'
 import { useAuthStore } from '../../store/auth'
+import { OrderDetailView } from '../../components/orders/OrderDetailView'
+import type { UnifiedOrder } from '../../types/unified-order'
 
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
@@ -42,18 +44,6 @@ interface QueueItem {
   owner_name: string | null
   created_by_name: string | null
   item_count: number
-}
-
-interface FullOrder {
-  order: any
-  customer: any
-  items: any[]
-  status_history: any[]
-  current_delivery: any
-  delivery_history: any[]
-  collections: any[]
-  returns: any[]
-  preparation: any
 }
 
 const TAB_IDS: TabFilter[] = ['all', 'approved', 'preparing', 'prepared', 'dispatched', 'delivered']
@@ -118,21 +108,28 @@ export function ExecutiveOperationsWorkspace() {
   const [dateTo, setDateTo] = useState('')
   const [governorates, setGovernorates] = useState<string[]>([])
   const [selectedOrder, setSelectedOrder] = useState<QueueItem | null>(null)
-  const [orderDetail, setOrderDetail] = useState<FullOrder | null>(null)
+  const [orderDetail, setOrderDetail] = useState<UnifiedOrder | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [employees, setEmployees] = useState<{ id: string; code: string; full_name: string }[]>([])
-  const [carriers, setCarriers] = useState<{ id: string; name: string }[]>([])
   const [fullScreen, setFullScreen] = useState(false)
 
   const [deliveryMode, setDeliveryMode] = useState<'internal' | 'external'>('internal')
   const [internalDriver, setInternalDriver] = useState('')
   const [internalVehicle, setInternalVehicle] = useState('')
+  const [internalDeparture, setInternalDeparture] = useState('')
   const [internalNotes, setInternalNotes] = useState('')
-  const [externalCarrier, setExternalCarrier] = useState('')
+  const [externalCarrierName, setExternalCarrierName] = useState('')
   const [externalWaybill, setExternalWaybill] = useState('')
   const [externalTrackingUrl, setExternalTrackingUrl] = useState('')
+  const [externalDeliveryDate, setExternalDeliveryDate] = useState('')
   const [externalNotes, setExternalNotes] = useState('')
+  const [showDispatchModal, setShowDispatchModal] = useState(false)
+  const [showCollectionModal, setShowCollectionModal] = useState(false)
+  const [collectionMethod, setCollectionMethod] = useState('cash')
+  const [collectionAmount, setCollectionAmount] = useState('')
+  const [collectionReference, setCollectionReference] = useState('')
+  const [collectionNotes, setCollectionNotes] = useState('')
   const [returnReason, setReturnReason] = useState('')
   const [showReturnDialog, setShowReturnDialog] = useState(false)
 
@@ -141,11 +138,9 @@ export function ExecutiveOperationsWorkspace() {
     if (!token) { setLoading(false); return }
     try {
       const dr = dateFilter === 'custom' ? { from: dateFrom || null, to: dateTo || null } : getDateRange(dateFilter)
-      const [kpiRes, queueRes, empRes, carrierRes] = await Promise.all([
+      const [kpiRes, queueRes, empRes] = await Promise.all([
         supabase.rpc('get_governed_executive_kpis', {
-          p_token: token,
-          p_date_from: dr.from,
-          p_date_to: dr.to,
+          p_token: token, p_date_from: dr.from, p_date_to: dr.to,
         }),
         supabase.rpc('get_governed_executive_queue', {
           p_token: token,
@@ -159,16 +154,11 @@ export function ExecutiveOperationsWorkspace() {
           p_date_filter: dateFilter === 'all' ? null : dateFilter,
         }),
         supabase.rpc('get_governed_employees', { p_token: token }),
-        supabase.rpc('get_governed_external_carriers', { p_token: token }),
       ])
-
       if (kpiRes.data && !kpiRes.data.error) setKpis(kpiRes.data as KPIs)
       if (queueRes.data) setQueue(Array.isArray(queueRes.data) ? queueRes.data as QueueItem[] : [])
-
       const empArr = (empRes.data as any[]) || []
       setEmployees(empArr.filter((e: any) => e.is_active).map((e: any) => ({ id: e.id, code: e.code, full_name: e.full_name || '' })))
-
-      setCarriers((carrierRes.data as any[]) || [])
     } catch (err: any) {
       setMessage({ type: 'error', text: err.message || 'Failed to load data' })
     } finally {
@@ -191,12 +181,11 @@ export function ExecutiveOperationsWorkspace() {
     setOrderDetail(null)
     try {
       const { data, error } = await supabase.rpc('get_unified_order', {
-        p_token: token,
-        p_id: orderId,
+        p_token: token, p_id: orderId,
       })
       if (error) throw error
       if (data?.error) throw new Error(data.error)
-      setOrderDetail(data as FullOrder)
+      setOrderDetail(data as UnifiedOrder)
     } catch (err: any) {
       setMessage({ type: 'error', text: err.message || 'Failed to load order' })
     } finally {
@@ -207,8 +196,9 @@ export function ExecutiveOperationsWorkspace() {
   const openOrder = (item: QueueItem) => {
     setSelectedOrder(item)
     setDeliveryMode(item.delivery_mode === 'external' ? 'external' : 'internal')
-    setInternalDriver(''); setInternalVehicle(''); setInternalNotes('')
-    setExternalCarrier(''); setExternalWaybill(''); setExternalTrackingUrl(''); setExternalNotes('')
+    setInternalDriver(''); setInternalVehicle(''); setInternalDeparture(''); setInternalNotes('')
+    setExternalCarrierName(''); setExternalWaybill(''); setExternalTrackingUrl(''); setExternalDeliveryDate(''); setExternalNotes('')
+    setCollectionMethod('cash'); setCollectionAmount(''); setCollectionReference(''); setCollectionNotes('')
     loadOrderDetail(item.id)
     setFullScreen(true)
   }
@@ -230,8 +220,7 @@ export function ExecutiveOperationsWorkspace() {
       if (error) throw error
       if (data?.error) throw new Error(data.error)
       setMessage({ type: 'success', text: 'تم بدء التجهيز' })
-      loadData()
-      loadOrderDetail(selectedOrder.id)
+      loadData(); loadOrderDetail(selectedOrder.id)
     } catch (err: any) {
       setMessage({ type: 'error', text: err.message || 'فشل بدء التجهيز' })
     }
@@ -248,8 +237,7 @@ export function ExecutiveOperationsWorkspace() {
       if (error) throw error
       if (data?.error) throw new Error(data.error)
       setMessage({ type: 'success', text: 'تم إكمال التجهيز' })
-      loadData()
-      loadOrderDetail(selectedOrder!.id)
+      loadData(); loadOrderDetail(selectedOrder!.id)
     } catch (err: any) {
       setMessage({ type: 'error', text: err.message || 'فشل إكمال التجهيز' })
     }
@@ -260,23 +248,25 @@ export function ExecutiveOperationsWorkspace() {
     const token = getToken()
     if (!token) return
     try {
-      const params: any = {
-        p_token: token,
-        p_id: selectedOrder.id,
-        p_assigned_to: deliveryMode === 'internal' ? internalDriver || null : null,
-        p_external_carrier_id: deliveryMode === 'external' ? externalCarrier || null : null,
-        p_waybill_number: deliveryMode === 'external' ? externalWaybill || null : null,
-        p_tracking_url: deliveryMode === 'external' ? externalTrackingUrl || null : null,
-        p_vehicle_number: deliveryMode === 'internal' ? internalVehicle || null : null,
-        p_departure_date: deliveryMode === 'internal' ? new Date().toISOString() : null,
-        p_notes: deliveryMode === 'internal' ? internalNotes || null : externalNotes || null,
+      const params: any = { p_token: token, p_id: selectedOrder.id }
+      if (deliveryMode === 'internal') {
+        params.p_assigned_to = internalDriver || null
+        params.p_vehicle_number = internalVehicle || null
+        params.p_departure_date = internalDeparture ? new Date(internalDeparture).toISOString() : null
+        params.p_notes = internalNotes || null
+      } else {
+        params.p_carrier_name = externalCarrierName || null
+        params.p_waybill_number = externalWaybill || null
+        params.p_tracking_url = externalTrackingUrl || null
+        params.p_carrier_delivery_date = externalDeliveryDate ? new Date(externalDeliveryDate).toISOString() : null
+        params.p_notes = externalNotes || null
       }
       const { data, error } = await supabase.rpc('governed_dispatch_order', params)
       if (error) throw error
       if (data?.error) throw new Error(data.error)
       setMessage({ type: 'success', text: 'تم شحن الطلب' })
-      loadData()
-      loadOrderDetail(selectedOrder.id)
+      setShowDispatchModal(false)
+      loadData(); loadOrderDetail(selectedOrder.id)
     } catch (err: any) {
       setMessage({ type: 'error', text: err.message || 'فشل شحن الطلب' })
     }
@@ -293,10 +283,52 @@ export function ExecutiveOperationsWorkspace() {
       if (error) throw error
       if (data?.error) throw new Error(data.error)
       setMessage({ type: 'success', text: 'تم تسليم الطلب' })
-      loadData()
-      loadOrderDetail(selectedOrder!.id)
+      loadData(); loadOrderDetail(selectedOrder!.id)
     } catch (err: any) {
       setMessage({ type: 'error', text: err.message || 'فشل تسليم الطلب' })
+    }
+  }
+
+  const handleCreateCollection = async () => {
+    if (!selectedOrder || !orderDetail) return
+    const token = getToken()
+    if (!token) return
+    const amount = parseFloat(collectionAmount)
+    if (!amount || amount <= 0) { setMessage({ type: 'error', text: 'المبلغ مطلوب' }); return }
+    try {
+      const { data, error } = await supabase.rpc('governed_create_collection', {
+        p_token: token,
+        p_customer_id: orderDetail.order.customer_id,
+        p_method: collectionMethod,
+        p_amount: amount,
+        p_reference_number: collectionReference || null,
+        p_notes: collectionNotes || null,
+        p_order_id: selectedOrder.id,
+      })
+      if (error) throw error
+      if (data?.error) throw new Error(data.error)
+      setMessage({ type: 'success', text: 'تم تسجيل التحصيل' })
+      setShowCollectionModal(false)
+      setCollectionAmount(''); setCollectionReference(''); setCollectionNotes('')
+      loadData(); loadOrderDetail(selectedOrder.id)
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.message || 'فشل تسجيل التحصيل' })
+    }
+  }
+
+  const handleApproveCollection = async (collectionId: string) => {
+    const token = getToken()
+    if (!token) return
+    try {
+      const { data, error } = await supabase.rpc('governed_approve_collection', {
+        p_token: token, p_id: collectionId,
+      })
+      if (error) throw error
+      if (data?.error) throw new Error(data.error)
+      setMessage({ type: 'success', text: 'تم اعتماد التحصيل' })
+      loadData(); loadOrderDetail(selectedOrder!.id)
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.message || 'فشل اعتماد التحصيل' })
     }
   }
 
@@ -306,26 +338,20 @@ export function ExecutiveOperationsWorkspace() {
     if (!token) return
     try {
       const { data, error } = await supabase.rpc('governed_return_order_for_revision', {
-        p_token: token,
-        p_id: selectedOrder.id,
-        p_reason: returnReason,
+        p_token: token, p_id: selectedOrder.id, p_reason: returnReason,
       })
       if (error) throw error
       if (data?.error) throw new Error(data.error)
       setMessage({ type: 'success', text: 'تم إعادة الطلب للتعديل' })
-      setShowReturnDialog(false)
-      setReturnReason('')
-      closeOrder()
-      loadData()
+      setShowReturnDialog(false); setReturnReason('')
+      closeOrder(); loadData()
     } catch (err: any) {
       setMessage({ type: 'error', text: err.message || 'فشل إعادة الطلب' })
     }
   }
 
   const handleKpiClick = (kpi: typeof KPI_CONFIG[0]) => {
-    if (kpi.filterStatus) {
-      setActiveTab(kpi.filterStatus as TabFilter)
-    }
+    if (kpi.filterStatus) setActiveTab(kpi.filterStatus as TabFilter)
   }
 
   const getCollectionStatus = (total: number, collected: number): { label: string; color: string } => {
@@ -340,7 +366,6 @@ export function ExecutiveOperationsWorkspace() {
 
   const orderContent = () => (
     <div className="space-y-4 pb-12" dir="rtl">
-      {/* Header */}
       <div className="bg-gradient-to-br from-secondary to-[#0F2B5B] text-white rounded-xl p-5">
         <p className="text-sm opacity-90">غرفة العمليات التنفيذية</p>
         <h2 className="text-xl font-bold mt-1">{user?.full_name || 'المشرف التنفيذي'}</h2>
@@ -355,7 +380,6 @@ export function ExecutiveOperationsWorkspace() {
         </div>
       )}
 
-      {/* Date Filter */}
       <div className="bg-white rounded-xl border border-border p-3">
         <div className="flex gap-1.5 overflow-x-auto pb-1">
           {(['all', 'today', 'yesterday', 'this_week', 'this_month', 'custom'] as DateFilter[]).map((df) => (
@@ -377,7 +401,6 @@ export function ExecutiveOperationsWorkspace() {
         )}
       </div>
 
-      {/* Section 1 — Executive KPIs (clickable) */}
       <div className="grid grid-cols-4 gap-2">
         {KPI_CONFIG.map((cfg) => (
           <button key={cfg.key} onClick={() => handleKpiClick(cfg)}
@@ -389,27 +412,17 @@ export function ExecutiveOperationsWorkspace() {
         ))}
       </div>
 
-      {/* Section 2 — Operational Queue */}
       <div className="bg-white rounded-xl border border-border p-3">
         <div className="flex items-center gap-2 mb-3">
-          <input
-            type="text"
-            placeholder="بحث برقم الطلب أو العميل..."
-            value={search}
+          <input type="text" placeholder="بحث برقم الطلب أو العميل..." value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="flex-1 border border-border rounded-lg px-3 py-2 text-xs bg-surface"
-          />
+            className="flex-1 border border-border rounded-lg px-3 py-2 text-xs bg-surface" />
         </div>
         <div className="mb-3">
-          <input
-            type="text"
-            placeholder="بحث باسم المندوب..."
-            value={employeeSearch}
+          <input type="text" placeholder="بحث باسم المندوب..." value={employeeSearch}
             onChange={(e) => setEmployeeSearch(e.target.value)}
-            className="w-full border border-border rounded-lg px-3 py-2 text-xs bg-surface"
-          />
+            className="w-full border border-border rounded-lg px-3 py-2 text-xs bg-surface" />
         </div>
-
         <div className="flex gap-2 mb-3 overflow-x-auto pb-1">
           {TAB_IDS.map((t) => (
             <button key={t} onClick={() => setActiveTab(t)}
@@ -420,7 +433,6 @@ export function ExecutiveOperationsWorkspace() {
             </button>
           ))}
         </div>
-
         <div className="flex gap-2 mb-3">
           <select value={governorateFilter} onChange={(e) => setGovernorateFilter(e.target.value)}
             className="flex-1 border border-border rounded-lg px-2 py-1.5 text-[10px] bg-white">
@@ -434,7 +446,6 @@ export function ExecutiveOperationsWorkspace() {
             <option value="external">شركة شحن</option>
           </select>
         </div>
-
         <div className="space-y-1.5 max-h-80 overflow-y-auto">
           {queue.length === 0 ? (
             <div className="text-center py-8 text-text-secondary text-xs">لا توجد طلبات</div>
@@ -469,282 +480,271 @@ export function ExecutiveOperationsWorkspace() {
     </div>
   )
 
-  const fullOrderDetail = () => (
-    <div className="fixed inset-0 z-50 bg-white overflow-y-auto" dir="rtl">
-      <div className="sticky top-0 bg-white border-b border-border z-10 px-4 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <h3 className="font-bold text-text">{selectedOrder?.order_number}</h3>
-          {selectedOrder && <StatusBadge status={selectedOrder.status} size="sm" />}
-        </div>
-        <button onClick={closeOrder} className="text-text-secondary text-2xl leading-none p-1">&times;</button>
-      </div>
+  const orderDetailView = () => {
+    if (detailLoading) {
+      return <div className="text-center py-12 text-text-secondary text-sm">جاري تحميل بيانات الطلب...</div>
+    }
+    if (!orderDetail) {
+      return <div className="text-center py-12 text-text-secondary text-sm">تعذر تحميل بيانات الطلب</div>
+    }
 
-      <div className="p-4 space-y-4 pb-24">
-        {detailLoading ? (
-          <div className="text-center py-12 text-text-secondary text-sm">جاري تحميل بيانات الطلب...</div>
-        ) : orderDetail ? (
-          <>
-            {/* Customer Info */}
-            <div className="bg-surface rounded-xl p-4 border border-border">
-              <h4 className="text-sm font-bold text-text mb-3">👤 بيانات العميل</h4>
-              <div className="space-y-2 text-[13px]">
-                <div className="flex justify-between"><span className="text-text-secondary">الاسم:</span><span className="font-semibold">{orderDetail.order.snapshot_customer_name || orderDetail.customer?.company_name || '-'}</span></div>
-                <div className="flex justify-between"><span className="text-text-secondary">الهاتف:</span><span dir="ltr" className="font-semibold">{orderDetail.order.snapshot_customer_phone || orderDetail.customer?.phone || '-'}</span></div>
-                <div className="flex justify-between"><span className="text-text-secondary">العنوان:</span><span className="font-semibold text-left">{orderDetail.order.snapshot_customer_address || `${orderDetail.customer?.address_line1 || ''} ${orderDetail.customer?.city || ''} ${orderDetail.customer?.governorate || ''}` || '-'}</span></div>
-                {orderDetail.customer?.address_latitude && orderDetail.customer?.address_longitude && (
-                  <div className="flex gap-2 mt-2">
-                    <a href={`https://maps.google.com/?q=${orderDetail.customer.address_latitude},${orderDetail.customer.address_longitude}`}
-                      target="_blank" rel="noopener noreferrer"
-                      className="flex-1 bg-primary text-white text-xs py-2 rounded-lg text-center">
-                      🗺️ فتح الخريطة
-                    </a>
-                    <button onClick={() => {
-                      navigator.clipboard.writeText(`https://maps.google.com/?q=${orderDetail.customer.address_latitude},${orderDetail.customer.address_longitude}`)
-                      setMessage({ type: 'success', text: 'تم نسخ الرابط' })
-                    }}
-                      className="flex-1 bg-surface text-text border border-border text-xs py-2 rounded-lg text-center">
-                      📋 نسخ الرابط
+    const st = orderDetail.order.status
+    const canDispatch = ['approved', 'preparing', 'prepared'].includes(st)
+    const pendingCollections = orderDetail.collections?.filter((c: any) => c.status === 'pending') || []
+    const collectedAmount = orderDetail.collections
+      ?.filter((c: any) => c.status !== 'pending' && c.amount != null)
+      .reduce((s: number, c: any) => s + Number(c.amount), 0) || 0
+    const remaining = (selectedOrder?.total_amount || 0) - collectedAmount
+
+    const actions = (
+      <div className="flex flex-wrap gap-1">
+        {st === 'approved' && (
+          <button onClick={handleStartPrep}
+            className="bg-accent text-white text-[10px] px-2.5 py-1.5 rounded-lg font-semibold">
+            بدء التجهيز
+          </button>
+        )}
+        {st === 'preparing' && orderDetail.preparation?.id && (
+          <button onClick={handleCompletePrep}
+            className="bg-success text-white text-[10px] px-2.5 py-1.5 rounded-lg font-semibold">
+            إكمال التجهيز
+          </button>
+        )}
+        {canDispatch && (
+          <button onClick={() => setShowDispatchModal(true)}
+            className="bg-primary text-white text-[10px] px-2.5 py-1.5 rounded-lg font-semibold">
+            شحن
+          </button>
+        )}
+        {st === 'dispatched' && orderDetail.current_delivery && (
+          <button onClick={handleCompleteDelivery}
+            className="bg-success text-white text-[10px] px-2.5 py-1.5 rounded-lg font-semibold">
+            تسليم
+          </button>
+        )}
+        {st === 'delivered' && (
+          <button onClick={() => setShowCollectionModal(true)}
+            className="bg-emerald-600 text-white text-[10px] px-2.5 py-1.5 rounded-lg font-semibold">
+            تحصيل
+          </button>
+        )}
+        {!['delivered', 'cancelled', 'draft', 'returned_for_revision'].includes(st) && (
+          <button onClick={() => setShowReturnDialog(true)}
+            className="bg-red-500 text-white text-[10px] px-2.5 py-1.5 rounded-lg font-semibold">
+            إعادة للتعديل
+          </button>
+        )}
+      </div>
+    )
+
+    return (
+      <div className="fixed inset-0 z-50 bg-white overflow-y-auto" dir="rtl">
+        <div className="max-w-4xl mx-auto p-4 space-y-4 pb-32">
+          <OrderDetailView data={orderDetail} onBack={closeOrder} actions={actions} />
+
+          {/* Collection approval section */}
+          {pendingCollections.length > 0 && (
+            <div className="bg-white rounded-xl border border-border p-4">
+              <h4 className="text-sm font-bold text-text mb-3">💰 تحصيلات معلقة</h4>
+              <div className="space-y-2">
+                {pendingCollections.map((c: any) => (
+                  <div key={c.id} className="flex items-center justify-between bg-amber-50 rounded-lg p-3 border border-amber-200">
+                    <div className="text-[13px]">
+                      <span className="font-semibold">{c.code}</span>
+                      <span className="mx-2 text-text-secondary">|</span>
+                      <span>{formatCurrencyShort(Number(c.amount))}</span>
+                      <span className="mx-2 text-text-secondary">|</span>
+                      <span>{c.method === 'cash' ? 'نقدي' : c.method === 'transfer' ? 'تحويل' : c.method === 'cheque' ? 'شيك' : c.method}</span>
+                    </div>
+                    <button onClick={() => handleApproveCollection(c.id)}
+                      className="bg-emerald-600 text-white text-xs px-4 py-1.5 rounded-lg font-semibold">
+                      اعتماد
                     </button>
                   </div>
-                )}
+                ))}
               </div>
             </div>
+          )}
 
-            {/* Ownership */}
-            <div className="bg-surface rounded-xl p-4 border border-border">
-              <h4 className="text-sm font-bold text-text mb-3">👥 الملكية والإنشاء</h4>
-              <div className="space-y-2 text-[13px]">
-                <div className="flex justify-between"><span className="text-text-secondary">مالك العميل:</span><span className="font-semibold">{selectedOrder?.owner_name || '-'}</span></div>
-                <div className="flex justify-between"><span className="text-text-secondary">منشئ الطلب:</span><span className="font-semibold">{selectedOrder?.created_by_name || '-'}</span></div>
-                <div className="flex justify-between"><span className="text-text-secondary">طريقة الدفع:</span><span className="font-semibold">{orderDetail.order.payment_method === 'credit' ? 'آجل' : orderDetail.order.payment_method === 'cash' ? 'نقدي' : orderDetail.order.payment_method || '-'}</span></div>
-                <div className="flex justify-between"><span className="text-text-secondary">الإجمالي:</span><span className="font-semibold">{formatCurrencyShort(orderDetail.order.total_amount)}</span></div>
-                <div className="flex justify-between"><span className="text-text-secondary">رقم المراجعة:</span><span className="font-semibold">{orderDetail.order.revision_number || 0}</span></div>
+          {/* Remaining balance */}
+          {st === 'delivered' && remaining > 0 && (
+            <div className="bg-white rounded-xl border border-border p-4">
+              <h4 className="text-sm font-bold text-text mb-3">💰 المتبقي</h4>
+              <div className="flex items-center justify-between text-[13px]">
+                <span className="text-text-secondary">المطلوب: {formatCurrencyShort(selectedOrder?.total_amount || 0)}</span>
+                <span className="text-green-700 font-semibold">المحصل: {formatCurrencyShort(collectedAmount)}</span>
+                <span className="text-red-600 font-bold">المتبقي: {formatCurrencyShort(Math.max(remaining, 0))}</span>
               </div>
             </div>
+          )}
+        </div>
 
-            {/* Order Items */}
-            {orderDetail.items && orderDetail.items.length > 0 && (
-              <div className="bg-surface rounded-xl p-4 border border-border">
-                <h4 className="text-sm font-bold text-text mb-3">📦 الأصناف</h4>
-                <div className="space-y-2">
-                  {orderDetail.items.map((item: any, idx: number) => (
-                    <div key={idx} className="bg-white rounded-lg p-3 border border-border text-[13px]">
-                      <div className="flex justify-between font-semibold">
-                        <span>{item.product_name || item.product_code || 'منتج'}</span>
-                        <span>{formatCurrencyShort(item.total_price)}</span>
-                      </div>
-                      <div className="text-text-secondary text-[11px] mt-1">
-                        الكمية: {item.unit_quantity || 0} {item.unit_type || 'وحدة'}
-                        {item.piece_quantity ? ` + ${item.piece_quantity} قطعة` : ''}
-                      </div>
-                    </div>
-                  ))}
+        {/* Dispatch Modal */}
+        {showDispatchModal && (
+          <div className="fixed inset-0 z-[60] bg-black/40 flex items-center justify-center px-4">
+            <div className="bg-white rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-xl" onClick={e => e.stopPropagation()}>
+              <div className="sticky top-0 bg-white border-b border-border px-5 py-3 flex items-center justify-between">
+                <h3 className="font-bold text-text">شحن الطلب</h3>
+                <button onClick={() => setShowDispatchModal(false)} className="text-text-secondary text-2xl leading-none">&times;</button>
+              </div>
+              <div className="p-5 space-y-4">
+                <div className="flex gap-2">
+                  <button onClick={() => setDeliveryMode('internal')}
+                    className={`flex-1 py-2.5 rounded-lg text-sm font-semibold border ${
+                      deliveryMode === 'internal' ? 'bg-primary text-white border-primary' : 'bg-white text-text-secondary border-border'
+                    }`}>سيارات الشركة</button>
+                  <button onClick={() => setDeliveryMode('external')}
+                    className={`flex-1 py-2.5 rounded-lg text-sm font-semibold border ${
+                      deliveryMode === 'external' ? 'bg-primary text-white border-primary' : 'bg-white text-text-secondary border-border'
+                    }`}>شركات الشحن</button>
                 </div>
-              </div>
-            )}
 
-            {/* Delivery Management */}
-            <div className="bg-surface rounded-xl p-4 border border-border">
-              <h4 className="text-sm font-bold text-text mb-3">🚚 التوصيل</h4>
-
-              {['approved', 'prepared', 'preparing'].includes(orderDetail.order.status) && (
-                <>
-                  <div className="flex gap-2 mb-3">
-                    <button onClick={() => setDeliveryMode('internal')}
-                      className={`flex-1 py-2 rounded-lg text-xs font-semibold border ${
-                        deliveryMode === 'internal' ? 'bg-primary text-white border-primary' : 'bg-white text-text-secondary border-border'
-                      }`}>توصيل داخلي</button>
-                    <button onClick={() => setDeliveryMode('external')}
-                      className={`flex-1 py-2 rounded-lg text-xs font-semibold border ${
-                        deliveryMode === 'external' ? 'bg-primary text-white border-primary' : 'bg-white text-text-secondary border-border'
-                      }`}>شركة شحن</button>
-                  </div>
-
-                  {deliveryMode === 'internal' ? (
-                    <div className="space-y-2">
+                {deliveryMode === 'internal' ? (
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-xs text-text-secondary mb-1">اسم السائق</label>
                       <select value={internalDriver} onChange={(e) => setInternalDriver(e.target.value)}
-                        className="w-full border border-border rounded-lg px-3 py-2 text-xs bg-white">
+                        className="w-full border border-border rounded-lg px-3 py-2.5 text-sm bg-white">
                         <option value="">اختر السائق...</option>
                         {employees.map((e) => <option key={e.id} value={e.id}>{e.full_name || e.code}</option>)}
                       </select>
-                      <input type="text" placeholder="رقم السيارة" value={internalVehicle}
-                        onChange={(e) => setInternalVehicle(e.target.value)}
-                        className="w-full border border-border rounded-lg px-3 py-2 text-xs bg-white" />
-                      <textarea placeholder="ملاحظات" value={internalNotes}
-                        onChange={(e) => setInternalNotes(e.target.value)}
-                        className="w-full border border-border rounded-lg px-3 py-2 text-xs bg-white" rows={2} />
-                      <button onClick={handleDispatch}
-                        disabled={!internalDriver}
-                        className="w-full bg-success text-white rounded-lg py-3 text-sm font-bold disabled:opacity-40">
-                        تأكيد الشحن الداخلي
-                      </button>
                     </div>
-                  ) : (
-                    <div className="space-y-2">
-                      <select value={externalCarrier} onChange={(e) => setExternalCarrier(e.target.value)}
-                        className="w-full border border-border rounded-lg px-3 py-2 text-xs bg-white">
-                        <option value="">اختر شركة الشحن...</option>
-                        {carriers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                      </select>
+                    <div>
+                      <label className="block text-xs text-text-secondary mb-1">رقم السيارة</label>
+                      <input type="text" placeholder="مثال: س ص 1234" value={internalVehicle}
+                        onChange={(e) => setInternalVehicle(e.target.value)}
+                        className="w-full border border-border rounded-lg px-3 py-2.5 text-sm bg-white" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-text-secondary mb-1">تاريخ ووقت المغادرة</label>
+                      <input type="datetime-local" value={internalDeparture}
+                        onChange={(e) => setInternalDeparture(e.target.value)}
+                        className="w-full border border-border rounded-lg px-3 py-2.5 text-sm bg-white" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-text-secondary mb-1">ملاحظات</label>
+                      <textarea value={internalNotes} onChange={(e) => setInternalNotes(e.target.value)}
+                        className="w-full border border-border rounded-lg px-3 py-2.5 text-sm bg-white" rows={2} />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-xs text-text-secondary mb-1">اسم شركة الشحن</label>
+                      <input type="text" placeholder="اكتب اسم الشركة..." value={externalCarrierName}
+                        onChange={(e) => setExternalCarrierName(e.target.value)}
+                        className="w-full border border-border rounded-lg px-3 py-2.5 text-sm bg-white" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-text-secondary mb-1">رقم البوليصة</label>
                       <input type="text" placeholder="رقم البوليصة" value={externalWaybill}
                         onChange={(e) => setExternalWaybill(e.target.value)}
-                        className="w-full border border-border rounded-lg px-3 py-2 text-xs bg-white" />
-                      <input type="text" placeholder="رابط التتبع" value={externalTrackingUrl}
+                        className="w-full border border-border rounded-lg px-3 py-2.5 text-sm bg-white" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-text-secondary mb-1">رابط التتبع</label>
+                      <input type="text" placeholder="https://..." value={externalTrackingUrl}
                         onChange={(e) => setExternalTrackingUrl(e.target.value)}
-                        className="w-full border border-border rounded-lg px-3 py-2 text-xs bg-white" />
-                      <textarea placeholder="ملاحظات" value={externalNotes}
-                        onChange={(e) => setExternalNotes(e.target.value)}
-                        className="w-full border border-border rounded-lg px-3 py-2 text-xs bg-white" rows={2} />
-                      <button onClick={handleDispatch}
-                        disabled={!externalCarrier}
-                        className="w-full bg-success text-white rounded-lg py-3 text-sm font-bold disabled:opacity-40">
-                        تأكيد الشحن الخارجي
-                      </button>
+                        className="w-full border border-border rounded-lg px-3 py-2.5 text-sm bg-white" />
                     </div>
-                  )}
-                </>
-              )}
-
-              {orderDetail.current_delivery && ['dispatched'].includes(orderDetail.order.status) && (
-                <div className="space-y-2">
-                  <div className="bg-white rounded-lg p-3 border border-border text-[13px] space-y-1">
-                    <div className="flex justify-between"><span className="text-text-secondary">النوع:</span><span>{orderDetail.order.delivery_mode === 'external' ? 'شركة شحن' : 'توصيل داخلي'}</span></div>
-                    {orderDetail.current_delivery.assigned_to_name && <div className="flex justify-between"><span className="text-text-secondary">السائق:</span><span>{orderDetail.current_delivery.assigned_to_name}</span></div>}
-                    {orderDetail.current_delivery.external_carrier_name && <div className="flex justify-between"><span className="text-text-secondary">شركة الشحن:</span><span>{orderDetail.current_delivery.external_carrier_name}</span></div>}
-                    {orderDetail.current_delivery.waybill_number && <div className="flex justify-between"><span className="text-text-secondary">البوليصة:</span><span>{orderDetail.current_delivery.waybill_number}</span></div>}
-                    {orderDetail.current_delivery.vehicle_number && <div className="flex justify-between"><span className="text-text-secondary">السيارة:</span><span>{orderDetail.current_delivery.vehicle_number}</span></div>}
-                    {orderDetail.current_delivery.tracking_url && (
-                      <a href={orderDetail.current_delivery.tracking_url} target="_blank" rel="noopener noreferrer"
-                        className="text-primary underline text-xs block mt-1">رابط التتبع</a>
-                    )}
-                    <div className="flex justify-between"><span className="text-text-secondary">الحالة:</span><StatusBadge status={orderDetail.current_delivery.status} size="sm" /></div>
+                    <div>
+                      <label className="block text-xs text-text-secondary mb-1">تاريخ التسليم لشركة الشحن</label>
+                      <input type="datetime-local" value={externalDeliveryDate}
+                        onChange={(e) => setExternalDeliveryDate(e.target.value)}
+                        className="w-full border border-border rounded-lg px-3 py-2.5 text-sm bg-white" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-text-secondary mb-1">ملاحظات</label>
+                      <textarea value={externalNotes} onChange={(e) => setExternalNotes(e.target.value)}
+                        className="w-full border border-border rounded-lg px-3 py-2.5 text-sm bg-white" rows={2} />
+                    </div>
                   </div>
-                  <button onClick={handleCompleteDelivery}
-                    className="w-full bg-success text-white rounded-lg py-3 text-sm font-bold">
-                    تسجيل التسليم
-                  </button>
-                </div>
-              )}
-            </div>
+                )}
 
-            {/* Collections */}
-            <div className="bg-surface rounded-xl p-4 border border-border">
-              <h4 className="text-sm font-bold text-text mb-3">💰 التحصيل</h4>
-              {(() => {
-                const total = selectedOrder?.total_amount || 0
-                const collected = orderDetail.collections
-                  ?.filter((c: any) => c.status !== 'pending')
-                  .reduce((s: number, c: any) => s + Number(c.amount), 0) || 0
-                const remaining = total - collected
-                const collStatus = getCollectionStatus(total, collected)
-                return (
-                  <div className="space-y-2 text-[13px]">
-                    <div className="flex items-center justify-between">
-                      <span className="text-text-secondary">الحالة:</span>
-                      <span className={`px-2 py-0.5 rounded text-xs ${collStatus.color}`}>{collStatus.label}</span>
-                    </div>
-                    <div className="flex justify-between"><span className="text-text-secondary">المطلوب:</span><span className="font-semibold">{formatCurrencyShort(total)}</span></div>
-                    <div className="flex justify-between"><span className="text-text-secondary">المحصل:</span><span className="font-semibold">{formatCurrencyShort(collected)}</span></div>
-                    {remaining > 0 && <div className="flex justify-between"><span className="text-text-secondary">المتبقى:</span><span className="font-semibold text-red-600">{formatCurrencyShort(remaining)}</span></div>}
-                  </div>
-                )
-              })()}
-            </div>
-
-            {/* Status History */}
-            {orderDetail.status_history && orderDetail.status_history.length > 0 && (
-              <div className="bg-surface rounded-xl p-4 border border-border">
-                <h4 className="text-sm font-bold text-text mb-3">📋 سجل الحالات</h4>
-                <div className="space-y-2">
-                  {orderDetail.status_history.map((h: any, idx: number) => (
-                    <div key={idx} className="flex items-center gap-2 text-[12px]">
-                      <div className="w-2 h-2 rounded-full bg-primary flex-shrink-0" />
-                      <div className="flex-1">
-                        <span className="font-semibold">{h.from_status || '-'}</span>
-                        <span className="mx-1">→</span>
-                        <span className="font-semibold">{h.to_status}</span>
-                      </div>
-                      <div className="text-text-secondary text-[10px]">
-                        {new Date(h.changed_at || h.created_at).toLocaleString('ar-EG-u-nu-latn')}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Preparation Status */}
-            {orderDetail.preparation && (
-              <div className="bg-surface rounded-xl p-4 border border-border">
-                <h4 className="text-sm font-bold text-text mb-3">⚙️ التجهيز</h4>
-                <div className="space-y-2 text-[13px]">
-                  <div className="flex justify-between"><span className="text-text-secondary">الحالة:</span><StatusBadge status={orderDetail.preparation.status} size="sm" /></div>
-                  {orderDetail.preparation.notes && <div className="flex justify-between"><span className="text-text-secondary">ملاحظات:</span><span>{orderDetail.preparation.notes}</span></div>}
-                </div>
-              </div>
-            )}
-
-            {/* Notes on Order */}
-            {orderDetail.order.notes && (
-              <div className="bg-surface rounded-xl p-4 border border-border">
-                <h4 className="text-sm font-bold text-text mb-3">📝 ملاحظات الطلب</h4>
-                <p className="text-[13px]">{orderDetail.order.notes}</p>
-              </div>
-            )}
-
-            {/* Action Buttons */}
-            <div className="flex flex-wrap gap-2">
-              {orderDetail.order.status === 'approved' && (
-                <button onClick={handleStartPrep}
-                  className="flex-1 min-w-[120px] bg-accent text-white rounded-xl py-3 text-sm font-bold">
-                  بدء التجهيز
+                <button onClick={handleDispatch}
+                  disabled={deliveryMode === 'internal' ? !internalDriver : !externalCarrierName}
+                  className="w-full bg-success text-white rounded-xl py-3 text-sm font-bold disabled:opacity-40">
+                  {deliveryMode === 'internal' ? 'تأكيد الشحن' : 'تأكيد الشحن لشركة الشحن'}
                 </button>
-              )}
-              {orderDetail.order.status === 'preparing' && orderDetail.preparation?.id && (
-                <button onClick={handleCompletePrep}
-                  className="flex-1 min-w-[120px] bg-success text-white rounded-xl py-3 text-sm font-bold">
-                  إكمال التجهيز
-                </button>
-              )}
-              {orderDetail.order.status === 'delivered' && (
-                <div className="flex-1 text-center"><StatusBadge status="delivered" size="md" /></div>
-              )}
-              {!['delivered', 'cancelled', 'draft', 'returned_for_revision'].includes(orderDetail.order.status) && (
-                <button onClick={() => setShowReturnDialog(true)}
-                  className="flex-1 min-w-[120px] bg-red-500 text-white rounded-xl py-3 text-sm font-bold">
-                  إعادة للتعديل
-                </button>
-              )}
-            </div>
-          </>
-        ) : (
-          <div className="text-center py-12 text-text-secondary text-sm">تعذر تحميل بيانات الطلب</div>
-        )}
-      </div>
-
-      {/* Return for Revision Dialog */}
-      {showReturnDialog && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[60] px-4">
-          <div className="bg-white rounded-xl p-5 w-full max-w-sm shadow-xl">
-            <h3 className="font-bold text-text mb-3 text-sm">إعادة الطلب للتعديل</h3>
-            <textarea placeholder="سبب الإعادة (مطلوب)" value={returnReason}
-              onChange={(e) => setReturnReason(e.target.value)}
-              className="w-full border border-border rounded-lg p-2 text-sm mb-3" rows={3} />
-            <div className="flex gap-2">
-              <button onClick={() => { setShowReturnDialog(false); setReturnReason('') }}
-                className="flex-1 bg-surface text-text rounded-xl py-2 text-sm">إلغاء</button>
-              <button onClick={handleReturnForRevision} disabled={!returnReason.trim()}
-                className="flex-1 bg-red-600 text-white rounded-xl py-2 text-sm disabled:opacity-40">تأكيد</button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
-    </div>
-  )
+        )}
+
+        {/* Collection Modal */}
+        {showCollectionModal && (
+          <div className="fixed inset-0 z-[60] bg-black/40 flex items-center justify-center px-4">
+            <div className="bg-white rounded-xl w-full max-w-sm shadow-xl" onClick={e => e.stopPropagation()}>
+              <div className="border-b border-border px-5 py-3 flex items-center justify-between">
+                <h3 className="font-bold text-text">تسجيل تحصيل</h3>
+                <button onClick={() => setShowCollectionModal(false)} className="text-text-secondary text-2xl leading-none">&times;</button>
+              </div>
+              <div className="p-5 space-y-3">
+                <div>
+                  <label className="block text-xs text-text-secondary mb-1">طريقة الدفع</label>
+                  <select value={collectionMethod} onChange={(e) => setCollectionMethod(e.target.value)}
+                    className="w-full border border-border rounded-lg px-3 py-2.5 text-sm bg-white">
+                    <option value="cash">نقدي</option>
+                    <option value="transfer">تحويل بنكي</option>
+                    <option value="cheque">شيك</option>
+                    <option value="credit_card">بطاقة ائتمان</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs text-text-secondary mb-1">المبلغ</label>
+                  <input type="number" step="0.01" min="0" placeholder="0.00" value={collectionAmount}
+                    onChange={(e) => setCollectionAmount(e.target.value)}
+                    className="w-full border border-border rounded-lg px-3 py-2.5 text-sm bg-white" />
+                </div>
+                <div>
+                  <label className="block text-xs text-text-secondary mb-1">رقم المرجع (اختياري)</label>
+                  <input type="text" placeholder="رقم الإذن أو التحويل" value={collectionReference}
+                    onChange={(e) => setCollectionReference(e.target.value)}
+                    className="w-full border border-border rounded-lg px-3 py-2.5 text-sm bg-white" />
+                </div>
+                <div>
+                  <label className="block text-xs text-text-secondary mb-1">ملاحظات (اختياري)</label>
+                  <textarea value={collectionNotes} onChange={(e) => setCollectionNotes(e.target.value)}
+                    className="w-full border border-border rounded-lg px-3 py-2.5 text-sm bg-white" rows={2} />
+                </div>
+                <button onClick={handleCreateCollection}
+                  disabled={!collectionAmount || parseFloat(collectionAmount) <= 0}
+                  className="w-full bg-emerald-600 text-white rounded-xl py-3 text-sm font-bold disabled:opacity-40">
+                  تسجيل التحصيل
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Return for Revision Dialog */}
+        {showReturnDialog && (
+          <div className="fixed inset-0 z-[60] bg-black/40 flex items-center justify-center px-4">
+            <div className="bg-white rounded-xl w-full max-w-sm shadow-xl">
+              <div className="border-b border-border px-5 py-3">
+                <h3 className="font-bold text-text">إعادة الطلب للتعديل</h3>
+              </div>
+              <div className="p-5 space-y-3">
+                <textarea placeholder="سبب الإعادة (مطلوب)" value={returnReason}
+                  onChange={(e) => setReturnReason(e.target.value)}
+                  className="w-full border border-border rounded-lg p-3 text-sm bg-white" rows={3} />
+                <div className="flex gap-2">
+                  <button onClick={() => { setShowReturnDialog(false); setReturnReason('') }}
+                    className="flex-1 bg-surface text-text rounded-xl py-2.5 text-sm">إلغاء</button>
+                  <button onClick={handleReturnForRevision} disabled={!returnReason.trim()}
+                    className="flex-1 bg-red-600 text-white rounded-xl py-2.5 text-sm disabled:opacity-40">تأكيد</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
 
   return (
     <>
-      {fullScreen ? fullOrderDetail() : orderContent()}
+      {fullScreen ? orderDetailView() : orderContent()}
     </>
   )
 }
