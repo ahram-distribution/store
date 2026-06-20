@@ -72,9 +72,9 @@ jobs:
 
       - name: Set Pages source to gh-pages branch
         run: |
-          echo "Setting Pages source to gh-pages branch for SPA routing..."
-          gh api -X PUT /repos/${{ github.repository }}/pages \
-            -f source[branch]=gh-pages -f source[path]='/' 2>&1 || echo "WARNING: Could not set Pages source via API. SPA deep links (e.g. /store/orders/xxx/edit) will 404 on first visit. To fix: go to Settings > Pages > Source > 'Deploy from a branch' > branch 'gh-pages' / '(root)' > Save."
+          PAYLOAD='{"source":{"branch":"gh-pages","path":"/"}}'
+          echo "$PAYLOAD" | gh api -X PUT /repos/${{ github.repository }}/pages --input - 2>&1 || \
+            echo "WARNING: Could not set Pages source via API. SPA deep links 404 on first visit. To fix: Settings > Pages > Source > 'Deploy from a branch' > gh-pages / (root)."
         continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
