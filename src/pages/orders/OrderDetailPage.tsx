@@ -38,7 +38,14 @@ export function OrderDetailPage() {
 
   function handleStatusSuccess(newStatus: string) {
     toast.success(`تم تغيير الحالة إلى ${newStatus}`)
-    window.location.reload()
+    const token = getToken()
+    if (!token || !id) return
+    supabase.rpc('get_unified_order', { p_token: token, p_id: id }).then((res) => {
+      if (res.error || !res.data) return
+      const raw = res.data
+      if (raw?.error) return
+      setData(raw as UnifiedOrder)
+    })
   }
 
   function handleStatusError(error: string) {

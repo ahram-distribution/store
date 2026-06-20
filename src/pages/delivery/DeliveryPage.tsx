@@ -115,7 +115,11 @@ export function DeliveryPage() {
                 canCompletePreparation={false}
                 canSendToDelivery={false}
                 canManage={true}
-                onSuccess={() => window.location.reload()}
+                onSuccess={async () => {
+                  const token = getToken(); if (!token) return
+                  const { data } = await supabase.rpc('get_governed_deliveries', { p_token: token, p_status_filter: filter || null })
+                  if (data) setItems(data as DeliveryItem[])
+                }}
                 onError={(err) => toast.error(err)}
               />
             )}
