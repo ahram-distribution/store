@@ -73,9 +73,15 @@ export function ChairmanWorkspace() {
         <h3 className="text-sm font-semibold text-text mb-3">آخر الطلبات</h3>
         <div className="space-y-1.5 max-h-48 overflow-y-auto">
           {orders.slice(0, 5).map((o: any) => (
-            <button key={o.id} onClick={() => navigate(`/orders/${o.id}`)} className="w-full flex justify-between items-center text-xs py-1.5 border-b border-border last:border-0 text-right">
-              <span className="text-text font-semibold">{o.order_number || o.id?.slice(0, 8)}</span>
-              <span className="text-text-secondary">{formatCurrencyShort(Number(o.total_amount || 0))}</span>
+            <button key={o.id} onClick={() => navigate(`/orders/${o.id}`)} className="w-full text-xs py-1.5 border-b border-border last:border-0 text-right">
+              <div className="flex justify-between items-center">
+                <span className="text-text font-semibold">{o.order_number || o.id?.slice(0, 8)}</span>
+                <span className="text-text-secondary">{formatCurrencyShort(Number(o.total_amount || 0))}</span>
+              </div>
+              <div className="text-[10px] text-text-secondary mt-0.5">
+                {o.customer_name && <span>{o.customer_name}</span>}
+                {o.created_by_name && <span className="mr-2">| منشئ: {o.created_by_name}</span>}
+              </div>
             </button>
           ))}
         </div>

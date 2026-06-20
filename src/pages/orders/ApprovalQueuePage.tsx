@@ -69,7 +69,11 @@ export function ApprovalQueuePage() {
                 </div>
               </div>
               <div className="flex items-center justify-between text-xs text-text-secondary mb-2">
-                <span>{o.owner_name || o.created_by_name || 'غير متوفر'}</span>
+                <div className="flex flex-col gap-0.5">
+                  {o.customer_owner_name && <span>التابع لـ: {o.customer_owner_name}{o.customer_owner_role ? ` (${o.customer_owner_role})` : ''}</span>}
+                  {o.created_by_name && <span>منشئ الطلب: {o.created_by_name}</span>}
+                  {!o.customer_owner_name && !o.created_by_name && <span>غير متوفر</span>}
+                </div>
                 <span className="font-semibold text-text">{formatCurrencyShort(Number(o.total_amount || 0))}</span>
               </div>
               <div className="flex gap-2">

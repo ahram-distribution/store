@@ -47,23 +47,18 @@ export function OrderCustomerSection({ customer, order }: OrderCustomerSectionPr
       {fullAddress && (
         <p className="text-xs text-text-secondary mt-1 leading-relaxed">{fullAddress}</p>
       )}
+      {hasAddressCoords && (
+        <div className="mt-2">
+          <MapButton latitude={customer!.address_latitude!} longitude={customer!.address_longitude!} size="sm" showCopyLink />
+        </div>
+      )}
       <div className="mt-2 pt-2 border-t border-border">
-        <p className="text-[10px] font-bold text-text-secondary uppercase mb-1">مسؤول العميل</p>
+        <p className="text-[10px] font-bold text-text-secondary uppercase mb-1">التابع لـ:</p>
         <p className="text-sm font-medium text-text">{order.customer_owner_name || 'غير متوفر'}</p>
         {order.customer_owner_role && (
           <p className="text-[10px] text-text-secondary">{order.customer_owner_role}</p>
         )}
       </div>
-      {hasAddressCoords && (
-        <div className="mt-2">
-          <MapButton latitude={customer!.address_latitude!} longitude={customer!.address_longitude!} size="sm" />
-        </div>
-      )}
-      {!hasAddressCoords && customer?.address_line1 && (
-        <div className="mt-2">
-          <span className="text-[10px] text-text-secondary">لا توجد إحداثيات للخريطة</span>
-        </div>
-      )}
     </div>
   )
 }

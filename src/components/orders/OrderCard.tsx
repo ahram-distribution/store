@@ -12,6 +12,8 @@ interface OrderCardProps {
     creator_name?: string
     created_by_name?: string
     creator_phone?: string
+    customer_owner_name?: string
+    customer_owner_role?: string
     total_amount: number | string
     status: string
     created_at: string
@@ -45,18 +47,17 @@ export function OrderCard({ order, onClick }: OrderCardProps) {
 
       <div className="flex items-end justify-between mt-1.5">
         <div className="text-[11px] text-text-secondary space-y-1">
-          {order.owner_name && (
+          {order.created_by_name && (
             <div>
-              <span className="text-[9px] text-text-secondary">المسؤول: </span>
-              <span className="text-text font-medium">{order.owner_name}</span>
-              {order.owner_phone && <span className="text-[10px] text-text-secondary" dir="ltr"> ({order.owner_phone})</span>}
+              <span className="text-[9px] text-text-secondary">منشئ الطلب: </span>
+              <span className="text-primary/70">{order.created_by_name}</span>
             </div>
           )}
-          {(order.created_by_name || order.creator_name) && (
+          {(order.customer_owner_name) && (
             <div>
-              <span className="text-[9px] text-text-secondary">مرسل: </span>
-              <span className="text-primary/70">{order.created_by_name || order.creator_name}</span>
-              {order.creator_phone && <span className="text-[10px] text-text-secondary" dir="ltr"> ({order.creator_phone})</span>}
+              <span className="text-[9px] text-text-secondary">التابع لـ: </span>
+              <span className="text-text font-medium">{order.customer_owner_name}</span>
+              {order.customer_owner_role && <span className="text-[10px] text-text-secondary"> ({order.customer_owner_role})</span>}
             </div>
           )}
           <p>{dateStr} {timeStr}</p>
