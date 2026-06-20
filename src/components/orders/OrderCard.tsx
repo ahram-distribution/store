@@ -10,6 +10,7 @@ interface OrderCardProps {
     owner_name?: string
     owner_phone?: string
     creator_name?: string
+    created_by_name?: string
     creator_phone?: string
     total_amount: number | string
     status: string
@@ -51,10 +52,10 @@ export function OrderCard({ order, onClick }: OrderCardProps) {
               {order.owner_phone && <span className="text-[10px] text-text-secondary" dir="ltr"> ({order.owner_phone})</span>}
             </div>
           )}
-          {order.creator_name && (
+          {(order.created_by_name || order.creator_name) && (
             <div>
               <span className="text-[9px] text-text-secondary">مرسل: </span>
-              <span className="text-primary/70">{order.creator_name}</span>
+              <span className="text-primary/70">{order.created_by_name || order.creator_name}</span>
               {order.creator_phone && <span className="text-[10px] text-text-secondary" dir="ltr"> ({order.creator_phone})</span>}
             </div>
           )}

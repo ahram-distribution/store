@@ -17,7 +17,7 @@ export function DataEntryWorkspace() {
     if (!token) { setLoading(false); return }
     Promise.all([
       supabase.rpc('get_governed_customers', { p_token: token }),
-      supabase.rpc('get_governed_orders', { p_token: token }),
+      supabase.rpc('get_unified_orders', { p_token: token }),
     ]).then(([cust, ord]) => {
       if (cust.data) setCustomers(Array.isArray(cust.data) ? cust.data : [])
       if (ord.data) setOrders(Array.isArray(ord.data) ? ord.data : [])

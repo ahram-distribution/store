@@ -21,7 +21,7 @@ export function ApprovalQueuePage() {
   const loadOrders = useCallback(async () => {
     const token = getToken()
     if (!token) { setLoading(false); return }
-    const { data } = await supabase.rpc('get_governed_orders', { p_token: token })
+    const { data } = await supabase.rpc('get_unified_orders', { p_token: token })
     if (data) {
       const submitted = (Array.isArray(data) ? data : []).filter((o: any) => o.status === 'submitted')
       setOrders(submitted)
@@ -69,7 +69,7 @@ export function ApprovalQueuePage() {
                 </div>
               </div>
               <div className="flex items-center justify-between text-xs text-text-secondary mb-2">
-                <span>{o.employee_name || o.responsible_name || 'غير متوفر'}</span>
+                <span>{o.owner_name || o.created_by_name || 'غير متوفر'}</span>
                 <span className="font-semibold text-text">{formatCurrencyShort(Number(o.total_amount || 0))}</span>
               </div>
               <div className="flex gap-2">

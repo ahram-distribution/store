@@ -12,6 +12,18 @@ interface OrderHeaderSectionProps {
   onBack?: () => void
 }
 
+function renderCreator(order: UnifiedOrder['order']) {
+  if (!order.order_creator_name) {
+    return <span className="text-text-secondary">العميل مباشرة</span>
+  }
+  return (
+    <span>
+      {order.order_creator_name}
+      {order.order_creator_role && <span className="text-text-secondary"> — {order.order_creator_role}</span>}
+    </span>
+  )
+}
+
 export function OrderHeaderSection({ order, currentOwner, overLimit, lastAction, actions, onBack }: OrderHeaderSectionProps) {
   return (
     <div className="bg-white rounded-xl border border-border overflow-hidden">
@@ -46,6 +58,10 @@ export function OrderHeaderSection({ order, currentOwner, overLimit, lastAction,
           <div className="flex items-center gap-2">
             <span className="text-text-secondary shrink-0">المسؤول</span>
             <span className="font-medium text-text">{currentOwner}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-text-secondary shrink-0">منشئ الطلب</span>
+            <span className="font-medium text-text">{renderCreator(order)}</span>
           </div>
           <div className="flex items-center gap-2">
             <span className="text-text-secondary shrink-0">التوصيل</span>

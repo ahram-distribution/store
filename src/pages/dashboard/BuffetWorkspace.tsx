@@ -14,7 +14,7 @@ export function BuffetWorkspace() {
   useEffect(() => {
     const token = getToken()
     if (!token) { setLoading(false); return }
-    supabase.rpc('get_governed_orders', { p_token: token }).then(({ data }) => {
+    supabase.rpc('get_unified_orders', { p_token: token }).then(({ data }) => {
       if (data) setOrders(Array.isArray(data) ? data : [])
       setLoading(false)
     })

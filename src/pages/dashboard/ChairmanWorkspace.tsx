@@ -18,7 +18,7 @@ export function ChairmanWorkspace() {
     if (!token) { setLoading(false); return }
     Promise.all([
       supabase.rpc('get_dashboard_management', { p_token: token }),
-      supabase.rpc('get_governed_orders', { p_token: token }),
+      supabase.rpc('get_unified_orders', { p_token: token }),
     ]).then(([mgmt, ord]) => {
       setData(mgmt.data)
       if (ord.data) setOrders(Array.isArray(ord.data) ? ord.data.slice(0, 10) : [])

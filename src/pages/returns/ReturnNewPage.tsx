@@ -39,7 +39,7 @@ export function ReturnNewPage() {
   useEffect(() => {
     const token = getToken()
     if (!token) { setLoadingOrders(false); return }
-    supabase.rpc('get_governed_orders', { p_token: token }).then(({ data }) => {
+    supabase.rpc('get_unified_orders', { p_token: token }).then(({ data }) => {
       let result = (data as any[]) || []
       result = result.filter((o: any) => o.status === 'delivered')
       setOrders(result)
@@ -52,16 +52,12 @@ export function ReturnNewPage() {
     setLoadingItems(true)
     const token = getToken()
     if (!token) return
-    Promise.all([
-      supabase.rpc('get_governed_order_items', { p_token: token, p_order_id: selectedOrderId }),
-      supabase.rpc('get_governed_products', { p_token: token }),
-    ]).then(([itemsRes, productsRes]) => {
-      const items = (itemsRes.data as any[]) || []
-      const products = (productsRes.data as any[]) || []
-      const productMap = new Map(products.map((p: any) => [p.id, p.product_name || p.id]))
+    supabase.rpc('get_unified_order', { p_token: token, p_id: selectedOrderId }).then(({ data }) => {
+      const order = data as any
+      const items = (order?.items as any[]) || []
       const enriched = items.map((i: any) => ({
         ...i,
-        product_name: productMap.get(i.product_id) || i.product_id,
+        product_name: i.product_name || i.product_id,
       }))
       setOrderItems(enriched)
       const initial: Record<string, { quantity: number; unit_type: string; reason: string; product_id: string }> = {}

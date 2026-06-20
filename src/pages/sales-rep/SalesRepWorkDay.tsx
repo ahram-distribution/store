@@ -51,7 +51,7 @@ export function SalesRepWorkDay() {
 
     Promise.all([
       supabase.rpc('get_dashboard_sales', { p_token: token }),
-      supabase.rpc('get_governed_orders', { p_token: token }),
+      supabase.rpc('get_unified_orders', { p_token: token }),
       supabase.rpc('get_governed_visits', { p_token: token }),
       supabase.rpc('get_governed_customers', { p_token: token }),
     ]).then(([dashRes, ordersRes, visitsRes, custRes]) => {

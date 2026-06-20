@@ -1,10 +1,11 @@
 import { useMemo } from 'react'
 import { MapButton } from '../shared/MapButton'
 import { getFullAddress } from './order-detail.utils'
-import type { UnifiedCustomerSummary } from '../../types/unified-order'
+import type { UnifiedCustomerSummary, UnifiedOrderHeader } from '../../types/unified-order'
 
 interface OrderCustomerSectionProps {
   customer: UnifiedCustomerSummary | null
+  order: UnifiedOrderHeader
 }
 
 function ContactActions({ phone }: { phone?: string }) {
@@ -26,7 +27,7 @@ function ContactActions({ phone }: { phone?: string }) {
   )
 }
 
-export function OrderCustomerSection({ customer }: OrderCustomerSectionProps) {
+export function OrderCustomerSection({ customer, order }: OrderCustomerSectionProps) {
   const fullAddress = useMemo(() => getFullAddress(customer), [customer])
   const hasAddressCoords = customer?.address_latitude != null && customer?.address_longitude != null
 
@@ -46,6 +47,13 @@ export function OrderCustomerSection({ customer }: OrderCustomerSectionProps) {
       {fullAddress && (
         <p className="text-xs text-text-secondary mt-1 leading-relaxed">{fullAddress}</p>
       )}
+      <div className="mt-2 pt-2 border-t border-border">
+        <p className="text-[10px] font-bold text-text-secondary uppercase mb-1">مسؤول العميل</p>
+        <p className="text-sm font-medium text-text">{order.customer_owner_name || 'غير متوفر'}</p>
+        {order.customer_owner_role && (
+          <p className="text-[10px] text-text-secondary">{order.customer_owner_role}</p>
+        )}
+      </div>
       {hasAddressCoords && (
         <div className="mt-2">
           <MapButton latitude={customer!.address_latitude!} longitude={customer!.address_longitude!} size="sm" />

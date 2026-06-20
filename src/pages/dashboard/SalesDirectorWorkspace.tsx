@@ -18,7 +18,7 @@ export function SalesDirectorWorkspace() {
     const token = getToken()
     if (!token) { setLoading(false); return }
     Promise.all([
-      supabase.rpc('get_governed_orders', { p_token: token }),
+      supabase.rpc('get_unified_orders', { p_token: token }),
       supabase.rpc('get_governed_visits', { p_token: token }),
       supabase.rpc('get_governed_employees', { p_token: token }),
     ]).then(([ord, vis, emp]) => {

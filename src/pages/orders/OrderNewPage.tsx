@@ -235,13 +235,11 @@ export function OrderNewPage() {
 
     // ── OPEN WHATSAPP — uses snapshot data from RPC ──
     try {
-      const orderRes = await supabase.rpc('get_governed_order', { p_token: token, p_id: order.id })
+      const orderRes = await supabase.rpc('get_unified_order', { p_token: token, p_id: order.id })
       if (!orderRes.error && orderRes.data && !orderRes.data?.error) {
         const fullOrder = orderRes.data
-        let itemsRes;
-        try { itemsRes = await supabase.rpc('get_governed_order_items', { p_token: token, p_order_id: order.id }); } catch { itemsRes = null; }
-        const orderItems = (itemsRes?.data && Array.isArray(itemsRes.data))
-          ? itemsRes.data.map((i: any) => ({ ...i, products: { product_name: i.product_name, legacy_code: i.legacy_code, image_url: i.image_url, companies: { company_name: i.company_name } } }))
+        const orderItems = (fullOrder?.items && Array.isArray(fullOrder.items))
+          ? fullOrder.items.map((i: any) => ({ ...i, products: { product_name: i.product_name, legacy_code: i.legacy_code, image_url: i.image_url, companies: { company_name: i.company_name } } }))
           : []
         sendWhatsAppFromDisplay(buildOrderDisplayData({ order: fullOrder, items: orderItems }))
       }

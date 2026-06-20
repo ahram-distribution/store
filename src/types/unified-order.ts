@@ -1,9 +1,9 @@
 /*
  * ============================================================================
- * UNIFIED ORDER DATA LAYER — Phase 1
+ * UNIFIED ORDER DATA LAYER — Phase 2
  * ============================================================================
  * Single Source of Truth contracts for get_unified_order / get_unified_orders.
- * All future order screens consume these types, NOT individual RPC types.
+ * All order screens consume these types, NOT individual RPC types.
  *
  * Data source: get_unified_order RPC (Postgres jsonb → typed here).
  * ============================================================================
@@ -77,6 +77,10 @@ export interface UnifiedOrderHeader {
   snapshot_sender_name: string | null
   snapshot_sender_phone: string | null
   snapshot_sender_address: string | null
+  customer_owner_name: string
+  customer_owner_role: string
+  order_creator_name: string
+  order_creator_role: string | null
 }
 
 export interface UnifiedCustomerSummary {
@@ -187,6 +191,7 @@ export interface UnifiedOrderListItem {
   customer_phone: string | null
   owner_name: string | null
   created_by: string | null
+  created_by_name: string | null
   created_at: string
   updated_at: string
   submitted_at: string | null
@@ -195,4 +200,6 @@ export interface UnifiedOrderListItem {
   item_count: number
   current_delivery_status: string | null
   has_collections: boolean
+  customer_owner_name: string
+  customer_owner_role: string
 }

@@ -22,8 +22,8 @@ export function OrderEditPage() {
     if (!id) return
     const token = getToken()
     if (!token) { setLoading(false); return }
-    supabase.rpc('get_governed_order_items', { p_token: token, p_order_id: id }).then((res) => {
-      const data = (res.data as any[]) || []
+    supabase.rpc('get_unified_order', { p_token: token, p_id: id }).then((res) => {
+      const data = ((res.data as any)?.items as any[]) || []
       setItems(data)
       const q: Record<string, number> = {}
       data.forEach((item: any) => { q[item.id] = item.unit_quantity })

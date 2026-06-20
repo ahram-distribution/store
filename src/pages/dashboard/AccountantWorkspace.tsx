@@ -18,7 +18,7 @@ export function AccountantWorkspace() {
     if (!token) { setLoading(false); return }
     Promise.all([
       supabase.rpc('get_governed_collections', { p_token: token }),
-      supabase.rpc('get_governed_orders', { p_token: token }),
+      supabase.rpc('get_unified_orders', { p_token: token }),
     ]).then(([col, ord]) => {
       if (col.data) setCollections(Array.isArray(col.data) ? col.data : [])
       if (ord.data) setOrders(Array.isArray(ord.data) ? ord.data : [])
