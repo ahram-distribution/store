@@ -86,10 +86,10 @@ export default defineConfig({
       closeBundle() {
         if (isMobileBuild) return
         const distDir = path.resolve(__dirname, 'dist')
-        const indexPath = path.join(distDir, 'index.html')
-        const fourOhFourPath = path.join(distDir, '404.html')
-        if (!fs.existsSync(indexPath)) return
-        fs.copyFileSync(indexPath, fourOhFourPath)
+        const storeIndex = path.join(distDir, 'store', 'index.html')
+        if (!fs.existsSync(storeIndex)) return
+        fs.copyFileSync(storeIndex, path.join(distDir, '404.html'))
+        fs.copyFileSync(storeIndex, path.join(distDir, 'store', '404.html'))
       },
     },
    ],

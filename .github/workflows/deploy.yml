@@ -49,6 +49,15 @@ jobs:
           cp dist/store/index.html deploy/404.html
           touch deploy/.nojekyll
 
+      - name: Configure Pages to serve from gh-pages branch
+        continue-on-error: true
+        run: |
+          curl -s -X PUT "https://api.github.com/repos/${{ github.repository }}/pages" \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "Content-Type: application/json" \
+            -d '{"source":{"branch":"gh-pages","path":"/"}}'
+
       - name: Deploy to gh-pages
         uses: peaceiris/actions-gh-pages@v4
         with:
