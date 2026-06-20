@@ -91,7 +91,7 @@ BEGIN
         'snapshot_sender_address', o.snapshot_sender_address,
         'customer_owner_name', COALESCE(co_emp.full_name, ''),
         'customer_owner_role', COALESCE((SELECT r.name FROM public.employee_roles er2 JOIN public.roles r ON r.id = er2.role_id WHERE er2.employee_id = c.owner_id LIMIT 1), ''),
-        'order_creator_name', COALESCE(oc_i.full_name, ''),
+        'order_creator_name', COALESCE(oc_emp.full_name, oc_cust.company_name, ''),
         'order_creator_role', CASE
           WHEN oc_i.identity_type = 'employee' THEN COALESCE((SELECT r.name FROM public.employee_roles er2 JOIN public.roles r ON r.id = er2.role_id WHERE er2.employee_id = oc_emp.id LIMIT 1), '')
           ELSE NULL
@@ -167,7 +167,6 @@ BEGIN
           'delivery_mode', o.delivery_mode,
           'assigned_to_name', ast.code,
           'external_carrier_name', ec.name,
-          'assigned_to_phone', ast.phone,
           'updated_at', dt.updated_at
         )
         FROM public.delivery_tracking dt
@@ -254,12 +253,13 @@ BEGIN
     LEFT JOIN public.employees co_emp ON co_emp.id = c.owner_id
     LEFT JOIN public.identities oc_i ON oc_i.id = o.created_by
     LEFT JOIN public.employees oc_emp ON oc_emp.identity_id = oc_i.id AND oc_i.identity_type = 'employee'
+    LEFT JOIN public.customers oc_cust ON oc_cust.identity_id = oc_i.id AND oc_i.identity_type = 'customer'
     WHERE o.id = p_id
   );
 END;
 $$;
 
-COMMENT ON FUNCTION public.get_unified_order IS 'مصدر الحقيقة الموحد للطلب — مع owner/creator';
+COMMENT ON FUNCTION public.get_unified_order IS 'مصدر الحقيقة الموحد للطلب — مع owner/creator (مُصحح)';
 
 -- ============================================================
 -- 2. Update get_unified_orders — add customer_owner + order_creator
@@ -301,7 +301,7 @@ BEGIN
         'customer_code', o.snapshot_customer_code,
         'customer_phone', COALESCE(o.snapshot_customer_phone, ci.phone),
         'created_by', o.created_by,
-        'created_by_name', COALESCE(o.snapshot_sender_name, ci.full_name),
+        'created_by_name', COALESCE(o.snapshot_sender_name, oc_emp.full_name, oc_cust.company_name, ''),
         'created_at', o.created_at,
         'updated_at', o.updated_at,
         'submitted_at', o.submitted_at,
@@ -321,6 +321,9 @@ BEGIN
       LEFT JOIN public.identities ci ON ci.id = c.identity_id
       LEFT JOIN public.employees co_emp ON co_emp.id = c.owner_id
       LEFT JOIN public.employees e ON e.id = o.owner_id
+      LEFT JOIN public.identities oc_i ON oc_i.id = o.created_by
+      LEFT JOIN public.employees oc_emp ON oc_emp.identity_id = oc_i.id AND oc_i.identity_type = 'employee'
+      LEFT JOIN public.customers oc_cust ON oc_cust.identity_id = oc_i.id AND oc_i.identity_type = 'customer'
       WHERE o.customer_id = v_session.customer_id
         AND (p_status IS NULL OR o.status = p_status)
         AND (p_date_from IS NULL OR o.created_at >= p_date_from)
@@ -347,7 +350,7 @@ BEGIN
         'customer_phone', COALESCE(o.snapshot_customer_phone, ci.phone),
         'owner_name', COALESCE(o.snapshot_owner_name, e.full_name),
         'created_by', o.created_by,
-        'created_by_name', COALESCE(o.snapshot_sender_name, oc_i.full_name),
+        'created_by_name', COALESCE(o.snapshot_sender_name, oc_emp.full_name, oc_cust.company_name, ''),
         'created_at', o.created_at,
         'updated_at', o.updated_at,
         'submitted_at', o.submitted_at,
@@ -373,6 +376,8 @@ BEGIN
     LEFT JOIN public.employees co_emp ON co_emp.id = c.owner_id
     LEFT JOIN public.employees e ON e.id = o.owner_id
     LEFT JOIN public.identities oc_i ON oc_i.id = o.created_by
+    LEFT JOIN public.employees oc_emp ON oc_emp.identity_id = oc_i.id AND oc_i.identity_type = 'employee'
+    LEFT JOIN public.customers oc_cust ON oc_cust.identity_id = oc_i.id AND oc_i.identity_type = 'customer'
     WHERE (v_is_super OR c.owner_id = ANY(v_visible))
       AND (p_search IS NULL OR
            o.order_number ILIKE '%' || p_search || '%' OR
