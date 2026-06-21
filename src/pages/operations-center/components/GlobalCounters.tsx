@@ -42,27 +42,27 @@ export default function GlobalCounters({
   ]
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-8 ds-gap-sm mb-4">
+    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-8 gap-2 mb-4">
       {counters.map((c, i) => (
         <div key={i}
-          className={`bg-white rounded-xl border border-border p-2.5 ${onCounterClick ? 'cursor-pointer hover:shadow-md transition-shadow' : ''}`}
+          className={`bg-white rounded-xl shadow-sm p-2.5 ${onCounterClick ? 'cursor-pointer hover:shadow-md transition-shadow' : ''}`}
           onClick={() => onCounterClick?.(c.label)}
         >
           {c.label === 'نسبة التقدم' ? (
             <>
-              <p className="ds-xs font-bold text-text-secondary">{c.icon} {c.label}</p>
-              <div className="flex items-center ds-gap-xs mt-0.5">
-                <span className="ds-xs font-bold text-text-secondary">--</span>
-                <div className="flex-1 h-1.5 bg-surface rounded-full overflow-hidden">
+              <p className="text-[10px] font-bold text-gray-400">{c.icon} {c.label}</p>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <span className="text-xs font-bold text-gray-500">--</span>
+                <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
                   <div className="h-full bg-blue-500 rounded-full" style={{ width: `${teamProgressPct ?? 0}%` }} />
                 </div>
-                <span className="ds-xs font-bold text-blue-600">{(teamProgressPct ?? 0).toFixed(0)}%</span>
+                <span className="text-xs font-bold text-blue-600">{(teamProgressPct ?? 0).toFixed(0)}%</span>
               </div>
             </>
           ) : (
             <>
-              <p className="ds-xs font-bold text-text-secondary">{c.icon} {c.label}</p>
-              <p className="ds-title font-bold mt-0.5">{c.value}</p>
+              <p className="text-[10px] font-bold text-gray-400">{c.icon} {c.label}</p>
+              <p className="text-lg font-bold text-gray-800 mt-0.5">{c.value}</p>
             </>
           )}
         </div>

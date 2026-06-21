@@ -100,55 +100,55 @@ export function OrdersPage() {
   const tabLabel = tab === 'all' ? 'الطلبات' : tab === 'my_orders' ? 'طلباتي' : 'فواتيري'
 
   return (
-    <div className="ds-gap-lg flex flex-col">
-      <div className="flex items-center ds-gap-md">
-        <button onClick={() => navigate('/dashboard')} className="text-text-secondary text-xl leading-none">&larr;</button>
-        <h1 className="ds-title">{tabLabel}</h1>
-        <button onClick={() => navigate('/orders/new')} className="ds-btn ds-btn-primary mr-auto">+ إنشاء طلب</button>
+    <div className="space-y-4">
+      <div className="flex items-center gap-3">
+        <button onClick={() => navigate('/dashboard')} className="text-text-secondary text-lg">&larr;</button>
+        <h1 className="text-lg font-bold text-text">{tabLabel}</h1>
+        <button onClick={() => navigate('/orders/new')} className="mr-auto bg-primary text-white text-xs px-3 py-1.5 rounded-lg font-semibold">+ إنشاء طلب</button>
       </div>
 
       {currentEmpId && (
-        <div className="ds-tabs">
-          <button onClick={() => setTab('all')} className={`ds-tab ${tab === 'all' ? 'ds-tab-active' : 'ds-tab-inactive'}`}>الكل</button>
-          <button onClick={() => setTab('my_orders')} className={`ds-tab ${tab === 'my_orders' ? 'ds-tab-active' : 'ds-tab-inactive'}`}>طلباتي</button>
-          <button onClick={() => setTab('my_invoices')} className={`ds-tab ${tab === 'my_invoices' ? 'ds-tab-active' : 'ds-tab-inactive'}`}>فواتيري</button>
+        <div className="flex gap-1 bg-white rounded-lg border border-border p-1">
+          <button onClick={() => setTab('all')} className={`flex-1 text-xs py-1.5 rounded-md font-semibold transition-colors ${tab === 'all' ? 'bg-primary text-white' : 'text-text-secondary'}`}>الكل</button>
+          <button onClick={() => setTab('my_orders')} className={`flex-1 text-xs py-1.5 rounded-md font-semibold transition-colors ${tab === 'my_orders' ? 'bg-primary text-white' : 'text-text-secondary'}`}>طلباتي</button>
+          <button onClick={() => setTab('my_invoices')} className={`flex-1 text-xs py-1.5 rounded-md font-semibold transition-colors ${tab === 'my_invoices' ? 'bg-primary text-white' : 'text-text-secondary'}`}>فواتيري</button>
         </div>
       )}
 
       <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
-        placeholder="بحث برقم الطلب أو اسم العميل..." className="ds-input" />
+        placeholder="بحث برقم الطلب أو اسم العميل..." className="w-full border border-border rounded-lg px-3 py-2.5 text-sm bg-white" />
 
-      <div className="grid grid-cols-2 ds-gap-sm">
+      <div className="grid grid-cols-2 gap-2">
         <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
-          className="ds-select">
+          className="border border-border rounded-lg px-2 py-1.5 text-xs bg-white">
           {STATUS_OPTIONS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
         </select>
         <select value={customerFilter} onChange={(e) => setCustomerFilter(e.target.value)}
-          className="ds-select">
+          className="border border-border rounded-lg px-2 py-1.5 text-xs bg-white">
           <option value="">كل العملاء</option>
           {customers.map((c: any) => <option key={c.id} value={c.id}>{c.company_name}</option>)}
         </select>
         <select value={employeeFilter} onChange={(e) => setEmployeeFilter(e.target.value)}
-          className="ds-select">
+          className="border border-border rounded-lg px-2 py-1.5 text-xs bg-white">
           <option value="">كل الموظفين</option>
           {employees.map((e: any) => <option key={e.id} value={e.id}>{e.full_name}</option>)}
         </select>
-        <div className="flex ds-gap-xs">
+        <div className="flex gap-1">
           <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
-            className="ds-input" />
+            className="flex-1 border border-border rounded-lg px-2 py-1.5 text-xs bg-white" />
           <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
-            className="ds-input" />
+            className="flex-1 border border-border rounded-lg px-2 py-1.5 text-xs bg-white" />
         </div>
       </div>
 
       {loading ? (
-        <div className="text-center py-12 ds-small">جاري التحميل...</div>
+        <div className="text-center py-12 text-text-secondary text-sm">جاري التحميل...</div>
       ) : filtered.length === 0 ? (
-        <div className="text-center py-12 ds-small">
+        <div className="text-center py-12 text-text-secondary text-sm">
           {tab === 'my_orders' ? 'لا توجد طلبات لك' : tab === 'my_invoices' ? 'لا توجد فواتير لك' : 'لا توجد طلبات'}
         </div>
       ) : (
-        <div className="ds-gap-sm flex flex-col">
+        <div className="space-y-2">
           {filtered.map((order: any) => (
             <OrderCard key={order.id} order={order} onClick={() => navigate(`/orders/${order.id}`)} />
           ))}

@@ -39,9 +39,9 @@ export function BottomNav() {
                 isActive ? 'text-primary font-semibold' : 'text-text-secondary'
               }`}
             >
-              <span className="text-2xl leading-none">{item.icon}</span>
-              <span className="ds-xs">{item.label}</span>
-              {isActive && <span className="w-1 h-1 rounded-full bg-primary" />}
+              <span className="text-lg">{item.icon}</span>
+              <span>{item.label}</span>
+              {isActive && <span className="w-4 h-0.5 rounded-full bg-primary" />}
             </Link>
           )
         })}

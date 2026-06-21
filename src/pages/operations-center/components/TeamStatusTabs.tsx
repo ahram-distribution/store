@@ -21,15 +21,15 @@ export default function TeamStatusTabs({ active, onChange, activeCount, endedCou
 
   return (
     <div className="mb-4">
-      <div className="flex ds-gap-sm overflow-x-auto pb-1" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+      <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
         {TABS.map((tab) => (
           <button
             key={tab.key}
             onClick={() => onChange(tab.key)}
-               className={`whitespace-nowrap px-4 py-2 rounded-xl text-sm font-bold transition-all shrink-0 ${
+            className={`whitespace-nowrap px-4 py-2 rounded-xl text-sm font-bold transition-all shrink-0 ${
               active === tab.key
-                ? 'bg-primary text-white shadow-sm'
-                : 'bg-white text-text-secondary hover:bg-surface border border-border'
+                ? 'bg-blue-600 text-white shadow-sm'
+                : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
             }`}
           >
             {tab.label}

@@ -431,13 +431,13 @@ export function ExecutiveOperationsWorkspace() {
         ))}
       </div>
 
-      <div className="bg-white rounded-xl border border-border p-3 ds-gap-md flex flex-col">
-        <div className="flex items-center gap-2">
+      <div className="bg-white rounded-xl border border-border p-3">
+        <div className="flex items-center gap-2 mb-3">
           <input type="text" placeholder="بحث برقم الطلب أو العميل..." value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="flex-1 border border-border rounded-lg px-3 py-2 text-xs bg-surface" />
         </div>
-        <div className="flex gap-2 overflow-x-auto pb-1">
+        <div className="flex gap-2 mb-3 overflow-x-auto pb-1">
           {TAB_IDS.map((t) => (
             <button key={t} onClick={() => setActiveTab(t)}
               className={`whitespace-nowrap px-3 py-1.5 rounded-full text-[10px] font-semibold ${
@@ -447,7 +447,7 @@ export function ExecutiveOperationsWorkspace() {
             </button>
           ))}
         </div>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-2 gap-2 mb-3">
           <input type="text" placeholder="بحث باسم المندوب..." value={employeeSearch}
             onChange={(e) => setEmployeeSearch(e.target.value)}
             className="w-full border border-border rounded-lg px-2 py-1.5 text-[10px] bg-white" />
@@ -470,34 +470,33 @@ export function ExecutiveOperationsWorkspace() {
             <option value="fully_collected">محصل بالكامل</option>
           </select>
         </div>
-      </div>
-
-      <div className="ds-gap-sm flex flex-col">
-        {filteredQueue.length === 0 ? (
-          <div className="text-center py-8 text-text-secondary text-xs">لا توجد طلبات</div>
-        ) : filteredQueue.map((item) => (
-          <OrderCard
-            key={item.id}
-            order={{
-              id: item.id,
-              order_number: item.order_number,
-              status: item.status,
-              customer_name: item.customer_name,
-              customer_phone: item.customer_phone,
-              created_by_name: item.created_by_name,
-              customer_owner_name: item.customer_owner_name || undefined,
-              customer_owner_role: item.customer_owner_role || undefined,
-              total_amount: item.total_amount,
-              created_at: item.created_at,
-              updated_at: item.updated_at,
-              delivery_mode: item.delivery_mode || undefined,
-              revision_number: item.revision_number,
-              governorate: item.governorate || undefined,
-              collection_badge: item._collectionBadge,
-            }}
-            onClick={() => openOrder(item)}
-          />
-        ))}
+        <div className="space-y-1.5 max-h-96 overflow-y-auto">
+          {filteredQueue.length === 0 ? (
+            <div className="text-center py-8 text-text-secondary text-xs">لا توجد طلبات</div>
+          ) : filteredQueue.map((item) => (
+            <OrderCard
+              key={item.id}
+              order={{
+                id: item.id,
+                order_number: item.order_number,
+                status: item.status,
+                customer_name: item.customer_name,
+                customer_phone: item.customer_phone,
+                created_by_name: item.created_by_name,
+                customer_owner_name: item.customer_owner_name || undefined,
+                customer_owner_role: item.customer_owner_role || undefined,
+                total_amount: item.total_amount,
+                created_at: item.created_at,
+                updated_at: item.updated_at,
+                delivery_mode: item.delivery_mode || undefined,
+                revision_number: item.revision_number,
+                governorate: item.governorate || undefined,
+                collection_badge: item._collectionBadge,
+              }}
+              onClick={() => openOrder(item)}
+            />
+          ))}
+        </div>
       </div>
     </div>
   )
@@ -560,7 +559,6 @@ export function ExecutiveOperationsWorkspace() {
     )
 
     return (
-      <>
       <div className="fixed inset-0 z-50 bg-white overflow-y-auto" dir="rtl">
         <div className="max-w-4xl mx-auto p-4 space-y-4 pb-32">
           <OrderDetailView data={orderDetail} onBack={closeOrder} actions={actions} />
@@ -601,10 +599,9 @@ export function ExecutiveOperationsWorkspace() {
             </div>
           )}
         </div>
-      </div>
 
-      {/* Dispatch Modal */}
-      {showDispatchModal && (
+        {/* Dispatch Modal */}
+        {showDispatchModal && (
           <div className="fixed inset-0 z-[60] bg-black/40 flex items-center justify-center px-4">
             <div className="bg-white rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-xl" onClick={e => e.stopPropagation()}>
               <div className="sticky top-0 bg-white border-b border-border px-5 py-3 flex items-center justify-between">
@@ -693,10 +690,10 @@ export function ExecutiveOperationsWorkspace() {
               </div>
             </div>
           </div>
-      )}
+        )}
 
-      {/* Collection Modal */}
-      {showCollectionModal && (
+        {/* Collection Modal */}
+        {showCollectionModal && (
           <div className="fixed inset-0 z-[60] bg-black/40 flex items-center justify-center px-4">
             <div className="bg-white rounded-xl w-full max-w-sm shadow-xl" onClick={e => e.stopPropagation()}>
               <div className="border-b border-border px-5 py-3 flex items-center justify-between">
@@ -739,10 +736,10 @@ export function ExecutiveOperationsWorkspace() {
               </div>
             </div>
           </div>
-      )}
+        )}
 
-      {/* Return for Revision Dialog */}
-      {showReturnDialog && (
+        {/* Return for Revision Dialog */}
+        {showReturnDialog && (
           <div className="fixed inset-0 z-[60] bg-black/40 flex items-center justify-center px-4">
             <div className="bg-white rounded-xl w-full max-w-sm shadow-xl">
               <div className="border-b border-border px-5 py-3">
@@ -761,8 +758,8 @@ export function ExecutiveOperationsWorkspace() {
               </div>
             </div>
           </div>
-      )}
-    </>
+        )}
+      </div>
     )
   }
 

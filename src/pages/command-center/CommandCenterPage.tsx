@@ -159,15 +159,15 @@ export function CommandCenterPage() {
   const counts = data?.module_counts || { orders_new: 0, customers_active: 0, visits_active: 0, credit_due: 0, employees_active: 0 }
 
   if (loading) {
-    return <div className="text-center py-12 ds-small">جاري تحميل مركز القيادة...</div>
+    return <div className="text-center py-12 text-text-secondary text-sm">جاري تحميل مركز القيادة...</div>
   }
 
   if (error) {
     return (
-      <div className="ds-p-lg text-center" dir="rtl">
-        <div className="ds-subtitle text-danger mb-2">خطأ في التحميل</div>
-        <div className="ds-small mb-4">{error}</div>
-        <button onClick={() => window.location.reload()} className="text-primary ds-small underline">إعادة المحاولة</button>
+      <div className="p-4 text-center" dir="rtl">
+        <div className="text-danger text-lg font-bold mb-2">خطأ في التحميل</div>
+        <div className="text-text-secondary text-sm mb-4">{error}</div>
+        <button onClick={() => window.location.reload()} className="text-primary text-sm underline">إعادة المحاولة</button>
       </div>
     )
   }
@@ -183,17 +183,17 @@ export function CommandCenterPage() {
 
     return (
       <button key={key} onClick={() => nav(route)}
-        className="ds-card text-right active:scale-[0.98] transition-all hover:shadow-sm hover:border-primary/30 w-full text-right">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-xl leading-none">{emoji}</span>
-          <span className={`ds-badge font-bold ${statusCls}`}>{statusLabel}</span>
+        className="bg-white rounded-xl border border-border p-3 text-right active:scale-[0.98] transition-all hover:shadow-sm hover:border-primary/30 w-full text-right">
+        <div className="flex items-center justify-between mb-1.5">
+          <span className="text-xl">{emoji}</span>
+          <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold ${statusCls}`}>{statusLabel}</span>
         </div>
-        <div className="ds-body font-bold">{name}</div>
-        {sublabel && <div className="ds-xs mt-0.5">{sublabel}</div>}
+        <div className="text-sm font-bold text-text">{name}</div>
+        {sublabel && <div className="text-[10px] text-text-secondary mt-0.5">{sublabel}</div>}
         {m && (
-          <div className="flex items-center ds-gap-xs mt-1.5">
+          <div className="flex items-center gap-1 mt-1.5">
             <span className={`w-1.5 h-1.5 rounded-full ${healthDot}`} />
-            <span className="ds-xs">{m.readiness_score}% جاهزية</span>
+            <span className="text-[9px] text-text-secondary">{m.readiness_score}% جاهزية</span>
           </div>
         )}
       </button>
@@ -201,57 +201,59 @@ export function CommandCenterPage() {
   }
 
   return (
-    <div className="ds-p-lg ds-gap-lg flex flex-col" dir="rtl">
+    <div className="p-4 space-y-4" dir="rtl">
+      {/* Header + Status Bar */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="ds-title">مركز القيادة</h1>
-          <div className="flex items-center ds-gap-sm ds-xs mt-0.5">
+          <h1 className="text-lg font-bold text-text">مركز القيادة</h1>
+          <div className="flex items-center gap-2 text-[10px] text-text-secondary mt-0.5">
             <span>{summary.total_modules} وحدة</span>
-            <span className="flex items-center ds-gap-xs">
+            <span className="flex items-center gap-1">
               <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" /> {summary.healthy}
             </span>
             {summary.degraded > 0 && (
-              <span className="flex items-center ds-gap-xs">
+              <span className="flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-yellow-500 inline-block" /> {summary.degraded}
               </span>
             )}
             {summary.down > 0 && (
-              <span className="flex items-center ds-gap-xs">
+              <span className="flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-red-500 inline-block" /> {summary.down}
               </span>
             )}
             {summary.broken > 0 && (
-              <span className="flex items-center ds-gap-xs">
+              <span className="flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-red-500 inline-block" /> {summary.broken}
               </span>
             )}
           </div>
         </div>
         <button onClick={() => window.location.reload()}
-          className="ds-btn ds-btn-ghost ds-small">
+          className="text-xs text-primary border border-primary/30 rounded-lg px-3 py-1.5 hover:bg-primary/5">
           تحديث
         </button>
       </div>
 
+      {/* الإجراءات المطلوبة */}
       {actions.length > 0 && (
         <div>
-          <h2 className="ds-subtitle mb-2">الإجراءات المطلوبة</h2>
-          <div className="ds-card divide-y divide-border/50 p-0 overflow-hidden">
+          <h2 className="text-sm font-bold text-text mb-2">الإجراءات المطلوبة</h2>
+          <div className="bg-white rounded-xl border border-border divide-y divide-border/50">
             {actions.filter(a => a.count > 0).map((a, i) => (
               <button key={i} onClick={() => nav(a.link)}
-                className="w-full text-right ds-p-md flex items-center justify-between active:bg-surface/50 transition-colors">
-                <div className="flex items-center ds-gap-sm">
-                  <span className="text-red-500">⚡</span>
-                  <span className="ds-small font-semibold">{a.label}</span>
+                className="w-full text-right px-3 py-2.5 flex items-center justify-between active:bg-surface/50 transition-colors">
+                <div className="flex items-center gap-2">
+                  <span className="text-red-500 text-sm">⚡</span>
+                  <span className="text-xs font-semibold text-text">{a.label}</span>
                 </div>
-                <div className="flex items-center ds-gap-sm">
-                  <span className="ds-body font-bold text-red-600 ltr">{a.count}</span>
-                  <span className="ds-xs text-text-secondary">←</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-bold text-red-600 ltr">{a.count}</span>
+                  <span className="text-text-secondary text-[10px]">←</span>
                 </div>
               </button>
             ))}
             {actions.filter(a => a.count > 0).length === 0 && (
-              <div className="ds-p-lg text-center ds-small text-green-600">
+              <div className="px-3 py-4 text-center text-xs text-green-600">
                 ✅ لا توجد إجراءات مطلوبة حالياً
               </div>
             )}
@@ -259,9 +261,10 @@ export function CommandCenterPage() {
         </div>
       )}
 
+      {/* العمليات الأساسية */}
       <div>
-        <h2 className="ds-subtitle mb-2">العمليات الأساسية</h2>
-        <div className="grid grid-cols-2 min-[420px]:grid-cols-3 ds-gap-md">
+        <h2 className="text-sm font-bold text-text mb-2">العمليات الأساسية</h2>
+        <div className="grid grid-cols-2 min-[420px]:grid-cols-3 gap-3">
           {MODULE_TIERS.primary.map((key) => {
             const m = moduleMap.get(key)
             const sublabel = !m ? 'غير متوفر' :
@@ -276,9 +279,10 @@ export function CommandCenterPage() {
         </div>
       </div>
 
+      {/* العمليات */}
       <div>
-        <h2 className="ds-subtitle mb-2">العمليات</h2>
-        <div className="grid grid-cols-2 min-[420px]:grid-cols-3 ds-gap-md">
+        <h2 className="text-sm font-bold text-text mb-2">العمليات</h2>
+        <div className="grid grid-cols-2 min-[420px]:grid-cols-3 gap-3">
           {MODULE_TIERS.secondary.map((key) => {
             const m = moduleMap.get(key)
             const route = MODULE_ROUTES[key] || `/${key}`
@@ -290,16 +294,16 @@ export function CommandCenterPage() {
 
             return (
               <button key={key} onClick={() => nav(route)}
-                className="ds-card text-right active:scale-[0.98] transition-all hover:shadow-sm hover:border-primary/30 w-full text-right">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xl leading-none">{emoji}</span>
-                  <span className={`ds-badge font-bold ${statusCls}`}>{statusLabel}</span>
+                className="bg-white rounded-xl border border-border p-3 text-right active:scale-[0.98] transition-all hover:shadow-sm hover:border-primary/30 w-full text-right">
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-xl">{emoji}</span>
+                  <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold ${statusCls}`}>{statusLabel}</span>
                 </div>
-                <div className="ds-body font-bold">{name}</div>
+                <div className="text-sm font-bold text-text">{name}</div>
                 {m && (
-                  <div className="flex items-center ds-gap-xs mt-1.5">
+                  <div className="flex items-center gap-1 mt-1.5">
                     <span className={`w-1.5 h-1.5 rounded-full ${healthDot}`} />
-                    <span className="ds-xs">{m.readiness_score}% جاهزية</span>
+                    <span className="text-[9px] text-text-secondary">{m.readiness_score}% جاهزية</span>
                   </div>
                 )}
               </button>
@@ -308,15 +312,16 @@ export function CommandCenterPage() {
         </div>
       </div>
 
+      {/* Technical Section */}
       <div>
         <button onClick={() => setTechnicalExpanded(!technicalExpanded)}
           className="w-full text-right flex items-center justify-between mb-2">
-          <h2 className="ds-subtitle">تقني</h2>
-          <span className="ds-xs text-text-secondary">{technicalExpanded ? '\u25B2' : '\u25BC'}</span>
+          <h2 className="text-sm font-bold text-text">تقني</h2>
+          <span className="text-text-secondary text-xs">{technicalExpanded ? '\u25B2' : '\u25BC'}</span>
         </button>
         {technicalExpanded && (
-          <div className="ds-gap-md flex flex-col">
-            <div className="ds-card divide-y divide-border/50 p-0 overflow-hidden">
+          <div className="space-y-3">
+            <div className="bg-white rounded-xl border border-border divide-y divide-border/50">
               {MODULE_TIERS.technical.map((key) => {
                 const m = moduleMap.get(key)
                 const route = MODULE_ROUTES[key] || `/${key}`
@@ -324,34 +329,60 @@ export function CommandCenterPage() {
                 const name = m?.display_name?.ar || key
                 return (
                   <button key={key} onClick={() => nav(route)}
-                    className="w-full text-right ds-p-md flex items-center justify-between active:bg-surface/50 transition-colors">
-                    <div className="flex items-center ds-gap-sm">
-                      <span className="ds-body">{emoji}</span>
-                      <span className="ds-small font-semibold">{name}</span>
+                    className="w-full text-right px-3 py-2.5 flex items-center justify-between active:bg-surface/50 transition-colors">
+                    <div className="flex items-center gap-2">
+                      <span className="text-base">{emoji}</span>
+                      <span className="text-xs font-semibold text-text">{name}</span>
                     </div>
-                    <span className="ds-xs text-text-secondary">←</span>
+                    <span className="text-text-secondary text-[10px]">\u2190</span>
                   </button>
                 )
               })}
             </div>
-            <div className="ds-card">
-              <div className="grid grid-cols-3 ds-gap-sm">
-                {[
-                  { label: 'لوحة القيادة', sub: 'القديمة', icon: '\u{1F4CA}', route: '/dashboard/legacy' },
-                  { label: 'مشغل الطلبات', sub: 'Launcher', icon: '\u{1F4CB}', route: '/launcher/orders' },
-                  { label: 'مشغل العملاء', sub: 'Launcher', icon: '\u{1F465}', route: '/launcher/customers' },
-                  { label: 'مشغل الزيارات', sub: 'Launcher', icon: '\u{1F4CD}', route: '/launcher/visits' },
-                  { label: 'مشغل الموظفين', sub: 'Launcher', icon: '\u{1F464}', route: '/launcher/employees' },
-                  { label: 'مشغل التقارير', sub: 'Launcher', icon: '\u{1F4C8}', route: '/launcher/reports' },
-                  { label: 'مجهود المناديب', sub: 'تحليلات', icon: '\u{1F4AA}', route: '/sales-effort' },
-                ].map((item) => (
-                  <button key={item.label} onClick={() => nav(item.route)}
-                    className="bg-surface rounded-xl ds-p-md text-center active:scale-95 transition-transform hover:shadow-sm">
-                    <div className="text-xl leading-none mb-1">{item.icon}</div>
-                    <div className="ds-xs font-semibold">{item.label}</div>
-                    <div className="text-[10px] text-text-secondary">{item.sub}</div>
-                  </button>
-                ))}
+            <div className="bg-white rounded-xl border border-border p-3">
+              <div className="grid grid-cols-3 gap-2">
+                <button onClick={() => nav('/dashboard/legacy')}
+                  className="bg-surface rounded-xl p-3 text-center active:scale-95 transition-transform hover:shadow-sm">
+                  <div className="text-xl mb-1">{'\u{1F4CA}'}</div>
+                  <div className="text-[10px] font-semibold text-text">لوحة القيادة</div>
+                  <div className="text-[8px] text-text-secondary">القديمة</div>
+                </button>
+                <button onClick={() => nav('/launcher/orders')}
+                  className="bg-surface rounded-xl p-3 text-center active:scale-95 transition-transform hover:shadow-sm">
+                  <div className="text-xl mb-1">{'\u{1F4CB}'}</div>
+                  <div className="text-[10px] font-semibold text-text">مشغل الطلبات</div>
+                  <div className="text-[8px] text-text-secondary">Launcher</div>
+                </button>
+                <button onClick={() => nav('/launcher/customers')}
+                  className="bg-surface rounded-xl p-3 text-center active:scale-95 transition-transform hover:shadow-sm">
+                  <div className="text-xl mb-1">{'\u{1F465}'}</div>
+                  <div className="text-[10px] font-semibold text-text">مشغل العملاء</div>
+                  <div className="text-[8px] text-text-secondary">Launcher</div>
+                </button>
+                <button onClick={() => nav('/launcher/visits')}
+                  className="bg-surface rounded-xl p-3 text-center active:scale-95 transition-transform hover:shadow-sm">
+                  <div className="text-xl mb-1">{'\u{1F4CD}'}</div>
+                  <div className="text-[10px] font-semibold text-text">مشغل الزيارات</div>
+                  <div className="text-[8px] text-text-secondary">Launcher</div>
+                </button>
+                <button onClick={() => nav('/launcher/employees')}
+                  className="bg-surface rounded-xl p-3 text-center active:scale-95 transition-transform hover:shadow-sm">
+                  <div className="text-xl mb-1">{'\u{1F464}'}</div>
+                  <div className="text-[10px] font-semibold text-text">مشغل الموظفين</div>
+                  <div className="text-[8px] text-text-secondary">Launcher</div>
+                </button>
+                <button onClick={() => nav('/launcher/reports')}
+                  className="bg-surface rounded-xl p-3 text-center active:scale-95 transition-transform hover:shadow-sm">
+                  <div className="text-xl mb-1">{'\u{1F4C8}'}</div>
+                  <div className="text-[10px] font-semibold text-text">مشغل التقارير</div>
+                  <div className="text-[8px] text-text-secondary">Launcher</div>
+                </button>
+                <button onClick={() => nav('/sales-effort')}
+                  className="bg-surface rounded-xl p-3 text-center active:scale-95 transition-transform hover:shadow-sm">
+                  <div className="text-xl mb-1">{'\u{1F4AA}'}</div>
+                  <div className="text-[10px] font-semibold text-text">مجهود المناديب</div>
+                  <div className="text-[8px] text-text-secondary">تحليلات</div>
+                </button>
               </div>
             </div>
           </div>

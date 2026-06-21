@@ -18,28 +18,28 @@ export function TopBar() {
 
   return (
     <header className="sticky top-0 z-50 bg-white border-b border-border">
-      <div className="mobile-container flex items-center justify-between h-14 ds-p-lg">
-        <div className="flex items-center ds-gap-sm min-w-0">
-          <span className="ds-small font-semibold">{displayName}</span>
+      <div className="mobile-container flex items-center justify-between h-14 px-4">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="font-semibold text-sm text-text">{displayName}</span>
         </div>
-        <div className="flex items-center ds-gap-sm shrink-0">
+        <div className="flex items-center gap-2 shrink-0">
           {isEmployee && <GlobalSearch />}
           {!isStorefront && (
             <button onClick={() => navigate('/storefront')}
-              className="ds-badge border border-border text-text-secondary cursor-pointer">
+              className="text-[10px] px-2.5 py-1 rounded-full transition-colors shrink-0 text-text-secondary border border-border">
               المتجر
             </button>
           )}
           {!isDashboard && (
             <button onClick={() => navigate('/dashboard')}
-              className="ds-badge border border-border text-text-secondary cursor-pointer">
+              className="text-[10px] px-2.5 py-1 rounded-full transition-colors shrink-0 text-text-secondary border border-border">
               لوحة التحكم
             </button>
           )}
-          <span className="ds-badge bg-surface text-text-secondary">
+          <span className="text-[10px] px-2 py-0.5 rounded-full bg-surface text-text-secondary">
             {isEmployee ? 'موظف' : 'عميل'}
           </span>
-          <button onClick={handleLogout} className="ds-small px-2 text-text-secondary cursor-pointer">
+          <button onClick={handleLogout} className="text-xs px-2 py-1 text-text-secondary transition-colors">
             خروج
           </button>
         </div>

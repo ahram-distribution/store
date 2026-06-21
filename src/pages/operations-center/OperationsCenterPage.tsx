@@ -224,10 +224,10 @@ export default function OperationsCenterPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-bg" dir="rtl">
+      <div className="flex items-center justify-center min-h-screen bg-gray-50" dir="rtl">
         <div className="text-center">
-          <p className="ds-small text-text-secondary mb-2">جاري تحميل غرفة العمليات...</p>
-          <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="text-gray-400 mb-2">جاري تحميل غرفة العمليات...</p>
+          <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto" />
         </div>
       </div>
     )
@@ -240,7 +240,7 @@ export default function OperationsCenterPage() {
     : 0
 
   return (
-    <div className="min-h-screen bg-bg ds-p-lg" dir="rtl">
+    <div className="min-h-screen bg-gray-50 p-5" dir="rtl">
       <div className="mx-auto" style={{ maxWidth: '1440px' }}>
         <Header
           lastUpdate={lastUpdate}
@@ -303,8 +303,8 @@ export default function OperationsCenterPage() {
         )}
 
         {teamTab !== 'history' && isHistoryFilter && data && (
-          <div className="ds-card mb-4">
-            <p className="ds-xs text-text-secondary text-center">وضع العرض التاريخي — المعلومات المعروضة تعكس بيانات أمس / الأسبوع</p>
+          <div className="bg-white rounded-xl shadow-sm p-4 mb-4">
+            <p className="text-xs text-gray-500 text-center">وضع العرض التاريخي — المعلومات المعروضة تعكس بيانات أمس / الأسبوع</p>
           </div>
         )}
 
@@ -323,12 +323,12 @@ export default function OperationsCenterPage() {
         {teamTab === 'active' && (
           <>
             {filteredActive.length === 0 ? (
-              <div className="text-center py-10 text-text-secondary">
-                <User className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                <p className="ds-small">لا يوجد موظفون نشطون حالياً</p>
+              <div className="text-center py-10 text-gray-400">
+                <User className="w-12 h-12 mx-auto mb-3" />
+                لا يوجد موظفون نشطون حالياً
               </div>
             ) : (
-              <div className="grid ds-gap-md grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {filteredActive.map((e) => (
                   <EmployeeCard key={e.employee_id} variant="active" employee={e} />
                 ))}
@@ -340,16 +340,14 @@ export default function OperationsCenterPage() {
         {teamTab === 'no_start' && (
           <>
             {filteredNoStart.length === 0 ? (
-              <div className="text-center py-10 text-text-secondary">
-                <User className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                <p className="ds-small">
-                  {searchQuery || deptFilter || areaFilter
-                    ? 'لا يوجد موظفون يطابقون الفلتر'
-                    : 'جميع الموظفين بدؤوا يوم العمل'}
-                </p>
+              <div className="text-center py-10 text-gray-400">
+                <User className="w-12 h-12 mx-auto mb-3" />
+                {searchQuery || deptFilter || areaFilter
+                  ? 'لا يوجد موظفون يطابقون الفلتر'
+                  : 'جميع الموظفين بدؤوا يوم العمل'}
               </div>
             ) : (
-              <div className="grid ds-gap-md grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {filteredNoStart.map((e) => (
                   <EmployeeCard key={e.employee_id} variant="no_start" employee={e} />
                 ))}
@@ -361,12 +359,12 @@ export default function OperationsCenterPage() {
         {teamTab === 'ended' && (
           <>
             {filteredEnded.length === 0 ? (
-              <div className="text-center py-10 text-text-secondary">
-                <User className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                <p className="ds-small">لا يوجد موظفون منتهون اليوم</p>
+              <div className="text-center py-10 text-gray-400">
+                <User className="w-12 h-12 mx-auto mb-3" />
+                لا يوجد موظفون منتهون اليوم
               </div>
             ) : (
-              <div className="grid ds-gap-md grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {filteredEnded.map((e) => (
                   <EmployeeCard key={e.employee_id} variant="ended" employee={e} />
                 ))}
