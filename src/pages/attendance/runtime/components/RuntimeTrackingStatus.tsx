@@ -20,13 +20,13 @@ export default function RuntimeTrackingStatus({ status }: RuntimeTrackingStatusP
     : 'text-gray-400'
 
   return (
-    <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-sm p-3 text-xs space-y-1.5">
+    <div className="ds-card ds-xs ds-gap-xs flex flex-col">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center ds-gap-xs">
           <span className={`w-2 h-2 rounded-full ${status.gpsAvailable ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
           <span className={`font-bold ${gpsColor}`}>{gpsLabel}</span>
           {status.gpsAccuracy != null && (
-            <span className="text-gray-400">({Math.round(status.gpsAccuracy)}م)</span>
+            <span className="text-text-secondary">({Math.round(status.gpsAccuracy)}م)</span>
           )}
         </div>
         <span className={syncColor}>
@@ -36,7 +36,7 @@ export default function RuntimeTrackingStatus({ status }: RuntimeTrackingStatusP
         </span>
       </div>
 
-      <div className="flex items-center justify-between text-gray-400">
+      <div className="flex items-center justify-between text-text-secondary">
         <span>
           الفاصل: {status.intervalSeconds >= 60
             ? `${status.intervalSeconds / 60} دقيقة`
@@ -53,7 +53,7 @@ export default function RuntimeTrackingStatus({ status }: RuntimeTrackingStatusP
       </div>
 
       {status.lastPointAt && (
-        <div className="text-gray-400">
+        <div className="text-text-secondary">
           آخر نقطة: {formatTime(status.lastPointAt, { second: '2-digit' })}
         </div>
       )}

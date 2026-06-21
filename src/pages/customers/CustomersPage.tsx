@@ -73,19 +73,19 @@ export function CustomersPage() {
   }, [enriched, searchQuery, myOnly, currentEmpId])
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-3">
-        <button onClick={() => navigate('/dashboard')} className="text-text-secondary text-lg">&larr;</button>
-        <h1 className="text-lg font-bold text-text">العملاء</h1>
+    <div className="ds-gap-lg flex flex-col">
+      <div className="flex items-center ds-gap-md">
+        <button onClick={() => navigate('/dashboard')} className="text-text-secondary text-xl leading-none">&larr;</button>
+        <h1 className="ds-title">العملاء</h1>
         {canCreate && (
-          <button onClick={() => navigate('/customers/new')} className="mr-auto bg-primary text-white text-xs px-3 py-1.5 rounded-lg font-semibold">+ إضافة عميل</button>
+          <button onClick={() => navigate('/customers/new')} className="ds-btn ds-btn-primary mr-auto">+ إضافة عميل</button>
         )}
       </div>
 
       {currentEmpId && (
-        <div className="flex gap-1 bg-white rounded-lg border border-border p-1">
-          <button onClick={() => setMyOnly(false)} className={`flex-1 text-xs py-1.5 rounded-md font-semibold transition-colors ${!myOnly ? 'bg-primary text-white' : 'text-text-secondary'}`}>الكل</button>
-          <button onClick={() => setMyOnly(true)} className={`flex-1 text-xs py-1.5 rounded-md font-semibold transition-colors ${myOnly ? 'bg-primary text-white' : 'text-text-secondary'}`}>عملائي</button>
+        <div className="ds-tabs">
+          <button onClick={() => setMyOnly(false)} className={`ds-tab ${!myOnly ? 'ds-tab-active' : 'ds-tab-inactive'}`}>الكل</button>
+          <button onClick={() => setMyOnly(true)} className={`ds-tab ${myOnly ? 'ds-tab-active' : 'ds-tab-inactive'}`}>عملائي</button>
         </div>
       )}
 
@@ -94,34 +94,34 @@ export function CustomersPage() {
         value={searchQuery}
         onChange={(e) => setSearchQuery(e.target.value)}
         placeholder="بحث عن عميل..."
-        className="w-full border border-border rounded-lg px-3 py-2.5 text-sm bg-white text-text placeholder:text-text-secondary"
+        className="ds-input"
       />
 
       {loading ? (
-        <div className="text-center py-12 text-text-secondary text-sm">جاري التحميل...</div>
+        <div className="text-center py-12 ds-small">جاري التحميل...</div>
       ) : filtered.length === 0 ? (
-        <div className="text-center py-12 text-text-secondary text-sm">
+        <div className="text-center py-12 ds-small">
           {searchQuery ? 'لا توجد نتائج' : (myOnly ? 'لا يوجد عملاء تابعين لك' : 'لا يوجد عملاء')}
         </div>
       ) : (
-        <div className="space-y-2">
+        <div className="ds-gap-sm flex flex-col">
           {filtered.map((c: any) => {
             const loc = c.location_id ? locations.get(c.location_id) : null
             return (
               <div key={c.id} onClick={() => navigate(`/customers/${c.id}`)}
-                className="bg-white rounded-xl border border-border p-3 cursor-pointer active:bg-surface transition-colors"
+                className="ds-card cursor-pointer active:bg-surface transition-colors"
               >
-                <div className="text-sm font-bold text-text">{c.company_name}</div>
-                <div className="text-[11px] text-text-secondary mt-0.5">
+                <div className="ds-body font-bold">{c.company_name}</div>
+                <div className="ds-xs mt-0.5">
                   {c.phone && <span>{c.phone}</span>}
                   {c.phone && (c.address || loc?.formatted_address) && <span> </span>}
                   {c.address && <span>{c.address}</span>}
                   {!c.address && loc?.formatted_address && <span>{loc.formatted_address}</span>}
                 </div>
                 {loc && (
-                  <div className="flex items-center gap-2 mt-2">
+                  <div className="flex items-center ds-gap-sm mt-2">
                     <LocationDisplay lat={loc.latitude} lng={loc.longitude} size="sm" />
-                    <span className={'text-[10px] ' + locationService.formatAccuracy(loc.accuracy_meters).className}>
+                    <span className={'ds-xs ' + locationService.formatAccuracy(loc.accuracy_meters).className}>
                       {locationService.formatAccuracy(loc.accuracy_meters).label} ({locationService.formatAccuracy(loc.accuracy_meters).detail})
                     </span>
                   </div>

@@ -130,81 +130,81 @@ export function ProductsPage() {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-3">
-        <button onClick={() => navigate('/dashboard')} className="text-text-secondary text-lg">&larr;</button>
-        <h1 className="text-lg font-bold text-text">المنتجات</h1>
+    <div className="ds-gap-lg flex flex-col">
+      <div className="flex items-center ds-gap-md">
+        <button onClick={() => navigate('/dashboard')} className="text-text-secondary text-xl leading-none">&larr;</button>
+        <h1 className="ds-title">المنتجات</h1>
         {canManage && (
-          <button onClick={() => setShowAddForm(true)} className="mr-auto bg-primary text-white text-xs px-3 py-1.5 rounded-lg font-semibold">+ إضافة منتج</button>
+          <button onClick={() => setShowAddForm(true)} className="ds-btn ds-btn-primary mr-auto">+ إضافة منتج</button>
         )}
       </div>
 
       <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
-        placeholder="بحث باسم المنتج أو الكود..." className="w-full border border-border rounded-lg px-3 py-2.5 text-sm bg-white" />
+        placeholder="بحث باسم المنتج أو الكود..." className="ds-input" />
 
-      <div className="flex gap-2">
+      <div className="flex ds-gap-sm">
         <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as any)}
-          className="border border-border rounded-lg px-2 py-1.5 text-xs bg-white flex-1">
+          className="ds-select flex-1">
           <option value="all">الكل</option>
           <option value="active">نشط</option>
           <option value="inactive">غير نشط</option>
         </select>
         <select value={companyFilter} onChange={(e) => setCompanyFilter(e.target.value)}
-          className="border border-border rounded-lg px-2 py-1.5 text-xs bg-white flex-1">
+          className="ds-select flex-1">
           <option value="">كل الشركات</option>
           {companyNames.map((n) => <option key={n} value={n}>{n}</option>)}
         </select>
       </div>
 
       {showAddForm && (
-        <form onSubmit={handleAdd} className="bg-white rounded-lg border border-border p-4 space-y-3">
-          <h2 className="text-sm font-bold">إضافة منتج جديد</h2>
-          <input type="text" value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="اسم المنتج *" className="w-full border border-border rounded-lg px-3 py-2 text-sm" required />
-          <input type="text" value={newCode} onChange={(e) => setNewCode(e.target.value)} placeholder="الكود القديم *" className="w-full border border-border rounded-lg px-3 py-2 text-sm" required />
-          <textarea value={newDesc} onChange={(e) => setNewDesc(e.target.value)} placeholder="الوصف" className="w-full border border-border rounded-lg px-3 py-2 text-sm" rows={2} />
-          <select value={newCompanyId} onChange={(e) => setNewCompanyId(e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-white" required>
+        <form onSubmit={handleAdd} className="ds-card ds-gap-md flex flex-col">
+          <h2 className="ds-subtitle">إضافة منتج جديد</h2>
+          <input type="text" value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="اسم المنتج *" className="ds-input" required />
+          <input type="text" value={newCode} onChange={(e) => setNewCode(e.target.value)} placeholder="الكود القديم *" className="ds-input" required />
+          <textarea value={newDesc} onChange={(e) => setNewDesc(e.target.value)} placeholder="الوصف" className="ds-input pt-2" rows={2} style={{ height: 'auto', minHeight: 48 }} />
+          <select value={newCompanyId} onChange={(e) => setNewCompanyId(e.target.value)} className="ds-select" required>
             <option value="">اختر الشركة *</option>
             {companies.map((c: any) => <option key={c.id} value={c.id}>{c.company_name}</option>)}
           </select>
-          <input type="number" value={newCartonQty} onChange={(e) => setNewCartonQty(e.target.value)} placeholder="عدد القطع في الكرتونة" className="w-full border border-border rounded-lg px-3 py-2 text-sm" />
-          <input type="number" value={newCartonPrice} onChange={(e) => setNewCartonPrice(e.target.value)} placeholder="سعر الكرتونة" className="w-full border border-border rounded-lg px-3 py-2 text-sm" step="0.01" />
+          <input type="number" value={newCartonQty} onChange={(e) => setNewCartonQty(e.target.value)} placeholder="عدد القطع في الكرتونة" className="ds-input" />
+          <input type="number" value={newCartonPrice} onChange={(e) => setNewCartonPrice(e.target.value)} placeholder="سعر الكرتونة" className="ds-input" step="0.01" />
           <div>
-            <p className="text-xs text-text-secondary mb-1">وحدات البيع:</p>
-            <div className="flex gap-3">
+            <p className="ds-small mb-1">وحدات البيع:</p>
+            <div className="flex ds-gap-md">
               {['piece', 'dozen', 'carton'].map((u) => (
-                <label key={u} className="flex items-center gap-1 text-xs">
+                <label key={u} className="flex items-center ds-gap-xs ds-small">
                   <input type="checkbox" checked={newUnits.includes(u)} onChange={() => setNewUnits((prev) => prev.includes(u) ? prev.filter((x) => x !== u) : [...prev, u])} />
                   {UNIT_LABELS[u]}
                 </label>
               ))}
             </div>
           </div>
-          <div className="flex gap-2">
-            <button type="submit" disabled={submitting} className="flex-1 bg-primary text-white text-xs py-2 rounded-lg font-semibold">
+          <div className="flex ds-gap-sm">
+            <button type="submit" disabled={submitting} className="ds-btn ds-btn-primary flex-1">
               {submitting ? 'جاري الإضافة...' : 'إضافة'}
             </button>
-            <button type="button" onClick={() => setShowAddForm(false)} className="px-4 border border-border rounded-lg text-xs">إلغاء</button>
+            <button type="button" onClick={() => setShowAddForm(false)} className="ds-btn ds-btn-ghost">إلغاء</button>
           </div>
         </form>
       )}
 
       {loading ? (
-        <div className="text-center py-12 text-text-secondary text-sm">جاري التحميل...</div>
+        <div className="text-center py-12 ds-small">جاري التحميل...</div>
       ) : filtered.length === 0 ? (
-        <div className="text-center py-12 text-text-secondary text-sm">لا توجد منتجات</div>
+        <div className="text-center py-12 ds-small">لا توجد منتجات</div>
       ) : (
-        <div className="space-y-2">
+        <div className="ds-gap-sm flex flex-col">
           {filtered.map((p) => (
-            <div key={p.id} className={`bg-white rounded-lg border p-3 ${!p.isActive ? 'opacity-60' : ''}`}>
+            <div key={p.id} className={`ds-card ${!p.isActive ? 'opacity-60' : ''}`}>
               <div className="flex items-start justify-between">
                 <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold text-primary cursor-pointer" onClick={() => navigate(`/products/${p.id}`)}>{p.productName}</span>
-                    {!p.isActive && <span className="text-[10px] bg-danger/10 text-danger px-2 py-0.5 rounded">غير نشط</span>}
+                  <div className="flex items-center ds-gap-sm">
+                    <span className="ds-body font-semibold text-primary cursor-pointer" onClick={() => navigate(`/products/${p.id}`)}>{p.productName}</span>
+                    {!p.isActive && <span className="ds-badge bg-danger/10 text-danger">غير نشط</span>}
                   </div>
-                  <p className="text-[10px] text-text-secondary">{p.companyName} | {p.productCode}</p>
-                  {p.description && <p className="text-[10px] text-text-secondary mt-0.5">{p.description}</p>}
-                  <div className="flex gap-3 mt-1 text-xs text-text-secondary">
+                  <p className="ds-xs">{p.companyName} | {p.productCode}</p>
+                  {p.description && <p className="ds-xs mt-0.5">{p.description}</p>}
+                  <div className="flex ds-gap-md mt-1 ds-xs">
                     {p.cartonPrice > 0 && p.cartonQuantity > 0 ? (
                       <>
                         <span>كرتونة: {formatCurrencyShort(p.cartonPrice)}</span>
@@ -215,35 +215,35 @@ export function ProductsPage() {
                       <span className="text-danger">السعر غير محدد</span>
                     )}
                   </div>
-                  <span className="text-[10px] text-text-secondary mt-0.5 block">المخزون: {p.inventoryQuantity}</span>
+                  <span className="ds-xs mt-0.5 block">المخزون: {p.inventoryQuantity}</span>
                 </div>
               </div>
               {canManage && (
-                <div className="flex gap-1.5 mt-2 flex-wrap">
+                <div className="flex ds-gap-xs mt-2 flex-wrap">
                   <button onClick={() => { setEditTarget(p); setEditName(p.productName); setEditCode(p.productCode); setEditDesc(p.description || ''); setEditCartonPrice(String(p.cartonPrice)); setEditCartonQty(String(p.cartonQuantity)); setEditCompanyId('') }}
-                    className="text-[10px] bg-primary/10 text-primary px-2 py-1 rounded">تعديل</button>
+                    className="ds-badge bg-primary/10 text-primary cursor-pointer">تعديل</button>
                   <button onClick={() => handleToggleActive(p)}
-                    className={`text-[10px] px-2 py-1 rounded ${p.isActive ? 'bg-danger/10 text-danger' : 'bg-success/10 text-success'}`}>
+                    className={`ds-badge cursor-pointer ${p.isActive ? 'bg-danger/10 text-danger' : 'bg-success/10 text-success'}`}>
                     {p.isActive ? 'إيقاف' : 'تفعيل'}
                   </button>
                 </div>
               )}
               {editTarget?.id === p.id && (
-                <div className="mt-3 border-t border-border pt-3 space-y-2">
-                  <input type="text" value={editName} onChange={(e) => setEditName(e.target.value)} className="w-full border border-border rounded-lg px-3 py-1.5 text-xs" />
-                  <input type="text" value={editCode} onChange={(e) => setEditCode(e.target.value)} className="w-full border border-border rounded-lg px-3 py-1.5 text-xs" />
-                  <textarea value={editDesc} onChange={(e) => setEditDesc(e.target.value)} className="w-full border border-border rounded-lg px-3 py-1.5 text-xs" rows={2} />
-                  <select value={editCompanyId} onChange={(e) => setEditCompanyId(e.target.value)} className="w-full border border-border rounded-lg px-3 py-1.5 text-xs bg-white">
+                <div className="mt-3 border-t border-border pt-3 ds-gap-sm flex flex-col">
+                  <input type="text" value={editName} onChange={(e) => setEditName(e.target.value)} className="ds-input" />
+                  <input type="text" value={editCode} onChange={(e) => setEditCode(e.target.value)} className="ds-input" />
+                  <textarea value={editDesc} onChange={(e) => setEditDesc(e.target.value)} className="ds-input pt-2" rows={2} style={{ height: 'auto', minHeight: 48 }} />
+                  <select value={editCompanyId} onChange={(e) => setEditCompanyId(e.target.value)} className="ds-select">
                     <option value="">تغيير الشركة (اختياري)</option>
                     {companies.filter((c: any) => c.company_name !== p.companyName).map((c: any) => (
                       <option key={c.id} value={c.id}>{c.company_name}</option>
                     ))}
                   </select>
-                  <input type="number" value={editCartonPrice} onChange={(e) => setEditCartonPrice(e.target.value)} placeholder="سعر الكرتونة" className="w-full border border-border rounded-lg px-3 py-1.5 text-xs" step="0.01" />
-                  <input type="number" value={editCartonQty} onChange={(e) => setEditCartonQty(e.target.value)} placeholder="عدد القطع في الكرتونة" className="w-full border border-border rounded-lg px-3 py-1.5 text-xs" />
-                  <div className="flex gap-2">
-                    <button onClick={handleEdit} className="flex-1 bg-primary text-white text-xs py-1.5 rounded-lg">حفظ</button>
-                    <button onClick={() => setEditTarget(null)} className="px-4 border border-border rounded-lg text-xs">إلغاء</button>
+                  <input type="number" value={editCartonPrice} onChange={(e) => setEditCartonPrice(e.target.value)} placeholder="سعر الكرتونة" className="ds-input" step="0.01" />
+                  <input type="number" value={editCartonQty} onChange={(e) => setEditCartonQty(e.target.value)} placeholder="عدد القطع في الكرتونة" className="ds-input" />
+                  <div className="flex ds-gap-sm">
+                    <button onClick={handleEdit} className="ds-btn ds-btn-primary flex-1">حفظ</button>
+                    <button onClick={() => setEditTarget(null)} className="ds-btn ds-btn-ghost">إلغاء</button>
                   </div>
                 </div>
               )}

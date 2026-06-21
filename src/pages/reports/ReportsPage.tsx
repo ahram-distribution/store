@@ -102,37 +102,37 @@ export function ReportsPage() {
   }, [data])
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-3">
-        <button onClick={() => navigate('/dashboard')} className="text-text-secondary text-lg">&larr;</button>
-        <h1 className="text-lg font-bold text-text">التقارير</h1>
+    <div className="ds-gap-lg flex flex-col">
+      <div className="flex items-center ds-gap-md">
+        <button onClick={() => navigate('/dashboard')} className="text-text-secondary text-xl leading-none">&larr;</button>
+        <h1 className="ds-title">التقارير</h1>
       </div>
 
-      <div className="flex gap-1 bg-white rounded-lg border border-border p-1 overflow-x-auto">
+      <div className="ds-tabs overflow-x-auto">
         {SECTIONS.map((s) => (
           <button key={s.key} onClick={() => s.key === 'sales_effort' ? navigate('/sales-effort') : setActiveSection(s.key)}
-            className={`whitespace-nowrap text-[10px] px-2 py-1.5 rounded-md font-semibold transition-colors ${activeSection === s.key ? 'bg-primary text-white' : 'text-text-secondary'}`}>
+            className={`ds-tab whitespace-nowrap ${activeSection === s.key ? 'ds-tab-active' : 'ds-tab-inactive'}`}>
             {s.label}
           </button>
         ))}
       </div>
 
-      <div className="bg-white rounded-lg border border-border p-3 space-y-2">
-        <div className="flex gap-2">
+      <div className="ds-card ds-gap-sm flex flex-col">
+        <div className="flex ds-gap-sm">
           <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
-            className="flex-1 border border-border rounded-lg px-2 py-1.5 text-xs bg-white" />
+            className="ds-input" />
           <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
-            className="flex-1 border border-border rounded-lg px-2 py-1.5 text-xs bg-white" />
+            className="ds-input" />
           {(activeSection === 'sales_time') && (
             <select value={timeGrouping} onChange={(e) => setTimeGrouping(e.target.value)}
-              className="border border-border rounded-lg px-2 py-1.5 text-xs bg-white">
+              className="ds-select">
               <option value="day">يومي</option>
               <option value="month">شهري</option>
             </select>
           )}
           {(activeSection === 'collections') && (
             <select value={collectionGrouping} onChange={(e) => setCollectionGrouping(e.target.value)}
-              className="border border-border rounded-lg px-2 py-1.5 text-xs bg-white">
+              className="ds-select">
               <option value="day">يومي</option>
               <option value="week">أسبوعي</option>
               <option value="month">شهري</option>
@@ -140,33 +140,33 @@ export function ReportsPage() {
           )}
           {(activeSection === 'visits') && (
             <select value={visitReportType} onChange={(e) => setVisitReportType(e.target.value)}
-              className="border border-border rounded-lg px-2 py-1.5 text-xs bg-white">
+              className="ds-select">
               <option value="rep_activity">نشاط المندوبين</option>
               <option value="customer_coverage">تغطية العملاء</option>
             </select>
           )}
         </div>
         <button onClick={() => loadReport(activeSection)}
-          className="w-full bg-primary text-white text-xs py-2 rounded-lg font-semibold">تحديث التقرير</button>
+          className="ds-btn ds-btn-primary">تحديث التقرير</button>
       </div>
 
       {totalAmount > 0 && (
-        <div className="bg-success/10 border border-success/20 rounded-lg p-3 text-center">
-          <span className="text-xs text-text-secondary">الإجمالي</span>
-          <div className="text-lg font-bold text-success">{formatCurrencyShort(totalAmount)}</div>
+        <div className="bg-success/10 border border-success/20 rounded-lg ds-p-lg text-center">
+          <span className="ds-xs">الإجمالي</span>
+          <div className="ds-title font-bold text-success">{formatCurrencyShort(totalAmount)}</div>
         </div>
       )}
 
       {loading ? (
-        <div className="text-center py-12 text-text-secondary text-sm">جاري التحميل...</div>
+        <div className="text-center py-12 ds-small">جاري التحميل...</div>
       ) : error ? (
-        <div className="bg-danger/10 border border-danger/30 rounded-lg p-3 text-sm text-danger">{error}</div>
+        <div className="bg-danger/10 border border-danger/30 ds-p-lg ds-small text-danger">{error}</div>
       ) : !data || (Array.isArray(data) && data.length === 0) ? (
-        <div className="text-center py-12 text-text-secondary text-sm">لا توجد بيانات</div>
+        <div className="text-center py-12 ds-small">لا توجد بيانات</div>
       ) : (
         <div className="bg-white rounded-xl border border-border overflow-hidden">
           {Array.isArray(sortedData) && sortedData.length > 0 && (
-            <table className="w-full text-xs">
+            <table className="w-full ds-xs">
               <thead className="bg-surface">
                 <tr>
                   {Object.keys(sortedData[0]).filter(k => k !== 'id' && k !== 'product_id' && k !== 'customer_id' && k !== 'employee_id' && k !== 'company_id').map((key) => {

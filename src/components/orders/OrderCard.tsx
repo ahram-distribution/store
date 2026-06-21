@@ -34,62 +34,62 @@ export function OrderCard({ order, onClick }: OrderCardProps) {
   return (
     <div
       onClick={onClick}
-      className="bg-white rounded-xl border border-border p-3.5 cursor-pointer active:bg-surface transition-colors"
+      className="ds-card cursor-pointer active:bg-surface transition-colors"
     >
-      <div className="flex items-start justify-between mb-2">
+      <div className="flex items-start justify-between ds-gap-md">
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-1.5">
-            <p className="text-xs text-text-secondary font-medium">{order.order_number}</p>
+          <div className="flex items-center ds-gap-xs">
+            <p className="ds-xs font-medium">{order.order_number}</p>
             {order.revision_number !== undefined && order.revision_number > 0 && (
-              <span className="text-[9px] text-text-secondary bg-surface px-1 py-0.5 rounded">مراجعة #{order.revision_number}</span>
+              <span className="ds-badge bg-surface text-text-secondary">مراجعة #{order.revision_number}</span>
             )}
           </div>
-          <p className="text-sm font-bold text-text mt-0.5">
+          <p className="ds-body font-bold mt-0.5">
             {order.customer_name || 'غير متوفر'}
           </p>
           {order.customer_phone && (
-            <p className="text-[10px] text-text-secondary mt-0.5" dir="ltr">{order.customer_phone}</p>
+            <p className="ds-xs mt-0.5" dir="ltr">{order.customer_phone}</p>
           )}
         </div>
         <StatusBadge status={order.status} size="md" />
       </div>
 
       <div className="flex items-end justify-between mt-1.5">
-        <div className="text-[11px] text-text-secondary space-y-1">
+        <div className="ds-xs space-y-0.5">
           {order.created_by_name && (
             <div>
-              <span className="text-[9px] text-text-secondary">منشئ الطلب: </span>
-              <span className="text-primary/70">{order.created_by_name}</span>
+              <span className="ds-badge bg-surface text-text-secondary">منشئ الطلب: {order.created_by_name}</span>
             </div>
           )}
           {(order.customer_owner_name) && (
             <div>
-              <span className="text-[9px] text-text-secondary">التابع لـ: </span>
-              <span className="text-text font-medium">{order.customer_owner_name}</span>
-              {order.customer_owner_role && <span className="text-[10px] text-text-secondary"> ({order.customer_owner_role})</span>}
+              <span className="ds-badge bg-surface text-text-secondary">
+                التابع لـ: {order.customer_owner_name}
+                {order.customer_owner_role && <> ({order.customer_owner_role})</>}
+              </span>
             </div>
           )}
           <p>{dateStr} {timeStr}</p>
         </div>
-        <p className="text-sm font-bold text-text">
+        <p className="ds-body font-bold">
           {formatCurrencyShort(Number(order.total_amount) || 0)}
         </p>
       </div>
 
       {(order.delivery_mode || order.governorate || order.collection_badge) && (
-        <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-border">
+        <div className="flex items-center ds-gap-xs mt-3 pt-3 border-t border-border">
           {order.governorate && (
-            <span className="text-[10px] text-text-secondary bg-surface px-1.5 py-0.5 rounded">{order.governorate}</span>
+            <span className="ds-badge bg-surface text-text-secondary">{order.governorate}</span>
           )}
           {order.delivery_mode && (
-            <span className={`text-[10px] px-1.5 py-0.5 rounded ${
+            <span className={`ds-badge ${
               order.delivery_mode === 'external' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
             }`}>
               {order.delivery_mode === 'external' ? 'شركة شحن' : 'توصيل داخلي'}
             </span>
           )}
           {order.collection_badge && (
-            <span className={`text-[10px] px-1.5 py-0.5 rounded ${order.collection_badge.className}`}>
+            <span className={`ds-badge ${order.collection_badge.className}`}>
               {order.collection_badge.label}
             </span>
           )}
