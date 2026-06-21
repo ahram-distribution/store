@@ -59,16 +59,14 @@ export function ProductProfilePage() {
           </div>
         )}
         <div className="flex justify-between">
-          <span className="text-xs text-text-secondary">حالة التفعيل</span>
-          <span className={`text-xs px-2 py-0.5 rounded ${product.is_active ? 'bg-success/10 text-success' : 'bg-danger/10 text-danger'}`}>
-            {product.is_active ? 'نشط' : 'غير نشط'}
-          </span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-xs text-text-secondary">حالة الظهور</span>
-          <span className={`text-xs px-2 py-0.5 rounded ${product.is_visible !== false ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'}`}>
-            {product.is_visible !== false ? 'ظاهر' : 'مخفي'}
-          </span>
+          <span className="text-xs text-text-secondary">حالة المنتج</span>
+          {product.is_out_of_stock && product.is_active ? (
+            <span className="text-xs px-2 py-0.5 rounded bg-warning/10 text-warning font-semibold">نفذت الكمية</span>
+          ) : product.is_active ? (
+            <span className="text-xs px-2 py-0.5 rounded bg-success/10 text-success font-semibold">نشط</span>
+          ) : (
+            <span className="text-xs px-2 py-0.5 rounded bg-danger/10 text-danger font-semibold">مخفي</span>
+          )}
         </div>
       </div>
 

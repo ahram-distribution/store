@@ -75,16 +75,20 @@ export function ProductCard({ product, prices, hasTier, tierName, onAddToCart, o
       <div className="flex items-start justify-between">
         <h3 className="font-medium text-sm text-text flex-1">{product.productName}</h3>
         {isBlocked && (
-          <span className="text-xs text-danger bg-red-50 px-2 py-0.5 rounded shrink-0">
-            {!product.isActive ? 'غير متوفر' : product.salesBlocked ? 'نفذت الكمية' : 'نفد من المخزون'}
+          <span className={`text-xs px-2 py-0.5 rounded shrink-0 ${
+            product.outOfStock ? 'bg-warning/10 text-warning' : 'bg-red-50 text-danger'
+          }`}>
+            {!product.isActive ? 'غير متوفر' : product.outOfStock ? 'نفذت الكمية' : 'غير متاح حالياً'}
           </span>
         )}
       </div>
 
       {/* Prices */}
       {isBlocked ? (
-        <div className="text-xs text-danger bg-red-50 rounded px-2 py-1.5">
-          {!product.isActive ? 'غير متوفر حالياً' : 'نفذت الكمية — يرجى التواصل لتحديد السعر'}
+        <div className={`text-xs rounded px-2 py-1.5 ${
+          product.outOfStock ? 'bg-warning/10 text-warning' : 'bg-red-50 text-danger'
+        }`}>
+          {!product.isActive ? 'غير متوفر حالياً' : product.outOfStock ? 'نفذت الكمية' : 'غير متاح حالياً'}
         </div>
       ) : (
         <div className="text-xs text-text-secondary">

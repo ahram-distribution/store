@@ -39,7 +39,8 @@ function mapProduct(row: any): ProductWithPrice {
   const salesBlocked = unitPrices.length === 0
 
   const inventoryQty = row.inventory ? Number(row.inventory.quantity) : null
-  const outOfStock = inventoryQty !== null && inventoryQty <= 0
+  const dbOutOfStock = row.is_out_of_stock === true && row.is_active !== false
+  const outOfStock = dbOutOfStock || (inventoryQty !== null && inventoryQty <= 0)
 
   return {
     id: row.id,
@@ -173,7 +174,7 @@ export function StorefrontPage() {
 
   // Filter visible products: active, with prices, and in stock
   const filteredProducts = useMemo(() => {
-    let list = products.filter((p) => !p.salesBlocked && !p.outOfStock)
+    let list = products.filter((p) => p.isActive)
 
     if (companyId) {
       list = list.filter((p) => p.companyId === companyId)

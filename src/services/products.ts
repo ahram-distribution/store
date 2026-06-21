@@ -13,6 +13,7 @@ export interface ProductWithDetails {
   cartonPrice: number
   cartonQuantity: number
   isActive: boolean
+  isOutOfStock: boolean
   salesBlocked: boolean
   imageUrl: string | null
   availableUnits: { unitCode: string; unitName: string; unitsPerParent: number; isActive: boolean }[]
@@ -34,7 +35,8 @@ function mapRow(row: any): ProductWithDetails {
     cartonPrice,
     cartonQuantity,
     isActive: row.is_active,
-    salesBlocked: !row.is_active || productUnits.filter((u: any) => u.is_active !== false).length === 0 || !row.carton_price || Number(row.carton_price) <= 0,
+    isOutOfStock: row.is_out_of_stock === true && row.is_active !== false,
+    salesBlocked: !row.is_active || (row.is_out_of_stock === true && row.is_active !== false) || productUnits.filter((u: any) => u.is_active !== false).length === 0 || !row.carton_price || Number(row.carton_price) <= 0,
     imageUrl: row.image_url,
     availableUnits: productUnits.filter((u: any) => u.is_active !== false).map((u: any) => ({
       unitCode: u.unit_type,

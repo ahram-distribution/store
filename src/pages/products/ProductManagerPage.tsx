@@ -35,7 +35,7 @@ export function ProductManagerPage() {
   // ── Filters ──
   const [searchQuery, setSearchQuery] = useState('')
   const [companyFilter, setCompanyFilter] = useState('')
-  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all')
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'out_of_stock' | 'inactive'>('all')
   const [showFilters, setShowFilters] = useState(false)
 
   // Derived company names (from products list)
@@ -46,7 +46,8 @@ export function ProductManagerPage() {
   // Filtered products
   const filtered = useMemo(() => {
     let list = products
-    if (statusFilter === 'active') list = list.filter((p: any) => p.is_active)
+    if (statusFilter === 'active') list = list.filter((p: any) => p.is_active && !(p.is_out_of_stock === true))
+    if (statusFilter === 'out_of_stock') list = list.filter((p: any) => p.is_out_of_stock === true && p.is_active !== false)
     if (statusFilter === 'inactive') list = list.filter((p: any) => !p.is_active)
     if (companyFilter) list = list.filter((p: any) => p.company_name === companyFilter)
     const q = searchQuery.trim().toLowerCase()
@@ -81,12 +82,23 @@ export function ProductManagerPage() {
   async function handleToggleActive(product: any) {
     const token = getToken()
     if (!token) return
-    const fn = product.is_active ? 'governed_deactivate_product' : 'governed_activate_product'
-    const { data, error } = await supabase.rpc(fn, { p_token: token, p_id: product.id })
-    if (error) { toast.error(error.message); return }
-    const result = data as any
-    if (result?.error) { toast.error(result.error); return }
-    toast.success(product.is_active ? 'تم إيقاف المنتج' : 'تم تفعيل المنتج')
+    const isOutOfStock = product.is_out_of_stock === true && product.is_active !== false
+    if (product.is_active && !isOutOfStock) {
+      // Active → Out of Stock
+      const { error } = await supabase.rpc('governed_set_product_out_of_stock', { p_token: token, p_id: product.id, p_is_out_of_stock: true })
+      if (error) { toast.error(error.message); return }
+      toast.success('تم تعيين المنتج كمنتهي الكمية')
+    } else if (isOutOfStock) {
+      // Out of Stock → Active
+      const { error } = await supabase.rpc('governed_set_product_out_of_stock', { p_token: token, p_id: product.id, p_is_out_of_stock: false })
+      if (error) { toast.error(error.message); return }
+      toast.success('تم تفعيل المنتج')
+    } else {
+      // Inactive → Active
+      const { error } = await supabase.rpc('governed_activate_product', { p_token: token, p_id: product.id })
+      if (error) { toast.error(error.message); return }
+      toast.success('تم تفعيل المنتج')
+    }
     await loadData()
   }
 
@@ -188,7 +200,7 @@ export function ProductManagerPage() {
   const [editForm, setEditForm] = useState<any>({
     product_name: '', legacy_code: '', description: '', company_id: '',
     image_url: '', inventory_quantity: '', carton_quantity: '', carton_price: '',
-    units: ['piece', 'dozen', 'carton'], is_active: true, is_visible: true,
+    units: ['piece', 'dozen', 'carton'], is_active: true, is_out_of_stock: false,
   })
   const [editTierDiscounts, setEditTierDiscounts] = useState<Record<string, string>>({})
   const [editSaving, setEditSaving] = useState(false)
@@ -206,7 +218,7 @@ export function ProductManagerPage() {
       carton_price: String(product.carton_price ?? ''),
       units: (product.product_units || []).filter((u: any) => u.is_active !== false).map((u: any) => u.unit_type),
       is_active: product.is_active !== false,
-      is_visible: product.is_visible !== false,
+      is_out_of_stock: product.is_out_of_stock === true && product.is_active !== false,
     })
     // Build tier discounts from product exceptions
     const discounts: Record<string, string> = {}
@@ -271,9 +283,10 @@ export function ProductManagerPage() {
       })
       if (unitsErr) { toast.error(unitsErr.message); setEditSaving(false); return }
 
-      // 5. Update visibility
+      // 5. Update visibility (only if is_active is true, derived from status)
+      const derivedVisible = editForm.is_active
       const { error: visErr } = await supabase.rpc('governed_update_product_visibility', {
-        p_token: token, p_id: editTarget.id, p_is_visible: editForm.is_visible,
+        p_token: token, p_id: editTarget.id, p_is_visible: derivedVisible,
       })
       if (visErr) { toast.error('فشل تحديث الظهور: ' + visErr.message); setEditSaving(false); return }
 
@@ -286,11 +299,24 @@ export function ProductManagerPage() {
         if (invErr) { toast.error('فشل تحديث المخزون: ' + invErr.message); setEditSaving(false); return }
       }
 
-      // 7. Toggle active if changed
-      if (editForm.is_active !== editTarget.is_active) {
-        const fn = editForm.is_active ? 'governed_activate_product' : 'governed_deactivate_product'
-        const { error: actErr } = await supabase.rpc(fn, { p_token: token, p_id: editTarget.id })
+      // 7. Handle status changes (3-state)
+      const wasOutOfStock = editTarget.is_out_of_stock === true && editTarget.is_active !== false
+      if (editForm.is_active && editForm.is_out_of_stock && !wasOutOfStock) {
+        // Active → Out of Stock
+        if (!editTarget.is_active) {
+          const { error: actErr } = await supabase.rpc('governed_activate_product', { p_token: token, p_id: editTarget.id })
+          if (actErr) { toast.error(actErr.message); setEditSaving(false); return }
+        }
+        const { error: oosErr } = await supabase.rpc('governed_set_product_out_of_stock', { p_token: token, p_id: editTarget.id, p_is_out_of_stock: true })
+        if (oosErr) { toast.error(oosErr.message); setEditSaving(false); return }
+      } else if (editForm.is_active && !editForm.is_out_of_stock && (wasOutOfStock || !editTarget.is_active)) {
+        // Out of Stock or Inactive → Active
+        const { error: actErr } = await supabase.rpc('governed_activate_product', { p_token: token, p_id: editTarget.id })
         if (actErr) { toast.error(actErr.message); setEditSaving(false); return }
+      } else if (!editForm.is_active && editTarget.is_active) {
+        // Active or Out of Stock → Inactive
+        const { error: deactErr } = await supabase.rpc('governed_deactivate_product', { p_token: token, p_id: editTarget.id })
+        if (deactErr) { toast.error(deactErr.message); setEditSaving(false); return }
       }
 
       // 8. Tier discounts
@@ -380,7 +406,8 @@ export function ProductManagerPage() {
               >
                 <option value="all">كل الحالات</option>
                 <option value="active">نشط</option>
-                <option value="inactive">غير نشط</option>
+                <option value="out_of_stock">نفذت الكمية</option>
+                <option value="inactive">غير نشط/مخفي</option>
               </select>
               <select
                 value={companyFilter}
@@ -660,28 +687,35 @@ export function ProductManagerPage() {
                 </div>
               </div>
 
-              {/* Status */}
+              {/* Status — 3-state selector */}
               <div className="space-y-3">
                 <h4 className="text-xs font-bold text-text-secondary">حالة المنتج</h4>
-                <div className="flex gap-4">
-                  <label className="flex items-center gap-2 text-xs cursor-pointer select-none">
-                    <input type="checkbox" checked={editForm.is_active}
-                      disabled={!canManage}
-                      onChange={(e) => setEditForm((p: any) => ({ ...p, is_active: e.target.checked }))}
-                      className="accent-primary" />
-                    <span className={editForm.is_active ? 'text-success font-semibold' : 'text-text-secondary'}>
-                      {editForm.is_active ? 'نشط' : 'غير نشط'}
-                    </span>
-                  </label>
-                  <label className="flex items-center gap-2 text-xs cursor-pointer select-none">
-                    <input type="checkbox" checked={editForm.is_visible}
-                      disabled={!canManage}
-                      onChange={(e) => setEditForm((p: any) => ({ ...p, is_visible: e.target.checked }))}
-                      className="accent-primary" />
-                    <span className={editForm.is_visible ? 'text-success font-semibold' : 'text-text-secondary'}>
-                      {editForm.is_visible ? 'ظاهر' : 'مخفي'}
-                    </span>
-                  </label>
+                <div className="flex gap-2">
+                  {[
+                    { value: 'active', label: 'نشط', desc: 'يظهر للعملاء ويمكن بيعه', color: 'text-success border-success/30 bg-success/5' },
+                    { value: 'out_of_stock', label: 'نفذت الكمية', desc: 'يظهر للعملاء مع Badge ولا يمكن شراؤه', color: 'text-warning border-warning/30 bg-warning/5' },
+                    { value: 'inactive', label: 'مخفي', desc: 'لا يظهر للعملاء نهائياً', color: 'text-danger border-danger/30 bg-danger/5' },
+                  ].map((opt) => {
+                    const isActive = opt.value === 'active' ? (editForm.is_active && !editForm.is_out_of_stock)
+                      : opt.value === 'out_of_stock' ? (editForm.is_active && editForm.is_out_of_stock)
+                      : !editForm.is_active
+                    return (
+                      <button key={opt.value} type="button"
+                        disabled={!canManage}
+                        onClick={() => {
+                          if (opt.value === 'active') setEditForm((p: any) => ({ ...p, is_active: true, is_out_of_stock: false }))
+                          else if (opt.value === 'out_of_stock') setEditForm((p: any) => ({ ...p, is_active: true, is_out_of_stock: true }))
+                          else setEditForm((p: any) => ({ ...p, is_active: false, is_out_of_stock: false }))
+                        }}
+                        className={`flex-1 rounded-xl border p-2.5 text-center transition-all ${
+                          isActive ? opt.color + ' border-2 shadow-sm' : 'border-border text-text-secondary hover:bg-surface'
+                        } disabled:opacity-50`}
+                      >
+                        <div className="text-xs font-bold">{opt.label}</div>
+                        <div className="text-[9px] mt-0.5 opacity-80">{opt.desc}</div>
+                      </button>
+                    )
+                  })}
                 </div>
               </div>
 

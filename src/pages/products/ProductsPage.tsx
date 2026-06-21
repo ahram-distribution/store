@@ -20,7 +20,7 @@ export function ProductsPage() {
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [companyFilter, setCompanyFilter] = useState('')
-  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all')
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'out_of_stock' | 'inactive'>('all')
 
   const [showAddForm, setShowAddForm] = useState(false)
   const [newName, setNewName] = useState('')
@@ -55,7 +55,8 @@ export function ProductsPage() {
 
   const filtered = useMemo(() => {
     let list = products
-    if (statusFilter === 'active') list = list.filter((p) => p.isActive)
+    if (statusFilter === 'active') list = list.filter((p) => p.isActive && !p.isOutOfStock)
+    if (statusFilter === 'out_of_stock') list = list.filter((p) => p.isOutOfStock)
     if (statusFilter === 'inactive') list = list.filter((p) => !p.isActive)
     if (companyFilter) list = list.filter((p) => p.companyName === companyFilter)
     const q = searchQuery.trim().toLowerCase()
@@ -147,6 +148,7 @@ export function ProductsPage() {
           className="border border-border rounded-lg px-2 py-1.5 text-xs bg-white flex-1">
           <option value="all">الكل</option>
           <option value="active">نشط</option>
+          <option value="out_of_stock">نفذت الكمية</option>
           <option value="inactive">غير نشط</option>
         </select>
         <select value={companyFilter} onChange={(e) => setCompanyFilter(e.target.value)}
@@ -195,12 +197,16 @@ export function ProductsPage() {
       ) : (
         <div className="space-y-2">
           {filtered.map((p) => (
-            <div key={p.id} className={`bg-white rounded-lg border p-3 ${!p.isActive ? 'opacity-60' : ''}`}>
+            <div key={p.id} className={`bg-white rounded-lg border p-3 ${!p.isActive && !p.isOutOfStock ? 'opacity-60' : ''}`}>
               <div className="flex items-start justify-between">
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-semibold text-primary cursor-pointer" onClick={() => navigate(`/products/${p.id}`)}>{p.productName}</span>
-                    {!p.isActive && <span className="text-[10px] bg-danger/10 text-danger px-2 py-0.5 rounded">غير نشط</span>}
+                    {p.isOutOfStock ? (
+                      <span className="text-[10px] bg-warning/10 text-warning px-2 py-0.5 rounded">نفذت الكمية</span>
+                    ) : !p.isActive ? (
+                      <span className="text-[10px] bg-danger/10 text-danger px-2 py-0.5 rounded">غير نشط</span>
+                    ) : null}
                   </div>
                   <p className="text-[10px] text-text-secondary">{p.companyName} | {p.productCode}</p>
                   {p.description && <p className="text-[10px] text-text-secondary mt-0.5">{p.description}</p>}

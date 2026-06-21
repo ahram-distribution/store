@@ -16,6 +16,7 @@ const UNIT_LABELS: Record<string, string> = {
 }
 
 export function ProductCard({ product, onEdit, onToggleActive, onDelete, onViewDetails }: ProductCardProps) {
+  const isOutOfStock = product.is_out_of_stock === true && product.is_active !== false
   const units = (product.product_units || []).filter((u: any) => u.is_active !== false)
   const unitNames = units.map((u: any) => UNIT_LABELS[u.unit_type] || u.unit_type).join(' - ')
 
@@ -43,11 +44,15 @@ export function ProductCard({ product, onEdit, onToggleActive, onDelete, onViewD
             <Package className="w-10 h-10 text-text-secondary/30" />
           </div>
         )}
-        {!product.is_active && (
+        {isOutOfStock ? (
+          <div className="absolute top-2 right-2 bg-warning/90 text-white text-[9px] px-2 py-0.5 rounded-full font-semibold">
+            نفذت الكمية
+          </div>
+        ) : !product.is_active ? (
           <div className="absolute top-2 right-2 bg-danger/90 text-white text-[9px] px-2 py-0.5 rounded-full font-semibold">
             موقوف
           </div>
-        )}
+        ) : null}
       </div>
 
       {/* Body */}
@@ -107,9 +112,9 @@ export function ProductCard({ product, onEdit, onToggleActive, onDelete, onViewD
           <Edit3 className="w-3.5 h-3.5" />
           تعديل
         </button>
-        <button onClick={onToggleActive} className={`flex-1 flex items-center justify-center gap-1 py-2.5 text-[10px] transition-colors hover:bg-surface ${product.is_active ? 'text-warning' : 'text-success'}`}>
+        <button onClick={onToggleActive} className={`flex-1 flex items-center justify-center gap-1 py-2.5 text-[10px] transition-colors hover:bg-surface ${isOutOfStock ? 'text-success' : product.is_active ? 'text-warning' : 'text-success'}`}>
           <Power className="w-3.5 h-3.5" />
-          {product.is_active ? 'إيقاف' : 'تفعيل'}
+          {isOutOfStock ? 'تفعيل' : product.is_active ? 'إيقاف' : 'تفعيل'}
         </button>
         <button onClick={onDelete} className="flex-1 flex items-center justify-center gap-1 py-2.5 text-[10px] text-danger hover:bg-surface transition-colors">
           <Trash2 className="w-3.5 h-3.5" />
