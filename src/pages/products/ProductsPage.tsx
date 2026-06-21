@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { formatCurrencyShort } from '../../utils/format'
@@ -12,10 +12,20 @@ function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
 }
 
+function useDebounce<T>(value: T, delay: number): T {
+  const [debounced, setDebounced] = useState(value)
+  useEffect(() => {
+    const id = setTimeout(() => setDebounced(value), delay)
+    return () => clearTimeout(id)
+  }, [value, delay])
+  return debounced
+}
+
 export function ProductsPage() {
   const navigate = useNavigate()
   const canManage = useCapability('products.manage')
   const [products, setProducts] = useState<ProductWithDetails[]>([])
+  const [totalCount, setTotalCount] = useState(0)
   const [companies, setCompanies] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
@@ -40,39 +50,39 @@ export function ProductsPage() {
   const [editCartonQty, setEditCartonQty] = useState('')
   const [editCompanyId, setEditCompanyId] = useState('')
 
-  useEffect(() => {
-    const token = getToken()
-    if (!token) { setLoading(false); return }
-    Promise.all([
-      productService.getAll(),
-      supabase.rpc('get_governed_companies', { p_token: token }),
-    ]).then(([prods, comps]) => {
-      setProducts(prods)
-      if (comps.data) setCompanies(Array.isArray(comps.data) ? comps.data : [])
-      setLoading(false)
-    })
-  }, [])
-
-  const filtered = useMemo(() => {
-    let list = products
-    if (statusFilter === 'active') list = list.filter((p) => p.isActive && !p.isOutOfStock)
-    if (statusFilter === 'out_of_stock') list = list.filter((p) => p.isOutOfStock)
-    if (statusFilter === 'inactive') list = list.filter((p) => !p.isActive)
-    if (companyFilter) list = list.filter((p) => p.companyName === companyFilter)
-    const q = searchQuery.trim().toLowerCase()
-    if (q) {
-      list = list.filter((p) =>
-        p.productName.toLowerCase().includes(q) ||
-        p.productCode.toLowerCase().includes(q) ||
-        p.companyName.toLowerCase().includes(q)
-      )
-    }
-    return list
-  }, [products, searchQuery, companyFilter, statusFilter])
+  const debouncedSearch = useDebounce(searchQuery, 300)
 
   const companyNames = useMemo(() => {
     return Array.from(new Set(products.map((p) => p.companyName))).sort()
   }, [products])
+
+  const buildFilters = useCallback(() => {
+    const filters: Record<string, any> = {}
+    if (statusFilter !== 'all') filters.status = statusFilter
+    if (companyFilter) filters.company_id = companyFilter
+    return filters
+  }, [statusFilter, companyFilter])
+
+  const fetchProducts = useCallback(async (query: string) => {
+    const token = getToken()
+    if (!token) return
+    const filters = buildFilters()
+    const result = await productService.unifiedSearch(query || undefined, filters, 1, 500)
+    setProducts(result.data)
+    setTotalCount(result.total)
+  }, [buildFilters])
+
+  useEffect(() => {
+    const token = getToken()
+    if (!token) { setLoading(false); return }
+    setLoading(true)
+    Promise.all([
+      fetchProducts(debouncedSearch),
+      supabase.rpc('get_governed_companies', { p_token: token }).then((comps) => {
+        if (comps.data) setCompanies(Array.isArray(comps.data) ? comps.data : [])
+      }),
+    ]).finally(() => setLoading(false))
+  }, [debouncedSearch, statusFilter, companyFilter, fetchProducts])
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault()
@@ -92,7 +102,7 @@ export function ProductsPage() {
     toast.success('تم إضافة المنتج')
     setShowAddForm(false); setNewName(''); setNewCode(''); setNewCompanyId(''); setNewCartonQty(''); setNewCartonPrice(''); setNewDesc('')
     setSubmitting(false)
-    setProducts(await productService.getAll())
+    await fetchProducts(debouncedSearch)
   }
 
   async function handleEdit() {
@@ -116,7 +126,7 @@ export function ProductsPage() {
     }
     toast.success('تم تحديث المنتج')
     setEditTarget(null)
-    setProducts(await productService.getAll())
+    await fetchProducts(debouncedSearch)
   }
 
   async function handleToggleActive(product: ProductWithDetails) {
@@ -127,7 +137,7 @@ export function ProductsPage() {
     const result = data as any
     if (result.error) { toast.error(result.error); return }
     toast.success(product.isActive ? 'تم إيقاف المنتج' : 'تم تفعيل المنتج')
-    setProducts(await productService.getAll())
+    await fetchProducts(debouncedSearch)
   }
 
   return (
@@ -190,13 +200,18 @@ export function ProductsPage() {
         </form>
       )}
 
+      <div className="text-[10px] text-text-secondary text-left">
+        {!loading && `${totalCount} منتج`}
+        {searchQuery && ` — بحث: "${searchQuery}"`}
+      </div>
+
       {loading ? (
         <div className="text-center py-12 text-text-secondary text-sm">جاري التحميل...</div>
-      ) : filtered.length === 0 ? (
+      ) : products.length === 0 ? (
         <div className="text-center py-12 text-text-secondary text-sm">لا توجد منتجات</div>
       ) : (
         <div className="space-y-2">
-          {filtered.map((p) => (
+          {products.map((p) => (
             <div key={p.id} className={`bg-white rounded-lg border p-3 ${!p.isActive && !p.isOutOfStock ? 'opacity-60' : ''}`}>
               <div className="flex items-start justify-between">
                 <div className="flex-1">

@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase'
+import { unifiedSearchService } from './unifiedSearch'
 
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
@@ -84,5 +85,13 @@ export const productService = {
     if (error) throw error
     const arr = Array.isArray(data) ? data : []
     return arr.map(mapRow)
+  },
+
+  async unifiedSearch(query?: string, filters?: Record<string, any>, page = 1, perPage = 50) {
+    const result = await unifiedSearchService.search<any>('products', query, filters, page, perPage)
+    return {
+      ...result,
+      data: (result.data || []).map(mapRow),
+    }
   },
 }
