@@ -9,6 +9,17 @@ INSERT INTO public.capabilities (code, name, description, "group")
 SELECT 'data.deletion_center', 'مركز الحذف', 'Hard-delete records from any entity', 'admin'
 WHERE NOT EXISTS (SELECT 1 FROM public.capabilities WHERE code = 'data.deletion_center');
 
+-- Assign capability to upper-management roles
+INSERT INTO public.role_capabilities (role_id, capability_id)
+SELECT r.id, c.id
+FROM public.roles r, public.capabilities c
+WHERE c.code = 'data.deletion_center'
+  AND r.name IN ('سوبر أدمن', 'الإدارة العليا', 'رئيس مجلس الإدارة')
+  AND NOT EXISTS (
+    SELECT 1 FROM public.role_capabilities rc
+    WHERE rc.role_id = r.id AND rc.capability_id = c.id
+  );
+
 -- 1. Audit log table ---------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS public.deletion_audit_log (
