@@ -239,6 +239,24 @@ export function DataDeletionCenter() {
     preparation_records_reviewed_by: 'تجهيز (مراجع)',
     return_inspection: 'فحص المرتجع',
     products: 'المنتجات',
+
+    // Employee cascade keys (not already in main map)
+    tracking_cleanup_log: 'سجل تنظيف التتبع',
+    credit_applications: 'طلبات الائتمان',
+    credit_contracts: 'عقود الائتمان',
+    credit_invoice_cheques: 'شيكات الفواتير',
+    daily_deals: 'العروض اليومية',
+    flash_offers: 'العروض الخاصة',
+    packages: 'الباقات',
+    auctions: 'المزادات',
+    auction_participants: 'مشاركو المزاد',
+    auction_awards: 'جوائز المزاد',
+    customer_ownership_history: 'سجل ملكية العميل',
+    managed_employees: 'موظفين تابعين',
+    customer_addresses: 'العناوين',
+    customer_contacts: 'جهات الاتصال',
+    identities: 'الهوية',
+    deletion_audit_log: 'سجل الحذف',
   }
 
   return (
