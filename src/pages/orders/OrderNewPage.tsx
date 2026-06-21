@@ -233,15 +233,12 @@ export function OrderNewPage() {
       setSubmitting(false); return
     }
 
-    // ── OPEN WHATSAPP — uses snapshot data from RPC ──
+    // ── OPEN WHATSAPP — uses unified order RPC (same Source of Truth as order detail page) ──
     try {
       const orderRes = await supabase.rpc('get_unified_order', { p_token: token, p_id: order.id })
       if (!orderRes.error && orderRes.data && !orderRes.data?.error) {
         const fullOrder = orderRes.data
-        const orderItems = (fullOrder?.items && Array.isArray(fullOrder.items))
-          ? fullOrder.items.map((i: any) => ({ ...i, products: { product_name: i.product_name, legacy_code: i.legacy_code, image_url: i.image_url, companies: { company_name: i.company_name } } }))
-          : []
-        sendWhatsAppFromDisplay(buildOrderDisplayData({ order: fullOrder, items: orderItems }))
+        sendWhatsAppFromDisplay(buildOrderDisplayData({ order: fullOrder.order, items: fullOrder.items }))
       }
     } catch (e) { console.error('WHATSAPP_OPEN_FAILED', e) }
 

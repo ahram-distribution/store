@@ -153,13 +153,14 @@ export function buildOrderDisplayData(params: {
     responsibleName: snapshotVal(o, ['responsible_name', '']),
   }
 
-  const ownerName = snapshotVal(o, ['owner_name', 'snapshot_owner_name'])
+  // Fallback chain: snapshot → live computed (from get_unified_order) → empty
+  const ownerName = snapshotVal(o, ['owner_name', 'snapshot_owner_name', 'customer_owner_name'])
   const owner: OrderPersonData | null = ownerName
     ? {
-        id: snapshotVal(o, ['owner_id', 'snapshot_owner_id']),
+        id: snapshotVal(o, ['owner_id', 'snapshot_owner_id', 'customer_owner_id']),
         name: ownerName,
-        phone: snapshotVal(o, ['owner_phone', 'snapshot_owner_phone']),
-        address: snapshotVal(o, ['owner_address', 'snapshot_owner_address']),
+        phone: snapshotVal(o, ['owner_phone', 'snapshot_owner_phone', 'customer_owner_phone']),
+        address: snapshotVal(o, ['owner_address', 'snapshot_owner_address', 'customer_owner_address']),
       }
     : null
 
@@ -168,10 +169,10 @@ export function buildOrderDisplayData(params: {
     : o.created_by === o.owner_id ? 'مندوب مبيعات' : 'موظف'
 
   const creator: OrderPersonData = {
-    id: snapshotVal(o, ['created_by', 'snapshot_sender_id']),
-    name: snapshotVal(o, ['created_by_name', 'snapshot_sender_name']),
-    phone: snapshotVal(o, ['created_by_phone', 'snapshot_sender_phone']),
-    address: snapshotVal(o, ['created_by_address', 'snapshot_sender_address']),
+    id: snapshotVal(o, ['created_by', 'snapshot_sender_id', 'order_creator_id']),
+    name: snapshotVal(o, ['created_by_name', 'snapshot_sender_name', 'order_creator_name']),
+    phone: snapshotVal(o, ['created_by_phone', 'snapshot_sender_phone', 'order_creator_phone']),
+    address: snapshotVal(o, ['created_by_address', 'snapshot_sender_address', 'order_creator_address']),
   }
 
   const items: OrderDisplayItem[] = itemList.map((i: any) => {

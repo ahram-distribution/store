@@ -18,6 +18,7 @@ function toEnUS(n: number | null | undefined): string {
 function formatDateTime(iso: string): string {
   try {
     const d = new Date(iso)
+    if (isNaN(d.getTime())) return ''
     const y = d.getFullYear()
     const m = String(d.getMonth() + 1).padStart(2, '0')
     const day = String(d.getDate()).padStart(2, '0')

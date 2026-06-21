@@ -124,17 +124,13 @@ export function OrderReviewPage() {
       return
     }
 
-    // ── OPEN WHATSAPP — uses snapshot data from RPC only ──
+    // ── OPEN WHATSAPP — Source of Truth = get_unified_order (same as order detail page) ──
     try {
       const orderRes = await supabase.rpc('get_unified_order', { p_token: token, p_id: order.id })
       if (orderRes.error || !orderRes.data || orderRes.data?.error) throw orderRes.error || new Error('no order')
       const fullOrder = orderRes.data
 
-      const orderItems = (fullOrder?.items && Array.isArray(fullOrder.items))
-        ? fullOrder.items.map((i: any) => ({ ...i, products: { product_name: i.product_name, legacy_code: i.legacy_code, image_url: i.image_url, companies: { company_name: i.company_name } } }))
-        : []
-
-      const display = buildOrderDisplayData({ order: fullOrder, items: orderItems })
+      const display = buildOrderDisplayData({ order: fullOrder.order, items: fullOrder.items })
       console.log('ORDER_REVIEW_DISPLAY_DATA', display)
       sendWhatsAppFromDisplay(display)
     } catch (e) { console.error('WHATSAPP_OPEN_FAILED', e) }
