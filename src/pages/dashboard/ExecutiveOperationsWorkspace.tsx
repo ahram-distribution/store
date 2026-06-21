@@ -560,6 +560,7 @@ export function ExecutiveOperationsWorkspace() {
     )
 
     return (
+      <>
       <div className="fixed inset-0 z-50 bg-white overflow-y-auto" dir="rtl">
         <div className="max-w-4xl mx-auto p-4 space-y-4 pb-32">
           <OrderDetailView data={orderDetail} onBack={closeOrder} actions={actions} />
@@ -600,9 +601,10 @@ export function ExecutiveOperationsWorkspace() {
             </div>
           )}
         </div>
+      </div>
 
-        {/* Dispatch Modal */}
-        {showDispatchModal && (
+      {/* Dispatch Modal */}
+      {showDispatchModal && (
           <div className="fixed inset-0 z-[60] bg-black/40 flex items-center justify-center px-4">
             <div className="bg-white rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-xl" onClick={e => e.stopPropagation()}>
               <div className="sticky top-0 bg-white border-b border-border px-5 py-3 flex items-center justify-between">
@@ -691,10 +693,10 @@ export function ExecutiveOperationsWorkspace() {
               </div>
             </div>
           </div>
-        )}
+      )}
 
-        {/* Collection Modal */}
-        {showCollectionModal && (
+      {/* Collection Modal */}
+      {showCollectionModal && (
           <div className="fixed inset-0 z-[60] bg-black/40 flex items-center justify-center px-4">
             <div className="bg-white rounded-xl w-full max-w-sm shadow-xl" onClick={e => e.stopPropagation()}>
               <div className="border-b border-border px-5 py-3 flex items-center justify-between">
@@ -737,10 +739,10 @@ export function ExecutiveOperationsWorkspace() {
               </div>
             </div>
           </div>
-        )}
+      )}
 
-        {/* Return for Revision Dialog */}
-        {showReturnDialog && (
+      {/* Return for Revision Dialog */}
+      {showReturnDialog && (
           <div className="fixed inset-0 z-[60] bg-black/40 flex items-center justify-center px-4">
             <div className="bg-white rounded-xl w-full max-w-sm shadow-xl">
               <div className="border-b border-border px-5 py-3">
@@ -759,8 +761,8 @@ export function ExecutiveOperationsWorkspace() {
               </div>
             </div>
           </div>
-        )}
-      </div>
+      )}
+    </>
     )
   }
 

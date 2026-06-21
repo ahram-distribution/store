@@ -249,6 +249,72 @@
 
 ---
 
+## Order Detail Modal Regression Fix (nesting fixed modals inside overflow container)
+
+> تاريخ الإصلاح: 2026-06-21  
+> الشاشة المتأثرة: `ExecutiveOperationsWorkspace` - order detail view (fullScreen)
+
+### Root Cause
+
+عند فتح طلب في شاشة المشرف التنفيذي، يتم عرض تفاصيل الطلب داخل overlay:
+
+```tsx
+<div className="fixed inset-0 z-50 bg-white overflow-y-auto" dir="rtl">
+  ...
+  {/* Modals nested inside - BUG */}
+  {showDispatchModal && (
+    <div className="fixed inset-0 z-[60] ...">...</div>
+  )}
+</div>
+```
+
+المودالات (Dispatch, Collection, Return) كانت **داخل** الحاوية `fixed inset-0 overflow-y-auto`، مما يسبب:
+
+1. **Overflow clipping**: المتصفح (خاصة Safari/WebKit) يقطع الـ `position: fixed` child إذا كان داخل `overflow-y: auto` parent
+2. **Scroll conflict**: الحاوية الأم تحتفظ بـ scrollbar حتى عند فتح المودال
+3. **`flex items-center justify-center` لا يعمل بشكل صحيح**: تمركز المودال يتأثر بـ scroll position و stacking context للحاوية الأم
+
+### Comparison with Standard Page
+
+الشاشة العادية (`/orders` → `OrderDetailPage.tsx`) تعرض الـ order detail داخل `AppLayout` العادي بدون fixed overlay، وتستخدم `OrderStatusManager` للمودالات — لا توجد nested fixed modals.
+
+### Fix
+
+نقل المودالات **خارج** حاوية `overflow-y-auto` لتصبح siblings داخل fragment:
+
+```tsx
+// بعد الإصلاح
+<>
+  <div className="fixed inset-0 z-50 bg-white overflow-y-auto" dir="rtl">
+    <div className="max-w-4xl mx-auto p-4 space-y-4 pb-32">
+      <OrderDetailView ... />
+    </div>
+  </div>
+
+  {/* Modals outside - properly fixed to viewport */}
+  {showDispatchModal && (
+    <div className="fixed inset-0 z-[60] ...">...</div>
+  )}
+  {showCollectionModal && (...)}
+  {showReturnDialog && (...)}
+</>
+```
+
+### Files Modified
+
+| الملف | التعديل |
+|-------|---------|
+| `src/pages/dashboard/ExecutiveOperationsWorkspace.tsx` | نقل المودالات خارج حاوية `overflow-y-auto`، استخدام fragment |
+| `docs/UI_STANDARDIZATION_V1.md` | توثيق هذا الإصلاح |
+
+### Lessons Learned
+
+- `position: fixed` children inside `overflow: auto/scroll` parents cause cross-browser rendering bugs
+- Always keep modals/dialogs at the fragment level, never nested inside scrollable fixed containers
+- Compare with working reference pages (`/orders`) before assuming the issue is in shared components
+
+---
+
 ## أمر البناء
 
 ```bash
