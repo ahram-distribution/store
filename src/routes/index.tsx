@@ -54,6 +54,7 @@ import { SalesManagerCCPage } from '../pages/sales-manager'
 import { SalesEffortPage } from '../pages/sales-effort'
 import { GpsTestPage } from '../pages/diagnostics'
 import CoverageMapPage from '../pages/coverage/CoverageMapPage'
+import { DataDeletionCenter } from '../pages/data-center/DataDeletionCenter'
 
 export function AppRoutes() {
   const { token } = useAuthStore()
@@ -179,6 +180,7 @@ export function AppRoutes() {
 
       <Route path="/ops/gps-test" element={<ProtectedRoute requireUpperManagement><GpsTestPage /></ProtectedRoute>} />
       <Route path="/coverage-map" element={<ProtectedRoute requireUpperManagement><CoverageMapPage /></ProtectedRoute>} />
+      <Route path="/data-center" element={<ProtectedRoute requireUpperManagement><DataDeletionCenter /></ProtectedRoute>} />
 
       <Route path="*" element={<NotFoundPage />} />
     </Routes>
