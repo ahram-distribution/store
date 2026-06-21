@@ -151,6 +151,104 @@
 
 ---
 
+## Executive Workspace Regression Fix
+
+> تاريخ الإصلاح: 2026-06-21  
+> الشاشة المتأثرة: `ExecutiveOperationsWorkspace` (شاشة المشرف التنفيذى)
+
+### Root Cause
+
+تطبيق `UI_STANDARDIZATION_V1` غيَّر المكونات المشتركة (`OrderCard`, `TopBar`, `BottomNav`) لاستخدام `ds-*` classes، لكن شاشة المشرف التنفيذى نفسها لم يتم توحيدها — مما سبَّب انكساراً بصرياً.
+
+### سبب الكسر
+
+`OrderCard` تم توحيدها لاستخدام `ds-card`:
+
+```css
+.ds-card {
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+```
+
+شاشة المشرف التنفيذى كانت تلف `OrderCard` داخل Container من نوع Card آخر:
+
+```
+<div className="bg-white rounded-xl border border-border p-3">
+  ...
+  <div className="space-y-1.5 max-h-96 overflow-y-auto">
+    <OrderCard />  ← أصبحت ds-card
+  </div>
+</div>
+```
+
+### لماذا حدث Card داخل Card
+
+| الطبقة | Background | Border | Padding | Shadow |
+|--------|-----------|--------|---------|--------|
+| Container الخارجى | `bg-white` | `border-border` | `p-3` (12px) | لا |
+| OrderCard (بعد V1) | `bg-white` | `border-border` | 16px | `box-shadow` |
+| النتيجة | تكرار أبيض فوق أبيض | Border مزدوج | Padding غير متناسق | ظل مقطوع بـ `overflow-y-auto` |
+
+### المكونات المتأثرة
+
+1. **`src/components/orders/OrderCard.tsx`** — التغيير المباشر (داخل `ds-card` جديد)
+2. **`src/components/shared/TopBar.tsx`** — تغيير typography/spacing (`ds-small`, `ds-badge`, `ds-gap-sm`)
+3. **`src/components/shared/BottomNav.tsx`** — تغيير حجم الخط (`ds-xs`)
+4. **`src/style.css`** — إضافة `ds-*` classes التى أثرت على سياق التصميم العام
+
+### تفاصيل الإصلاح
+
+فصل Container الرئيسى إلى جزئين مستقلين:
+
+```
+// قبل: Container واحد يلف كل شيء
+<div className="bg-white rounded-xl border border-border p-3">
+  <Search />
+  <Tabs />
+  <Filters />
+  <div className="space-y-1.5 max-h-96 overflow-y-auto">
+    <OrderCard />  ← مشكلة Card داخل Card
+  </div>
+</div>
+
+// بعد: Container للبحث فقط + OrderCards مستقلة
+<div className="bg-white rounded-xl border border-border p-3 ds-gap-md flex flex-col">
+  <Search />
+  <Tabs />
+  <Filters />
+</div>
+<div className="ds-gap-sm flex flex-col">
+  <OrderCard />  ← Standalone (لا يوجد wrapping)
+</div>
+```
+
+تمت إزالة `overflow-y-auto` من حاوية OrderCards لأن `ds-card` يحتاج مساحة كاملة لعرض border و shadow بشكل صحيح. أصبحت OrderCards تستخدم `ds-gap-sm` بين بعضها (8px) بدلاً من `space-y-1.5` (6px) لمطابقة نمط Design System.
+
+### الملفات المعدلة
+
+| الملف | التعديل |
+|-------|---------|
+| `src/pages/dashboard/ExecutiveOperationsWorkspace.tsx` | فصل container، إزالة nesting، استخدام ds-gap |
+| `docs/UI_STANDARDIZATION_V1.md` | توثيق هذا الإصلاح |
+
+### Commit
+
+```
+706648a..<commit_hash> fix(executive): resolve Card Layout regression from UI_STANDARDIZATION_V1
+```
+
+### الدروس المستفادة
+
+- أى مكون مشترك يتم توحيده (`ds-card`, `ds-btn`, إلخ) قد يؤثر على الشاشات التى تستخدمه إذا كانت تلك الشاشات لم تُحدَّث بعد
+- قبل توحيد مكون مشترك، يجب فحص جميع المستخدمين لهذا المكون عبر المشروع
+- يُفضَّل توحيد الشاشة بالكامل أو على الأقل تعديل الـ container المناسب ليتماشى مع التغيير
+
+---
+
 ## أمر البناء
 
 ```bash
