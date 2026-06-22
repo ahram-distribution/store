@@ -307,3 +307,67 @@ RPCs معدلة:              1 (get_daily_target_vs_actual)
 
 **التفاصيل الكاملة**: `docs/P0_REPAIR_VERIFICATION.md`  
 **المايجرشن**: `supabase/migrations/20260622_p0_fix_orphan_sessions.sql`
+
+---
+
+## 7. Lessons Learned
+
+### 7.1 لماذا ظهرت مشكلة الجلسات المعلقة أصلاً؟
+- **لا يوجد Auto-Close في الـ Deployed Code**: المايجرشن `20260727_session_lifecycle_policy.sql` (997 سطراً) الذي يحتوي على `check_session_timeout`, `auto_close_stale_sessions`, `touch_session_activity` لم يتم نشره أبداً. النظام المعمول به لا يغلق أي جلسة تلقائياً.
+- **`start_workday` لا يتعامل إلا مع اليوم الحالي**: الدالة تفحص وجود جلسة active في `CURRENT_DATE` فقط، فتتجاهل الجلسات المعلقة من أيام سابقة وتنشئ جلسة جديدة — تاركة الجلسة القديمة معلقة.
+- **لا يوجد عمود `last_seen_at`**: لا يمكن قياس inactivity duration، ولا توجد طريقة لربط `end_time` بآخر نشاط حقيقي للمستخدم.
+
+### 7.2 لماذا لم يكتشفها النظام مبكراً؟
+- **لا يوجد فحص دوري (Scheduled Job / Cron)**: لا `pg_cron` ولا `pg_timetable` ولا أي Scheduled Function تفحص الجلسات النشطة وتغلق المنتهية.
+- **لا يوجد Detection RPC**: لم تكن هناك دالة مثل `get_stale_sessions()` مخصصة للمشرفين لرؤية "من لديه جلسة معلقة من أيام سابقة".
+- **صفحات المديرين لا تظهر عمر الجلسة**: شاشات Operations / Attendance لا تعرض `start_time` أو `duration_hours` للجلسات النشطة بطريقة واضحة.
+
+### 7.3 ما الإنذار الذي كان يجب أن يظهر؟
+- **Auto-Closing Warning**: بعد مرور 12 ساعة من بداية الجلسة دون إنهاء، يجب أن يظهر تحذير للمستخدم "تم إنهاء جلستك تلقائياً لتجاوز المدة المسموحة".
+- **Management Alert**: يجب أن يظهر للمشرفين في لوحة التحكم "مندوب لديه جلسة عمل مفتوحة من أمس".
+- **Email / Notification**: إشعار خارجي (Email أو Push Notification) عند اكتشاف جلسة معلقة لأكثر من 24 ساعة.
+
+### 7.4 كيف سيتم اكتشافها مستقبلاً؟
+- **`get_stale_sessions()`**: تم إنشاؤها — تعيد جميع الجلسات `active` من أيام غير اليوم الحالي.
+- **`get_attendance_health()`**: موجودة مسبقاً وتظهر `employees_with_issues: { stale_session: N }`.
+- **`get_my_workday_status()`**: تعيد `session_id = null` للمستخدمين دون جلسة نشطة، مما يمكن من التنبيه.
+
+### 7.5 ما Dashboard أو Alert المطلوب إضافته؟
+
+#### مقترحات فورية (ممكنة اليوم):
+
+| # | Alert اليد | المصدر | الحدث |
+|---|-----------|--------|-------|
+| 1 | **جلسة مفتوحة أكثر من 8 ساعات** | `get_attendance_health()` → `employees_with_issues.stale_session` | تحذير أحمر في شاشة المدير |
+| 2 | **موظف لديه day_start من أمس ومازال active** | `SELECT * FROM workday_sessions WHERE status='active' AND date < CURRENT_DATE` | إشعار يومي صباحي |
+| 3 | **فرق > 30 دقيقة بين History و Ledger** | مقارنة `get_employee_workday_history` و `get_work_hours_ledger` لأي يوم | تحذير على هيئة تقرير |
+| 4 | **عدد جلسات `auto_closed` يومياً** | `SELECT COUNT(*) FROM workday_sessions WHERE attendance_status = 'auto_closed' AND date = CURRENT_DATE` | إحصاء يومي لمراقبة الجودة |
+
+#### مقترحات تطويرية (تتطلب شغل):
+
+| # | الأداة | الوصف | الأولوية |
+|---|--------|-------|----------|
+| 5 | **Scheduled Job (pg_cron)** | Auto-Close كل 15 دقيقة: `UPDATE workday_sessions SET status='completed', attendance_status='auto_closed' WHERE status='active' AND NOW() - start_time > interval '12 hours'` | عالية |
+| 6 | **Dashboard Widget (Stale Sessions)** | بطاقة في Operations أو Executive Dashboard تظهر `stale_sessions_count` + `oldest_stale_hours` | عالية |
+| 7 | **التنبيه التلقائي للجلسات المعلقة** | إرسال Push Notification أو Email للمدير عند بدء يوم عمل جديد ووجود جلسة معلقة | متوسطة |
+| 8 | **System Health Endpoint** | `GET /api/system/health` تفحص: stale sessions, ambiguous RPCs, history-ledger discrepancy | متوسطة |
+
+---
+
+## حالة الملف
+
+```
+ATTENDANCE & TRACKING CORE = ✅ STABLE
+
+ما تم إصلاحه:
+• جلسات معلقة (P0-1): 3 جلسات مغلقة + Auto-Recovery + Detection
+• Ambiguous RPCs (P0-2): 3 overloads قديمة محذوفة — HTTP 300 → 200
+• History vs Ledger (P0-3): rn=1 أُزيل — History تعرض جميع الجلسات
+• Reality Validation (P0-4): عمر محسن متسق — History=Ledger, 0 جلسات معلقة, API يعمل
+
+ما تبقى مستقبلاً:
+• Scheduled Auto-Close Job (pg_cron) — لضمان عدم تكرار P0-1
+• Productivity Dashboard — المقاييس المعتمدة للمديرين
+• Stale Sessions Alert — Widget + Notification
+• System Health Monitor — نقطة نهاية واحدة تفحص سلامة النظام
+```
