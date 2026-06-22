@@ -87,7 +87,7 @@ export default function AttendanceRuntimePage() {
   const [summaryOpen, setSummaryOpen] = useState(false)
   const [deviceReady, setDeviceReady] = useState(false)
   const [trackingStatus, setTrackingStatus] = useState(trackingEngine.status)
-  const [trackingInterval, setTrackingInterval] = useState(300)
+  const [trackingInterval, setTrackingInterval] = useState(900)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
