@@ -293,3 +293,17 @@ RPCs معدلة:              1 (get_daily_target_vs_actual)
 ```
 
 **الخلاصة**: النظام يعمل بشكل كامل. المندوبون لديهم الآن نموذج حضور صحيح (مدة تواجد بدون خصومات) مع دعم جلسات متعددة. شاشة Workday Detail تعرض البيانات الصحيحة حسب نوع السياسة (`flexible`/`fixed_shift`). الأولوية القادمة هي Productivity Dashboard للمديرين باستخدام المقاييس المعتمدة فقط.
+
+---
+
+## 6. P0 Fix — APPROVED ✅ CLOSED 2026-06-22
+
+| P0 | المشكلة | السبب الجذري | الإصلاح | الحالة |
+|----|---------|-------------|---------|--------|
+| P0-1 | جلسة عمر محسن معلقة 22.6h | لا يوجد Auto-Close في النظام الحالي، start_workday لا يستعيد الجلسات القديمة | UPDATE يغلق 3 جلسات معلقة + recovery في start_workday + last_seen_at column + get_stale_sessions() | ✅ |
+| P0-2 | Ambiguous Function (HTTP 300) | بقاء overload قديم (text,text,text) لم يحذف مع pre_drop | DROP FUNCTION text overloads لـ get_daily_target_vs_actual و get_tracking_session_stats | ✅ |
+| P0-3 | History 119min vs Ledger 594min في 06-18 | WHERE rn = 1 في get_employee_workday_history يخفي الجلسة الثانية | إزالة rn = 1 filter + schedule_type-aware net calculation | ✅ |
+| P0-4 | الفشل في التحقق من عمر | جميع الأسباب السابقة | إعادة التحقق: History=Ledger ✅, 0 جلسات معلقة ✅, HTTP 200 ✅ | ✅ |
+
+**التفاصيل الكاملة**: `docs/P0_REPAIR_VERIFICATION.md`  
+**المايجرشن**: `supabase/migrations/20260622_p0_fix_orphan_sessions.sql`
