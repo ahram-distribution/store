@@ -3,6 +3,7 @@ import { supabase } from '../../lib/supabase'
 import { useNavigate } from 'react-router-dom'
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet'
 import L from 'leaflet'
+import PresenceLabel from '../../components/shared/PresenceLabel'
 
 interface CustomerPoint {
   id: string; code: string; name: string; responsible_name: string
@@ -17,6 +18,7 @@ interface EmployeePoint {
   employee_id: string; name: string; code: string; role_name: string
   status: string; connection_status: string
   latitude: number; longitude: number; last_seen_at: string | null; accuracy_meters: number | null
+  last_activity_at: string | null; last_activity_type: string | null
   duration_minutes: number
   order_count: number; sales_value: number; visit_count: number; new_customer_count: number
 }
@@ -196,14 +198,12 @@ export default function CoverageMapPage() {
                     <span>🆔 {e.code}</span>
                     <span>🏢 {e.role_name}</span>
                     <span>⏱ {fmtDuration(e.duration_minutes)}</span>
-                    <span className={`font-semibold ${
-                      e.connection_status === 'connected' ? 'text-green-600' :
-                      e.connection_status === 'delayed' ? 'text-amber-600' : 'text-red-600'
-                    }`}>
-                      {e.connection_status === 'connected' ? '🟢 متصل' :
-                       e.connection_status === 'delayed' ? '🟡 متأخر' : '🔴 منقطع'}
-                    </span>
                   </div>
+                  <PresenceLabel
+                    connectionStatus={e.connection_status}
+                    lastActivityAt={e.last_activity_at}
+                    lastActivityType={e.last_activity_type}
+                  />
                   <div className="border-t pt-1">
                     <div className="font-semibold text-text mb-0.5">اليوم</div>
                     <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[10px]">

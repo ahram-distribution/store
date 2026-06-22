@@ -6,6 +6,7 @@ import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import { formatTime } from '../../utils/format'
 import { LocationDisplay } from '../../components/shared/LocationDisplay'
+import PresenceLabel from '../../components/shared/PresenceLabel'
 
 interface TeamCounters {
   active: number; on_break: number; on_visit: number; not_started: number
@@ -15,6 +16,7 @@ interface TeamCounters {
 interface TeamMember {
   employee_id: string; name: string; role_name: string; status: string
   connection_status: string; latitude: number; longitude: number; last_seen_at?: string
+  last_activity_at?: string | null; last_activity_type?: string | null
   duration_minutes: number; order_count: number; sales_value: number
   collection_count: number; collection_amount: number; new_customer_count: number; visit_count: number
 }
@@ -209,15 +211,16 @@ export default function TeamMapPage() {
                       <Popup>
                         <div className="text-xs" style={{ minWidth: 150 }}>
                           <p className="font-bold text-sm mb-1">{m.name}</p>
-                          <p className="text-gray-500 mb-1">
+                          <div className="mb-1">
                             <span className={`inline-block w-2 h-2 rounded-full ${STATUS_BG[m.status] ?? 'bg-gray-400'} ml-1`} />
                             {STATUS_LABELS[m.status] ?? m.status}
-                            {' — '}
-                            <span className={m.connection_status === 'connected' ? 'text-green-600' : m.connection_status === 'delayed' ? 'text-amber-600' : 'text-red-600'}>
-                              {CONN_LABELS[m.connection_status] ?? m.connection_status}
-                            </span>
-                          </p>
-                          <div className="border-t border-gray-100 pt-1 space-y-0.5">
+                          </div>
+                          <PresenceLabel
+                            connectionStatus={m.connection_status}
+                            lastActivityAt={m.last_activity_at ?? null}
+                            lastActivityType={m.last_activity_type ?? null}
+                          />
+                          <div className="border-t border-gray-100 pt-1 mt-1 space-y-0.5">
                             <div className="flex justify-between"><span className="text-gray-400">مدة اليوم:</span><span className="font-bold">{fmtMin(m.duration_minutes)}</span></div>
                             <div className="flex justify-between"><span className="text-gray-400">الزيارات:</span><span className="font-bold">{m.visit_count ?? 0}</span></div>
                             <div className="flex justify-between"><span className="text-gray-400">الطلبات:</span><span className="font-bold">{m.order_count ?? 0}</span></div>
@@ -225,9 +228,6 @@ export default function TeamMapPage() {
                             <div className="flex justify-between"><span className="text-gray-400">التحصيلات:</span><span className="font-bold">{m.collection_count ?? 0}</span></div>
                             <div className="flex justify-between"><span className="text-gray-400">عملاء جدد:</span><span className="font-bold">{m.new_customer_count ?? 0}</span></div>
                           </div>
-                          {m.last_seen_at && (
-                             <p className="text-[9px] text-gray-400 mt-1">آخر ظهور: {formatTime(m.last_seen_at)}</p>
-                          )}
                           <div className="flex items-center gap-1 mt-2 border-t border-gray-100 pt-2">
                             <LocationDisplay lat={m.latitude} lng={m.longitude} size="sm" />
                             <button onClick={() => navigate(`/attendance/employee/${m.employee_id}/${new Date().toISOString().slice(0, 10)}`)}
@@ -274,20 +274,21 @@ export default function TeamMapPage() {
                   onClick={() => navigate(`/attendance/employee/${m.employee_id}/${new Date().toISOString().slice(0, 10)}`)}
                 >
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className={`w-2.5 h-2.5 rounded-full ${STATUS_BG[m.status] ?? 'bg-gray-400'}`} />
-                      <span className="font-bold text-gray-800 text-sm">{m.name}</span>
-                      {m.role_name && <span className="text-[9px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">{m.role_name}</span>}
-                      <span className={`text-[9px] px-1.5 py-0.5 rounded-full ${m.connection_status === 'connected' ? 'bg-green-50 text-green-600' : m.connection_status === 'delayed' ? 'bg-amber-50 text-amber-600' : 'bg-red-50 text-red-600'}`}>
-                        {CONN_LABELS[m.connection_status] ?? m.connection_status}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <div className={`w-2.5 h-2.5 rounded-full ${STATUS_BG[m.status] ?? 'bg-gray-400'}`} />
+                        <span className="font-bold text-gray-800 text-sm">{m.name}</span>
+                        {m.role_name && <span className="text-[9px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">{m.role_name}</span>}
+                      </div>
+                      <LocationDisplay lat={m.latitude} lng={m.longitude} />
                     </div>
-                    <LocationDisplay lat={m.latitude} lng={m.longitude} />
-                  </div>
-                  <div className="flex items-center gap-2 text-[10px] text-gray-400 mt-1">
-                    <Clock className="w-3 h-3" /> {fmtMin(m.duration_minutes)}
-                    {m.last_seen_at && <span>— آخر ظهور: {formatTime(m.last_seen_at)}</span>}
-                  </div>
+                    <div className="flex items-center gap-2 text-[10px] mt-1">
+                      <Clock className="w-3 h-3 text-gray-400" /> <span className="text-gray-400">{fmtMin(m.duration_minutes)}</span>
+                      <PresenceLabel
+                        connectionStatus={m.connection_status}
+                        lastActivityAt={m.last_activity_at ?? null}
+                        lastActivityType={m.last_activity_type ?? null}
+                      />
+                    </div>
                   <div className="flex gap-1 mt-1.5 text-[9px] flex-wrap">
                     <span className="text-green-600 bg-green-50 px-1.5 py-0.5 rounded">{STATUS_LABELS[m.status] ?? m.status}</span>
                     <span className="text-orange-600 bg-orange-50 px-1.5 py-0.5 rounded">طلبات {m.order_count ?? 0}</span>

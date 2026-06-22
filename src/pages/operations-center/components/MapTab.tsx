@@ -4,6 +4,7 @@ import L from 'leaflet'
 import { supabase } from '../../../lib/supabase'
 import { useNavigate } from 'react-router-dom'
 import { formatTime } from '../../../utils/format'
+import PresenceLabel from '../../../components/shared/PresenceLabel'
 
 interface TeamMapEmployee {
   employee_id: string
@@ -15,6 +16,8 @@ interface TeamMapEmployee {
   connection_status: string
   duration_minutes: number
   last_seen_at: string | null
+  last_activity_at: string | null
+  last_activity_type: string | null
 }
 
 function getToken(): string | null {
@@ -110,9 +113,11 @@ export default function MapTab() {
                 <p className="text-gray-400 mt-0.5">
                   {e.duration_minutes ? `${Math.round(e.duration_minutes / 60)}h ${e.duration_minutes % 60}m` : '--'}
                 </p>
-                {e.last_seen_at && (
-                  <p className="text-gray-400">آخر ظهور: {formatTime(e.last_seen_at)}</p>
-                )}
+                <PresenceLabel
+                  connectionStatus={e.connection_status}
+                  lastActivityAt={e.last_activity_at}
+                  lastActivityType={e.last_activity_type}
+                />
                 <button
                   onClick={() => navigate(`/attendance/employee/${e.employee_id}/${new Date().toISOString().slice(0, 10)}`)}
                   className="mt-1 text-blue-600 underline font-bold"

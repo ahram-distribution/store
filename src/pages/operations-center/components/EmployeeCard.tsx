@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import { Clock } from 'lucide-react'
 import { formatTime } from '../../../utils/format'
+import PresenceLabel from '../../../components/shared/PresenceLabel'
 
 interface ActiveEmployee {
   employee_id: string
@@ -29,6 +30,8 @@ interface ActiveEmployee {
   latitude: number | null
   longitude: number | null
   last_seen_at: string | null
+  last_activity_at: string | null
+  last_activity_type: string | null
   connection_status: string
   last_seen_label: string
 }
@@ -205,12 +208,11 @@ export default function EmployeeCard(props: EmployeeCardProps) {
         </div>
 
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1 text-[10px] text-gray-400">
-            {e.connection_status === 'connected' && <span className="text-green-500">🟢 متصل</span>}
-            {e.connection_status === 'delayed' && <span className="text-yellow-500">🟡 متأخر</span>}
-            {e.connection_status === 'lost' && <span className="text-red-500">🔴 منقطع</span>}
-            {e.connection_status === 'no_data' && <span className="text-gray-300">⚪ لا يوجد موقع</span>}
-          </div>
+          <PresenceLabel
+            connectionStatus={e.connection_status}
+            lastActivityAt={e.last_activity_at}
+            lastActivityType={e.last_activity_type}
+          />
           <button
             onClick={() => handleDetails(e.employee_id)}
             className="text-[10px] bg-indigo-50 text-indigo-600 px-2 py-1 rounded-lg hover:bg-indigo-100 font-bold"
