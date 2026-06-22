@@ -65,8 +65,16 @@ interface TimelineEvent {
 }
 
 interface WorkHoursLedgerEntry {
-  start_time: string; end_time: string | null; activity_type: string
-  duration_minutes: number; description: string | null
+  start_time: string; end_time: string | null; activity_type: string; duration_minutes: number; description: string | null
+}
+
+interface LedgerScheduleInfo {
+  schedule_type: string; presence_minutes: number; sessions_count: number; day_start?: string; day_end?: string
+  net_minutes?: number; break_minutes?: number; late_minutes?: number; early_departure_minutes?: number; attendance_status?: string
+}
+
+interface WorkHoursLedgerResponse {
+  schedule_type: string; schedule_info: LedgerScheduleInfo; ledger: WorkHoursLedgerEntry[]
 }
 
 interface BreakInterval {
@@ -91,15 +99,22 @@ const EVENT_CFG: Record<string, { label: string; color: string; bg: string; dot:
   new_customer: { label: 'عميل جديد', color: 'text-rose-600', bg: 'bg-rose-50', dot: 'bg-rose-500', icon: '👤' },
 }
 
+const PRESENCE_CFG: Record<string, { label: string; color: string; bg: string; dot: string; icon: string }> = {
+  presence: { label: 'حضور', color: 'text-green-600', bg: 'bg-green-50', dot: 'bg-green-500', icon: '✅' },
+  work: { label: 'عمل', color: 'text-blue-600', bg: 'bg-blue-50', dot: 'bg-blue-500', icon: '🔵' },
+  break: { label: 'استراحة', color: 'text-amber-600', bg: 'bg-amber-50', dot: 'bg-amber-500', icon: '🟡' },
+  visit: { label: 'زيارة', color: 'text-blue-600', bg: 'bg-blue-50', dot: 'bg-blue-500', icon: '📍' },
+}
+
 const fmtMin = (m?: number) => {
   if (m == null || isNaN(m)) return '--'
   const h = Math.floor(m / 60); const min = Math.round(m % 60)
   return `${h.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}`
 }
 
-const fmtSec = (s?: number) => {
+const fmtHour = (s?: number) => {
   if (s == null || isNaN(s)) return '--'
-  return fmtMin(Math.round(s / 60))
+  return (s / 3600).toFixed(1)
 }
 
 const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -128,18 +143,23 @@ export default function EmployeeWorkdayDetailPage() {
   const [target, setTarget] = useState<TargetResponse | null>(null)
   const [mapData, setMapData] = useState<DayMapData | null>(null)
   const [timeline, setTimeline] = useState<TimelineData | null>(null)
-  const [workHoursLedger, setWorkHoursLedger] = useState<WorkHoursLedgerEntry[] | null>(null)
+  const [ledgerData, setLedgerData] = useState<WorkHoursLedgerResponse | null>(null)
   const [historySessions, setHistorySessions] = useState<SessionData[]>([])
   const [historySummary, setHistorySummary] = useState<HistoryResponse['summary'] | null>(null)
   const [targetWeek, setTargetWeek] = useState<TargetResponse['last_7_days']>([])
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     map: true, timeline: true, tracking: false, stops: false, ledger: true, breakDetail: false, weekHistory: true,
   })
+  const [hasViewTimeline, setHasViewTimeline] = useState(true)
+  const [scheduleType, setScheduleType] = useState<string>('')
 
   const todayRaw = date ?? new Date().toISOString().slice(0, 10)
   const today = isNaN(new Date(todayRaw).getTime()) ? new Date().toISOString().slice(0, 10) : todayRaw
 
   const toggle = (key: string) => setExpandedSections(prev => ({ ...prev, [key]: !prev[key] }))
+  const isField = scheduleType === 'flexible' || scheduleType === 'hourly'
+  const isFixed = scheduleType === 'fixed_shift'
+  const presenceMinutes = isField ? (ledgerData?.schedule_info.presence_minutes ?? session?.duration_minutes) : session?.net_minutes
 
   useEffect(() => {
     if (!token || !employeeId) return
@@ -155,16 +175,11 @@ export default function EmployeeWorkdayDetailPage() {
           supabase.rpc('get_employee_day_timeline', { p_token: token, p_employee_id: employeeId, p_date: today }),
         ])
       } catch {}
-      console.log('historyRes:', historyRes)
-      console.log('historyRes.data:', historyRes?.data)
-      console.log('mapRes.data:', mapRes?.data)
-      console.log('timelineRes.data:', timelineRes?.data)
       if (nameRes?.data && typeof nameRes.data === 'object' && !('error' in (nameRes.data as Record<string, unknown>))) {
         setEmployeeName((nameRes.data as Record<string, unknown>).full_name as string || '')
       }
       if (historyRes?.data && typeof historyRes.data === 'object' && !('error' in (historyRes.data as Record<string, unknown>))) {
         const h = historyRes.data as HistoryResponse
-        console.log('session being set:', h.sessions?.[0])
         if (h.sessions && h.sessions.length > 0) setSession(h.sessions[0])
         if (h.sessions) setHistorySessions(h.sessions)
         if (h.summary) setHistorySummary(h.summary)
@@ -178,7 +193,13 @@ export default function EmployeeWorkdayDetailPage() {
           if ((tr as TargetResponse).last_7_days) setTargetWeek((tr as TargetResponse).last_7_days)
         }
       } catch {}
-      if (mapRes.data && !((mapRes.data as Record<string, unknown>).error)) {
+
+      // Detect FORBIDDEN from map/timeline → hide those sections
+      const mapErr = mapRes?.data && (mapRes.data as Record<string, unknown>).error === 'FORBIDDEN'
+      const tlErr = timelineRes?.data && (timelineRes.data as Record<string, unknown>).error === 'FORBIDDEN'
+      setHasViewTimeline(!mapErr && !tlErr)
+
+      if (mapRes?.data && !mapErr && !((mapRes.data as Record<string, unknown>).error)) {
         const raw = mapRes.data as Record<string, unknown>
         const routePoints_raw = (raw.route_polyline ?? raw.route) as RoutePoint[] | undefined
         const map: DayMapData = {
@@ -194,14 +215,16 @@ export default function EmployeeWorkdayDetailPage() {
         }
         setMapData(map)
       }
-      if (timelineRes.data && !((timelineRes.data as Record<string, unknown>).error)) setTimeline(timelineRes.data as TimelineData)
+      if (timelineRes?.data && !tlErr && !((timelineRes.data as Record<string, unknown>).error)) setTimeline(timelineRes.data as TimelineData)
 
+      // Work Hours Ledger
       const ledgerRes = await supabase.rpc('get_work_hours_ledger', {
         p_token: token, p_employee_id: employeeId, p_from: today, p_to: today,
       })
       if (ledgerRes.data && typeof ledgerRes.data === 'object' && !('error' in (ledgerRes.data as Record<string, unknown>))) {
-        const ledgerData = ledgerRes.data as Record<string, unknown>
-        if (Array.isArray(ledgerData.ledger)) setWorkHoursLedger(ledgerData.ledger as WorkHoursLedgerEntry[])
+        const lr = ledgerRes.data as WorkHoursLedgerResponse
+        setLedgerData(lr)
+        setScheduleType(lr.schedule_type)
       }
 
       setLoading(false)
@@ -234,10 +257,7 @@ export default function EmployeeWorkdayDetailPage() {
             <ArrowRight className="w-5 h-5 text-gray-600" />
           </button>
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <h1 className="font-bold text-gray-800 text-base truncate">{employeeName || 'الموظف'}</h1>
-              {session?.composite_score != null && <CompositeBadge score={session.composite_score} />}
-            </div>
+            <h1 className="font-bold text-gray-800 text-base truncate">{employeeName || 'الموظف'}</h1>
             <p className="text-[10px] text-gray-400">
               {today && new Date(today).toLocaleDateString('ar-EG', { weekday: 'long', month: 'long', day: 'numeric' })}
             </p>
@@ -267,7 +287,7 @@ export default function EmployeeWorkdayDetailPage() {
             <div className="bg-white rounded-xl shadow-sm p-3 mb-3">
               <div className="flex items-center justify-between mb-2">
                 <h2 className="text-xs font-bold text-gray-700">ملخص اليوم</h2>
-                <Badge status={session.attendance_status} />
+                {isFixed && <Badge status={session.attendance_status} />}
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div className="bg-gray-50 rounded-lg p-2">
@@ -278,18 +298,37 @@ export default function EmployeeWorkdayDetailPage() {
                   <div className="text-[9px] text-gray-500">نهاية اليوم</div>
                   <div className="text-xs font-bold">{session.end_time ? formatTime(session.end_time) : <span className="text-amber-500">مستمر</span>}</div>
                 </div>
-                <div className="bg-gray-50 rounded-lg p-2">
-                  <div className="text-[9px] text-gray-500">إجمالي المدة</div>
-                  <div className="text-xs font-bold">{fmtMin(session.duration_minutes)}</div>
-                </div>
-                <div className="bg-green-50 rounded-lg p-2">
-                  <div className="text-[9px] text-gray-500">صافي العمل</div>
-                  <div className="text-xs font-bold text-green-700">{fmtMin(session.net_minutes)}</div>
-                </div>
-                <div className="bg-amber-50 rounded-lg p-2">
-                  <div className="text-[9px] text-gray-500">الاستراحة</div>
-                  <div className="text-xs font-bold text-amber-700">{fmtMin(session.break_minutes)}</div>
-                </div>
+                {isField ? (
+                  <>
+                    <div className="bg-gray-50 rounded-lg p-2">
+                      <div className="text-[9px] text-gray-500">عدد الجلسات</div>
+                      <div className="text-xs font-bold">{ledgerData?.schedule_info.sessions_count ?? 1}</div>
+                    </div>
+                    <div className="bg-green-50 rounded-lg p-2">
+                      <div className="text-[9px] text-gray-500">مدة التواجد</div>
+                      <div className="text-xs font-bold text-green-700">{fmtMin(presenceMinutes)}</div>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="bg-gray-50 rounded-lg p-2">
+                      <div className="text-[9px] text-gray-500">إجمالي المدة</div>
+                      <div className="text-xs font-bold">{fmtMin(session.duration_minutes)}</div>
+                    </div>
+                    <div className="bg-green-50 rounded-lg p-2">
+                      <div className="text-[9px] text-gray-500">صافي العمل</div>
+                      <div className="text-xs font-bold text-green-700">{fmtMin(session.net_minutes)}</div>
+                    </div>
+                  </>
+                )}
+                {isFixed && (
+                  <>
+                    <div className="bg-amber-50 rounded-lg p-2">
+                      <div className="text-[9px] text-gray-500">الاستراحة</div>
+                      <div className="text-xs font-bold text-amber-700">{fmtMin(session.break_minutes)}</div>
+                    </div>
+                  </>
+                )}
                 <div className="bg-indigo-50 rounded-lg p-2">
                   <div className="text-[9px] text-gray-500">المسافة</div>
                   <div className="text-xs font-bold text-indigo-700">{mapData ? `${mapData.total_distance_km} كم` : '--'}</div>
@@ -316,18 +355,22 @@ export default function EmployeeWorkdayDetailPage() {
             {/* ===== KPI SUMMARY (compact) ===== */}
             <div className="bg-white rounded-xl shadow-sm p-3 mb-3">
               <div className="grid grid-cols-4 gap-1.5">
-                <KpiMini label="صافي العمل" value={fmtMin(session.net_minutes)} color="text-green-600" bg="bg-green-50" />
+                {isField ? (
+                  <KpiMini label="مدة التواجد" value={fmtMin(presenceMinutes)} color="text-green-600" bg="bg-green-50" />
+                ) : (
+                  <KpiMini label="صافي العمل" value={fmtMin(presenceMinutes)} color="text-green-600" bg="bg-green-50" />
+                )}
                 <KpiMini label="الطلبات" value={String(session.order_count ?? 0)} color="text-purple-600" bg="bg-purple-50" />
                 <KpiMini label="المبيعات" value={(session.sales_value ?? 0).toLocaleString('en-EG')} color="text-emerald-600" bg="bg-emerald-50" />
                 <KpiMini label="التحصيل" value={(session.collection_amount ?? 0).toLocaleString('en-EG')} color="text-cyan-600" bg="bg-cyan-50" />
                 <KpiMini label="عملاء جدد" value={String(session.new_customer_count ?? 0)} color="text-rose-600" bg="bg-rose-50" />
                 <KpiMini label="الزيارات" value={String(session.visit_count)} color="text-blue-600" bg="bg-blue-50" />
                 <KpiMini label="المسافة" value={mapData ? `${mapData.total_distance_km} كم` : '--'} color="text-indigo-600" bg="bg-indigo-50" />
-                <KpiMini label="الاستراحة" value={fmtMin(session.break_minutes)} color="text-amber-600" bg="bg-amber-50" />
+                {isFixed && <KpiMini label="الاستراحة" value={fmtMin(session.break_minutes)} color="text-amber-600" bg="bg-amber-50" />}
               </div>
             </div>
 
-            {/* ===== TARGET PROGRESS (compact) ===== */}
+            {/* ===== TARGET PROGRESS ===== */}
             {target && (
               <div className="bg-white rounded-xl shadow-sm p-3 mb-3">
                 <div className="flex items-center justify-between mb-1.5">
@@ -339,8 +382,8 @@ export default function EmployeeWorkdayDetailPage() {
                     style={{ width: `${Math.min(target.progress_pct, 100)}%` }} />
                 </div>
                 <div className="flex items-center justify-between text-[10px] text-gray-500">
-                  <span>{fmtSec(target.current_net_seconds)} / {fmtMin(target.target_hours * 60)}</span>
-                  <span>المتبقي: {fmtSec(target.remaining_seconds)}</span>
+                  <span>{fmtHour(target.current_net_seconds)} / {fmtMin(target.target_hours * 60)}</span>
+                  <span>المتبقي: {fmtHour(target.remaining_seconds)}</span>
                 </div>
               </div>
             )}
@@ -377,12 +420,12 @@ export default function EmployeeWorkdayDetailPage() {
                       <tr className="border-b border-gray-200">
                         <th className="text-right py-1 px-1 text-gray-500 font-bold">اليوم</th>
                         <th className="text-right py-1 px-1 text-gray-500 font-bold">التاريخ</th>
-                        <th className="text-center py-1 px-1 text-gray-500 font-bold">صافي</th>
+                        <th className="text-center py-1 px-1 text-gray-500 font-bold">{isField ? 'تواجد' : 'صافي'}</th>
                         <th className="text-center py-1 px-1 text-gray-500 font-bold">طلبات</th>
                         <th className="text-center py-1 px-1 text-gray-500 font-bold">مبيعات</th>
                         <th className="text-center py-1 px-1 text-gray-500 font-bold">تحصيل</th>
                         <th className="text-center py-1 px-1 text-gray-500 font-bold">زيارات</th>
-                        <th className="text-center py-1 px-1 text-gray-500 font-bold">الحالة</th>
+                        {isFixed && <th className="text-center py-1 px-1 text-gray-500 font-bold">الحالة</th>}
                       </tr>
                     </thead>
                     <tbody>
@@ -393,12 +436,12 @@ export default function EmployeeWorkdayDetailPage() {
                             {s.date ? new Date(s.date).toLocaleDateString('ar-EG', { weekday: 'short' }) : ''}
                           </td>
                           <td className="py-1 px-1 text-gray-500">{s.date}</td>
-                          <td className="py-1 px-1 text-center font-bold text-gray-800">{fmtMin(s.net_minutes)}</td>
+                          <td className="py-1 px-1 text-center font-bold text-gray-800">{isField ? fmtMin(s.duration_minutes) : fmtMin(s.net_minutes)}</td>
                           <td className="py-1 px-1 text-center text-gray-700">{s.order_count ?? 0}</td>
                           <td className="py-1 px-1 text-center text-gray-700">{(s.sales_value ?? 0).toLocaleString('en-EG')}</td>
                           <td className="py-1 px-1 text-center text-gray-700">{(s.collection_amount ?? 0).toLocaleString('en-EG')}</td>
                           <td className="py-1 px-1 text-center text-gray-700">{s.visit_count ?? 0}</td>
-                          <td className="py-1 px-1 text-center"><BadgeSmall status={s.attendance_status} /></td>
+                          {isFixed && <td className="py-1 px-1 text-center"><BadgeSmall status={s.attendance_status} /></td>}
                         </tr>
                       ))}
                     </tbody>
@@ -407,224 +450,245 @@ export default function EmployeeWorkdayDetailPage() {
                 {historySummary && (
                   <div className="flex items-center gap-2 mt-2 text-[9px] text-gray-400 flex-wrap">
                     <span>إجمالي الأيام: {historySummary.total_days}</span>
-                    <span className="text-green-600">ملتزم: {historySummary.ontime_days}</span>
-                    <span className="text-red-600">متأخر: {historySummary.late_days}</span>
-                    <span className="text-amber-600">مبكر: {historySummary.early_departure_days}</span>
+                    {isFixed && (
+                      <>
+                        <span className="text-green-600">ملتزم: {historySummary.ontime_days}</span>
+                        <span className="text-red-600">متأخر: {historySummary.late_days}</span>
+                        <span className="text-amber-600">مبكر: {historySummary.early_departure_days}</span>
+                      </>
+                    )}
                   </div>
                 )}
               </Section>
             )}
 
-            {/* ===== 1. ROUTE MAP ===== */}
-            <Section title="🗺️ خريطة المسار" expandedKey="map" expanded={expandedSections.map} onToggle={() => toggle('map')}>
-              {routePoints.length > 0 ? (
-                <>
-                  {/* Stats bar */}
-                  <div className="flex flex-wrap gap-1.5 mb-2">
-                    <span className="bg-indigo-50 text-indigo-600 text-[10px] px-2 py-0.5 rounded-full font-bold">{mapData?.total_distance_km} كم</span>
-                    <span className="bg-gray-100 text-gray-600 text-[10px] px-2 py-0.5 rounded-full">{mapData?.total_points} نقطة</span>
-                    <span className="bg-blue-50 text-blue-600 text-[10px] px-2 py-0.5 rounded-full">
-                      {firstPtTime ? formatTime(firstPtTime) : '--'} ← {lastPtTime ? formatTime(lastPtTime) : '--'}
-                    </span>
-                  </div>
-                  <div className="rounded-xl overflow-hidden" style={{ height: 250 }}>
-                    <MapContainer center={routePoints[0]} zoom={13} style={{ height: '100%', width: '100%' }} scrollWheelZoom={true}>
-                      <MapFitBounds points={routePoints} />
-                      <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-                      <Polyline positions={routePoints} pathOptions={{ color: '#3b82f6', weight: 3, opacity: 0.7 }} />
-                      {mapData?.route?.filter(p => p.latitude != null && p.longitude != null).map((p, i, arr) => (
-                        <CircleMarker key={i} center={[p.latitude, p.longitude]}
-                          radius={i === 0 || i === arr.length - 1 ? 5 : 2}
-                          pathOptions={{ color: i === 0 ? '#22c55e' : i === arr.length - 1 ? '#ef4444' : '#3b82f6', fillOpacity: 0.8 }}>
-                          <Popup>{formatTime(p.time)}</Popup>
-                        </CircleMarker>
-                      ))}
-                      {mapData?.visit_locations?.filter(v => v.latitude).map((v) => (
-                        <LeafletMarker key={v.visit_id} position={[v.latitude, v.longitude]} icon={visitIcon}>
-                          <Popup>
-                            <div className="text-xs"><p className="font-bold">{v.customer_name}</p><p>{v.check_in_at ? formatTime(v.check_in_at) : '--'}</p></div>
-                          </Popup>
-                        </LeafletMarker>
-                      ))}
-                    </MapContainer>
-                  </div>
-                </>
-              ) : (
-                <div className="text-center py-6 text-gray-400"><MapPinned className="w-6 h-6 mx-auto mb-1" /><p className="text-xs">لا توجد نقاط تتبع</p></div>
-              )}
-            </Section>
-
-            {/* ===== 2. TIMELINE ===== */}
-            <Section title="⏳ الخط الزمني" expandedKey="timeline" expanded={expandedSections.timeline} onToggle={() => toggle('timeline')}>
-              {(!timeline?.events || timeline.events.length === 0) ? (
-                <div className="text-center py-6 text-gray-400"><p className="text-xs">لا توجد أحداث</p></div>
-              ) : (
-                <div className="space-y-1">
-                  {timeline.events.map((ev, i) => {
-                    const cfg = EVENT_CFG[ev.type] ?? { label: ev.type, color: 'text-gray-600', bg: 'bg-gray-50', dot: 'bg-gray-400', icon: '📌' }
-                    return (
-                      <div key={i} className="flex gap-2">
-                        <div className="flex flex-col items-center">
-                          <div className={`w-2.5 h-2.5 rounded-full mt-1.5 ${cfg.dot}`} />
-                          {i < (timeline?.events.length ?? 1) - 1 && <div className="w-0.5 flex-1 bg-gray-200" />}
-                        </div>
-                        <div className={`flex-1 ${cfg.bg} rounded-lg p-2`}>
-                          <div className="flex items-center justify-between">
-                            <span className="text-[10px] font-bold">{cfg.icon} {cfg.label}</span>
-                            <span className="text-[9px] text-gray-400">{formatTime(ev.time)}</span>
-                          </div>
-                          {ev.description && <p className="text-[10px] text-gray-600 mt-0.5">{ev.description}</p>}
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
-            </Section>
-
-            {/* ===== 3. TRACKING POINTS ===== */}
-            <Section title="📡 نقاط التتبع" expandedKey="tracking" expanded={expandedSections.tracking} onToggle={() => toggle('tracking')}>
-              <div className="grid grid-cols-2 gap-2 mb-2">
-                <StatBox label="إجمالي النقاط" value={String(mapData?.total_points ?? 0)} />
-                <StatBox label="المسافة" value={mapData ? `${mapData.total_distance_km} كم` : '--'} />
-                <StatBox label="أول نقطة" value={firstPtTime ? formatTime(firstPtTime) : '--'} />
-                <StatBox label="آخر نقطة" value={lastPtTime ? formatTime(lastPtTime) : '--'} />
-              </div>
-              {mapData && mapData.route?.length > 0 && (
-                <button onClick={() => setExpandedSections(prev => ({ ...prev, trackingList: !prev.trackingList }))}
-                  className="w-full text-xs text-blue-600 font-bold py-1.5 bg-blue-50 rounded-lg">
-                  {expandedSections.trackingList ? 'إخفاء القائمة' : `عرض القائمة (${mapData.route.length})`}
-                </button>
-              )}
-              {expandedSections.trackingList && mapData?.route && mapData.route.length > 0 && (
-                <div className="overflow-x-auto mt-2">
-                  <table className="w-full text-[10px] border-collapse">
-                    <thead>
-                      <tr className="bg-gradient-to-l from-blue-50 to-indigo-50 border-b border-blue-200">
-                        <th className="text-right py-2 px-2 text-blue-700 font-bold w-8">#</th>
-                        <th className="text-right py-2 px-2 text-blue-700 font-bold">الموقع</th>
-                        <th className="text-center py-2 px-2 text-blue-700 font-bold w-14">الوقت</th>
-                        <th className="text-center py-2 px-2 text-blue-700 font-bold w-14">المسافة</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {mapData.route.map((p, i) => {
-                        const dist = i > 0 && mapData.route[i - 1].latitude != null && mapData.route[i - 1].longitude != null && p.latitude != null && p.longitude != null
-                          ? haversineKm(mapData.route[i - 1].latitude, mapData.route[i - 1].longitude, p.latitude, p.longitude) : 0
-                        return (
-                          <tr key={i} className={`${i % 2 === 0 ? 'bg-white' : 'bg-gray-50/60'} border-b border-gray-100 hover:bg-blue-50/40 transition-colors`}>
-                            <td className="py-1.5 px-2 text-gray-400 font-bold align-middle">#{i + 1}</td>
-                            <td className="py-1.5 px-2 align-middle"><LocationDisplay lat={p.latitude} lng={p.longitude} size="sm" showAddress /></td>
-                            <td className="py-1.5 px-2 text-center text-gray-500 align-middle whitespace-nowrap">{formatTime(p.time)}</td>
-                            <td className="py-1.5 px-2 text-center align-middle whitespace-nowrap">
-                              {i > 0 && dist > 0 ? (
-                                <span className={`font-bold ${dist < 0.1 ? 'text-green-600' : dist < 0.5 ? 'text-amber-600' : 'text-orange-600'}`}>
-                                  {dist < 1 ? `${(dist * 1000).toFixed(0)} م` : `${dist.toFixed(2)} كم`}
-                                </span>
-                              ) : <span className="text-gray-300">--</span>}
-                            </td>
-                          </tr>
-                        )
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </Section>
-
-            {/* ===== 4. LONG STOPS ===== */}
-            <Section title="⏸️ التوقفات الطويلة" expandedKey="stops" expanded={expandedSections.stops} onToggle={() => toggle('stops')}>
-              {(!mapData?.long_stops || mapData.long_stops.length === 0) ? (
-                <div className="text-center py-4 text-gray-400"><p className="text-xs">لا توجد توقفات طويلة</p></div>
-              ) : (
-                <div className="space-y-1.5">
-                  {mapData.long_stops.map((stop, i) => (
-                    <div key={i} className="bg-amber-50 rounded-lg p-2.5">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-amber-700">⏸ توقف {fmtMin(stop.duration_minutes)}</span>
-                        {stop.latitude != null && stop.longitude != null && (
-                          <a href={`https://www.google.com/maps?q=${stop.latitude},${stop.longitude}`} target="_blank" rel="noopener noreferrer" className="text-[10px] text-blue-600">
-                            <Navigation className="w-3 h-3 inline" />
-                          </a>
-                        )}
-                      </div>
-                      <div className="text-[10px] text-amber-600 mt-0.5">
-                        {formatTime(stop.start_time)} ← {formatTime(stop.end_time)}
-                      </div>
-                      {stop.latitude != null && stop.longitude != null && (
-                        <div className="mt-0.5">
-                          <LocationDisplay lat={stop.latitude} lng={stop.longitude} size="sm" showAddress />
-                        </div>
-                      )}
+            {/* ===== 1. ROUTE MAP (only if hasViewTimeline) ===== */}
+            {hasViewTimeline && (
+              <Section title="🗺️ خريطة المسار" expandedKey="map" expanded={expandedSections.map} onToggle={() => toggle('map')}>
+                {routePoints.length > 0 ? (
+                  <>
+                    <div className="flex flex-wrap gap-1.5 mb-2">
+                      <span className="bg-indigo-50 text-indigo-600 text-[10px] px-2 py-0.5 rounded-full font-bold">{mapData?.total_distance_km} كم</span>
+                      <span className="bg-gray-100 text-gray-600 text-[10px] px-2 py-0.5 rounded-full">{mapData?.total_points} نقطة</span>
+                      <span className="bg-blue-50 text-blue-600 text-[10px] px-2 py-0.5 rounded-full">
+                        {firstPtTime ? formatTime(firstPtTime) : '--'} ← {lastPtTime ? formatTime(lastPtTime) : '--'}
+                      </span>
                     </div>
-                  ))}
-                </div>
-              )}
-            </Section>
+                    <div className="rounded-xl overflow-hidden" style={{ height: 250 }}>
+                      <MapContainer center={routePoints[0]} zoom={13} style={{ height: '100%', width: '100%' }} scrollWheelZoom={true}>
+                        <MapFitBounds points={routePoints} />
+                        <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                        <Polyline positions={routePoints} pathOptions={{ color: '#3b82f6', weight: 3, opacity: 0.7 }} />
+                        {mapData?.route?.filter(p => p.latitude != null && p.longitude != null).map((p, i, arr) => (
+                          <CircleMarker key={i} center={[p.latitude, p.longitude]}
+                            radius={i === 0 || i === arr.length - 1 ? 5 : 2}
+                            pathOptions={{ color: i === 0 ? '#22c55e' : i === arr.length - 1 ? '#ef4444' : '#3b82f6', fillOpacity: 0.8 }}>
+                            <Popup>{formatTime(p.time)}</Popup>
+                          </CircleMarker>
+                        ))}
+                        {mapData?.visit_locations?.filter(v => v.latitude).map((v) => (
+                          <LeafletMarker key={v.visit_id} position={[v.latitude, v.longitude]} icon={visitIcon}>
+                            <Popup>
+                              <div className="text-xs"><p className="font-bold">{v.customer_name}</p><p>{v.check_in_at ? formatTime(v.check_in_at) : '--'}</p></div>
+                            </Popup>
+                          </LeafletMarker>
+                        ))}
+                      </MapContainer>
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-center py-6 text-gray-400"><MapPinned className="w-6 h-6 mx-auto mb-1" /><p className="text-xs">لا توجد نقاط تتبع</p></div>
+                )}
+              </Section>
+            )}
 
-            {/* ===== 5. WORK HOURS LEDGER ===== */}
-            <Section title="📋 سجل ساعات العمل" expandedKey="ledger" expanded={expandedSections.ledger} onToggle={() => toggle('ledger')}>
-              {(!workHoursLedger || workHoursLedger.length === 0) ? (
-                <div className="text-center py-4 text-gray-400"><p className="text-xs">لا توجد بيانات</p></div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-[10px] border-collapse">
-                    <thead>
-                      <tr className="border-b border-gray-200">
-                        <th className="text-right py-1 px-1 text-gray-500 font-bold">النشاط</th>
-                        <th className="text-right py-1 px-1 text-gray-500 font-bold">البداية</th>
-                        <th className="text-right py-1 px-1 text-gray-500 font-bold">النهاية</th>
-                        <th className="text-center py-1 px-1 text-gray-500 font-bold">المدة</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {workHoursLedger
-                        .sort((a, b) => {
-                          const aT = a.start_time ? new Date(a.start_time).getTime() : 0
-                          const bT = b.start_time ? new Date(b.start_time).getTime() : 0
-                          return aT - bT
-                        })
-                        .map((e, i) => {
-                          const typeLabel: Record<string, string> = {
-                            work: '🔵 عمل', break: '🟡 استراحة',
-                            idle: '⚪ توقف', visit: '📍 زيارة',
-                          }
+            {/* ===== 2. TIMELINE (only if hasViewTimeline) ===== */}
+            {hasViewTimeline && (
+              <Section title="⏳ الخط الزمني" expandedKey="timeline" expanded={expandedSections.timeline} onToggle={() => toggle('timeline')}>
+                {(!timeline?.events || timeline.events.length === 0) ? (
+                  <div className="text-center py-6 text-gray-400"><p className="text-xs">لا توجد أحداث</p></div>
+                ) : (
+                  <div className="space-y-1">
+                    {timeline.events.map((ev, i) => {
+                      const cfg = EVENT_CFG[ev.type] ?? { label: ev.type, color: 'text-gray-600', bg: 'bg-gray-50', dot: 'bg-gray-400', icon: '📌' }
+                      return (
+                        <div key={i} className="flex gap-2">
+                          <div className="flex flex-col items-center">
+                            <div className={`w-2.5 h-2.5 rounded-full mt-1.5 ${cfg.dot}`} />
+                            {i < (timeline?.events.length ?? 1) - 1 && <div className="w-0.5 flex-1 bg-gray-200" />}
+                          </div>
+                          <div className={`flex-1 ${cfg.bg} rounded-lg p-2`}>
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] font-bold">{cfg.icon} {cfg.label}</span>
+                              <span className="text-[9px] text-gray-400">{formatTime(ev.time)}</span>
+                            </div>
+                            {ev.description && <p className="text-[10px] text-gray-600 mt-0.5">{ev.description}</p>}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </Section>
+            )}
+
+            {/* ===== 3. TRACKING POINTS (only if hasViewTimeline) ===== */}
+            {hasViewTimeline && (
+              <Section title="📡 نقاط التتبع" expandedKey="tracking" expanded={expandedSections.tracking} onToggle={() => toggle('tracking')}>
+                <div className="grid grid-cols-2 gap-2 mb-2">
+                  <StatBox label="إجمالي النقاط" value={String(mapData?.total_points ?? 0)} />
+                  <StatBox label="المسافة" value={mapData ? `${mapData.total_distance_km} كم` : '--'} />
+                  <StatBox label="أول نقطة" value={firstPtTime ? formatTime(firstPtTime) : '--'} />
+                  <StatBox label="آخر نقطة" value={lastPtTime ? formatTime(lastPtTime) : '--'} />
+                </div>
+                {mapData && mapData.route?.length > 0 && (
+                  <button onClick={() => setExpandedSections(prev => ({ ...prev, trackingList: !prev.trackingList }))}
+                    className="w-full text-xs text-blue-600 font-bold py-1.5 bg-blue-50 rounded-lg">
+                    {expandedSections.trackingList ? 'إخفاء القائمة' : `عرض القائمة (${mapData.route.length})`}
+                  </button>
+                )}
+                {expandedSections.trackingList && mapData?.route && mapData.route.length > 0 && (
+                  <div className="overflow-x-auto mt-2">
+                    <table className="w-full text-[10px] border-collapse">
+                      <thead>
+                        <tr className="bg-gradient-to-l from-blue-50 to-indigo-50 border-b border-blue-200">
+                          <th className="text-right py-2 px-2 text-blue-700 font-bold w-8">#</th>
+                          <th className="text-right py-2 px-2 text-blue-700 font-bold">الموقع</th>
+                          <th className="text-center py-2 px-2 text-blue-700 font-bold w-14">الوقت</th>
+                          <th className="text-center py-2 px-2 text-blue-700 font-bold w-14">المسافة</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {mapData.route.map((p, i) => {
+                          const dist = i > 0 && mapData.route[i - 1].latitude != null && mapData.route[i - 1].longitude != null && p.latitude != null && p.longitude != null
+                            ? haversineKm(mapData.route[i - 1].latitude, mapData.route[i - 1].longitude, p.latitude, p.longitude) : 0
                           return (
-                            <tr key={i} className="border-b border-gray-50">
-                              <td className="py-1 px-1 text-gray-700">{typeLabel[e.activity_type] || e.activity_type}</td>
-                              <td className="py-1 px-1 text-gray-500">{formatTime(e.start_time)}</td>
-                              <td className="py-1 px-1 text-gray-500">{e.end_time ? formatTime(e.end_time) : '--'}</td>
-                              <td className="py-1 px-1 text-center font-bold text-gray-800">{fmtMin(e.duration_minutes)}</td>
+                            <tr key={i} className={`${i % 2 === 0 ? 'bg-white' : 'bg-gray-50/60'} border-b border-gray-100 hover:bg-blue-50/40 transition-colors`}>
+                              <td className="py-1.5 px-2 text-gray-400 font-bold align-middle">#{i + 1}</td>
+                              <td className="py-1.5 px-2 align-middle"><LocationDisplay lat={p.latitude} lng={p.longitude} size="sm" showAddress /></td>
+                              <td className="py-1.5 px-2 text-center text-gray-500 align-middle whitespace-nowrap">{formatTime(p.time)}</td>
+                              <td className="py-1.5 px-2 text-center align-middle whitespace-nowrap">
+                                {i > 0 && dist > 0 ? (
+                                  <span className={`font-bold ${dist < 0.1 ? 'text-green-600' : dist < 0.5 ? 'text-amber-600' : 'text-orange-600'}`}>
+                                    {dist < 1 ? `${(dist * 1000).toFixed(0)} م` : `${dist.toFixed(2)} كم`}
+                                  </span>
+                                ) : <span className="text-gray-300">--</span>}
+                              </td>
                             </tr>
                           )
                         })}
-                    </tbody>
-                    <tfoot>
-                      <tr className="border-t border-gray-300 font-bold text-gray-800">
-                        <td colSpan={3} className="py-1.5 px-1 text-left">الإجمالي</td>
-                        <td className="py-1.5 px-1 text-center">
-                          {fmtMin(workHoursLedger.reduce((s, e) => s + e.duration_minutes, 0))}
-                        </td>
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </Section>
+            )}
+
+            {/* ===== 4. LONG STOPS (only if hasViewTimeline) ===== */}
+            {hasViewTimeline && (
+              <Section title="⏸️ التوقفات الطويلة" expandedKey="stops" expanded={expandedSections.stops} onToggle={() => toggle('stops')}>
+                {(!mapData?.long_stops || mapData.long_stops.length === 0) ? (
+                  <div className="text-center py-4 text-gray-400"><p className="text-xs">لا توجد توقفات طويلة</p></div>
+                ) : (
+                  <div className="space-y-1.5">
+                    {mapData.long_stops.map((stop, i) => (
+                      <div key={i} className="bg-amber-50 rounded-lg p-2.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-amber-700">⏸ توقف {fmtMin(stop.duration_minutes)}</span>
+                          {stop.latitude != null && stop.longitude != null && (
+                            <a href={`https://www.google.com/maps?q=${stop.latitude},${stop.longitude}`} target="_blank" rel="noopener noreferrer" className="text-[10px] text-blue-600">
+                              <Navigation className="w-3 h-3 inline" />
+                            </a>
+                          )}
+                        </div>
+                        <div className="text-[10px] text-amber-600 mt-0.5">
+                          {formatTime(stop.start_time)} ← {formatTime(stop.end_time)}
+                        </div>
+                        {stop.latitude != null && stop.longitude != null && (
+                          <div className="mt-0.5">
+                            <LocationDisplay lat={stop.latitude} lng={stop.longitude} size="sm" showAddress />
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Section>
+            )}
+
+            {/* ===== 5. WORK HOURS LEDGER ===== */}
+            <Section title={isField ? '📋 سجل التواجد' : '📋 سجل ساعات العمل'} expandedKey="ledger" expanded={expandedSections.ledger} onToggle={() => toggle('ledger')}>
+              {(!ledgerData?.ledger || ledgerData.ledger.length === 0) ? (
+                <div className="text-center py-4 text-gray-400"><p className="text-xs">لا توجد بيانات</p></div>
+              ) : (
+                <>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-[10px] border-collapse">
+                      <thead>
+                        <tr className="border-b border-gray-200">
+                          <th className="text-right py-1 px-1 text-gray-500 font-bold">{isField ? 'الجلسة' : 'النشاط'}</th>
+                          <th className="text-right py-1 px-1 text-gray-500 font-bold">البداية</th>
+                          <th className="text-right py-1 px-1 text-gray-500 font-bold">النهاية</th>
+                          <th className="text-center py-1 px-1 text-gray-500 font-bold">المدة</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {ledgerData.ledger
+                          .sort((a, b) => {
+                            const aT = a.start_time ? new Date(a.start_time).getTime() : 0
+                            const bT = b.start_time ? new Date(b.start_time).getTime() : 0
+                            return aT - bT
+                          })
+                          .map((e, i) => {
+                            const cfg = PRESENCE_CFG[e.activity_type] ?? { label: e.activity_type, color: 'text-gray-600', bg: 'bg-gray-50', dot: 'bg-gray-400', icon: '📌' }
+                            return (
+                              <tr key={i} className="border-b border-gray-50">
+                                <td className="py-1 px-1 text-gray-700">
+                                  <span className="font-bold">{cfg.icon} {cfg.label}</span>
+                                </td>
+                                <td className="py-1 px-1 text-gray-500">{formatTime(e.start_time)}</td>
+                                <td className="py-1 px-1 text-gray-500">{e.end_time ? formatTime(e.end_time) : <span className="text-amber-500">جاري</span>}</td>
+                                <td className="py-1 px-1 text-center font-bold text-gray-800">{fmtMin(e.duration_minutes)}</td>
+                              </tr>
+                            )
+                          })}
+                      </tbody>
+                      <tfoot>
+                        <tr className="border-t border-gray-300 font-bold text-gray-800">
+                          <td colSpan={3} className="py-1.5 px-1 text-left">الإجمالي</td>
+                          <td className="py-1.5 px-1 text-center">
+                            {fmtMin(ledgerData.schedule_info.presence_minutes)}
+                          </td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                  {isField && ledgerData.schedule_info.sessions_count > 1 && (
+                    <div className="mt-2 text-[10px] text-gray-500 text-center">
+                      <span className="bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-bold">
+                        {ledgerData.schedule_info.sessions_count} جلسات عمل — إجمالي مدة التواجد {fmtMin(ledgerData.schedule_info.presence_minutes)}
+                      </span>
+                    </div>
+                  )}
+                </>
               )}
             </Section>
 
-            {/* ===== 6. BREAK HISTORY DETAILED ===== */}
-            <Section title="☕ سجل الاستراحات (تفصيلي)" expandedKey="breakHistory" expanded={expandedSections.breakHistory} onToggle={() => toggle('breakHistory')}>
-              <div className="grid grid-cols-3 gap-2 mb-3">
-                <StatBox label="عدد الاستراحات" value={String(session.break_count)} />
-                <StatBox label="إجمالي وقت الاستراحة" value={fmtMin(session.break_minutes)} />
-                <StatBox label="متوسط الاستراحة" value={session.break_count > 0 ? fmtMin(Math.round(session.break_minutes / session.break_count)) : '--'} />
-              </div>
-              {timeline?.events ? (
-                <BreakHistoryTable events={timeline.events} />
-              ) : (
-                <div className="text-center py-4 text-gray-400"><p className="text-xs">لا توجد بيانات استراحات</p></div>
-              )}
-            </Section>
+            {/* ===== 6. BREAK HISTORY DETAILED — fixed_shift only ===== */}
+            {isFixed && (
+              <Section title="☕ سجل الاستراحات (تفصيلي)" expandedKey="breakHistory" expanded={expandedSections.breakHistory} onToggle={() => toggle('breakHistory')}>
+                <div className="grid grid-cols-3 gap-2 mb-3">
+                  <StatBox label="عدد الاستراحات" value={String(session.break_count)} />
+                  <StatBox label="إجمالي وقت الاستراحة" value={fmtMin(session.break_minutes)} />
+                  <StatBox label="متوسط الاستراحة" value={session.break_count > 0 ? fmtMin(Math.round(session.break_minutes / session.break_count)) : '--'} />
+                </div>
+                {timeline?.events ? (
+                  <BreakHistoryTable events={timeline.events} />
+                ) : (
+                  <div className="text-center py-4 text-gray-400"><p className="text-xs">لا توجد بيانات استراحات</p></div>
+                )}
+              </Section>
+            )}
           </>
         )}
         <div className="h-4" />
@@ -737,11 +801,6 @@ function BreakHistoryTable({ events }: { events: TimelineEvent[] }) {
       </table>
     </div>
   )
-}
-
-function CompositeBadge({ score }: { score: number }) {
-  const color = score >= 85 ? 'bg-green-100 text-green-700' : score >= 70 ? 'bg-blue-100 text-blue-700' : score >= 50 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'
-  return <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold ${color}`}>{score}</span>
 }
 
 function BadgeSmall({ status }: { status: string | null }) {

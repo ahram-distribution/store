@@ -212,27 +212,84 @@
 
 ---
 
-## 9. الخلاصة النهائية
+## 8. Phase C — IMPLEMENTED ✅
+
+**ما تم**: إصلاح شامل لشاشة EmployeeWorkdayDetailPage مع اعتماد نموذج المندوبين الجديد.
+
+### القرار التنفيذي — نموذج المندوب (`FIELD_REP_PRESENCE_POLICY.md`)
+
+اعتمد مجلس الإدارة رسمياً:
+- **المندوب**: مدة التواجد = `start_workday → end_workday` بدون خصم استراحات، لا late، لا early، لا overtime
+- **المكتبي**: يبقى النظام الحالي مع `net_minutes` + late/early/attendance_status
+- **الجلسات المتعددة**: دعم رسمي لـ Multiple Work Sessions Per Day
+
+### ما تم إنشاؤه
+
+| الملف | الحالة | الوصف |
+|-------|--------|-------|
+| `supabase/migrations/20260622_phase_c_workday_detail_repair.sql` | 🆕 جديد | `get_work_hours_ledger` (polymorphic) + إصلاح `get_daily_target_vs_actual` |
+| `docs/FIELD_REP_PRESENCE_POLICY.md` | 🆕 جديد | Source of Truth — نموذج الحضور المعتمد |
+| `docs/PHASE_C_WORKDAY_DETAIL_REPAIR.md` | 🆕 جديد | توثيق كامل لـ Phase C |
+| `docs/WORK_POLICY_AND_HOURS_AUDIT.md` | 🆕 جديد | تحقيق سياسات العمل (المرجع) |
+| `docs/ROOT_CAUSE_EMPLOYEE_WORKDAY_DETAIL.md` | 🆕 جديد | تحقيق الأسباب الجذرية |
+
+### ما تم تعديله
+
+| الملف | التغيير |
+|-------|---------|
+| `src/pages/attendance/EmployeeWorkdayDetailPage.tsx` | تكامل `schedule_type`: إخفاء late/early/breaks للمندوبين; إخفاء الأقسام بدون صلاحية `view_timeline` |
+| `docs/FIELD_REP_PRESENCE_POLICY.md` | Source of Truth |
+| `docs/FINAL_EXECUTIVE_REPORT.md` | هذا التحديث |
+
+### التغييرات الرئيسية
+
+1. **`get_work_hours_ledger` RPC جديد**: polymorphic — للمندوب يرجع `presence` entries فقط; للمكتبي يرجع `work` + `net_minutes` + `break_minutes`
+2. **إصلاح `get_daily_target_vs_actual`**: إزالة شرط `status = 'completed'` للمندوبين; استخدام `presence = duration - start` بدلاً من `net = duration - breaks`
+3. **Multiple Sessions Per Day**: تأكيد دعم القاعدة (`UNIQUE WHERE status = 'active'` يسمح بجلسات completed متعددة)
+4. **صلاحيات العرض**: الأقسام المعتمدة على `attendance.view_timeline` لا تظهر أصلاً إذا المستخدم لا يملك الصلاحية (بدون رسائل "لا توجد بيانات" مضللة)
+
+### التوثيق
+
+- `docs/FIELD_REP_PRESENCE_POLICY.md` — نموذج الحضور المعتمد
+- `docs/PHASE_C_WORKDAY_DETAIL_REPAIR.md` — تفاصيل التنفيذ
+- `docs/WORK_POLICY_AND_HOURS_AUDIT.md` — تحقيق سياسات العمل
+- `docs/ROOT_CAUSE_EMPLOYEE_WORKDAY_DETAIL.md` — الأسباب الجذرية
+
+---
+
+## 9. Productivity Runtime — DESIGN ONLY 📋
+
+**الحالة**: التصميم جاهز في `docs/PRODUCTIVITY_RUNTIME_DESIGN.md` — ينتظر اعتماد المقاييس الجديدة (حسب `FIELD_REP_PRESENCE_POLICY.md`) قبل التنفيذ.
+
+**المقاييس المعتمدة للمندوبين**: أيام العمل، ساعات التواجد، الزيارات، الطلبات، التحصيلات، العملاء الجدد، آخر نشاط.
+
+---
+
+## 10. الخلاصة النهائية
 
 ```
 Tracking V1:            ✅ كامل — GPS + Heartbeat + Connection Status + Auto-close
 Phase A:                ✅ APPROVED & CLOSED — last_activity CTE يعمل على 5 مصادر
 Phase B (كامل):         📋 DESIGN ONLY — معلق
 Phase B Lite:           ✅ IMPLEMENTED — Life signals عبر touch_session_activity()
-Presence Layer:         ✅ IMPLEMENTED — last_activity_at + last_activity_type visualizados
+Presence Layer:         ✅ IMPLEMENTED — last_activity_at + last_activity_type معروضان
+Phase C:                ✅ IMPLEMENTED — Workday Detail Repair + نموذج المندوبين الجديد
 trackingInterval:       ✅ FIXED — 300→900 ثانية
 
 التدقيق الأمني:         ✅ تم — مخاطر منخفضة
 التدقيق التشغيلي:       ✅ تم — 7 شاشات، 21 ملف، ~5,460 سطر
 التدقيق العربي:         ✅ تم — 15 ملف، جميع المصطلحات مترجمة
 التدقيق البصري:         ✅ تم — 3 مشكلات P0، 5 مشكلات P1، 5 مشكلات P2
+تحقيق سياسات العمل:     ✅ تم — 3 أنواع (fixed_shift, flexible, hourly) + دعم متعدد الجلسات
+تحقيق الأسباب الجذرية:   ✅ تم — 3 أسباب (RPC مفقود, صلاحية view_timeline, شرط completed)
 
-الملفات الجديدة:        2 (lifeSignalService.ts + PresenceLabel.tsx)
-الملفات المعدلة:        12 + 4 (Presence Layer)
-الملفات المحذوفة:       0
-الميجريشنز:             2 (Phase A فقط)
-الجداول الجديدة:        0
-RPCs جديدة:             0
+ملفات جديدة:             5 (lifeSignalService, PresenceLabel, migration Phase C, 3 docs)
+ملفات معدلة:             2 (EmployeeWorkdayDetailPage, FIELD_REP_PRESENCE_POLICY)
+ملفات محذوفة:            0
+ميجرشنز جديدة:           1 (Phase C — 2 RPCs)
+جداول جديدة:             0
+RPCs جديدة:              1 (get_work_hours_ledger)
+RPCs معدلة:              1 (get_daily_target_vs_actual)
 ```
 
-**الخلاصة**: النظام يعمل بشكل كامل. الأولوية القصوى هي تبسيط شاشات المديرين (SalesManagerCCPage و EmployeeWorkdayDetailPage) وإضافة أدوات الاتصال المباشر (Call/WhatsApp). تنفيذ P0 items سيحسن تجربة الاستخدام بنسبة ~60% ويقلل الكود بحوالي 1,500 سطر.
+**الخلاصة**: النظام يعمل بشكل كامل. المندوبون لديهم الآن نموذج حضور صحيح (مدة تواجد بدون خصومات) مع دعم جلسات متعددة. شاشة Workday Detail تعرض البيانات الصحيحة حسب نوع السياسة (`flexible`/`fixed_shift`). الأولوية القادمة هي Productivity Dashboard للمديرين باستخدام المقاييس المعتمدة فقط.
