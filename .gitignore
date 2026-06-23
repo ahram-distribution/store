@@ -82,3 +82,8 @@ docs/investigation/
 docs/*.md
 screenshot*.png
 *.screenshot.png
+*.traineddata
+*.cjs
+*.mjs
+test-results/
+vite.err
