@@ -30,7 +30,6 @@ import EmployeeTargetsPage from '../pages/dashboard/EmployeeTargetsPage'
 import EmployeeAnalysisPage from '../pages/dashboard/EmployeeAnalysisPage'
 import { ModuleLauncherPage } from '../pages/dashboard/ModuleLauncherPage'
 import TargetRuntimePage from '../pages/target-runtime/TargetRuntimePage'
-import { TargetSeedTool } from '../pages/admin/TargetSeedTool'
 import { AnalyticsListPage } from '../pages/analytics/AnalyticsListPage'
 import { CustomerAnalyticsPage } from '../pages/analytics/CustomerAnalyticsPage'
 import CustomerIntelligenceOverviewPage from '../pages/analytics/CustomerIntelligenceOverviewPage'
@@ -184,7 +183,6 @@ export function AppRoutes() {
       <Route path="/ops/gps-test" element={<ProtectedRoute requireUpperManagement><GpsTestPage /></ProtectedRoute>} />
       <Route path="/coverage-map" element={<ProtectedRoute requireUpperManagement><CoverageMapPage /></ProtectedRoute>} />
       <Route path="/data-center" element={<ProtectedRoute requireUpperManagement><DataDeletionCenter /></ProtectedRoute>} />
-      <Route path="/admin/seed-targets" element={<ProtectedRoute requireUpperManagement><TargetSeedTool /></ProtectedRoute>} />
 
       <Route path="*" element={<NotFoundPage />} />
     </Routes>
