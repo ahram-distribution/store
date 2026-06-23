@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase'
 import { toEnglishDigits } from '../../utils/format'
 import { locationService } from '../../services/location'
 import { getCurrentLocation } from '../../services/gpsService'
+import { lifeSignalService } from '../../services/lifeSignalService'
 import toast from 'react-hot-toast'
 
 const BUSINESS_TYPES: { value: string; label: string }[] = [
@@ -98,6 +99,7 @@ export function NewCustomerPage() {
     if (error) { toast.error('فشل إنشاء العميل: ' + error.message); return }
     const res = data as any
     if (res?.error) { toast.error(res.error); return }
+    lifeSignalService.notifyBusiness('customer_created')
     toast.success('تم إنشاء العميل بنجاح')
     navigate('/customers')
   }

@@ -6,6 +6,7 @@ import { StatusBadge } from '../../components/shared/StatusBadge'
 import { VisitCard } from '../../components/visits/VisitCard'
 import { locationService } from '../../services/location'
 import { getCurrentLocation } from '../../services/gpsService'
+import { lifeSignalService } from '../../services/lifeSignalService'
 import toast from 'react-hot-toast'
 
 function getToken(): string | null {
@@ -119,6 +120,7 @@ export function VisitsPage() {
     if (error) { console.error('[VISIT] VisitsPage checkin failed', error); toast.error(error.message); return }
     const resultData = data as any
     if (resultData.error) { console.error('[VISIT] VisitsPage checkin result error', resultData.error); toast.error(resultData.error); return }
+    lifeSignalService.notifyBusiness('visit_checkin')
     toast.success('تم تسجيل الدخول')
     setShowCheckin(false); setCheckinCustomerId('')
     if (resultData.id) navigate(`/visits/${resultData.id}`)

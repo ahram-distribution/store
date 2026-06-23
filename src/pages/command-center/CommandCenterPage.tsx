@@ -61,7 +61,7 @@ const MODULE_ROUTES: Record<string, string> = {
   delivery: '/command-center/modules/delivery',
   reports: '/command-center/modules/reports',
   warehouse: '/command-center/modules/warehouse',
-  targets: '/dashboard/company-targets',
+  targets: '/target-runtime',
   permissions: '/account/permissions',
   auctions: '/auctions',
   'daily-deals': '/daily-deals',

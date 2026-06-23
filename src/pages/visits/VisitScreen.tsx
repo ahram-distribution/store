@@ -7,6 +7,7 @@ import { StatusBadge } from '../../components/shared/StatusBadge'
 import { locationService } from '../../services/location'
 import { getCurrentLocation } from '../../services/gpsService'
 import { LocationDisplay } from '../../components/shared/LocationDisplay'
+import { lifeSignalService } from '../../services/lifeSignalService'
 import toast from 'react-hot-toast'
 
 function getToken(): string | null {
@@ -131,6 +132,7 @@ export function VisitScreen() {
       toast.error('فشل بدء الزيارة: ' + error.message)
       return
     }
+    lifeSignalService.notifyBusiness('visit_checkin')
     setStartTime(new Date().toISOString())
 
     const { data: dbData, error: dbError } = await supabase
@@ -179,6 +181,7 @@ export function VisitScreen() {
       setSubmitting(false)
       return
     }
+    lifeSignalService.notifyBusiness('visit_checkout')
     // Verify checkout in DB (best-effort)
     const { data: dbData, error: dbError } = await supabase
       .from('visits')

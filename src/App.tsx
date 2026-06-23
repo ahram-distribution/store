@@ -10,6 +10,8 @@ import { OfflinePage } from './components/splash/OfflinePage'
 import { ThemeProvider } from './context/ThemeContext'
 import { notificationService } from './services/notificationService'
 import { healthMonitor } from './utils/pageHealthCheck'
+import { lifeSignalService } from './services/lifeSignalService'
+import { trackingEngine } from './services/trackingEngine'
 
 const isNative = typeof window !== 'undefined' && !!(window as any).Capacitor?.isNativePlatform?.()
 const Router = isNative ? HashRouter : BrowserRouter
@@ -32,9 +34,20 @@ export function App() {
   useEffect(() => {
     if (!loading) {
       notificationService.register().then(() => notificationService.addListeners())
+      lifeSignalService.handleAppOpen()
     }
     return () => { notificationService.removeAllListeners() }
   }, [loading])
+
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible' && trackingEngine.sessionId) {
+        lifeSignalService.handleAppResume()
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => document.removeEventListener('visibilitychange', handleVisibility)
+  }, [])
 
   if (!splashDone) {
     return (

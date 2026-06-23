@@ -46,7 +46,6 @@ const MODULE_CONFIGS: Record<string, ModuleConfig> = {
       { icon: '\u{1F4CD}', label: 'كل الزيارات', path: '/visits' },
       { icon: '\u{2795}', label: 'زيارة جديدة', path: '/visits/new' },
       { icon: '\u{25B6}\u{FE0F}', label: 'بدء زيارة', path: '/visits?filter=active' },
-      { icon: '\u{1F4CA}', label: 'تحليل الزيارات', path: '/dashboard/employee-analysis' },
     ],
   },
   credit: {
@@ -113,12 +112,9 @@ const MODULE_CONFIGS: Record<string, ModuleConfig> = {
     icon: '\u{1F4CA}',
     operations: [
       { icon: '\u{1F4CA}', label: 'التقارير', path: '/reports' },
-      { icon: '\u{1F4C8}', label: 'تحليل الأداء', path: '/dashboard/performance' },
-      { icon: '\u{1F50D}', label: 'تحليل الموظفين', path: '/dashboard/employee-analysis' },
+      { icon: '\u{1F4C8}', label: 'التارجت', path: '/target-runtime' },
       { icon: '\u{1F4CA}', label: 'تقارير العملاء', path: '/analytics/customers' },
       { icon: '\u{1F504}', label: 'النشاط الموحد', path: '/activity' },
-      { icon: '\u{1F3AF}', label: 'أهداف الشركة', path: '/dashboard/company-targets' },
-      { icon: '\u{1F3AF}', label: 'أهداف الموظفين', path: '/dashboard/employee-targets' },
     ],
   },
   warehouse: {

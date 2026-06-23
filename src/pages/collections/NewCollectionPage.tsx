@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
+import { lifeSignalService } from '../../services/lifeSignalService'
 import toast from 'react-hot-toast'
 
 function getToken(): string | null {
@@ -59,6 +60,7 @@ export function NewCollectionPage() {
       return
     }
 
+    lifeSignalService.notifyBusiness('collection_created')
     toast.success('تم تسجيل التحصيل')
     navigate('/collections')
   }

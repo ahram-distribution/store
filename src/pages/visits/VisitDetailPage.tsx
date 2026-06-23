@@ -6,6 +6,7 @@ import { formatDateTime } from '../../utils/format'
 import { StatusBadge } from '../../components/shared/StatusBadge'
 import { locationService } from '../../services/location'
 import { getCurrentLocation } from '../../services/gpsService'
+import { lifeSignalService } from '../../services/lifeSignalService'
 import toast from 'react-hot-toast'
 
 const resultLabels: Record<string, string> = {
@@ -116,6 +117,7 @@ export function VisitDetailPage() {
         p_notes: notes || null,
       })
     }
+    lifeSignalService.notifyBusiness('visit_checkout')
     setActiveVisit(null)
     toast.success('تم إنهاء الزيارة')
     navigate('/visits')

@@ -45,12 +45,13 @@
     "@supabase/supabase-js": "^2.106.2",
     "date-fns": "^4.4.0",
     "leaflet": "^1.9.4",
-    "lucide-react": "^1.17.0",
+    "lucide-react": "1.17.0",
     "node-forge": "^1.4.0",
     "react-hot-toast": "^2.6.0",
     "react-leaflet": "^5.0.0",
     "react-router-dom": "^7.16.0",
     "selfsigned": "^5.5.0",
+    "ws": "^8.21.0",
     "zod": "^4.4.3",
     "zustand": "^5.0.14"
   }

@@ -29,6 +29,7 @@ import CompanyTargetsPage from '../pages/dashboard/CompanyTargetsPage'
 import EmployeeTargetsPage from '../pages/dashboard/EmployeeTargetsPage'
 import EmployeeAnalysisPage from '../pages/dashboard/EmployeeAnalysisPage'
 import { ModuleLauncherPage } from '../pages/dashboard/ModuleLauncherPage'
+import TargetRuntimePage from '../pages/target-runtime/TargetRuntimePage'
 import { AnalyticsListPage } from '../pages/analytics/AnalyticsListPage'
 import { CustomerAnalyticsPage } from '../pages/analytics/CustomerAnalyticsPage'
 import CustomerIntelligenceOverviewPage from '../pages/analytics/CustomerIntelligenceOverviewPage'
@@ -175,6 +176,7 @@ export function AppRoutes() {
       <Route path="/attendance/employee/:employeeId/:date" element={<ProtectedRoute employeeOnly requireCapability="attendance.view_history"><EmployeeWorkdayDetailPage /></ProtectedRoute>} />
       <Route path="/attendance/operations" element={<ProtectedRoute employeeOnly requireCapability="attendance.live_monitor"><OperationsCenterPage /></ProtectedRoute>} />
 
+      <Route path="/target-runtime" element={<ProtectedRoute employeeOnly><TargetRuntimePage /></ProtectedRoute>} />
       <Route path="/sales-manager-cc" element={<ProtectedRoute employeeOnly><SalesManagerCCPage /></ProtectedRoute>} />
       <Route path="/sales-effort" element={<ProtectedRoute employeeOnly><SalesEffortPage /></ProtectedRoute>} />
 

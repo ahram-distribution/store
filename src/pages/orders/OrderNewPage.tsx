@@ -9,6 +9,7 @@ import { formatCurrencyShort } from '../../utils/format'
 import type { ProductWithPrice, ProductUnitPrice, UnitType } from '../../types/storefront'
 import toast from 'react-hot-toast'
 import { creditService } from '../../services/credit'
+import { lifeSignalService } from '../../services/lifeSignalService'
 
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
@@ -214,6 +215,7 @@ export function OrderNewPage() {
       if (createError) { toast.error('فشل إنشاء الطلب: ' + createError.message); setSubmitting(false); return }
       if (!created) { toast.error('فشل إنشاء الطلب'); setSubmitting(false); return }
       order = created
+      lifeSignalService.notifyBusiness('order_created')
       const { error: submitError } = await supabase.rpc('governed_submit_order', {
         p_token: token, p_id: order.id,
       })

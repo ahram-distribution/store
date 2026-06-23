@@ -152,6 +152,7 @@ export default function EmployeeWorkdayDetailPage() {
   })
   const [hasViewTimeline, setHasViewTimeline] = useState(true)
   const [scheduleType, setScheduleType] = useState<string>('')
+  const [historyForbidden, setHistoryForbidden] = useState(false)
 
   const todayRaw = date ?? new Date().toISOString().slice(0, 10)
   const today = isNaN(new Date(todayRaw).getTime()) ? new Date().toISOString().slice(0, 10) : todayRaw
@@ -178,11 +179,15 @@ export default function EmployeeWorkdayDetailPage() {
       if (nameRes?.data && typeof nameRes.data === 'object' && !('error' in (nameRes.data as Record<string, unknown>))) {
         setEmployeeName((nameRes.data as Record<string, unknown>).full_name as string || '')
       }
-      if (historyRes?.data && typeof historyRes.data === 'object' && !('error' in (historyRes.data as Record<string, unknown>))) {
-        const h = historyRes.data as HistoryResponse
-        if (h.sessions && h.sessions.length > 0) setSession(h.sessions[0])
-        if (h.sessions) setHistorySessions(h.sessions)
-        if (h.summary) setHistorySummary(h.summary)
+      if (historyRes?.data && typeof historyRes.data === 'object') {
+        if ((historyRes.data as Record<string, unknown>).error === 'FORBIDDEN') {
+          setHistoryForbidden(true)
+        } else if (!('error' in (historyRes.data as Record<string, unknown>))) {
+          const h = historyRes.data as HistoryResponse
+          if (h.sessions && h.sessions.length > 0) setSession(h.sessions[0])
+          if (h.sessions) setHistorySessions(h.sessions)
+          if (h.summary) setHistorySummary(h.summary)
+        }
       }
       try {
         const { data: tr } = await supabase.rpc('get_daily_target_vs_actual', {
@@ -217,15 +222,17 @@ export default function EmployeeWorkdayDetailPage() {
       }
       if (timelineRes?.data && !tlErr && !((timelineRes.data as Record<string, unknown>).error)) setTimeline(timelineRes.data as TimelineData)
 
-      // Work Hours Ledger
-      const ledgerRes = await supabase.rpc('get_work_hours_ledger', {
-        p_token: token, p_employee_id: employeeId, p_from: today, p_to: today,
-      })
-      if (ledgerRes.data && typeof ledgerRes.data === 'object' && !('error' in (ledgerRes.data as Record<string, unknown>))) {
-        const lr = ledgerRes.data as WorkHoursLedgerResponse
-        setLedgerData(lr)
-        setScheduleType(lr.schedule_type)
-      }
+      // Work Hours Ledger (graceful if RPC does not exist yet)
+      try {
+        const ledgerRes = await supabase.rpc('get_work_hours_ledger', {
+          p_token: token, p_employee_id: employeeId, p_from: today, p_to: today,
+        })
+        if (ledgerRes.data && typeof ledgerRes.data === 'object' && !('error' in (ledgerRes.data as Record<string, unknown>))) {
+          const lr = ledgerRes.data as WorkHoursLedgerResponse
+          setLedgerData(lr)
+          setScheduleType(lr.schedule_type)
+        }
+        } catch {} // RPC not deployed yet, safe fallback
 
       setLoading(false)
     }
@@ -274,12 +281,17 @@ export default function EmployeeWorkdayDetailPage() {
           </div>
         </div>
 
-        {!session && !loading && (
-          <div className="text-center py-10 text-gray-400">
-            <Clock className="w-10 h-10 mx-auto mb-2" />
-            <p className="text-sm">لا توجد بيانات لهذا اليوم</p>
-          </div>
-        )}
+    {historyForbidden ? (
+      <div className="text-center py-10 text-gray-400">
+        <Clock className="w-10 h-10 mx-auto mb-2" />
+        <p className="text-sm">ليس لديك صلاحية لعرض بيانات هذا الموظف</p>
+      </div>
+    ) : !session && !loading && (
+      <div className="text-center py-10 text-gray-400">
+        <Clock className="w-10 h-10 mx-auto mb-2" />
+        <p className="text-sm">لا توجد بيانات لهذا اليوم</p>
+      </div>
+    )}
 
         {session && (
           <>

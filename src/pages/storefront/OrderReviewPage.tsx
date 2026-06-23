@@ -8,6 +8,7 @@ import { sendWhatsAppFromDisplay } from '../../lib/whatsapp'
 import { buildOrderDisplayData, UNIT_LABELS } from '../../types/order-display'
 import toast from 'react-hot-toast'
 import { creditService } from '../../services/credit'
+import { lifeSignalService } from '../../services/lifeSignalService'
 
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
@@ -87,6 +88,7 @@ export function OrderReviewPage() {
       if (createError) { toast.error('فشل إنشاء الطلب: ' + createError.message); setSubmitting(false); return }
       if (!created) { toast.error('فشل إنشاء الطلب'); setSubmitting(false); return }
       order = created
+      lifeSignalService.notifyBusiness('order_created')
 
       // flash offers (best-effort)
       if (flashOfferItems.length > 0) {

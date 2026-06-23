@@ -41,7 +41,7 @@ class TrackingEngine {
   private _intervalId: ReturnType<typeof setInterval> | null = null
   private _sessionId: string | null = null
   private _employeeId: string | null = null
-  private _intervalSeconds = 300
+  private _intervalSeconds = 900
   private _lastPointAt: string | null = null
   private _lastSyncAt: string | null = null
   private _gpsAvailable = false
@@ -95,6 +95,9 @@ class TrackingEngine {
       this._listeners.forEach((fn) => fn(s))
     })
   }
+
+  get sessionId(): string | null { return this._sessionId }
+  get employeeId(): string | null { return this._employeeId }
 
   setEmployeeId(id: string) {
     this._employeeId = id

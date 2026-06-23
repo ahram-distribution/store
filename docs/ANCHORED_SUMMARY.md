@@ -1,67 +1,78 @@
-# Anchored Summary — Tracking & Attendance System
+# Anchored Summary — Targets & KPI System
 
 ## Goal
-Complete and close Tracking V1 (Phase A) + Phase B Lite with final operational/security/Arabic audit.
+Complete Phase 0 (Target System Audit) → Phase 0.5 (Governance Repair Plan, final) → Begin implementation
 
-## Final Status
+## Status
 
 | Component | Status | Date |
-|---|---|---|
-| Phase A (connection_status fix) | ✅ APPROVED & CLOSED | 2026-06-19 |
-| Phase B (full Event Platform) | 📋 DESIGN APPROVED — ON HOLD | 2026-06-19 |
-| Phase B Lite (life signals via touch_session_activity) | ✅ IMPLEMENTED | 2026-06-21 |
-| trackingInterval bug fix (300→900) | ✅ COMMITTED | 2026-06-22 |
-| Operational audit (7 screens, 21 files) | ✅ COMPLETE | 2026-06-22 |
-| Arabic language audit (15 files) | ✅ COMPLETE | 2026-06-22 |
-| Information overload audit (5,460 lines) | ✅ COMPLETE | 2026-06-22 |
-| Final executive report | 🏁 CREATED | 2026-06-22 |
+|-----------|--------|------|
+| F1 KPI structure audit | ✅ COMPLETE | 2026-06-22 |
+| F2 canonical KPI unification (get_work_hours_ledger) | ✅ COMPLETE | 2026-06-22 |
+| F3 canonical KPI enforcement | ✅ COMPLETE | 2026-06-22 |
+| F4-F5 canonical KPI alignment | ✅ COMPLETE | 2026-06-22 |
+| Production bug: EmployeeWorkdayDetailPage crash | ✅ FIXED (get_work_hours_ledger join fix) | 2026-06-22 |
+| Phase 0: Target System Audit | ✅ COMPLETE | 2026-06-22 |
+| Phase 0.5: Final Governance Repair Plan | ✅ COMPLETE & APPROVED | 2026-06-22 |
 
-## Key Changes Made
-- `src/services/lifeSignalService.ts` — NEW: central signal service (app_open, app_resume, business)
-- `src/services/trackingQueue.ts` — MODIFIED: addSignal/getSignals/flushSignals added
-- `src/services/trackingEngine.ts` — MODIFIED: GPS 300s→900s, exposed sessionId/employeeId
-- `src/App.tsx` — MODIFIED: app_open on mount, visibilitychange for app_resume
-- 9 business page files — MODIFIED: lifeSignalService.notifyBusiness() added
-- `src/pages/attendance/runtime/AttendanceRuntimePage.tsx` — FIXED: trackingInterval 300→900
-- `docs/PHASE_A_VERIFICATION_REPORT.md` — Phase A closed
-- `docs/phase_b_design.md` — Phase B on hold
-- `docs/PHASE_B_LITE_DESIGN_DELTA.md` — Phase B Lite design delta
+## Official Source of Truth (Approved)
 
-## Audit Results Summary
+### Standard Rep Targets
+| KPI | Value |
+|-----|-------|
+| Sales | 5,000,000 EGP |
+| Orders | 250 |
+| Visits | 250 |
+| New Customers | 30 |
 
-### Security
-- `touch_session_activity(p_session_id)` — takes only UUID, no token validation
-- Risk: authenticated user could reset another session's timer if UUID guessed
-- Mitigation: UUIDs are unguessable; practical risk is low
-- Recommendation: wrap in token-validating RPC in future migration
+### Weights
+| KPI | Weight |
+|-----|--------|
+| Sales | 75% |
+| Orders | 7.5% |
+| Visits | 7.5% |
+| New Customers | 10% |
+| Collections | 0% (deferred) |
+| **Total** | **100%** |
 
-### Spam/Flood
-- `visibilitychange` handler has no debounce — but `touch_session_activity` is an idempotent UPDATE
-- Negligible practical impact
+### Manager Rule
+- **No independent target** — no row in `employee_monthly_targets`
+- Target = `SUM(Active Team Members Targets)` — computed dynamically
+- No coefficient (deferred, pending data review after 2-3 months)
+- Auto-recalculate on any team composition change (new rep, transfer, activation, deactivation)
 
-### GPS Data Growth
-- Business signals (visit/order/collection/customer) call only `touch_session_activity()` — zero tracking_points
-- GPS points only from `trackingEngine` at 900s intervals: ~96 pts/day/employee max
-- With 45-day retention + 1000 employees: ~4.3M rows steady-state
+## Issues Found (Phase 0)
 
-### Operational Value (7 screens)
-- **OperationsCenterPage** — Well-designed, alerts drive action
-- **EmployeeWorkdayDetailPage** — Over-engineered, 4 noise items (tracking points ×4)
-- **SalesManagerCCPage** — Scope creep (5 embedded forms), 1211 lines, biggest offender
-- **UpperManagementDashboard** — Used as navigation menu, no strategic trends
-- **MapTab/TeamMapPage** — Duplicate maps, need clustering
+1. Collections_target regression in 6 RPCs (upsert, get, performance, drill-down ×2, dashboard)
+2. Weight overrides ignored in get_governed_target_performance
+3. No manager aggregation in EmployeeTargetsPage or any drill-down RPC
+4. Role filter mismatch between page and RPC
+5. Achievement recalc bug on edit save
+6. Collections KPI missing from performance score (beyond regression — also empty in company_weight)
 
-### Arabic Audit
-- All connection_status values properly localized (متصل/متأخر/منقطع)
-- "GPS" is mixed English/Arabic in 15+ strings — acceptable as loanword
-- Fallback risk: raw English could display for unknown status values
+## Key Decisions
+1. Collections excluded from score until Collections Governance review complete
+2. Manager target = Sum(Active Team Members Targets), no storage, no manual entry
+3. Weights adopted as 75/7.5/7.5/10 (hardcoded, not read from company_monthly_targets)
+4. get_effective_weights() restored in performance RPC, scoped to 4 KPIs only
+5. Performance_weights_config not used until annual review needed
+6. Manager upsert blocked — FORBIDDEN for manager roles
 
-### Info Overhaul
-- P0: Remove forms from SalesManagerCC, merge maps, trim EmployeeDetailPage
-- P0: Remove KPI duplicates, tracking points table, long stops from detail page
-- P1: Add call/WhatsApp buttons, merge GlobalCounters+ProductivityArea
-- P2: Move HistoricalPerformancePanel out of OpCenter
+## Execution Order (Approved — Start Phase 1)
+
+```
+Phase 1: Collections Pipeline Repair  ← CURRENT
+  → Impact Analysis → Reality Validation → Verification Report
+Phase 2: Weights Repair
+  → Impact Analysis → Reality Validation → Verification Report
+Phase 3: Manager Aggregation
+  → Impact Analysis → Reality Validation → Verification Report
+Phase 4: Role Alignment & Cleanup
+  → Impact Analysis → Reality Validation → Verification Report
+```
+
+**Rule**: Stop immediately if any KPI/Target/Weight conflicts with approved Source of Truth.
 
 ## Files
-- `docs/FINAL_EXECUTIVE_REPORT.md` — Full final report with all findings
-- `docs/ANCHORED_SUMMARY.md` — This file (per-session context)
+- `docs/PHASE0_TARGET_SYSTEM_AUDIT.md` — Full Phase 0 audit + Phase 0.5 final governance plan (sections A-F)
+- `docs/ANCHORED_SUMMARY.md` — This file

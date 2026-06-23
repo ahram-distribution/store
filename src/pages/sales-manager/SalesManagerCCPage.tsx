@@ -6,6 +6,7 @@ import { locationService } from '../../services/location'
 import { attendanceService } from '../../services/attendance'
 import { getCurrentLocation } from '../../services/gpsService'
 import { VisitCard } from '../../components/visits/VisitCard'
+import { lifeSignalService } from '../../services/lifeSignalService'
 import toast from 'react-hot-toast'
 
 const BUSINESS_TYPES = [
@@ -311,6 +312,7 @@ export default function SalesManagerCCPage() {
     if (error) { setSubmitting(false); toast.error(error.message); return }
     const res = data as any
     if (res?.error) { setSubmitting(false); toast.error(res.error); return }
+    lifeSignalService.notifyBusiness('customer_created')
     const customerId = res.id as string
     const targetOwner = custOwnerId || managerId
     if (targetOwner && customerId) {
@@ -360,6 +362,7 @@ export default function SalesManagerCCPage() {
       if (error) { toast.error(error.message); setShowCustomerPicker(null); return }
       const res = data as any
       if (res?.error) { toast.error(res.error); setShowCustomerPicker(null); return }
+      lifeSignalService.notifyBusiness('visit_checkin')
       setActiveVisitId(res.id as string)
       setShowCustomerPicker(null)
       setVisitResult('')
@@ -430,6 +433,7 @@ export default function SalesManagerCCPage() {
     })
     setSubmitting(false)
     if (error) { toast.error(error.message); return }
+    lifeSignalService.notifyBusiness('visit_checkout')
     setActiveVisitId(null); setVisitResult(''); setVisitNotes('')
     toast.success('تم إنهاء الزيارة')
   }
@@ -831,8 +835,7 @@ export default function SalesManagerCCPage() {
             <QuickBtn label="الموظفون" onClick={() => nav('/employees')} color="bg-surface text-text" />
             <QuickBtn label="الهيكل البيعي" onClick={() => nav('/hierarchy')} color="bg-surface text-text" />
             <QuickBtn label="اعتماد الطلبات" onClick={() => nav('/orders/approval-queue')} color="bg-accent text-white" />
-            <QuickBtn label="أهداف الفريق" onClick={() => nav('/dashboard/employee-targets')} color="bg-primary text-white" />
-            <QuickBtn label="تحليل الأداء" onClick={() => nav('/dashboard/performance')} color="bg-surface text-text" />
+            <QuickBtn label="التارجت" onClick={() => nav('/target-runtime')} color="bg-primary text-white" />
             <QuickBtn label="التقارير" onClick={() => nav('/reports')} color="bg-surface text-text" />
             <QuickBtn label="المراقبة الحية" onClick={() => nav('/attendance/operations')} color="bg-primary text-white" />
             <QuickBtn label="تسجيل الحضور" onClick={() => nav('/attendance/runtime')} color="bg-gradient-to-l from-blue-600 to-indigo-700 text-white" />

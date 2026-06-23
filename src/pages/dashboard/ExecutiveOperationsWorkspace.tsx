@@ -5,6 +5,7 @@ import { formatCurrencyShort } from '../../utils/format'
 import { useAuthStore } from '../../store/auth'
 import { OrderDetailView } from '../../components/orders/OrderDetailView'
 import type { UnifiedOrder } from '../../types/unified-order'
+import { lifeSignalService } from '../../services/lifeSignalService'
 
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
@@ -311,6 +312,7 @@ export function ExecutiveOperationsWorkspace() {
       })
       if (error) throw error
       if (data?.error) throw new Error(data.error)
+      lifeSignalService.notifyBusiness('collection_created')
       setMessage({ type: 'success', text: 'تم تسجيل التحصيل' })
       setShowCollectionModal(false)
       setCollectionAmount(''); setCollectionReference(''); setCollectionNotes('')

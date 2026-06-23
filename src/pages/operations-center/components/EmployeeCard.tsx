@@ -198,7 +198,7 @@ export default function EmployeeCard(props: EmployeeCardProps) {
             <p className="text-[9px] text-purple-500">طلبات</p>
           </div>
           <div className="bg-emerald-50 rounded-lg p-1 text-center">
-            <p className="text-xs font-bold text-emerald-600">{e.sales_value.toLocaleString('en-EG')}</p>
+            <p className="text-xs font-bold text-emerald-600">{(e.sales_value ?? 0).toLocaleString('en-EG')}</p>
             <p className="text-[9px] text-emerald-500">مبيعات</p>
           </div>
           <div className="bg-orange-50 rounded-lg p-1 text-center">
@@ -285,7 +285,7 @@ export default function EmployeeCard(props: EmployeeCardProps) {
             <p className="text-[9px] text-purple-500">طلبات</p>
           </div>
           <div className="bg-emerald-50 rounded-lg p-1 text-center">
-            <p className="text-xs font-bold text-emerald-600">{e.sales_value.toLocaleString('en-EG')}</p>
+            <p className="text-xs font-bold text-emerald-600">{(e.sales_value ?? 0).toLocaleString('en-EG')}</p>
             <p className="text-[9px] text-emerald-500">مبيعات</p>
           </div>
           <div className="bg-orange-50 rounded-lg p-1 text-center">

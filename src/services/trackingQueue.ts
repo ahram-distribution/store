@@ -16,6 +16,15 @@ export interface PendingPoint {
   failure_reason?: string
 }
 
+export interface SignalEntry {
+  id?: number
+  type: 'app_open' | 'app_resume' | 'visit_checkin' | 'visit_checkout' | 'order_created' | 'collection_created' | 'customer_created'
+  session_id: string
+  employee_id?: string
+  recorded_at: string
+  retries: number
+}
+
 export interface AuthInfo {
   supabaseUrl: string
   anonKey: string
@@ -85,6 +94,46 @@ export const trackingQueue = {
       point_type: 'heartbeat',
       priority: 0,
     })
+  },
+
+  async addSignal(signal: Omit<SignalEntry, 'id' | 'retries'>): Promise<void> {
+    try {
+      const db = await openDB()
+      const tx = db.transaction('pending_points', 'readwrite')
+      tx.objectStore('pending_points').add({
+        employee_id: signal.employee_id || '',
+        session_id: signal.session_id,
+        recorded_at: signal.recorded_at,
+        point_type: signal.type,
+        priority: 0,
+        retries: 0,
+      })
+      await new Promise<void>((resolve, reject) => {
+        tx.oncomplete = () => { notifySW('QUEUE_UPDATED'); resolve() }
+        tx.onerror = () => reject(tx.error)
+      })
+    } catch {
+      try {
+        const key = `sig_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+        localStorage.setItem(key, JSON.stringify(signal))
+        notifySW('QUEUE_UPDATED')
+      } catch {}
+    }
+  },
+
+  async getSignals(): Promise<SignalEntry[]> {
+    const all = await this.getPending()
+    const signalTypes = new Set(['app_open', 'app_resume', 'visit_checkin', 'visit_checkout', 'order_created', 'collection_created', 'customer_created'])
+    return all
+      .filter((p) => signalTypes.has(p.point_type))
+      .map((p) => ({
+        id: p.id,
+        type: p.point_type as SignalEntry['type'],
+        session_id: p.session_id,
+        employee_id: p.employee_id,
+        recorded_at: p.recorded_at,
+        retries: p.retries,
+      }))
   },
 
   async getPending(): Promise<PendingPoint[]> {
