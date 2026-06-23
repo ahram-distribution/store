@@ -215,7 +215,7 @@ export default function OperationsCenterPage() {
     const navMap: Record<string, string> = {
       'الطلبات': '/orders?filter=today',
       'المبيعات': '/orders?filter=today',
-      'عملاء جدد': '/customers',
+      'عملاء مسجلون': '/customers',
       'الزيارات': '/visits?filter=today',
     }
     const path = navMap[label]

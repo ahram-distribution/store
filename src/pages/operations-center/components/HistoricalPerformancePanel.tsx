@@ -350,7 +350,7 @@ export default function HistoricalPerformancePanel() {
                 { label: 'الطلبات', value: data.totals.total_orders },
                 { label: 'المبيعات', value: (data.totals.total_sales ?? 0).toLocaleString('en-EG') + ' ج.م' },
                 { label: 'التحصيلات', value: (data.totals.total_collection_amount ?? 0).toLocaleString('en-EG') + ' ج.م' },
-                { label: 'عملاء جدد', value: data.totals.total_new_customers },
+                { label: 'عملاء مسجلون', value: data.totals.total_new_customers },
                 { label: 'الزيارات', value: data.totals.total_visits },
                 { label: 'الموظفون', value: data.totals.total_employees },
               ].map((item) => (
@@ -401,7 +401,7 @@ export default function HistoricalPerformancePanel() {
                         { label: 'الطلبات', value: emp.summary.total_orders, sub: null },
                         { label: 'المبيعات', value: (emp.summary.total_sales_value ?? 0).toLocaleString('en-EG') + ' ج.م', sub: null },
                         { label: 'التحصيلات', value: (emp.summary.total_collection_amount ?? 0).toLocaleString('en-EG') + ' ج.م', sub: emp.summary.total_collection_count + ' عملية' },
-                        { label: 'عملاء جدد', value: emp.summary.total_new_customers, sub: null },
+                        { label: 'عملاء مسجلون', value: emp.summary.total_new_customers, sub: null },
                         { label: 'الزيارات', value: emp.summary.total_visits, sub: null },
                         { label: 'مسافة', value: (emp.summary.total_distance_meters ?? 0) >= 1000 ? ((emp.summary.total_distance_meters ?? 0) / 1000).toFixed(1) + ' كم' : (emp.summary.total_distance_meters ?? 0) + ' م', sub: null },
                         { label: 'نقاط تتبع', value: emp.summary.total_tracking_points, sub: null },
@@ -422,7 +422,7 @@ export default function HistoricalPerformancePanel() {
                       <TargetRow label="الطلبات" actual={emp.summary.total_orders} target={emp.summary.orders_target} achievement={emp.summary.orders_achievement_pct} />
                       <TargetRow label="الزيارات" actual={emp.summary.total_visits} target={emp.summary.visits_target} achievement={emp.summary.visits_achievement_pct} />
                       <TargetRow label="التحصيلات" actual={emp.summary.total_collection_amount} target={emp.summary.collections_target} achievement={emp.summary.collections_achievement_pct} currency />
-                      <TargetRow label="عملاء جدد" actual={emp.summary.total_new_customers} target={emp.summary.new_customers_target} achievement={emp.summary.new_customers_achievement_pct} />
+                      <TargetRow label="عملاء مسجلون" actual={emp.summary.total_new_customers} target={emp.summary.new_customers_target} achievement={emp.summary.new_customers_achievement_pct} />
                     </div>
 
                     {/* Sessions table */}
@@ -440,7 +440,7 @@ export default function HistoricalPerformancePanel() {
                               <th className="text-right px-2 py-1.5 font-medium">طلبات</th>
                               <th className="text-right px-2 py-1.5 font-medium">مبيعات</th>
                               <th className="text-right px-2 py-1.5 font-medium">تحصيلات</th>
-                              <th className="text-right px-2 py-1.5 font-medium">جدد</th>
+                              <th className="text-right px-2 py-1.5 font-medium">مسجل</th>
                               <th className="text-right px-2 py-1.5 font-medium">المسافة</th>
                               <th className="text-right px-2 py-1.5 font-medium">نقاط</th>
                               <th className="text-right px-2 py-1.5 font-medium">الحالة</th>

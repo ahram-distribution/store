@@ -1,6 +1,6 @@
 const ICONS: Record<string, string> = {
   'النشطون': '🟢', 'في استراحة': '☕', 'منقطع': '🔴', 'لم يبدؤوا': '⚪',
-  'الطلبات': '📦', 'المبيعات': '💰', 'عملاء جدد': '👤', 'الزيارات': '📍',
+   'الطلبات': '📦', 'المبيعات': '💰', 'عملاء مسجلون': '👤', 'الزيارات': '📍',
   'نسبة التقدم': '📊',
 }
 
@@ -37,7 +37,7 @@ export default function GlobalCounters({
     { icon: '⚪', label: 'لم يبدؤوا', value: String(noStartCount), rawValue: noStartCount },
     { icon: '📦', label: 'الطلبات', value: String(totalOrders), rawValue: totalOrders },
     { icon: '💰', label: 'المبيعات', value: totalSales.toLocaleString('en-EG'), rawValue: totalSales },
-    { icon: '👤', label: 'عملاء جدد', value: String(totalNewCustomers), rawValue: totalNewCustomers },
+    { icon: '👤', label: 'عملاء مسجلون', value: String(totalNewCustomers), rawValue: totalNewCustomers },
     { icon: '📍', label: 'الزيارات', value: String(totalVisits), rawValue: totalVisits },
   ]
 

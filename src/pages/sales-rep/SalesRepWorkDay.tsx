@@ -232,14 +232,14 @@ export function SalesRepWorkDay() {
     { label: 'المبيعات', value: fmtShort(todaySales) },
     { label: 'الطلبات', value: fmt(todayOrders) },
     { label: 'الزيارات', value: fmt(todayVisitsDone) },
-    { label: 'عملاء جدد', value: fmt(todayNewCustomers) },
+    { label: 'عملاء مسجلون اليوم', value: fmt(todayNewCustomers) },
   ]
 
   const monthlyIndicators = [
     { label: 'المبيعات', actual: monthlySales, target: employeePerf?.sales_target || 0 },
     { label: 'الطلبات', actual: monthlyOrders, target: employeePerf?.orders_target || 0 },
     { label: 'الزيارات', actual: monthlyVisits, target: employeePerf?.visits_target || 0 },
-    { label: 'عملاء جدد', actual: monthlyNewCustomers, target: employeePerf?.new_customers_target || 0 },
+    { label: 'عملاء مسجلون هذا الشهر', actual: monthlyNewCustomers, target: employeePerf?.new_customers_target || 0 },
   ]
 
   const kpiCards = [

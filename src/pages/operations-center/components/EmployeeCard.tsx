@@ -203,7 +203,7 @@ export default function EmployeeCard(props: EmployeeCardProps) {
           </div>
           <div className="bg-orange-50 rounded-lg p-1 text-center">
             <p className="text-xs font-bold text-orange-600">{e.new_customer_count}</p>
-            <p className="text-[9px] text-orange-500">جدد</p>
+            <p className="text-[9px] text-orange-500">مسجل</p>
           </div>
         </div>
 
@@ -290,7 +290,7 @@ export default function EmployeeCard(props: EmployeeCardProps) {
           </div>
           <div className="bg-orange-50 rounded-lg p-1 text-center">
             <p className="text-xs font-bold text-orange-600">{e.new_customer_count}</p>
-            <p className="text-[9px] text-orange-500">جدد</p>
+            <p className="text-[9px] text-orange-500">مسجل</p>
           </div>
         </div>
         <div className="flex justify-between items-center">
