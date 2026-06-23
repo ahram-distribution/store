@@ -144,7 +144,10 @@ function ActivityCell({ emp }: { emp: EmployeePerfRow }) {
 }
 
 function TargetCell({ target, actual }: { target: number; actual: number }) {
-  if (target === 0) return <span className="text-gray-400 text-xs">\u2014</span>
+  if (target === 0) {
+    if (actual === 0) return <span className="text-gray-300 text-xs">\u2014</span>
+    return <span className="text-sm text-gray-900">{fmtShort(actual)}</span>
+  }
   const pct = actual > 0 ? Math.round((actual / target) * 100) : 0
   return (
     <div className="flex flex-col gap-0.5">
@@ -207,7 +210,7 @@ function ManagerSection({ group, allEmployees }: { group: ManagerGroup; allEmplo
     group.members
       .filter(e => e.employee_id !== group.manager_id)
       .sort((a, b) => {
-        const order = ['on_track', 'needs_push', 'needs_help', 'critical', 'no_target']
+        const order = ['critical', 'needs_help', 'needs_push', 'on_track', 'no_target']
         return order.indexOf(computeStatus(a)) - order.indexOf(computeStatus(b))
       }),
   [group])
@@ -276,16 +279,34 @@ function ManagerSection({ group, allEmployees }: { group: ManagerGroup; allEmplo
               <tr className="border-b border-gray-100 bg-gray-50/60">
                 <th className="py-2 pr-4 text-[11px] font-medium text-gray-500">الموظف</th>
                 <th className="py-2 px-2 text-[11px] font-medium text-gray-500">آخر نشاط</th>
-                <th className="py-2 px-2 text-[11px] font-medium text-gray-500">المبيعات</th>
-                <th className="py-2 px-2 text-[11px] font-medium text-gray-500">الطلبات</th>
-                <th className="py-2 px-2 text-[11px] font-medium text-gray-500">الزيارات</th>
-                <th className="py-2 px-2 text-[11px] font-medium text-gray-500">عملاء جدد</th>
-                <th className="py-2 px-2 text-[11px] font-medium text-gray-500 text-center">الإنجاز</th>
+                <th className="py-2 px-2 min-w-[140px]">
+                  <div className="text-[11px] font-medium text-gray-500">المبيعات</div>
+                  <div className="text-[9px] text-gray-400 font-normal leading-tight">الفعلية / المستهدفة</div>
+                </th>
+                <th className="py-2 px-2 min-w-[120px]">
+                  <div className="text-[11px] font-medium text-gray-500">الطلبات</div>
+                  <div className="text-[9px] text-gray-400 font-normal leading-tight">الفعلية / المستهدفة</div>
+                </th>
+                <th className="py-2 px-2 min-w-[120px]">
+                  <div className="text-[11px] font-medium text-gray-500">الزيارات</div>
+                  <div className="text-[9px] text-gray-400 font-normal leading-tight">الفعلية / المستهدفة</div>
+                </th>
+                <th className="py-2 px-2 min-w-[120px]">
+                  <div className="text-[11px] font-medium text-gray-500">عملاء جدد</div>
+                  <div className="text-[9px] text-gray-400 font-normal leading-tight">الفعلية / المستهدفة</div>
+                </th>
+                <th className="py-2 px-2 text-center">
+                  <div className="text-[11px] font-medium text-gray-500">الإنجاز</div>
+                  <div className="text-[9px] text-gray-400 font-normal leading-tight">%</div>
+                </th>
                 <th className="py-2 pl-4 text-[11px] font-medium text-gray-500">الحالة</th>
               </tr>
             </thead>
             <tbody>
-              {group.members.map(emp => (
+              {[...group.members].sort((a, b) => {
+                const order = ['critical', 'needs_help', 'needs_push', 'on_track', 'no_target']
+                return order.indexOf(computeStatus(a)) - order.indexOf(computeStatus(b))
+              }).map(emp => (
                 <EmployeeRow key={emp.employee_id} emp={emp} />
               ))}
             </tbody>

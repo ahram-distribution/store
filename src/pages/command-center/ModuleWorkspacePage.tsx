@@ -77,7 +77,7 @@ const MODULE_CONFIGS: Record<string, ModuleConfig> = {
       { icon: '\u{1F465}', label: 'الهيكل البيعي', path: '/hierarchy' },
       { icon: '\u{1F3AD}', label: 'الأدوار', path: '/employees#roles' },
       { icon: '\u{1F510}', label: 'الصلاحيات', path: '/employees#permissions' },
-      { icon: '\u{1F3AF}', label: 'الأهداف والأوزان', path: '/employees#targets' },
+      { icon: '\u{1F3AF}', label: 'التارجت', path: '/target-runtime' },
       { icon: '\u{1F464}', label: 'بياناتي', path: '/account/profile' },
       { icon: '\u{1F510}', label: 'صلاحياتي', path: '/account/permissions' },
     ],

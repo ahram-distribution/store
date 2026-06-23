@@ -51,7 +51,7 @@ const MODULE_ICONS: Record<string, { title: string; icons: LauncherIcon[] }> = {
       { icon: '🔗', label: 'الهيكل البيعي', path: '/hierarchy' },
       { icon: '🎭', label: 'الأدوار', path: '/employees#roles' },
       { icon: '🔐', label: 'الصلاحيات', path: '/employees#permissions' },
-      { icon: '🎯', label: 'الأهداف والأوزان', path: '/employees#targets' },
+      { icon: '🎯', label: 'التارجت', path: '/target-runtime' },
       { icon: '🔐', label: 'صلاحياتي', path: '/account/permissions' },
       { icon: '👤', label: 'بياناتي', path: '/account/profile' },
     ],

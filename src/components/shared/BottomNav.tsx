@@ -18,6 +18,7 @@ function useNavItems() {
     { label: 'المتجر', path: '/storefront', icon: 'S' },
     { label: 'الطلبات', path: '/orders', icon: 'O' },
     { label: 'الزيارات', path: '/visits', icon: 'V' },
+    { label: 'الأهداف', path: '/target-runtime', icon: 'T' },
     { label: 'المزيد', path: '/products', icon: 'M' },
   ]
 }

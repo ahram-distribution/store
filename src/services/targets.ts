@@ -215,4 +215,15 @@ export const targetService = {
       p_override_id: overrideId,
     })
   },
+
+  async seedSalesRepTargets(dryRun: boolean = true, month?: number, year?: number, token?: string) {
+    const t = token || getToken()
+    if (!t) return { data: null, error: new Error('NO_TOKEN') }
+    return supabase.rpc('seed_sales_rep_monthly_targets', {
+      p_token: t,
+      p_month: month ?? null,
+      p_year: year ?? null,
+      p_dry_run: dryRun,
+    })
+  },
 }
