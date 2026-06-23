@@ -62,6 +62,11 @@ function fmtShort(n: number): string {
   return fmt(n)
 }
 
+function fmtPct(n: number | null | undefined): string {
+  if (n == null) return '\u2014'
+  return n.toFixed(1)
+}
+
 function ProgressBar({ pct, size = 'md' }: { pct: number; size?: 'sm' | 'md' }) {
   const clamped = Math.min(Math.max(pct, 0), 100)
   const color = clamped >= 80 ? 'bg-green-500' : clamped >= 40 ? 'bg-amber-400' : 'bg-red-400'
@@ -119,24 +124,23 @@ export function SalesRepWorkDay() {
   const monthDelivered = useMemo(() => deliveredOrders.filter((o) => o.delivered_at >= MONTH_START), [deliveredOrders])
   const todayDelivered = useMemo(() => deliveredOrders.filter((o) => isToday(o.delivered_at)), [deliveredOrders])
 
-  // Today's KPIs (rounded totals)
+  // ── ACHIEVEMENT TODAY (delivered / completed) ──
   const todaySales = useMemo(() => Math.round(todayDelivered.reduce((s, o) => s + Number(o.total_amount || 0), 0)), [todayDelivered])
-  const todayOrders = useMemo(() => todayDelivered.length, [todayDelivered])
-  const todayVisitsDone = useMemo(() => visits.filter((v) => isToday(v.created_at) && v.status !== 'active').length, [visits])
-  const todayNewCustomers = useMemo(() => customers.filter((c) => isToday(c.created_at)).length, [customers])
+  const todayDeliveredCount = useMemo(() => todayDelivered.length, [todayDelivered])
+  const todayCompletedVisits = useMemo(() => visits.filter((v) => isToday(v.created_at) && v.status === 'completed').length, [visits])
 
-  // Monthly totals from local data
-  const monthlySales = useMemo(() => Math.round(monthDelivered.reduce((s, o) => s + Number(o.total_amount || 0), 0)), [monthDelivered])
-  const monthlyOrders = useMemo(() => monthDelivered.length, [monthDelivered])
-  const monthlyVisits = useMemo(() => visits.filter((v) => v.created_at >= MONTH_START).length, [visits])
-  const monthlyNewCustomers = useMemo(() => customers.filter((c) => c.created_at >= MONTH_START).length, [customers])
+  // ── ACTIVITY TODAY (started / created / registered) ──
+  const todayCreatedOrders = useMemo(() => orders.filter((o) => isToday(o.created_at)).length, [orders])
+  const todayOpenVisits = useMemo(() => visits.filter((v) => isToday(v.created_at) && v.status === 'active').length, [visits])
+  const todayRegisteredCustomers = useMemo(() => customers.filter((c) => isToday(c.created_at)).length, [customers])
 
-  // Daily proportional targets
-  const dailyTarget = useMemo(() => ({
-    sales: Math.round((employeePerf?.sales_target || 0) / daysInMonth),
-    orders: Math.round((employeePerf?.orders_target || 0) / daysInMonth),
-    visits: Math.round((employeePerf?.visits_target || 0) / daysInMonth),
-  }), [employeePerf, daysInMonth])
+  // Monthly achievement from canonical source
+  const monthlyAchievement = employeePerf ? [
+    { label: 'المبيعات', actual: Math.round(employeePerf.effective_sales), target: Math.round(employeePerf.sales_target), pct: employeePerf.sales_achievement_pct },
+    { label: 'الطلبات', actual: employeePerf.effective_orders, target: employeePerf.orders_target, pct: employeePerf.orders_achievement_pct },
+    { label: 'الزيارات', actual: employeePerf.visits_actual, target: employeePerf.visits_target, pct: employeePerf.visits_achievement_pct },
+    { label: 'العملاء الجدد', actual: employeePerf.new_customers_actual, target: employeePerf.new_customers_target, pct: employeePerf.new_customers_achievement_pct },
+  ] : []
 
   const oppColors: Record<string, { from: string; to: string; label: string }> = {
     needs_followup: { from: 'from-emerald-500', to: 'to-emerald-700', label: 'متابعة مطلوبة' },
@@ -228,26 +232,6 @@ export function SalesRepWorkDay() {
   const role = user?.roles?.[0] || 'مندوب مبيعات'
   const dateStr = now.toLocaleDateString('ar-EG-u-nu-latn', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
 
-  const headerIndicators = [
-    { label: 'المبيعات', value: fmtShort(todaySales) },
-    { label: 'الطلبات', value: fmt(todayOrders) },
-    { label: 'الزيارات', value: fmt(todayVisitsDone) },
-    { label: 'عملاء مسجلون اليوم', value: fmt(todayNewCustomers) },
-  ]
-
-  const monthlyIndicators = [
-    { label: 'المبيعات', actual: monthlySales, target: employeePerf?.sales_target || 0 },
-    { label: 'الطلبات', actual: monthlyOrders, target: employeePerf?.orders_target || 0 },
-    { label: 'الزيارات', actual: monthlyVisits, target: employeePerf?.visits_target || 0 },
-    { label: 'عملاء مسجلون هذا الشهر', actual: monthlyNewCustomers, target: employeePerf?.new_customers_target || 0 },
-  ]
-
-  const kpiCards = [
-    { label: 'مبيعات اليوم', actual: todaySales, target: dailyTarget.sales, unit: 'جنيه' },
-    { label: 'طلبات جديدة', actual: todayOrders, target: dailyTarget.orders, unit: 'عدد' },
-    { label: 'زيارات اليوم', actual: todayVisitsDone, target: dailyTarget.visits, unit: 'عدد' },
-  ]
-
   return (
     <div className="space-y-4 pb-4">
       {/* ── HEADER ── */}
@@ -259,61 +243,89 @@ export function SalesRepWorkDay() {
             <p className="text-[11px] opacity-70 mt-0.5">{role}</p>
             <p className="text-[11px] opacity-60 mt-0.5">{dateStr}</p>
           </div>
-          <button className="text-xl opacity-80 mt-1">🔔</button>
-        </div>
-        <div className="grid grid-cols-4 gap-2 mt-4">
-          {headerIndicators.map((item) => (
-            <div key={item.label} className="text-center bg-white/10 rounded-xl py-2">
-              <div className="text-lg font-bold">{item.value}</div>
-              <div className="text-[10px] opacity-75 mt-0.5">{item.label}</div>
-            </div>
-          ))}
         </div>
       </div>
 
-      {/* ── MONTHLY TARGET ── */}
+      {/* ── ACTIVITY TODAY ── */}
+      <div>
+        <div className="flex items-center gap-2 mb-2">
+          <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+          <h2 className="text-[13px] font-semibold text-gray-700">النشاط اليومي</h2>
+        </div>
+        <div className="grid grid-cols-4 gap-1.5">
+          <div className="bg-blue-50 rounded-xl py-2 text-center">
+            <div className="text-base font-bold text-blue-700">{todayRegisteredCustomers}</div>
+            <div className="text-[8px] text-blue-500 mt-0.5">عملاء مسجلون</div>
+          </div>
+          <div className="bg-indigo-50 rounded-xl py-2 text-center">
+            <div className="text-base font-bold text-indigo-700">{todayCreatedOrders}</div>
+            <div className="text-[8px] text-indigo-500 mt-0.5">طلبات منشأة</div>
+          </div>
+          <div className="bg-amber-50 rounded-xl py-2 text-center">
+            <div className="text-base font-bold text-amber-700">{todayOpenVisits}</div>
+            <div className="text-[8px] text-amber-500 mt-0.5">زيارات مفتوحة</div>
+          </div>
+          <div className="bg-emerald-50 rounded-xl py-2 text-center">
+            <div className="text-base font-bold text-emerald-700">{fmtShort(dashboard?.today_collections ?? 0)}</div>
+            <div className="text-[8px] text-emerald-500 mt-0.5">تحصيلات اليوم</div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── ACHIEVEMENT TODAY ── */}
+      <div>
+        <div className="flex items-center gap-2 mb-2">
+          <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
+          <h2 className="text-[13px] font-semibold text-gray-700">الإنجاز اليومي</h2>
+        </div>
+        <div className="grid grid-cols-3 gap-1.5">
+          <div className="bg-green-50 rounded-xl py-2.5 text-center">
+            <div className="text-sm font-bold text-green-700">{fmtShort(todaySales)}</div>
+            <div className="text-[9px] text-green-600 mt-0.5">مبيعات منجزة</div>
+            <div className="text-[8px] text-gray-400 mt-0.5">جنيه</div>
+          </div>
+          <div className="bg-teal-50 rounded-xl py-2.5 text-center">
+            <div className="text-sm font-bold text-teal-700">{todayDeliveredCount}</div>
+            <div className="text-[9px] text-teal-600 mt-0.5">طلبات مسلمة</div>
+            <div className="text-[8px] text-gray-400 mt-0.5">عدد</div>
+          </div>
+          <div className="bg-cyan-50 rounded-xl py-2.5 text-center">
+            <div className="text-sm font-bold text-cyan-700">{todayCompletedVisits}</div>
+            <div className="text-[9px] text-cyan-600 mt-0.5">زيارات مكتملة</div>
+            <div className="text-[8px] text-gray-400 mt-0.5">عدد</div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── ACHIEVEMENT MONTHLY ── */}
       <div className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-[15px] font-semibold text-gray-800">التارجت الشهري</h2>
+          <div className="flex items-center gap-2">
+            <div className="w-1.5 h-1.5 rounded-full bg-primary" />
+            <h2 className="text-[13px] font-semibold text-gray-700">الإنجاز الشهري</h2>
+          </div>
           <button onClick={() => navigate('/target-runtime')} className="text-[11px] text-primary underline">التفاصيل</button>
         </div>
-        <div className="grid grid-cols-2 gap-x-4 gap-y-2.5">
-          {monthlyIndicators.map((m) => {
-            const pct = m.target > 0 ? Math.round((m.actual / m.target) * 100) : 0
+        {employeePerf?.overall_achievement_score != null && (
+          <div className="text-center mb-3">
+            <span className="text-lg font-bold text-gray-800">{fmtPct(employeePerf.overall_achievement_score)}</span>
+            <span className="text-[10px] text-gray-400 mr-1">نسبة الإنجاز الكلية</span>
+          </div>
+        )}
+        <div className="space-y-2.5">
+          {monthlyAchievement.map((m) => {
+            const barPct = m.target > 0 ? Math.min(Math.round((m.actual / m.target) * 100), 100) : 0
             return (
               <div key={m.label}>
                 <div className="flex items-center justify-between mb-0.5">
-                  <span className="text-[11px] text-gray-500">{m.label}</span>
-                  <span className="text-[10px] font-semibold" style={{ color: pct >= 80 ? '#16a34a' : pct >= 40 ? '#d97706' : '#dc2626' }}>{pct}%</span>
+                  <span className="text-[11px] font-medium text-gray-600">{m.label}</span>
+                  <span className="text-[10px] font-semibold" style={{ color: barPct >= 80 ? '#16a34a' : barPct >= 40 ? '#d97706' : '#dc2626' }}>{m.pct != null ? fmtPct(m.pct) : '--'}%</span>
                 </div>
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs font-bold text-gray-900">{fmtShort(Math.round(m.actual))}</span>
-                  <span className="text-[10px] text-gray-400">/{fmtShort(Math.round(m.target))}</span>
+                <div className="flex items-baseline gap-1.5 mb-1">
+                  <span className="text-sm font-bold text-gray-900">{fmtShort(m.actual)}</span>
+                  <span className="text-[9px] text-gray-400">من أصل {fmtShort(m.target)}</span>
                 </div>
-                <ProgressBar pct={pct} size="sm" />
-              </div>
-            )
-          })}
-        </div>
-      </div>
-
-      {/* ── TODAY INDICATORS ── */}
-      <div>
-        <h2 className="text-[15px] font-semibold text-gray-800 mb-2">مؤشرات اليوم</h2>
-        <div className="grid grid-cols-3 gap-2">
-          {kpiCards.map((kpi) => {
-            const pct = kpi.target > 0 ? Math.round((kpi.actual / kpi.target) * 100) : 0
-            return (
-              <div key={kpi.label} className="bg-white rounded-xl border border-gray-100 p-3 shadow-sm">
-                <div className="text-[11px] text-gray-500 font-medium">{kpi.label}</div>
-                <div className="mt-1">
-                  <span className="text-sm font-bold text-gray-900">{fmtShort(kpi.actual)}</span>
-                  <span className="text-[10px] text-gray-400 mr-1">/ {fmtShort(kpi.target)}</span>
-                </div>
-                <div className={`text-xs font-semibold mt-1 ${pct >= 80 ? 'text-green-600' : pct >= 40 ? 'text-amber-600' : 'text-red-500'}`}>{pct}%</div>
-                <div className="mt-1.5">
-                  <ProgressBar pct={pct} size="sm" />
-                </div>
+                <ProgressBar pct={barPct} size="sm" />
               </div>
             )
           })}
