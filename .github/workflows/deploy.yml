@@ -32,15 +32,23 @@ jobs:
 
       - name: Debug
         run: |
-          set -x
+          set +e
+          echo "=== ENV ==="
+          echo "NODE_ENV=$NODE_ENV"
+          echo "=== NODE ==="
           node --version
           npm --version
-          node -e "console.log('resolve:', require.resolve('vite/bin/vite.js'))"
-          node -e "try { require('@tailwindcss/vite'); console.log('tailwindcss-vite: ok') } catch(e) { console.log('tailwindcss-vite ERR:', e.message) }"
-          node -e "try { require('vite'); console.log('vite: ok') } catch(e) { console.log('vite ERR:', e.message) }"
-          node -e "try { require('@vitejs/plugin-react'); console.log('react-plugin: ok') } catch(e) { console.log('react-plugin ERR:', e.message) }"
-          node -e "console.log('all resolved ok')"
-        shell: bash
+          which node
+          echo "=== VITE BIN ==="
+          ls -la node_modules/vite/bin/vite.js
+          echo "=== RESOLVE ==="
+          node -e "try { console.log('vite/bin/vite.js', require.resolve('vite/bin/vite.js')) } catch(e) { console.log('ERR:', e.message) }"
+          node -e "try { require('@tailwindcss/vite'); console.log('tailwindcss-vite ok') } catch(e) { console.log('ERR:', e.message) }"
+          node -e "try { require('vite'); console.log('vite ok') } catch(e) { console.log('ERR:', e.message) }"
+          node -e "try { require('@vitejs/plugin-react'); console.log('react-plugin ok') } catch(e) { console.log('ERR:', e.message) }"
+          echo "=== NPM LIST ==="
+          npm ls vite 2>&1 || true
+          echo "=== DONE ==="
 
       - name: Build
         run: npm run build
