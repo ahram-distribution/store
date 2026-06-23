@@ -59,15 +59,13 @@ jobs:
           echo "=== DONE ==="
 
       - name: Build
+        id: build
         run: |
           npm run build 2>&1 | tee /tmp/build.log
           exit_code=${PIPESTATUS[0]}
+          echo "$exit_code" > /tmp/build_exit_code
           if [ $exit_code -ne 0 ]; then
             echo "::warning::Build failed with exit code $exit_code"
-            echo "::group::Build output"
-            tail -20 /tmp/build.log
-            echo "::endgroup::"
-            tail -10 /tmp/build.log | { i=0; while read line; do [ $i -lt 10 ] && echo "::error::${line}"; i=$((i+1)); done; }
           fi
           exit $exit_code
         shell: bash
@@ -78,6 +76,22 @@ jobs:
           VITE_APP_VERSION: ${{ vars.VITE_APP_VERSION || '1.0.0' }}
           VITE_WHATSAPP_NUMBER: ${{ vars.VITE_WHATSAPP_NUMBER }}
           NODE_OPTIONS: "--no-warnings"
+
+      - name: Report build errors
+        if: always()
+        run: |
+          ec=$(cat /tmp/build_exit_code 2>/dev/null || echo "unknown")
+          if [ "$ec" = "0" ]; then
+            echo "Build succeeded"
+            exit 0
+          fi
+          echo "::warning::Build failed with exit code $ec"
+          echo "::group::Last 40 lines of build output"
+          tail -40 /tmp/build.log 2>/dev/null || echo "No build.log found"
+          echo "::endgroup::"
+          echo "::group::Error lines (grep)"
+          grep -n -i -E 'error|fail' /tmp/build.log 2>/dev/null || echo "(no error keywords found)"
+          echo "::endgroup::"
 
       - name: Prepare deploy directory
         run: |
