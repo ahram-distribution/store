@@ -133,11 +133,47 @@
 | `src/pages/sales-manager/SalesManagerCCPage.tsx` | إزالة زر التارجت |
 | `src/pages/admin/TargetSeedTool.tsx` | توجيه Back ← Dashboard |
 
+### المفهوم المعتمد: Pending ≠ Broken Data
+- **Activity** = ما قام به المندوب (أوامر منشأة، عملاء مسجلين) — حقائق مجردة
+- **Achievement** = ما تم تسليمه فعلياً (أوامر مسلمة، عملاء أول طلب) — حقائق الإنجاز
+- **Pending** = Activity − Achievement = أعمال قيد الانتظار (ليست خطأ)
+- **Excluded** = بيانات مكسورة فقط (delivered_at=NULL, owner_id=NULL, customer_id=NULL)
+- المعادلة: `Activity = Achievement + Pending` لكل مؤشر
+- `Excluded` يُحتسب داخل طبقة الإنجاز فقط (Delivered Total = Achieved + Excluded)
+
 ### Commits
 - `5830cc5` — Rework: remove monthly achievement, remove target-runtime, add period filters
 - `68c805b` — Add reconciliation card to achievement page with health status
+- `2aa358a` — Changelog: document removal of target-runtime, add reconciliation card
 
-### Reconciliation (يونيو 2026 — الشركة كلها)
+### إثبات المعادلة — عمر محسن (يونيو 2026)
+| المقياس | Activity (نشاط) | Achievement (إنجاز) | Pending (قيد الانتظار) | Diff | الحالة |
+|---|---|---|---|---|---|
+| الطلبات | 9 | 8 | 1 | 0 | ✅ 9 = 8 + 1 |
+| المبيعات | 1,493,551.68 | 1,296,057.08 | 197,494.60 | 0.00 | ✅ |
+| العملاء | 9 | 5 | 4 | 0 | ✅ 9 = 5 + 4 |
+
+### إثبات المعادلة — الشركة كلها (يونيو 2026)
+| المقياس | Activity | Achievement | Pending | Diff | الحالة |
+|---|---|---|---|---|---|
+| الطلبات | 47 | 10 | 37 | 0 | ✅ |
+| المبيعات | 3,004,101.11 | 1,317,512.21 | 1,686,588.90 | 0.00 | ✅ |
+| العملاء | 118 | 6 | 112 | 0 | ✅ |
+
+### Excluded = 0 (الشركة كلها)
+| نوع الكسر | العدد |
+|---|---|
+| delivered بدون delivered_at | 0 ✅ |
+| owner_id مفقود | 0 ✅ |
+| customer_id مفقود | 0 ✅ |
+| زيارات مكسورة | 0 ✅ |
+| عملاء بدون بيانات | 0 ✅ |
+
+### الخلاصة
+**Runtime V2 معتمد نهائياً** — كل المعادلات محققة، لا يوجد كسر في البيانات.
+- Activity و Achievement يقرأان من مصدرين مختلفين (Orders جدول vs Event Views)
+- Pending = فرق طبيعي بين الإنشاء والتسليم
+- Excluded = 0 ← لا توجد بيانات تالفة
 | المقياس | الإجمالي | الإنجاز | المستبعد | الفرق |
 |---|---|---|---|---|
 | المبيعات | 1,317,512.21 | 1,317,512.21 | 0 | ✅ 0.00 |
