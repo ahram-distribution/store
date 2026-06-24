@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../store/auth'
 import { getEffectiveRole, type EffectiveRole } from '../utils/hierarchyFilter'
 
-type Period = 'day' | 'yesterday' | 'week' | 'month' | 'custom'
+const MONTHS = ['يناير', 'فبراير', 'مارس', 'إبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر']
 
 function fmt(n: number | null | undefined): string {
   if (n == null) return '\u2014'
@@ -19,375 +19,269 @@ function fmtMoney(n: number | null | undefined): string {
   return fmt(n)
 }
 
-function getRange(p: Period, cf: string, ct: string): { from: string; to: string } {
-  const now = new Date()
-  switch (p) {
-    case 'day':
-      return {
-        from: new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString(),
-        to: new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).toISOString(),
-      }
-    case 'yesterday': {
-      const yes = new Date(now)
-      yes.setDate(yes.getDate() - 1)
-      yes.setHours(0, 0, 0, 0)
-      const end = new Date(now)
-      end.setDate(end.getDate())
-      end.setHours(0, 0, 0, 0)
-      return { from: yes.toISOString(), to: end.toISOString() }
-    }
-    case 'week': {
-      const start = new Date(now)
-      start.setDate(start.getDate() - start.getDay() + 1)
-      start.setHours(0, 0, 0, 0)
-      const end = new Date(start)
-      end.setDate(end.getDate() + 7)
-      return { from: start.toISOString(), to: end.toISOString() }
-    }
-    case 'month':
-      return {
-        from: new Date(now.getFullYear(), now.getMonth(), 1).toISOString(),
-        to: new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString(),
-      }
-    case 'custom':
-      return { from: cf || '1970-01-01T00:00:00Z', to: ct || now.toISOString() }
-  }
+function pct(v: number | null | undefined): string {
+  if (v == null || v === 0) return '0%'
+  return v + '%'
 }
 
-const PERIODS: { key: Period; label: string }[] = [
-  { key: 'day', label: 'اليوم' },
-  { key: 'yesterday', label: 'أمس' },
-  { key: 'week', label: 'الأسبوع' },
-  { key: 'month', label: 'الشهر' },
-  { key: 'custom', label: 'فترة مخصصة' },
-]
-
-interface ScopeStack {
-  type: 'company' | 'manager' | 'rep'
-  id?: string
-  name: string
-}
-
-function KpiBar({ pct }: { pct: number }) {
-  const safePct = Math.min(Math.max(pct || 0, 0), 100)
-  const color = safePct >= 80 ? 'bg-emerald-500' : safePct >= 40 ? 'bg-amber-400' : 'bg-rose-400'
+function KpiBar({ achieved, target, compact }: { achieved: number; target: number; compact?: boolean }) {
+  const p = target > 0 ? Math.min(Math.round((achieved / target) * 100), 100) : 0
+  const color = p >= 100 ? 'bg-emerald-500' : p >= 50 ? 'bg-amber-500' : 'bg-red-400'
+  if (compact) return <div className="w-20 h-1.5 bg-gray-100 rounded-full overflow-hidden"><div className={`h-full ${color} rounded-full`} style={{ width: p + '%' }}></div></div>
   return (
-    <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
-      <div className={`h-1.5 rounded-full ${color}`} style={{ width: `${safePct}%` }} />
+    <div className="flex items-center gap-2">
+      <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden"><div className={`h-full ${color} rounded-full`} style={{ width: p + '%' }}></div></div>
+      <span className="text-[10px] font-semibold text-gray-500 w-8 text-left">{p}%</span>
     </div>
   )
 }
+
+type ViewLevel = 'company' | 'team' | 'rep'
 
 export function TeamAchievement() {
   const nav = useNavigate()
   const user = useAuthStore((s) => s.user)
   const role: EffectiveRole = getEffectiveRole(user)
 
-  const [period, setPeriod] = useState<Period>('month')
-  const [customFrom, setCustomFrom] = useState('')
-  const [customTo, setCustomTo] = useState('')
-  const [scope, setScope] = useState<ScopeStack[]>([{ type: 'company', id: undefined, name: '' }])
+  const now = new Date()
+  const [month, setMonth] = useState(now.getMonth() + 1)
+  const [year, setYear] = useState(now.getFullYear())
+
+  const [viewLevel, setViewLevel] = useState<ViewLevel>('company')
+  const [viewMgrId, setViewMgrId] = useState<string | null>(null)
+  const [viewMgrName, setViewMgrName] = useState('')
+  const [viewRepId, setViewRepId] = useState<string | null>(null)
+  const [viewRepName, setViewRepName] = useState('')
+
+  const [allEmployees, setAllEmployees] = useState<any[]>([])
   const [members, setMembers] = useState<any[]>([])
   const [repData, setRepData] = useState<any>(null)
   const [loading, setLoading] = useState(false)
-
-  const currentScope = scope[scope.length - 1]
+  const [error, setError] = useState('')
 
   function getTitle(): string {
-    if (role === 'rep') return 'إنجازي'
-    if (role === 'manager' && currentScope.type === 'rep') return `إنجاز ${currentScope.name}`
-    if (role === 'manager') return 'إنجاز الفريق'
-    if (currentScope.type === 'rep') return `إنجاز ${currentScope.name}`
-    if (currentScope.type === 'manager') return `إنجاز فريق ${currentScope.name}`
+    if (role === 'rep' || viewLevel === 'rep') return `إنجاز ${viewRepName || user?.full_name || ''}`
+    if (viewLevel === 'team') return `إنجاز فريق ${viewMgrName}`
     return 'إنجاز الشركة'
-  }
-
-  function isRepView(): boolean {
-    return role === 'rep' || currentScope.type === 'rep'
-  }
-
-  function getMonthYear(): { month: number; year: number } {
-    const now = new Date()
-    return { month: now.getMonth() + 1, year: now.getFullYear() }
   }
 
   useEffect(() => {
     const eid = user?.employee_id
-    if (!eid) return
+    if (!eid) { setLoading(false); return }
 
     setLoading(true)
-    const { from, to } = getRange(period, customFrom, customTo)
-    const { month, year } = getMonthYear()
+    setError('')
 
-    if (isRepView()) {
-      const empId = currentScope.id || eid
-      supabase
-        .rpc('get_runtime_achievement', {
-          p_employee_id: empId,
-          p_month: month,
-          p_year: year,
-          p_date_from: from,
-          p_date_to: to,
-        })
-        .then(({ data, error }) => {
-          if (error) console.error(error)
-          else setRepData(data)
-          setMembers([])
-        })
+    if (role === 'rep') {
+      supabase.rpc('get_runtime_achievement', { p_employee_id: eid, p_month: month, p_year: year })
+        .then(({ data, error: err }) => { if (err) { console.error(err); setError(err.message) } else setRepData(data); setMembers([]); setAllEmployees([]) })
+        .finally(() => setLoading(false))
+    } else if (role === 'executive' && viewLevel === 'company') {
+      Promise.all([
+        supabase.rpc('get_runtime_team', { p_manager_employee_id: null, p_month, p_year }),
+        supabase.from('employees').select('id,full_name,code,manager_id').eq('is_active', true),
+      ]).then(([rpcRes, empRes]) => {
+        if (rpcRes.error) { console.error(rpcRes.error); setError(rpcRes.error.message) }
+        const data = (rpcRes.data as any[]) || []
+        const employees = (empRes.data as any[]) || []
+        setMembers(data)
+        setAllEmployees(employees)
+        setRepData(null)
+      }).finally(() => setLoading(false))
+    } else if ((role === 'executive' && viewLevel === 'team') || (role === 'manager')) {
+      const mgrId = viewMgrId || eid
+      supabase.rpc('get_runtime_team', { p_manager_employee_id: mgrId, p_month, p_year })
+        .then(({ data, error: err }) => { if (err) { console.error(err); setError(err.message) } else setMembers((data as any[]) || []); setRepData(null); setAllEmployees([]) })
+        .finally(() => setLoading(false))
+    } else if (viewLevel === 'rep') {
+      supabase.rpc('get_runtime_achievement', { p_employee_id: viewRepId || eid, p_month, p_year })
+        .then(({ data, error: err }) => { if (err) { console.error(err); setError(err.message) } else setRepData(data); setMembers([]); setAllEmployees([]) })
         .finally(() => setLoading(false))
     } else {
-      const mgrId = currentScope.type === 'manager' ? currentScope.id : null
-      supabase
-        .rpc('get_runtime_team', {
-          p_manager_employee_id: mgrId ?? null,
-          p_month: month,
-          p_year: year,
-          p_date_from: from,
-          p_date_to: to,
-        })
-        .then(({ data, error }) => {
-          if (error) console.error(error)
-          else setMembers((data as any[]) || [])
-          setRepData(null)
-        })
-        .finally(() => setLoading(false))
+      setLoading(false)
     }
-  }, [period, customFrom, customTo, user?.employee_id, currentScope.type, currentScope.id])
+  }, [month, year, user?.employee_id, viewLevel, viewMgrId, viewRepId])
 
-  function drillToRep(empId: string, name: string) {
-    setScope([...scope, { type: 'rep', id: empId, name }])
-  }
+  const managerRows = useMemo(() => {
+    if (viewLevel !== 'company' || role !== 'executive') return []
+    const empById = new Map(allEmployees.map((e: any) => [e.id, e]))
+    const mgrIdSet = new Set<string>()
+    allEmployees.forEach((e: any) => { if (e.manager_id) mgrIdSet.add(e.manager_id) })
+
+    const rows: any[] = []
+    for (const mgrId of mgrIdSet) {
+      const mgr = empById.get(mgrId)
+      const teamIds = new Set(allEmployees.filter((e: any) => e.manager_id === mgrId).map((e: any) => e.id))
+
+      const teamMembers = members.filter((m: any) => teamIds.has(m.employee_id))
+      if (teamMembers.length === 0) continue
+
+      let sales_achieved = 0, sales_target = 0
+      let orders_achieved = 0, orders_target = 0
+      let visits_achieved = 0, visits_target = 0
+      let customers_achieved = 0, customers_target = 0
+
+      teamMembers.forEach((m: any) => {
+        sales_achieved += m.sales?.achieved || 0; sales_target += m.sales?.target || 0
+        orders_achieved += m.orders?.achieved || 0; orders_target += m.orders?.target || 0
+        visits_achieved += m.visits?.achieved || 0; visits_target += m.visits?.target || 0
+        customers_achieved += m.activated_customers?.achieved || 0; customers_target += m.activated_customers?.target || 0
+      })
+
+      rows.push({
+        manager_id: mgrId,
+        manager_name: mgr?.full_name || '(غير معروف)',
+        manager_code: mgr?.code || '',
+        team_size: teamMembers.length,
+        sales_achieved, sales_target, orders_achieved, orders_target,
+        visits_achieved, visits_target, customers_achieved, customers_target,
+      })
+    }
+    return rows.sort((a, b) => b.sales_achieved - a.sales_achieved)
+  }, [viewLevel, role, allEmployees, members])
 
   function drillToManager(mgrId: string, mgrName: string) {
-    setScope([...scope, { type: 'manager', id: mgrId, name: mgrName }])
+    setViewMgrId(mgrId); setViewMgrName(mgrName); setViewLevel('team'); setViewRepId(null); setViewRepName('')
+  }
+
+  function drillToRep(empId: string, empName: string) {
+    setViewRepId(empId); setViewRepName(empName); setViewLevel('rep')
   }
 
   function goBack() {
-    if (scope.length > 1) setScope(scope.slice(0, -1))
+    if (viewLevel === 'rep') { setViewLevel('team'); setViewRepId(null); setViewRepName('') }
+    else if (viewLevel === 'team' && role === 'executive') { setViewLevel('company'); setViewMgrId(null); setViewMgrName('') }
     else nav(-1)
   }
 
-  // ---- Rep-level data ----
   const d = repData as any
-  const repKpis = d
-    ? [
-        { key: 'sales', label: 'المبيعات المسلمة', icon: '💰', money: true, data: d.sales },
-        { key: 'orders', label: 'الطلبات المسلمة', icon: '📦', data: d.orders },
-        { key: 'visits', label: 'الزيارات المكتملة', icon: '📍', data: d.visits },
-        { key: 'activated_customers', label: 'العملاء أول طلب', icon: '👤', data: d.activated_customers },
-      ]
-    : []
 
-  // ---- Team-level summary ----
-  function sumKPI(field: string): number {
-    return members.reduce((s: number, m: any) => s + ((m[field]?.achieved || m[field]) ?? 0), 0)
+  function renderAchievementRow(item: any) {
+    return (
+      <button key={item.employee_id} onClick={() => drillToRep(item.employee_id, item.full_name)}
+        className="w-full bg-white rounded-xl border border-gray-100 p-4 shadow-sm hover:shadow-md transition-all text-right">
+        <div className="flex items-center justify-between">
+          <div><span className="font-semibold text-gray-800">{item.full_name}</span><span className="text-xs text-gray-400 mr-2">{item.code}</span></div>
+          <span className="text-xs text-emerald-600">عرض التفاصيل ←</span>
+        </div>
+        <div className="grid grid-cols-4 gap-2 mt-2">
+          {([
+            { label: 'المبيعات', a: item.sales?.achieved, t: item.sales?.target },
+            { label: 'الطلبات', a: item.orders?.achieved, t: item.orders?.target },
+            { label: 'الزيارات', a: item.visits?.achieved, t: item.visits?.target },
+            { label: 'العملاء', a: item.activated_customers?.achieved, t: item.activated_customers?.target },
+          ] as const).map((kpi) => (
+            <div key={kpi.label} className="text-center">
+              <div className="text-sm font-bold text-gray-700">{kpi.t ? pct(Math.round((kpi.a / kpi.t) * 100)) : '—'}</div>
+              <div className="text-[9px] text-gray-400">{kpi.label}</div>
+              <div className="text-[9px] text-gray-400">{fmtMoney(kpi.a)} / {fmtMoney(kpi.t)}</div>
+              <KpiBar achieved={kpi.a} target={kpi.t} compact />
+            </div>
+          ))}
+        </div>
+      </button>
+    )
   }
-
-  function avgPct(m: any, kpi: string): number {
-    return m[kpi]?.percentage ?? 0
-  }
-
-  // ---- Reconciliation from rep data ----
-  const repExcluded = d?.excluded_events
-  const allZero = repExcluded && Object.values(repExcluded as Record<string, number>).every((v) => v === 0)
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-sky-50 via-white to-blue-50" dir="rtl">
+    <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-teal-50" dir="rtl">
       <div className="max-w-4xl mx-auto p-4 space-y-5">
         <div className="flex items-center gap-3">
-          <button onClick={goBack} className="text-sm text-sky-600 font-semibold hover:underline">→ رجوع</button>
+          <button onClick={goBack} className="text-sm text-emerald-600 font-semibold hover:underline">→ رجوع</button>
           <h1 className="text-xl font-bold text-gray-800">{getTitle()}</h1>
         </div>
 
-        <p className="text-sm text-gray-500">
-          {user?.full_name || ''} — {role === 'rep' ? 'إنجازك' : 'إنجاز الفريق'} خلال الفترة
-        </p>
-
-        <div className="flex flex-wrap gap-2">
-          {PERIODS.map((p) => (
-            <button
-              key={p.key}
-              onClick={() => setPeriod(p.key)}
-              className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all ${
-                period === p.key ? 'bg-sky-600 text-white shadow-md' : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
-              }`}
-            >
-              {p.label}
-            </button>
-          ))}
+        <div className="flex items-center gap-2">
+          <select value={month} onChange={(e) => setMonth(Number(e.target.value))}
+            className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white">
+            {MONTHS.map((name, i) => <option key={i} value={i + 1}>{name}</option>)}
+          </select>
+          <select value={year} onChange={(e) => setYear(Number(e.target.value))}
+            className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white">
+            {[year - 1, year, year + 1].map((y) => <option key={y} value={y}>{y}</option>)}
+          </select>
         </div>
 
-        {period === 'custom' && (
-          <div className="flex gap-3 items-center">
-            <div>
-              <label className="text-xs text-gray-500">من</label>
-              <input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} className="block border border-gray-200 rounded-lg px-3 py-1.5 text-sm" />
-            </div>
-            <div>
-              <label className="text-xs text-gray-500">إلى</label>
-              <input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} className="block border border-gray-200 rounded-lg px-3 py-1.5 text-sm" />
-            </div>
+        {loading && <div className="text-center py-12 text-gray-400 text-sm">جاري التحميل...</div>}
+        {error && <div className="text-center py-4 text-red-500 text-sm">{error}</div>}
+
+        {!loading && (role === 'rep' || viewLevel === 'rep') && d && (
+          <div className="grid grid-cols-2 gap-4 max-w-2xl mx-auto">
+            {([
+              { label: 'المبيعات', key: 'sales', icon: '💰', money: true },
+              { label: 'الطلبات', key: 'orders', icon: '📋' },
+              { label: 'الزيارات', key: 'visits', icon: '📍' },
+              { label: 'العملاء', key: 'activated_customers', icon: '👤' },
+            ] as const).map((item) => {
+              const kpi: any = d[item.key]
+              if (!kpi) return null
+              return (
+                <div key={item.key} className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
+                  <div className="text-2xl mb-2">{item.icon}</div>
+                  <div className="text-2xl font-bold text-gray-800 tracking-tight">
+                    {item.money ? fmtMoney(kpi.achieved) : fmt(kpi.achieved)}
+                  </div>
+                  <div className="text-sm text-gray-500 mt-1">{item.label}</div>
+                  {kpi.target > 0 && (
+                    <div className="mt-2 space-y-1">
+                      <div className="flex justify-between text-[10px] text-gray-400">
+                        <span>الهدف: {item.money ? fmtMoney(kpi.target) : fmt(kpi.target)}</span>
+                        <span>المتبقي: {item.money ? fmtMoney(kpi.remaining) : fmt(kpi.remaining)}</span>
+                      </div>
+                      <KpiBar achieved={kpi.achieved} target={kpi.target} />
+                    </div>
+                  )}
+                </div>
+              )
+            })}
           </div>
         )}
 
-        {loading && <div className="text-center py-12 text-gray-400 text-sm">جاري التحميل...</div>}
-
-        {/* ========== REP VIEW ========== */}
-        {!loading && isRepView() && d && (
+        {!loading && role === 'executive' && viewLevel === 'company' && (
           <>
-            <div className="grid grid-cols-2 gap-4 max-w-2xl mx-auto">
-              {repKpis.map((kpi) => (
-                <div key={kpi.key} className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
-                  <div className="text-2xl mb-2">{kpi.icon}</div>
-                  <div className="text-3xl font-bold text-gray-800 tracking-tight">
-                    {kpi.money ? fmtMoney(kpi.data?.achieved) : fmt(kpi.data?.achieved)}
-                  </div>
-                  <div className="text-sm text-gray-500 mt-1">{kpi.label}</div>
-                </div>
-              ))}
-            </div>
-
-            <div className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm max-w-2xl mx-auto">
-              <h3 className="text-sm font-semibold text-gray-700 mb-3">الأهداف</h3>
+            {managerRows.length > 0 && (
               <div className="space-y-3">
-                {repKpis.map((kpi) => {
-                  const a = kpi.data?.achieved ?? 0
-                  const t = kpi.data?.target ?? 0
-                  const r = kpi.data?.remaining ?? 0
-                  const p = kpi.data?.percentage ?? 0
-                  return (
-                    <div key={kpi.key} className="flex items-center justify-between text-xs">
-                      <div className="w-16 font-medium text-gray-600">{kpi.label}</div>
-                      <div className="flex-1 mx-3">
-                        <KpiBar pct={p} />
+                {managerRows.map((mgr) => (
+                  <button key={mgr.manager_id} onClick={() => drillToManager(mgr.manager_id, mgr.manager_name)}
+                    className="w-full bg-white rounded-xl border border-gray-100 p-4 shadow-sm hover:shadow-md transition-all text-right">
+                    <div className="flex items-center justify-between mb-2">
+                      <div>
+                        <span className="font-bold text-gray-800">{mgr.manager_name}</span>
+                        <span className="text-xs text-gray-400 mr-2">{mgr.manager_code}</span>
+                        <span className="text-[10px] text-gray-400 mr-2">({mgr.team_size} مندوب)</span>
                       </div>
-                      <div className="text-left whitespace-nowrap text-gray-800 font-semibold w-16">
-                        {fmt(p)}%
-                      </div>
-                      <div className="text-left whitespace-nowrap text-gray-800 w-20">
-                        {kpi.money ? fmtMoney(a) : fmt(a)} / {kpi.money ? fmtMoney(t) : fmt(t)}
-                      </div>
-                      <div className="text-left whitespace-nowrap text-amber-600 w-14">
-                        متبقي: {kpi.money ? fmtMoney(r) : fmt(r)}
-                      </div>
+                      <span className="text-xs text-emerald-600">عرض الفريق ←</span>
                     </div>
-                  )
-                })}
+                    <div className="grid grid-cols-4 gap-2 mt-2">
+                      {([
+                        { label: 'المبيعات', a: mgr.sales_achieved, t: mgr.sales_target },
+                        { label: 'الطلبات', a: mgr.orders_achieved, t: mgr.orders_target },
+                        { label: 'الزيارات', a: mgr.visits_achieved, t: mgr.visits_target },
+                        { label: 'العملاء', a: mgr.customers_achieved, t: mgr.customers_target },
+                      ] as const).map((kpi) => (
+                        <div key={kpi.label} className="text-center">
+                          <div className="text-sm font-bold text-gray-700">{kpi.t > 0 ? pct(Math.round((kpi.a / kpi.t) * 100)) : '—'}</div>
+                          <div className="text-[9px] text-gray-400">{kpi.label}</div>
+                          <div className="text-[9px] text-gray-400">{fmtMoney(kpi.a)} / {fmtMoney(kpi.t)}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </button>
+                ))}
               </div>
-            </div>
-
-            {/* Reconciliation card */}
-            <div className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm max-w-2xl mx-auto">
-              <h3 className="text-sm font-semibold text-gray-700 mb-3">التسوية</h3>
-              {repExcluded && (
-                <div className="text-xs">
-                  <div className="grid grid-cols-5 gap-2 font-semibold text-gray-500 mb-2 pb-2 border-b border-gray-100">
-                    <span>المقياس</span>
-                    <span>المنجز</span>
-                    <span>مستبعد</span>
-                    <span>الإجمالي</span>
-                    <span>الحالة</span>
-                  </div>
-                  {repKpis.map((kpi) => {
-                    const achieved = kpi.data?.achieved ?? 0
-                    const excludedKey: Record<string, string> = { orders: 'order_delivered', visits: 'completed_visits' }
-                    const excluded = repExcluded[excludedKey[kpi.key] ?? '_'] ?? 0
-                    const total = kpi.money
-                      ? (Number(achieved) + Number(excluded))
-                      : (Number(achieved) + Number(excluded))
-                    return (
-                      <div key={kpi.key} className="grid grid-cols-5 gap-2 py-1.5 border-b border-gray-50">
-                        <span className="text-gray-600">{kpi.label}</span>
-                        <span className="font-semibold">{kpi.money ? fmtMoney(achieved) : fmt(achieved)}</span>
-                        <span className={`font-semibold ${excluded > 0 ? 'text-amber-600' : 'text-gray-500'}`}>{fmt(excluded)}</span>
-                        <span className="font-semibold">{kpi.money ? fmtMoney(total) : fmt(total)}</span>
-                        <span className={`font-semibold ${excluded === 0 ? 'text-emerald-600' : 'text-amber-600'}`}>
-                          {excluded === 0 ? '✅' : '⚠️'}
-                        </span>
-                      </div>
-                    )
-                  })}
-                  {allZero && <div className="text-emerald-600 text-center mt-2">لا توجد أحداث مستبعدة ✅</div>}
-                </div>
-              )}
-            </div>
+            )}
+            {managerRows.length === 0 && (
+              <div className="text-center py-8 text-gray-400 text-sm">لا يوجد مدراء بيع في هذا الشهر</div>
+            )}
           </>
         )}
 
-        {/* ========== TEAM VIEW ========== */}
-        {!loading && !isRepView() && (
+        {!loading && viewLevel === 'team' && (
           <>
-            <div className="grid grid-cols-4 gap-3">
-              <div className="bg-white rounded-xl border border-gray-100 p-3 text-center shadow-sm">
-                <div className="text-lg font-bold text-gray-800">{fmtMoney(sumKPI('sales'))}</div>
-                <div className="text-[10px] text-gray-400">إجمالي المبيعات</div>
-              </div>
-              <div className="bg-white rounded-xl border border-gray-100 p-3 text-center shadow-sm">
-                <div className="text-lg font-bold text-gray-800">{fmt(sumKPI('orders'))}</div>
-                <div className="text-[10px] text-gray-400">الطلبات</div>
-              </div>
-              <div className="bg-white rounded-xl border border-gray-100 p-3 text-center shadow-sm">
-                <div className="text-lg font-bold text-gray-800">{fmt(sumKPI('visits'))}</div>
-                <div className="text-[10px] text-gray-400">الزيارات</div>
-              </div>
-              <div className="bg-white rounded-xl border border-gray-100 p-3 text-center shadow-sm">
-                <div className="text-lg font-bold text-gray-800">{fmt(sumKPI('activated_customers'))}</div>
-                <div className="text-[10px] text-gray-400">العملاء</div>
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              {members.filter((m: any) => (m.sales?.achieved ?? 0) > 0 || (m.orders?.achieved ?? 0) > 0 || (m.visits?.achieved ?? 0) > 0 || (m.activated_customers?.achieved ?? 0) > 0)
-                .map((m: any) => {
-                  const kpis = [
-                    { key: 'sales', label: 'المبيعات', money: true, d: m.sales },
-                    { key: 'orders', label: 'الطلبات', d: m.orders },
-                    { key: 'visits', label: 'الزيارات', d: m.visits },
-                    { key: 'activated_customers', label: 'العملاء', d: m.activated_customers },
-                  ]
-                  return (
-                    <button
-                      key={m.employee_id}
-                      onClick={() => drillToRep(m.employee_id, m.full_name)}
-                      className="w-full bg-white rounded-xl border border-gray-100 p-4 shadow-sm hover:shadow-md transition-all text-right"
-                    >
-                      <div className="flex items-center justify-between mb-2">
-                        <div>
-                          <span className="font-semibold text-gray-800">{m.full_name}</span>
-                          <span className="text-xs text-gray-400 mr-2">{m.code}</span>
-                        </div>
-                        <span className="text-xs text-sky-600">عرض التفاصيل ←</span>
-                      </div>
-                      <div className="grid grid-cols-4 gap-2">
-                        {kpis.map((kpi) => {
-                          const a = kpi.d?.achieved ?? 0
-                          const t = kpi.d?.target ?? 0
-                          const r = kpi.d?.remaining ?? 0
-                          const p = kpi.d?.percentage ?? 0
-                          const safePct = Math.min(Math.max(p || 0), 100)
-                          const color = safePct >= 80 ? 'bg-emerald-500' : safePct >= 40 ? 'bg-amber-400' : 'bg-rose-400'
-                          return (
-                            <div key={kpi.key} className="text-center">
-                              <div className="text-sm font-bold text-gray-800">
-                                {kpi.money ? fmtMoney(a) : fmt(a)}
-                              </div>
-                              <div className="text-[9px] text-gray-400">{kpi.label}</div>
-                              <div className="text-[9px] text-gray-500">هدف: {kpi.money ? fmtMoney(t) : fmt(t)}</div>
-                              <div className="w-full h-1 bg-gray-100 rounded-full overflow-hidden mt-1">
-                                <div className={`h-1 rounded-full ${color}`} style={{ width: `${safePct}%` }} />
-                              </div>
-                              <div className="text-[9px] mt-0.5" style={{ color: safePct >= 80 ? '#059669' : safePct >= 40 ? '#d97706' : '#e11d48' }}>
-                                {fmt(p)}%
-                              </div>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    </button>
-                  )
-                })}
-              {members.filter((m: any) => (m.sales?.achieved ?? 0) > 0 || (m.orders?.achieved ?? 0) > 0 || (m.visits?.achieved ?? 0) > 0 || (m.activated_customers?.achieved ?? 0) > 0).length === 0 && (
-                <div className="text-center py-8 text-gray-400 text-sm">لا توجد بيانات في هذه الفترة</div>
+            <p className="text-xs text-gray-500">فريق {viewMgrName} — {members.length} مندوب</p>
+            <div className="space-y-2">
+              {members.length > 0 ? members.map(renderAchievementRow) : (
+                <div className="text-center py-8 text-gray-400 text-sm">لا توجد بيانات للفريق في هذا الشهر</div>
               )}
             </div>
           </>
@@ -395,7 +289,7 @@ export function TeamAchievement() {
 
         {!loading && d && (
           <div className="text-center text-[10px] text-gray-400">
-            المصدر: Runtime V2 — {d.meta?.date_from?.slice(0, 10)} → {d.meta?.date_to?.slice(0, 10)}
+            المصدر: Runtime V2 | {MONTHS[month - 1]} {year}
           </div>
         )}
       </div>
