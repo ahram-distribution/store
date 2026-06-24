@@ -1,0 +1,195 @@
+# Runtime V2 Changelog
+
+> **سجل التغييرات الحي — يُحدث مع كل تغيير تنفيذي**
+> آخر تحديث: 2026-06-24 (النشر 3)
+
+---
+
+## 2026-06-24 — Phase 2: Achievement Runtime
+
+### Added
+- `runtime.resolve_scope(uuid)` — Centralized scope resolver function
+- `runtime.get_achievement(uuid, timestamptz, timestamptz)` — Achievement Facts Runtime
+- File: `supabase/migrations/20260624_phase2_achievement_runtime.sql`
+
+### Architecture Decision
+- Achievement Runtime returns raw facts only (E01-E04)
+- `excluded_events` added to distinguish "no achievement" from "broken data"
+- No percentages, scores, rankings, targets in this layer
+
+### Verification
+- Tested Omar (REP003), WRQ1006 on June (default) and May ranges
+
+#### Cross-Validation Results
+| Test | Event View | Runtime | Status |
+|---|---|---|---|
+| Omar May — sales | 525,638.60 | 525,638.60 | ✅ |
+| Omar May — orders | 3 | 3 | ✅ |
+| Omar Jun — visits | 15 | 15 | ✅ |
+| WRQ1006 May — sales | 82,465.80 | 82,465.80 | ✅ |
+| WRQ1006 May — orders | 13 | 13 | ✅ |
+| WRQ1006 total — customers | 2 | 2 | ✅ |
+
+#### Excluded Events Verified
+- Omar: 8 excluded (all NULL `delivered_at`) — 7 with `owner_id = identity_id`, 1 with `owner_id = employee_id`
+- WRQ1006: 0 excluded (all data clean)
+
+#### Confirmed
+- Runtime reads from Event Views only, not Layer 1a
+- 100% match between Runtime output and Event Views
+- excluded_events provides transparency for broken data
+- Distinction between "no achievement" (KPI=0, Excluded=0) and "broken data" (KPI=0, Excluded>0) works
+
+---
+
+## 2026-06-24 — Screens + Runtimes for Sales Rep, Manager, Admin
+
+### Added SQL Functions
+- `runtime.get_activity(uuid, timestamptz, timestamptz)` — Activity Facts Runtime (A01-A04)
+  - Time filter: day/week/month/custom period
+  - Returns: registered_customers, created_orders, completed_visits, recorded_collections
+- `runtime.get_achievement_with_targets(uuid, int, int)` — Achievement + Targets (E01-E04 + target/remaining/pct)
+  - Each KPI independent: no composite score, no ranking
+- `runtime.get_team_achievement(uuid, int, int)` — Team view for managers/admins
+  - When manager_id = NULL: returns all company employees
+  - Drill-down to individual rep achievement
+- `runtime.get_hierarchy(uuid)` — Full org tree via recursive CTE
+- File: `supabase/migrations/20260624_salesrep_screens_runtime.sql`
+
+### Added React Screens
+- `src/pages/sales-rep/SalesRepActivity.tsx` — `/runtime/activity`
+  - Time filter: يوم | أسبوع | شهر | فترة مخصصة
+  - Shows: العملاء المسجلون, الطلبات المنشأة, الزيارات المكتملة, التحصيلات
+  - Shows excluded events
+  - Source annotation: Runtime V2
+- `src/pages/sales-rep/SalesRepAchievement.tsx` — `/runtime/achievement`
+  - Monthly filter
+  - Shows per KPI: الهدف, المنجز, المتبقي, نسبة التحقيق
+  - Each KPI independent (no composite)
+- `src/pages/sales-manager/TeamAchievement.tsx` — `/runtime/team-achievement`
+  - Company-wide view (sorted by sales DESC)
+  - Drill-down to individual rep with achievements + targets
+  - Summary row with totals
+
+### Hierarchy (Same Source of Truth)
+| Level | Access |
+|---|---|
+| Rep | Self only via `/runtime/activity` + `/runtime/achievement` |
+| Sales Manager | Full team via `/runtime/team-achievement` + drill-down |
+| Upper Management | All company employees + drill-down |
+
+### Architecture Decision
+- Phase 3 (Targets Runtime), Phase 4 (Metrics Runtime) — **SUSPENDED**
+- Priority shifted to working screens over more layers
+- All screens consume the same Runtime V2 functions
+- No modification to existing old screens/screens
+
+---
+
+## 2026-06-24 (النشر 3) — إعادة هيكلة شاشة المندوب + إزالة Target Runtime
+
+### التغييرات
+
+#### الصفحة الرئيسية (`SalesRepWorkDay.tsx` — `/dashboard`)
+- **تم الحذف**: قسم الإنجاز الشهري بالكامل (الأهداف، النسب، Progress Bars، المتبقي)
+- **تم الحذف**: قسم الإنجاز اليومي (مبيعات منجزة، طلبات مسلمة، زيارات مكتملة)
+- **تم التعديل**: النشاط اليومي ← 4 بطاقات حقائق فقط: قيمة المبيعات، الطلبات، الزيارات، العملاء الجدد
+  - المصدر: `orders.created_at` (إجمالي قيمة الطلبات المنشأة اليوم)
+  - لا توجد أهداف، لا توجد نسب، لا يوجد متبقي
+- **تم الحذف**: زر "الأهداف" من الإجراءات السريعة
+
+#### شاشة الإنجاز (`SalesRepAchievement.tsx` — `/runtime/achievement`)
+- **تمت الإضافة**: فلاتر الفترات الزمنية (اليوم / أمس / الأسبوع / الشهر / فترة مخصصة)
+- **تمت الإضافة**: بطاقة مطابقة البيانات (Reconciliation Card)
+  - تعرض لكل KPI: الإنجاز | المستبعد | الإجمالي | الحالة
+  - المعادلة: Activity = Achievement + Excluded
+  - ✅ إذا كان المستبعد = 0، 🔴 إذا > 0
+
+#### شاشة النشاط (`SalesRepActivity.tsx` — `/runtime/activity`)
+- بدون تغيير — كانت تعمل بشكل صحيح (حقائق فقط)
+
+#### إزالة Target Runtime بالكامل
+- **تم الإزالة**: Route `/target-runtime` من `routes/index.tsx`
+- **تم الإزالة**: زر "الأهداف" من BottomNav
+- **تم الإزالة**: جميع روابط target-runtime من:
+  - `ModuleLauncherPage.tsx`
+  - `UpperManagementDashboard.tsx`
+  - `CommandCenterPage.tsx`
+  - `ModuleWorkspacePage.tsx`
+  - `SalesManagerCCPage.tsx`
+- **تم التعديل**: `TargetSeedTool.tsx` ← توجيه Back إلى Dashboard
+
+### الملفات المتأثرة
+| الملف | التغيير |
+|---|---|
+| `src/pages/sales-rep/SalesRepWorkDay.tsx` | حذف الإنجاز الشهري واليومي، تحديث النشاط اليومي، حذف زر الأهداف |
+| `src/pages/sales-rep/SalesRepAchievement.tsx` | إضافة فلاتر الفترات + بطاقة المطابقة |
+| `src/routes/index.tsx` | إزالة route target-runtime |
+| `src/components/shared/BottomNav.tsx` | إزالة زر الأهداف |
+| `src/pages/dashboard/ModuleLauncherPage.tsx` | إزالة رابط target-runtime |
+| `src/pages/dashboard/UpperManagementDashboard.tsx` | إزالة رابط target-runtime |
+| `src/pages/command-center/CommandCenterPage.tsx` | تغيير مسار targets |
+| `src/pages/command-center/ModuleWorkspacePage.tsx` | إزالة رابط target-runtime (مرتين) |
+| `src/pages/sales-manager/SalesManagerCCPage.tsx` | إزالة زر التارجت |
+| `src/pages/admin/TargetSeedTool.tsx` | توجيه Back ← Dashboard |
+
+### Commits
+- `5830cc5` — Rework: remove monthly achievement, remove target-runtime, add period filters
+- `68c805b` — Add reconciliation card to achievement page with health status
+
+### Reconciliation (يونيو 2026 — الشركة كلها)
+| المقياس | الإجمالي | الإنجاز | المستبعد | الفرق |
+|---|---|---|---|---|
+| المبيعات | 1,317,512.21 | 1,317,512.21 | 0 | ✅ 0.00 |
+| الطلبات | 10 | 10 | 0 | ✅ 0 |
+| الزيارات | 144 | 144 | 0 | ✅ 0 |
+| العملاء | 118 | 118 | 0 | ✅ 0 |
+| **الحالة** | | | | **CLEAN** |
+
+### الرابط
+`https://ahram-distribution.github.io/store/dashboard`
+
+---
+
+## 2026-06-24 — Phase 1: Event Views
+
+### Added
+- Schema `runtime` — Runtime v2 layer
+- Schema `runtime_event_views` — Event Views layer
+- 5 Event Views:
+  - `customer_registered_events` — A01
+  - `order_created_events` — A02
+  - `order_delivered_events` — E01/E02
+  - `visit_completed_events` — A03/E03
+  - `collection_recorded_events` — A04
+- File: `supabase/migrations/20260624_phase1_event_views.sql`
+
+### Schema Corrections (from initial assumptions)
+| Assumption | Reality | Fix |
+|---|---|---|
+| `customers.created_by` exists | No `created_by` in customers | Use `owner_id` (references employees.id) |
+| `visits.is_completed` column | No `is_completed` | Use `status = 'completed'` |
+| `visits.check_in_time` / `check_out_time` | Columns are `check_in_at` / `check_out_at` | Corrected column names |
+| `collections.collection_date` | Column is `collected_at` | Corrected |
+| `collections.payment_type` | Column is `method` | Corrected |
+
+### Verified
+- 41 raw delivered → 33 valid → 33 in view
+- 8 NULL `delivered_at` excluded (Omar's orders)
+- 134/134 completed visits valid
+- Collections: 0 data in system
+
+---
+
+## 2026-06-24 — Phase 0: Data Integrity Rules
+
+### Added
+- `docs/EVENT_INTEGRITY_RULES_V1.md` — Integrity rules for all 5 event types
+- `docs/DATA_HEALTH_RUNTIME_V1.md` — 13 health checks (HC01-HC13)
+- Rule: Invalid events do NOT enter Event Views; they DO appear in Data Health Runtime
+
+### Key Finding
+- HC01: 8 orders with `status='delivered'` but NULL `delivered_at` — all Omar Mohsen (REP003)
+- 7 of these have `owner_id = Omar's identity_id` (not employee_id)
+- 1 has `owner_id = Omar's employee_id` (21060)
+- Total invisible value: 1,296,057.08 EGP
