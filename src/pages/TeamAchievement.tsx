@@ -76,7 +76,7 @@ export function TeamAchievement() {
         .then(({ data, error: err }) => { if (err) { console.error(err); setError(err.message) } else setRepData(data); setMembers([]) })
         .finally(() => setLoading(false))
     } else if (role === 'executive' && viewLevel === 'company') {
-      supabase.rpc('get_runtime_team', { p_manager_employee_id: null, p_month, p_year })
+      supabase.rpc('get_runtime_team', { p_manager_employee_id: null, p_month: month, p_year: year })
         .then(({ data, error: err }) => { if (err) { console.error(err); setError(err.message) }
           const d = (data as any[]) || []
           setMembers(d)
@@ -84,11 +84,11 @@ export function TeamAchievement() {
         }).finally(() => setLoading(false))
     } else if ((role === 'executive' && viewLevel === 'team') || (role === 'manager')) {
       const mgrId = viewMgrId || eid
-      supabase.rpc('get_runtime_team', { p_manager_employee_id: mgrId, p_month, p_year })
+      supabase.rpc('get_runtime_team', { p_manager_employee_id: mgrId, p_month: month, p_year: year })
         .then(({ data, error: err }) => { if (err) { console.error(err); setError(err.message) } else setMembers((data as any[]) || []); setRepData(null) })
         .finally(() => setLoading(false))
     } else if (viewLevel === 'rep') {
-      supabase.rpc('get_runtime_achievement', { p_employee_id: viewRepId || eid, p_month, p_year })
+      supabase.rpc('get_runtime_achievement', { p_employee_id: viewRepId || eid, p_month: month, p_year: year })
         .then(({ data, error: err }) => { if (err) { console.error(err); setError(err.message) } else setRepData(data); setMembers([]) })
         .finally(() => setLoading(false))
     } else {
