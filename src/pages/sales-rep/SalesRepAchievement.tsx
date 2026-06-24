@@ -236,12 +236,73 @@ export function SalesRepAchievement() {
           </div>
         )}
 
-        {/* Excluded events */}
-        {!loading && d?.excluded_events && (
+        {/* ── RECONCILIATION CARD ── */}
+        {!loading && d && (
+          <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-lg">🔍</span>
+              <span className="font-semibold text-gray-700 text-sm">مطابقة البيانات</span>
+            </div>
+            {(() => {
+              const ex = d.excluded_events || {}
+              const items = [
+                { label: 'المبيعات', achieved: d.sales?.achieved ?? 0, excluded: ex.order_delivered ?? 0, isMoney: true },
+                { label: 'الطلبات', achieved: d.orders?.achieved ?? 0, excluded: ex.order_delivered ?? 0 },
+                { label: 'الزيارات', achieved: d.visits?.achieved ?? 0, excluded: ex.completed_visits ?? 0 },
+                { label: 'العملاء', achieved: d.first_order_customers?.achieved ?? 0, excluded: 0 },
+              ]
+              const hasIssues = Object.values(ex).some((v: any) => (v as number) > 0)
+              const totalSalesEx = 0 // excluded sales value not available from RPC
+              return (
+                <div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-[11px]">
+                      <thead>
+                        <tr className="border-b border-gray-100">
+                          <th className="text-right py-1.5 text-gray-400 font-medium">المقياس</th>
+                          <th className="text-center py-1.5 text-gray-400 font-medium">الإنجاز</th>
+                          <th className="text-center py-1.5 text-gray-400 font-medium">المستبعد</th>
+                          <th className="text-center py-1.5 text-gray-400 font-medium">الإجمالي</th>
+                          <th className="text-center py-1.5 text-gray-400 font-medium">الحالة</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {items.map((item) => {
+                          const total = item.label === 'المبيعات'
+                            ? item.achieved
+                            : item.achieved + item.excluded
+                          const clean = item.excluded === 0
+                          const fmtV = item.isMoney ? fmtMoney : fmt
+                          return (
+                            <tr key={item.label} className="border-b border-gray-50">
+                              <td className="py-2 text-gray-700 font-medium">{item.label}</td>
+                              <td className="text-center py-2 font-semibold text-gray-800">{fmtV(item.achieved)}</td>
+                              <td className={`text-center py-2 font-semibold ${clean ? 'text-green-600' : 'text-red-500'}`}>
+                                {item.isMoney ? fmtV(0) : fmt(item.excluded)}
+                              </td>
+                              <td className="text-center py-2 font-semibold text-gray-800">{fmtV(total)}</td>
+                              <td className="text-center py-2">{clean ? '✅' : '🔴'}</td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className={`mt-2 text-center text-xs font-semibold ${hasIssues ? 'text-red-500' : 'text-green-600'}`}>
+                    {hasIssues ? '🔴 يوجد كسر في البيانات — يجب مراجعة السجلات المستبعدة' : '✅ البيانات سليمة — Activity = Achievement + Excluded'}
+                  </div>
+                </div>
+              )
+            })()}
+          </div>
+        )}
+
+        {/* Excluded events detail */}
+        {!loading && d?.excluded_events && Object.values(d.excluded_events as Record<string, number>).some((v) => v > 0) && (
           <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4">
             <div className="flex items-center gap-2 mb-2">
               <span className="text-amber-600 text-lg">⚠️</span>
-              <span className="font-semibold text-amber-800 text-sm">أحداث مستبعدة</span>
+              <span className="font-semibold text-amber-800 text-sm">تفاصيل الأحداث المستبعدة</span>
             </div>
             <div className="text-xs text-amber-700 space-y-1">
               {Object.entries(d.excluded_events)
@@ -252,9 +313,6 @@ export function SalesRepAchievement() {
                     <span className="font-bold">{fmt(val as number)}</span>
                   </div>
                 ))}
-              {Object.values(d.excluded_events as Record<string, number>).every((v) => v === 0) && (
-                <span className="text-green-700">لا توجد أحداث مستبعدة ✅</span>
-              )}
             </div>
           </div>
         )}
