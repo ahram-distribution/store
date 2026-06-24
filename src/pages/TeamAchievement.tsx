@@ -53,7 +53,6 @@ export function TeamAchievement() {
   const [viewRepId, setViewRepId] = useState<string | null>(null)
   const [viewRepName, setViewRepName] = useState('')
 
-  const [allEmployees, setAllEmployees] = useState<any[]>([])
   const [members, setMembers] = useState<any[]>([])
   const [repData, setRepData] = useState<any>(null)
   const [loading, setLoading] = useState(false)
@@ -74,28 +73,23 @@ export function TeamAchievement() {
 
     if (role === 'rep') {
       supabase.rpc('get_runtime_achievement', { p_employee_id: eid, p_month: month, p_year: year })
-        .then(({ data, error: err }) => { if (err) { console.error(err); setError(err.message) } else setRepData(data); setMembers([]); setAllEmployees([]) })
+        .then(({ data, error: err }) => { if (err) { console.error(err); setError(err.message) } else setRepData(data); setMembers([]) })
         .finally(() => setLoading(false))
     } else if (role === 'executive' && viewLevel === 'company') {
-      Promise.all([
-        supabase.rpc('get_runtime_team', { p_manager_employee_id: null, p_month, p_year }),
-        supabase.from('employees').select('id,full_name,code,manager_id').eq('is_active', true),
-      ]).then(([rpcRes, empRes]) => {
-        if (rpcRes.error) { console.error(rpcRes.error); setError(rpcRes.error.message) }
-        const data = (rpcRes.data as any[]) || []
-        const employees = (empRes.data as any[]) || []
-        setMembers(data)
-        setAllEmployees(employees)
-        setRepData(null)
-      }).finally(() => setLoading(false))
+      supabase.rpc('get_runtime_team', { p_manager_employee_id: null, p_month, p_year })
+        .then(({ data, error: err }) => { if (err) { console.error(err); setError(err.message) }
+          const d = (data as any[]) || []
+          setMembers(d)
+          setRepData(null)
+        }).finally(() => setLoading(false))
     } else if ((role === 'executive' && viewLevel === 'team') || (role === 'manager')) {
       const mgrId = viewMgrId || eid
       supabase.rpc('get_runtime_team', { p_manager_employee_id: mgrId, p_month, p_year })
-        .then(({ data, error: err }) => { if (err) { console.error(err); setError(err.message) } else setMembers((data as any[]) || []); setRepData(null); setAllEmployees([]) })
+        .then(({ data, error: err }) => { if (err) { console.error(err); setError(err.message) } else setMembers((data as any[]) || []); setRepData(null) })
         .finally(() => setLoading(false))
     } else if (viewLevel === 'rep') {
       supabase.rpc('get_runtime_achievement', { p_employee_id: viewRepId || eid, p_month, p_year })
-        .then(({ data, error: err }) => { if (err) { console.error(err); setError(err.message) } else setRepData(data); setMembers([]); setAllEmployees([]) })
+        .then(({ data, error: err }) => { if (err) { console.error(err); setError(err.message) } else setRepData(data); setMembers([]) })
         .finally(() => setLoading(false))
     } else {
       setLoading(false)
@@ -104,16 +98,14 @@ export function TeamAchievement() {
 
   const managerRows = useMemo(() => {
     if (viewLevel !== 'company' || role !== 'executive') return []
-    const empById = new Map(allEmployees.map((e: any) => [e.id, e]))
-    const mgrIdSet = new Set<string>()
-    allEmployees.forEach((e: any) => { if (e.manager_id) mgrIdSet.add(e.manager_id) })
+    const mgrMap = new Map<string, { name: string; code: string }>()
+    members.forEach((m: any) => {
+      if (m.manager_id) mgrMap.set(m.manager_id, { name: m.manager_name || m.full_name, code: m.manager_code || '' })
+    })
 
     const rows: any[] = []
-    for (const mgrId of mgrIdSet) {
-      const mgr = empById.get(mgrId)
-      const teamIds = new Set(allEmployees.filter((e: any) => e.manager_id === mgrId).map((e: any) => e.id))
-
-      const teamMembers = members.filter((m: any) => teamIds.has(m.employee_id))
+    for (const [mgrId, mgr] of mgrMap) {
+      const teamMembers = members.filter((m: any) => m.manager_id === mgrId)
       if (teamMembers.length === 0) continue
 
       let sales_achieved = 0, sales_target = 0
@@ -130,15 +122,15 @@ export function TeamAchievement() {
 
       rows.push({
         manager_id: mgrId,
-        manager_name: mgr?.full_name || '(غير معروف)',
-        manager_code: mgr?.code || '',
+        manager_name: mgr.name,
+        manager_code: mgr.code,
         team_size: teamMembers.length,
         sales_achieved, sales_target, orders_achieved, orders_target,
         visits_achieved, visits_target, customers_achieved, customers_target,
       })
     }
     return rows.sort((a, b) => b.sales_achieved - a.sales_achieved)
-  }, [viewLevel, role, allEmployees, members])
+  }, [viewLevel, role, members])
 
   function drillToManager(mgrId: string, mgrName: string) {
     setViewMgrId(mgrId); setViewMgrName(mgrName); setViewLevel('team'); setViewRepId(null); setViewRepName('')

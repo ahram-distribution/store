@@ -63,7 +63,6 @@ export function TeamActivity() {
   const [viewRepId, setViewRepId] = useState<string | null>(null)
   const [viewRepName, setViewRepName] = useState('')
 
-  const [allEmployees, setAllEmployees] = useState<any[]>([])
   const [members, setMembers] = useState<any[]>([])
   const [repData, setRepData] = useState<any>(null)
   const [loading, setLoading] = useState(false)
@@ -92,28 +91,20 @@ export function TeamActivity() {
 
     if (role === 'rep') {
       supabase.rpc('get_runtime_activity', { p_employee_id: eid, p_date_from: from, p_date_to: to })
-        .then(({ data, error }) => { if (error) console.error(error); else setRepData(data); setAllEmployees([]); setMembers([]) })
+        .then(({ data, error }) => { if (error) console.error(error); else setRepData(data); setMembers([]) })
         .finally(() => setLoading(false))
     } else if (role === 'executive' && viewLevel === 'company') {
-      Promise.all([
-        supabase.rpc('get_runtime_team_activity', { p_manager_employee_id: null, p_date_from: from, p_date_to: to }),
-        supabase.from('employees').select('id,full_name,code,manager_id').eq('is_active', true),
-      ]).then(([rpcRes, empRes]) => {
-        if (rpcRes.error) console.error(rpcRes.error)
-        const activityData = (rpcRes.data as any[]) || []
-        const employees = (empRes.data as any[]) || []
-        setAllEmployees(employees)
-        setMembers(activityData)
-        setRepData(null)
-      }).finally(() => setLoading(false))
+      supabase.rpc('get_runtime_team_activity', { p_manager_employee_id: null, p_date_from: from, p_date_to: to })
+        .then(({ data, error }) => { if (error) console.error(error); else setMembers((data as any[]) || []); setRepData(null) })
+        .finally(() => setLoading(false))
     } else if ((role === 'executive' && viewLevel === 'team') || (role === 'manager')) {
       const mgrId = viewMgrId || eid
       supabase.rpc('get_runtime_team_activity', { p_manager_employee_id: mgrId, p_date_from: from, p_date_to: to })
-        .then(({ data, error }) => { if (error) console.error(error); else setMembers((data as any[]) || []); setRepData(null); setAllEmployees([]) })
+        .then(({ data, error }) => { if (error) console.error(error); else setMembers((data as any[]) || []); setRepData(null) })
         .finally(() => setLoading(false))
     } else if (viewLevel === 'rep') {
       supabase.rpc('get_runtime_activity', { p_employee_id: viewRepId || eid, p_date_from: from, p_date_to: to })
-        .then(({ data, error }) => { if (error) console.error(error); else setRepData(data); setAllEmployees([]); setMembers([]) })
+        .then(({ data, error }) => { if (error) console.error(error); else setRepData(data); setMembers([]) })
         .finally(() => setLoading(false))
     } else {
       setLoading(false)
@@ -122,29 +113,27 @@ export function TeamActivity() {
 
   const managerRows = useMemo(() => {
     if (viewLevel !== 'company' || role !== 'executive') return []
-    const empById = new Map(allEmployees.map((e: any) => [e.id, e]))
-    const mgrIdSet = new Set<string>()
-    allEmployees.forEach((e: any) => { if (e.manager_id) mgrIdSet.add(e.manager_id) })
+    const mgrMap = new Map<string, { name: string; code: string }>()
+    members.forEach((m: any) => {
+      if (m.manager_id) mgrMap.set(m.manager_id, { name: m.manager_name || m.full_name, code: m.manager_code || '' })
+    })
 
     const rows: any[] = []
-    for (const mgrId of mgrIdSet) {
-      const mgr = empById.get(mgrId)
-      const teamIds = new Set(allEmployees.filter((e: any) => e.manager_id === mgrId).map((e: any) => e.id))
+    for (const [mgrId, mgr] of mgrMap) {
+      const teamMembers = members.filter((m: any) => m.manager_id === mgrId)
       let sales = 0, orders = 0, visits = 0, customers = 0
-      members.forEach((m: any) => {
-        if (teamIds.has(m.employee_id)) {
-          sales += m.sales || 0; orders += m.orders || 0
-          visits += m.completed_visits || 0; customers += m.registered_customers || 0
-        }
+      teamMembers.forEach((m: any) => {
+        sales += m.sales || 0; orders += m.orders || 0
+        visits += m.completed_visits || 0; customers += m.registered_customers || 0
       })
       rows.push({
-        manager_id: mgrId, manager_name: mgr?.full_name || '(غير معروف)',
-        manager_code: mgr?.code || '', sales, orders, completed_visits: visits,
-        registered_customers: customers, team_size: teamIds.size,
+        manager_id: mgrId, manager_name: mgr.name, manager_code: mgr.code,
+        sales, orders, completed_visits: visits,
+        registered_customers: customers, team_size: teamMembers.length,
       })
     }
     return rows.sort((a, b) => b.sales - a.sales)
-  }, [viewLevel, role, allEmployees, members])
+  }, [viewLevel, role, members])
 
   function drillToManager(mgrId: string, mgrName: string) {
     setViewMgrId(mgrId); setViewMgrName(mgrName); setViewLevel('team'); setViewRepId(null); setViewRepName('')
