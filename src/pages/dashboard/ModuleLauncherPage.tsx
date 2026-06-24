@@ -51,7 +51,6 @@ const MODULE_ICONS: Record<string, { title: string; icons: LauncherIcon[] }> = {
       { icon: '🔗', label: 'الهيكل البيعي', path: '/hierarchy' },
       { icon: '🎭', label: 'الأدوار', path: '/employees#roles' },
       { icon: '🔐', label: 'الصلاحيات', path: '/employees#permissions' },
-      { icon: '🎯', label: 'التارجت', path: '/target-runtime' },
       { icon: '🔐', label: 'صلاحياتي', path: '/account/permissions' },
       { icon: '👤', label: 'بياناتي', path: '/account/profile' },
     ],
@@ -94,12 +93,6 @@ const MODULE_ICONS: Record<string, { title: string; icons: LauncherIcon[] }> = {
       { icon: '💳', label: 'تقارير الائتمان', path: '/credit/manage' },
       { icon: '🔄', label: 'النشاط الموحد', path: '/activity' },
       { icon: '💪', label: 'مجهود المناديب', path: '/sales-effort' },
-    ],
-  },
-  targets: {
-    title: 'الأهداف',
-    icons: [
-      { icon: '🎯', label: 'التارجت', path: '/target-runtime' },
     ],
   },
   settings: {
@@ -163,7 +156,7 @@ function TargetSummaryCard() {
         <h1 className="text-lg font-bold text-text">الأهداف</h1>
       </div>
 
-      <button onClick={() => nav('/target-runtime')}
+      <button onClick={() => nav('/runtime/achievement')}
         className="w-full bg-white rounded-2xl border border-border p-5 text-right hover:shadow-md hover:border-primary/30 transition-all active:scale-[0.98]">
         <div className="flex items-center justify-between mb-4">
           <span className="text-3xl">🎯</span>

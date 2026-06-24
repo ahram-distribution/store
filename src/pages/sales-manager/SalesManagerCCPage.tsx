@@ -835,7 +835,6 @@ export default function SalesManagerCCPage() {
             <QuickBtn label="الموظفون" onClick={() => nav('/employees')} color="bg-surface text-text" />
             <QuickBtn label="الهيكل البيعي" onClick={() => nav('/hierarchy')} color="bg-surface text-text" />
             <QuickBtn label="اعتماد الطلبات" onClick={() => nav('/orders/approval-queue')} color="bg-accent text-white" />
-            <QuickBtn label="التارجت" onClick={() => nav('/target-runtime')} color="bg-primary text-white" />
             <QuickBtn label="التقارير" onClick={() => nav('/reports')} color="bg-surface text-text" />
             <QuickBtn label="المراقبة الحية" onClick={() => nav('/attendance/operations')} color="bg-primary text-white" />
             <QuickBtn label="تسجيل الحضور" onClick={() => nav('/attendance/runtime')} color="bg-gradient-to-l from-blue-600 to-indigo-700 text-white" />

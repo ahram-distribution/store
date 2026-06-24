@@ -165,7 +165,6 @@ export default function UpperManagementDashboard() {
     { icon: '🔐', label: 'الصلاحيات', path: '/employees#permissions' },
     { icon: '📋', label: 'سياسات العمل', path: '/attendance/settings#work-policies' },
     { icon: '🎯', label: 'الأهداف', path: '/employees#targets' },
-    { icon: '🎯', label: 'التارجت', path: '/target-runtime' },
     { icon: '🔄', label: 'النشاط الموحد', path: '/activity' },
     { icon: '📄', label: 'طلبي', path: '/orders?my=1' },
     { icon: '👤', label: 'عملائي', path: '/customers?my=1' },

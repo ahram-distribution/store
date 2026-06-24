@@ -29,7 +29,6 @@ import CompanyTargetsPage from '../pages/dashboard/CompanyTargetsPage'
 import EmployeeTargetsPage from '../pages/dashboard/EmployeeTargetsPage'
 import EmployeeAnalysisPage from '../pages/dashboard/EmployeeAnalysisPage'
 import { ModuleLauncherPage } from '../pages/dashboard/ModuleLauncherPage'
-import TargetRuntimePage from '../pages/target-runtime/TargetRuntimePage'
 import { AnalyticsListPage } from '../pages/analytics/AnalyticsListPage'
 import { CustomerAnalyticsPage } from '../pages/analytics/CustomerAnalyticsPage'
 import CustomerIntelligenceOverviewPage from '../pages/analytics/CustomerIntelligenceOverviewPage'
@@ -52,7 +51,9 @@ import { AttendanceRuntimePage } from '../pages/attendance/runtime'
 import { AttendanceRouter } from '../components/attendance/AttendanceRouter'
 import { OperationsCenterPage } from '../pages/operations-center'
 import { SalesManagerCCPage } from '../pages/sales-manager'
+import { TeamAchievement } from '../pages/sales-manager/TeamAchievement'
 import { SalesEffortPage } from '../pages/sales-effort'
+import { SalesRepActivity, SalesRepAchievement } from '../pages/sales-rep'
 import { GpsTestPage } from '../pages/diagnostics'
 import CoverageMapPage from '../pages/coverage/CoverageMapPage'
 import { DataDeletionCenter } from '../pages/data-center/DataDeletionCenter'
@@ -176,9 +177,11 @@ export function AppRoutes() {
       <Route path="/attendance/employee/:employeeId/:date" element={<ProtectedRoute employeeOnly requireCapability="attendance.view_history"><EmployeeWorkdayDetailPage /></ProtectedRoute>} />
       <Route path="/attendance/operations" element={<ProtectedRoute employeeOnly requireCapability="attendance.live_monitor"><OperationsCenterPage /></ProtectedRoute>} />
 
-      <Route path="/target-runtime" element={<ProtectedRoute employeeOnly><TargetRuntimePage /></ProtectedRoute>} />
       <Route path="/sales-manager-cc" element={<ProtectedRoute employeeOnly><SalesManagerCCPage /></ProtectedRoute>} />
       <Route path="/sales-effort" element={<ProtectedRoute employeeOnly><SalesEffortPage /></ProtectedRoute>} />
+      <Route path="/runtime/activity" element={<ProtectedRoute employeeOnly><SalesRepActivity /></ProtectedRoute>} />
+      <Route path="/runtime/achievement" element={<ProtectedRoute employeeOnly><SalesRepAchievement /></ProtectedRoute>} />
+      <Route path="/runtime/team-achievement" element={<ProtectedRoute employeeOnly><TeamAchievement /></ProtectedRoute>} />
 
       <Route path="/ops/gps-test" element={<ProtectedRoute requireUpperManagement><GpsTestPage /></ProtectedRoute>} />
       <Route path="/coverage-map" element={<ProtectedRoute requireUpperManagement><CoverageMapPage /></ProtectedRoute>} />

@@ -77,7 +77,6 @@ const MODULE_CONFIGS: Record<string, ModuleConfig> = {
       { icon: '\u{1F465}', label: 'الهيكل البيعي', path: '/hierarchy' },
       { icon: '\u{1F3AD}', label: 'الأدوار', path: '/employees#roles' },
       { icon: '\u{1F510}', label: 'الصلاحيات', path: '/employees#permissions' },
-      { icon: '\u{1F3AF}', label: 'التارجت', path: '/target-runtime' },
       { icon: '\u{1F464}', label: 'بياناتي', path: '/account/profile' },
       { icon: '\u{1F510}', label: 'صلاحياتي', path: '/account/permissions' },
     ],
@@ -112,7 +111,6 @@ const MODULE_CONFIGS: Record<string, ModuleConfig> = {
     icon: '\u{1F4CA}',
     operations: [
       { icon: '\u{1F4CA}', label: 'التقارير', path: '/reports' },
-      { icon: '\u{1F4C8}', label: 'التارجت', path: '/target-runtime' },
       { icon: '\u{1F4CA}', label: 'تقارير العملاء', path: '/analytics/customers' },
       { icon: '\u{1F504}', label: 'النشاط الموحد', path: '/activity' },
     ],
