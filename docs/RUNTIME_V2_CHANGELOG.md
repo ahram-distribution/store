@@ -187,6 +187,66 @@
 
 ---
 
+## 2026-06-24 (النشر 4) — شاشات موحدة لنشاط وإنجاز الفريق
+
+### ملخص التغيير
+إزالة شاشات المندوب المنفصلة (SalesRepActivity, SalesRepAchievement) وشاشة فريق الإنجاز القديمة (TeamAchievement). استبدالها بشاشتين موحدتين تعملان لجميع الصلاحيات (مندوب/مدير/إدارة عليا).
+
+### التغييرات
+
+#### SQL — RPC جديد ومعدّل
+| RPC | الحالة | الوصف |
+|-----|--------|-------|
+| `public.get_runtime_team_activity` | ✅ جديد | نشاط الفريق/الشركة — `p_manager_employee_id=NULL` = الكل، `=id` = فريق المدير |
+| `runtime.get_team_activity` | ✅ جديد | التنفيذ الداخلي — تجميع منفصل لكل مقياس (لا Cross-Join) |
+| `public.get_runtime_achievement` | ✅ معدّل | يقبل `p_date_from/p_date_to` إضافة إلى `p_month/p_year` |
+| `runtime.get_achievement_with_targets` | ✅ معدّل | دعم الفلاتر الزمنية المرنة (اليوم/أمس/الأسبوع/الشهر/مخصصة) |
+| `public.get_runtime_team` | ✅ معدّل | يقبل `p_date_from/p_date_to` + يعيد target/remaining/percentage لكل موظف |
+| `runtime.get_team_achievement` | ✅ معدّل | دعم الفلاتر الزمنية + أهداف كل موظف — يستخدم Subqueries منفصلة لتجنب تضخيم Cross-Join |
+
+#### إصلاح خطأ Cross-Join
+**المشكلة**: `runtime.get_team_achievement` القديمة كانت تستخدم JOIN متعددة على نفس الفريق (orders LEFT JOIN visits LEFT JOIN customers)، مما يضاعف `SUM(total_amount)` بعدد الزيارات × العملاء.
+
+**مثال**: عمر محسن — 8 طلبات × 17 زيارة × 9 عملاء = 1,224 صف → `SUM` = 1,296,057 × 153 = 198,296,733.24 ❌
+
+**الحل**: Subqueries منفصلة لكل مقياس (order_stats, visit_stats, customer_stats) ثم LEFT JOIN إلى الفريق — كل مقياس يُحسب مرة واحدة فقط.
+
+#### شاشات الواجهة
+| المسار | المكون | الوصف |
+|--------|--------|-------|
+| `/runtime/activity` | `TeamActivity.tsx` | مندوب: نشاطي. مدير: نشاط الفريق. إدارة: نشاط الشركة + نزول |
+| `/runtime/achievement` | `TeamAchievement.tsx` | مندوب: إنجازي + أهداف + تسوية. مدير/إدارة: جدول مع أهداف + نزول |
+
+#### دور المستخدم — نفس الشاشة
+| الصلاحية | نشاط الفريق | إنجاز الفريق |
+|----------|-------------|-------------|
+| مندوب | 4 بطاقات نشاط فقط | 4 بطاقات + أهداف + تسوية |
+| مدير بيع | إجمالي الفريق + جدول أفراد + نزول للمندوب | إجمالي + جدول مع target/remaining/pct + نزول |
+| إدارة عليا | إجمالي الشركة + جدول مديرين + نزول | إجمالي الشركة + جدول بأهداف + نزول لمدير ← مندوب |
+
+#### فلاتر موحدة
+- اليوم / أمس / الأسبوع / الشهر / فترة مخصصة — نفس الـ 5 فلاتر في كلتا الشاشتين
+- الإنجاز يستخدم الشهر لتحديد الهدف (monthly target) بينما الفلتر الزمني يحدد نطاق الإنجاز المحقق
+
+### الملفات
+| الملف | الحالة |
+|-------|--------|
+| `src/pages/TeamActivity.tsx` | ✅ جديد |
+| `src/pages/TeamAchievement.tsx` | ✅ جديد |
+| `src/routes/index.tsx` | 🔄 تعديل — إزالة `SalesRepActivity` ← `TeamActivity`، إزالة `TeamAchievement` القديم، إزالة `/runtime/team-achievement` |
+| `src/pages/sales-rep/SalesRepActivity.tsx` | ⬆️ لم يعد مستورداً (يحتفظ به للرجوع) |
+| `src/pages/sales-rep/SalesRepAchievement.tsx` | ⬆️ لم يعد مستورداً |
+| `src/pages/sales-manager/TeamAchievement.tsx` | ⬆️ لم يعد مستورداً |
+| `docs/WIREFRAME_TEAM_SCREENS.md` | ✅ جديد — توثيق التصميم |
+
+### الأكواد (Commits)
+| Commit | الوصف |
+|--------|-------|
+| `679d151` | Unified team screens: TeamActivity + TeamAchievement |
+
+### الرابط
+`https://ahram-distribution.github.io/store/dashboard` (يتطلب تسجيل دخول)
+
 ## 2026-06-24 — Phase 1: Event Views
 
 ### Added
