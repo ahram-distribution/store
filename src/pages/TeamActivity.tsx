@@ -14,9 +14,7 @@ function fmt(n: number | null | undefined): string {
 
 function fmtMoney(n: number | null | undefined): string {
   if (n == null || n === 0) return '0'
-  if (n >= 1_000_000) return (n / 1_000_000).toFixed(2) + 'م'
-  if (n >= 1_000) return (n / 1_000).toFixed(1) + 'أ'
-  return fmt(n)
+  return Math.round(n).toLocaleString('ar-EG-u-nu-latn')
 }
 
 function getRange(p: Period, cf: string, ct: string): { from: string; to: string } {

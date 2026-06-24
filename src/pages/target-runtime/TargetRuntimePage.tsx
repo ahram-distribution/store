@@ -112,9 +112,7 @@ function fmtPct(n: number | null | undefined): string {
 
 function fmtShort(n: number | null | undefined): string {
   if (n == null) return '\u2014'
-  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M'
-  if (n >= 1_000) return (n / 1_000).toFixed(1) + 'K'
-  return fmt(n)
+  return Math.round(n).toLocaleString('ar-EG-u-nu-latn')
 }
 
 function StatusBadge({ status }: { status: StatusType }) {
