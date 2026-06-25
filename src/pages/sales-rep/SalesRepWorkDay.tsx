@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../store/auth'
+import { useCapability } from '../../hooks/useCapability'
 
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
@@ -43,6 +44,7 @@ function fmtShort(n: number): string {
 export function SalesRepWorkDay() {
   const navigate = useNavigate()
   const user = useAuthStore((s) => s.user)
+  const canCreateCustomer = useCapability('customers.create')
   const [orders, setOrders] = useState<any[]>([])
   const [visits, setVisits] = useState<any[]>([])
   const [customers, setCustomers] = useState<any[]>([])
@@ -230,6 +232,13 @@ export function SalesRepWorkDay() {
             <div className="text-sm font-bold">عملاء</div>
             <div className="text-[10px] opacity-80 mt-0.5">قائمة العملاء</div>
           </button>
+          {canCreateCustomer && (
+            <button onClick={() => navigate('/customers/new')}
+              className="bg-primary rounded-xl py-3 text-center text-white active:opacity-80 transition-opacity">
+              <div className="text-sm font-bold">إضافة عميل</div>
+              <div className="text-[10px] opacity-80 mt-0.5">تسجيل عميل جديد</div>
+            </button>
+          )}
           <button onClick={() => navigate('/collections')}
             className="bg-emerald-600 rounded-xl py-3 text-center text-white active:opacity-80 transition-opacity">
             <div className="text-sm font-bold">تحصيلات</div>
