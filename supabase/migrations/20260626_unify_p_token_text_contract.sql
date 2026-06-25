@@ -186,6 +186,7 @@ BEGIN
         )
         FROM public.delivery_tracking dt
         LEFT JOIN public.employees ast ON ast.id = dt.assigned_to
+        LEFT JOIN public.identities i_assigned ON i_assigned.id = ast.identity_id
         LEFT JOIN public.external_carriers ec ON ec.id = dt.external_carrier_id
         WHERE dt.order_id = o.id AND dt.is_active = true
         LIMIT 1
@@ -209,12 +210,13 @@ BEGIN
           'waybill_number', dt.waybill_number,
           'tracking_url', dt.tracking_url,
           'assigned_to_name', ast.code,
-          'assigned_to_phone', ast.phone,
+          'assigned_to_phone', i_assigned.phone,
           'external_carrier_name', ec.name,
           'updated_at', dt.updated_at
         ) ORDER BY dt.attempt_number)
         FROM public.delivery_tracking dt
         LEFT JOIN public.employees ast ON ast.id = dt.assigned_to
+        LEFT JOIN public.identities i_assigned ON i_assigned.id = ast.identity_id
         LEFT JOIN public.external_carriers ec ON ec.id = dt.external_carrier_id
         WHERE dt.order_id = o.id
       ), '[]'::jsonb),
