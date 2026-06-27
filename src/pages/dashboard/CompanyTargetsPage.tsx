@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { targetService } from '../../services/targets'
 
 interface WeightForm {
-  sales_weight: string; collections_weight: string; visits_weight: string
+  sales_weight: string; orders_weight: string; collections_weight: string; visits_weight: string
   new_customers_weight: string; attendance_weight: string
 }
 
@@ -28,7 +28,7 @@ export default function CompanyTargetsPage() {
   const [topEmployee, setTopEmployee] = useState<{ name: string; score: number } | null>(null)
 
   const [weightForm, setWeightForm] = useState<WeightForm>({
-    sales_weight: '35', collections_weight: '20', visits_weight: '15',
+    sales_weight: '35', orders_weight: '7.5', collections_weight: '20', visits_weight: '15',
     new_customers_weight: '15', attendance_weight: '15',
   })
 
@@ -48,6 +48,7 @@ export default function CompanyTargetsPage() {
       if (ct && ct.sales_weight_percent != null) {
         setWeightForm({
           sales_weight: ct.sales_weight_percent?.toString() || '35',
+          orders_weight: ct.orders_weight_percent?.toString() || '7.5',
           collections_weight: ct.collections_weight_percent?.toString() || '20',
           visits_weight: ct.visits_weight_percent?.toString() || '15',
           new_customers_weight: ct.new_customers_weight_percent?.toString() || '15',
@@ -100,6 +101,7 @@ export default function CompanyTargetsPage() {
 
   const weightSum = useMemo(() => {
     return (parseFloat(weightForm.sales_weight) || 0) +
+      (parseFloat(weightForm.orders_weight) || 0) +
       (parseFloat(weightForm.collections_weight) || 0) +
       (parseFloat(weightForm.visits_weight) || 0) +
       (parseFloat(weightForm.new_customers_weight) || 0) +
@@ -111,11 +113,12 @@ export default function CompanyTargetsPage() {
     setWeightError('')
     setWeightSuccess(false)
     const sw = parseFloat(weightForm.sales_weight) || 0
+    const ow = parseFloat(weightForm.orders_weight) || 0
     const cw = parseFloat(weightForm.collections_weight) || 0
     const vw = parseFloat(weightForm.visits_weight) || 0
     const nw = parseFloat(weightForm.new_customers_weight) || 0
     const aw = parseFloat(weightForm.attendance_weight) || 0
-    if (sw + cw + vw + nw + aw !== 100) {
+    if (sw + ow + cw + vw + nw + aw !== 100) {
       setWeightError('مجموع النسب يجب أن يساوي 100%')
       return
     }
@@ -125,7 +128,7 @@ export default function CompanyTargetsPage() {
     const { error } = await targetService.upsertCompanyTarget(
       selMonth, selYear,
       0, 0, 0, 0,
-      sw, vw, 0, nw, cw, aw, token
+      sw, vw, ow, nw, cw, aw, token
     )
     setSavingWeights(false)
     if (error) {
@@ -196,6 +199,12 @@ export default function CompanyTargetsPage() {
             <label className="text-[10px] text-text-secondary block mb-1">المبيعات %</label>
             <input type="number" value={weightForm.sales_weight}
               onChange={e => handleChange('sales_weight', e.target.value)}
+              className="w-full border border-border rounded-lg p-2 text-sm text-text text-right bg-white" />
+          </div>
+          <div>
+            <label className="text-[10px] text-text-secondary block mb-1">الطلبات %</label>
+            <input type="number" value={weightForm.orders_weight}
+              onChange={e => handleChange('orders_weight', e.target.value)}
               className="w-full border border-border rounded-lg p-2 text-sm text-text text-right bg-white" />
           </div>
           <div>

@@ -154,6 +154,7 @@ export default function UpperManagementDashboard() {
     { icon: '🏷️', label: 'الأقسام', path: '/launcher/deals', isSubLauncher: true },
     { icon: '📈', label: 'التقارير', path: '/launcher/reports', isSubLauncher: true },
     { icon: '🎯', label: 'الأهداف', path: '/launcher/targets', isSubLauncher: true },
+    { icon: '🏛️', label: 'التسلسل الهرمي', path: '/targets/hierarchy' },
     { icon: '⚙️', label: 'الإعدادات', path: '/launcher/settings', isSubLauncher: true },
     { icon: '📡', label: 'اختبار GPS والموقع', path: '/ops/gps-test' },
     { icon: '🗑️', label: 'مركز الحذف', path: '/data-center' },
