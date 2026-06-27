@@ -78,6 +78,7 @@ BEGIN
         'total_amount', o.total_amount,
         'notes', o.notes,
         'revision_number', o.revision_number,
+        'last_revised_at', o.last_revised_at,
         'customer_id', o.customer_id,
         'owner_type', o.owner_type,
         'owner_id', o.owner_id,
@@ -107,7 +108,21 @@ BEGIN
         'snapshot_owner_address', o.snapshot_owner_address,
         'snapshot_sender_name', o.snapshot_sender_name,
         'snapshot_sender_phone', o.snapshot_sender_phone,
-        'snapshot_sender_address', o.snapshot_sender_address
+        'snapshot_sender_address', o.snapshot_sender_address,
+        'customer_owner_name', COALESCE(co_emp.full_name, ''),
+        'customer_owner_role', COALESCE((SELECT r.name FROM public.employee_roles er2 JOIN public.roles r ON r.id = er2.role_id WHERE er2.employee_id = c.owner_id LIMIT 1), ''),
+        'order_creator_name', COALESCE(oc_emp.full_name, oc_cust.company_name, ''),
+        'order_creator_role', CASE
+          WHEN oc_i.identity_type = 'employee' THEN COALESCE((SELECT r.name FROM public.employee_roles er2 JOIN public.roles r ON r.id = er2.role_id WHERE er2.employee_id = oc_emp.id LIMIT 1), '')
+          ELSE NULL
+        END,
+        'customer_owner_id', c.owner_id,
+        'order_creator_id', CASE
+          WHEN oc_i.identity_type = 'employee' THEN oc_emp.id
+          WHEN oc_i.identity_type = 'customer' THEN oc_cust.id
+          ELSE NULL
+        END,
+        'order_creator_type', oc_i.identity_type
       ),
       'customer', (
         SELECT jsonb_build_object(
@@ -158,8 +173,28 @@ BEGIN
           'changed_by_name', e_changed.full_name
         ) ORDER BY osh.changed_at)
         FROM public.order_status_history osh
-        LEFT JOIN public.employees e_changed ON e_changed.id = osh.changed_by
+        LEFT JOIN public.employees e_changed ON e_changed.identity_id = osh.changed_by
         WHERE osh.order_id = o.id
+      ), '[]'::jsonb),
+      'modification_history', COALESCE((
+        SELECT jsonb_agg(jsonb_build_object(
+          'id', omh.id,
+          'revision_number', omh.revision_number,
+          'field_name', omh.field_name,
+          'old_value', omh.old_value,
+          'new_value', omh.new_value,
+          'old_order_items', omh.old_order_items,
+          'new_order_items', omh.new_order_items,
+          'old_daily_deals', omh.old_daily_deals,
+          'new_daily_deals', omh.new_daily_deals,
+          'old_flash_offers', omh.old_flash_offers,
+          'new_flash_offers', omh.new_flash_offers,
+          'modified_by', omh.modified_by,
+          'reason', omh.reason,
+          'modified_at', omh.modified_at
+        ) ORDER BY omh.modified_at DESC)
+        FROM public.order_modification_history omh
+        WHERE omh.order_id = o.id
       ), '[]'::jsonb),
       'current_delivery', (
         SELECT jsonb_build_object(
@@ -178,9 +213,8 @@ BEGIN
           'external_carrier_id', dt.external_carrier_id,
           'waybill_number', dt.waybill_number,
           'tracking_url', dt.tracking_url,
-          'delivery_mode', o.delivery_mode,
           'assigned_to_name', ast.code,
-          'assigned_to_phone', ast.phone,
+          'assigned_to_phone', i_assigned.phone,
           'external_carrier_name', ec.name,
           'updated_at', dt.updated_at
         )
@@ -268,6 +302,11 @@ BEGIN
       ), '[]'::jsonb)
     )
     FROM public.orders o
+    JOIN public.customers c ON c.id = o.customer_id
+    LEFT JOIN public.employees co_emp ON co_emp.id = c.owner_id
+    LEFT JOIN public.identities oc_i ON oc_i.id = o.created_by
+    LEFT JOIN public.employees oc_emp ON oc_emp.identity_id = oc_i.id AND oc_i.identity_type = 'employee'
+    LEFT JOIN public.customers oc_cust ON oc_cust.identity_id = oc_i.id AND oc_i.identity_type = 'customer'
     WHERE o.id = p_id
   );
 END;

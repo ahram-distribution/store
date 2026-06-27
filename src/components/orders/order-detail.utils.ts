@@ -60,6 +60,7 @@ export function buildTimelineEvents(data: UnifiedOrder): TimelineEvent[] {
     label: 'إنشاء الطلب',
     timestamp: data.order.created_at,
     color: 'green',
+    actor: data.order.order_creator_name || undefined,
   })
 
   for (const h of data.status_history) {
@@ -70,7 +71,7 @@ export function buildTimelineEvents(data: UnifiedOrder): TimelineEvent[] {
       label: fromLabel ? `تغيير الحالة من "${fromLabel}" إلى "${toLabel}"` : toLabel,
       timestamp: h.changed_at,
       color: h.to_status === 'cancelled' ? 'red' : h.to_status === 'delivered' ? 'green' : 'blue',
-      actor: undefined,
+      actor: h.changed_by_name || undefined,
     })
   }
 
@@ -155,12 +156,13 @@ export function buildTimelineEvents(data: UnifiedOrder): TimelineEvent[] {
   }
 
   events.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+  console.log('[DEBUG] buildTimelineEvents:', JSON.stringify(events.map(e => ({ id: e.id, label: e.label, actor: e.actor })), null, 2))
   return events
 }
 
-export function getLastActionLabel(events: TimelineEvent[]): { label: string; time: string } | null {
+export function getLastActionLabel(events: TimelineEvent[]): { label: string; time: string; actor?: string } | null {
   if (events.length === 0) return null
   if (events.length === 1 && events[0].id === 'created') return null
   const latest = events[0]
-  return { label: latest.label, time: timeAgo(latest.timestamp) }
+  return { label: latest.label, time: timeAgo(latest.timestamp), actor: latest.actor }
 }

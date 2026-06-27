@@ -122,6 +122,7 @@ export interface UnifiedStatusHistoryEntry {
   to_status: string
   changed_by: string | null
   changed_at: string
+  changed_by_name: string | null
 }
 
 export interface UnifiedDeliveryTracking {

@@ -12,6 +12,7 @@ function getToken(): string | null {
 }
 
 export function OrderDetailPage() {
+  console.log("ORDER DETAIL BUILD VERSION: 2026-06-25-A")
   const navigate = useNavigate()
   const { id } = useParams()
   const [data, setData] = useState<UnifiedOrder | null>(null)
@@ -31,6 +32,8 @@ export function OrderDetailPage() {
       if (res.error || !res.data) { setLoading(false); return }
       const raw = res.data
       if (raw?.error) { setLoading(false); return }
+      console.log('RPC status_history:', raw.status_history)
+      console.log('RPC order:', raw.order)
       setData(raw as UnifiedOrder)
       setLoading(false)
     })

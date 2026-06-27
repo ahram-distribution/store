@@ -24,6 +24,7 @@ const COLOR_CLASSES: Record<string, string> = {
 
 export function OrderTimelineSection({ timelineEvents }: OrderTimelineSectionProps) {
   const [expanded, setExpanded] = useState(false)
+  console.log('[DEBUG] OrderTimelineSection timelineEvents:', JSON.stringify(timelineEvents.map(e => ({ id: e.id, label: e.label, actor: e.actor })), null, 2))
 
   if (timelineEvents.length === 0) return null
 

@@ -8,7 +8,7 @@ interface OrderHeaderSectionProps {
   order: UnifiedOrder['order']
   currentOwner: string
   overLimit: boolean | null
-  lastAction: { label: string; time: string } | null
+  lastAction: { label: string; time: string; actor?: string } | null
   modificationEntries?: UnifiedModificationEntry[]
   actions?: React.ReactNode
   onBack?: () => void
@@ -16,6 +16,7 @@ interface OrderHeaderSectionProps {
 
 export function OrderHeaderSection({ order, currentOwner, overLimit, lastAction, modificationEntries, actions, onBack }: OrderHeaderSectionProps) {
   const navigate = useNavigate()
+  console.log('[DEBUG] OrderHeaderSection lastAction:', JSON.stringify(lastAction))
 
   const revisionCount = order.revision_number
   const totalEditCount = modificationEntries?.filter(e => e.field_name === 'REVISION_SNAPSHOT').length || 0
@@ -111,6 +112,7 @@ export function OrderHeaderSection({ order, currentOwner, overLimit, lastAction,
         {lastAction && (
           <div className="mt-2 pt-2 border-t border-border text-[10px] text-text-secondary">
             آخر إجراء: <span className="font-medium text-text">{lastAction.label}</span>
+            {lastAction.actor && <span className="font-medium text-text"> — {lastAction.actor}</span>}
             {' — '}
             <span>{lastAction.time}</span>
           </div>
