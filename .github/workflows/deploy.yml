@@ -124,11 +124,4 @@ jobs:
         id: deployment
         uses: actions/deploy-pages@v4
 
-      - name: Set Pages source to gh-pages branch
-        run: |
-          PAYLOAD='{"source":{"branch":"gh-pages","path":"/"}}'
-          echo "$PAYLOAD" | gh api -X PUT /repos/${{ github.repository }}/pages --input - 2>&1 || \
-            echo "WARNING: Could not set Pages source via API. SPA deep links 404 on first visit. To fix: Settings > Pages > Source > 'Deploy from a branch' > gh-pages / (root)."
-        continue-on-error: true
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
