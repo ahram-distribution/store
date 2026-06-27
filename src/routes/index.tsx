@@ -42,6 +42,7 @@ import { CompanyProfilePage as SettingsCompanyProfilePage } from '../pages/setti
 import ActivityPage from '../pages/activity/ActivityPage'
 
 import { CommandCenterPage, ModuleWorkspacePage } from '../pages/command-center'
+import HierarchyTargetPage from '../pages/target-runtime/HierarchyTargetPage'
 import {
   AttendanceSettingsPage,
   TeamMapPage,
@@ -154,6 +155,7 @@ export function AppRoutes() {
       <Route path="/employees" element={<ProtectedRoute requireCapability="employees.manage"><EmployeeManagementPage /></ProtectedRoute>} />
       <Route path="/employees/:id" element={<ProtectedRoute employeeOnly><EmployeeProfilePage /></ProtectedRoute>} />
       <Route path="/hierarchy" element={<ProtectedRoute requireCapability="employees.manage"><HierarchyPage /></ProtectedRoute>} />
+      <Route path="/targets/hierarchy" element={<ProtectedRoute employeeOnly><HierarchyTargetPage /></ProtectedRoute>} />
       <Route path="/companies" element={<ProtectedRoute><MgmtCompaniesPage /></ProtectedRoute>} />
       <Route path="/companies/:id" element={<ProtectedRoute><CompanyProfilePage /></ProtectedRoute>} />
       <Route path="/reports" element={<ProtectedRoute employeeOnly><ReportsPage /></ProtectedRoute>} />

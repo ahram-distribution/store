@@ -64,6 +64,60 @@ interface PerformanceData {
   employees: EmployeePerfRow[]
   best_employee: EmployeePerfRow | null
   weakest_employee: EmployeePerfRow | null
+  hierarchy?: HierarchyData | null
+}
+
+interface HierarchyKpiValue {
+  target: number
+  actual: number
+  pct: number | null
+}
+
+interface HierarchyKpis {
+  sales: HierarchyKpiValue
+  visits: HierarchyKpiValue
+  orders: HierarchyKpiValue
+  new_customers: HierarchyKpiValue
+  collections: HierarchyKpiValue
+  attendance: HierarchyKpiValue
+}
+
+interface HierarchyTeamSummary {
+  team_target: Record<string, number>
+  team_actual: Record<string, number>
+  team_achievement_pct: Record<string, number | null>
+  team_overall_pct: number
+  team_member_count: number
+}
+
+interface HierarchyMember {
+  employee_id: string
+  employee_code: string
+  employee_name: string
+  is_manager: boolean
+  has_target: boolean
+  has_activity: boolean
+  is_locked: boolean | null
+  overall_achievement_score: number | null
+  weights: Record<string, number>
+  kpis: HierarchyKpis
+}
+
+interface HierarchyManager {
+  manager_id: string
+  manager_code: string
+  manager_name: string
+  own_overall_score: number | null
+  own_kpis: HierarchyKpis
+  team_summary: HierarchyTeamSummary
+  members: HierarchyMember[]
+}
+
+interface HierarchyData {
+  manager_count: number
+  managers: HierarchyManager[]
+  unassigned_count: number
+  unassigned: HierarchyMember[]
 }
 
 type StatusType = 'on_track' | 'needs_push' | 'needs_help' | 'critical' | 'no_target'
