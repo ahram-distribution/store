@@ -219,7 +219,36 @@ Append to the final `jsonb_build_object`:
 
 ---
 
-## 5. Backward Compatibility Analysis
+## 5. Frontend Screen — `HierarchyTargetPage`
+
+### 5.1 Route
+
+`/targets/hierarchy` — Protected route, available to all employees with an active session.
+
+### 5.2 Navigation Path
+
+**الإدارة العليا** (`/dashboard`) → 🏛️ **التسلسل الهرمي** (`/targets/hierarchy`)
+
+### 5.3 Screen Architecture
+
+| Level | View | Description |
+|-------|------|-------------|
+| **Level 1 — Company** | Table | Company overview (target, actual, %) + progress bar + managers table sorted by `team_overall_pct DESC` + unassigned count |
+| **Level 2 — Manager Team** | Table + Cards | Team summary (target, actual, %, member count) + manager's own KPI cards + members table (manager first with ✅) |
+| **Level 3 — Member Details** | KPI Cards | 6 KPI cards per member: sales, orders, visits, new customers, collections, attendance |
+
+### 5.4 KPI Cards
+
+Each card displays:
+- KPI name (Arabic label)
+- Achievement percentage (or `—` if no target)
+- Target and actual values
+- Progress bar (colored per KPI)
+- Status label: ✓ تم تجاوز الهدف / على المسار الصحيح / بحاجة دفع / متأخر / بدون إنجاز
+
+---
+
+## 6. Backward Compatibility Analysis
 
 | Consumer | Change Impact | Status |
 |----------|--------------|--------|
@@ -230,7 +259,7 @@ Append to the final `jsonb_build_object`:
 
 ---
 
-## 6. Execution Plan
+## 7. Execution Plan
 
 | Step | Description | File |
 |------|-------------|------|
@@ -240,12 +269,14 @@ Append to the final `jsonb_build_object`:
 | Step 3 | **Migration: Add hierarchy_build CTE** — group employees by manager, compute team rollups, build JSON | Same migration |
 | Step 4 | **Migration: Append `hierarchy` to return** | Same migration |
 | Step 5 | **Migration: Update frontend TS interfaces** — add HierarchyMember, HierarchyManager types | TypeScript change |
-| Step 6 | **Verification: Scores + contracts** — run before/after comparison | Manual verification |
-| Step 7 | **Close Phase D** | |
+| Step 6 | **Frontend: HierarchyTargetPage** — 3-level drill-down screen at `/targets/hierarchy` | New component |
+| Step 7 | **Frontend: Navigation entry** — add `التسلسل الهرمي` launcher to Upper Management Dashboard | Dashboard update |
+| Step 8 | **Verification: Scores + contracts** — run before/after comparison | Manual verification |
+| Step 9 | **Close Phase D** | |
 
 ---
 
-## 7. Owner Decisions (Resolved During Review)
+## 8. Owner Decisions (Resolved During Review) (Resolved During Review)
 
 1. **Attendance data** — Included with 0 values as placeholder. Phase F will activate actual data. ✅
 2. **Collections data** — Include `collections_target` from `employee_monthly_targets` and `collections_actual` from `collections` table. ✅
@@ -256,7 +287,7 @@ Append to the final `jsonb_build_object`:
 
 ---
 
-## 8. Approval
+## 9. Approval
 
 | Role | Decision | Date |
 |------|----------|------|
