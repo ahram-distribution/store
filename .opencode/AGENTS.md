@@ -13,14 +13,14 @@
 ## Mandatory Rules
 
 ### Before ANY change
-1. Read `docs/good/07-audits/PROJECT_TRUTH_AUDIT.md` — understand current state first
-2. Read `docs/good/05-fixes/FIX_HISTORY.md` — check if this issue is already tracked
-3. Read `docs/good/02-runtime/ACTIVE_RUNTIME_ONLY.md` — know what actually runs
+1. Read `docs/07-AUDITS/PROJECT_TRUTH_AUDIT.md` — understand current state first
+2. Read `docs/08-FIXES-HISTORY/FIX_HISTORY.md` — check if this issue is already tracked
+3. Read `docs/07-AUDITS/SYSTEM_REFERENCE_CURRENT_STATE.md` — know the current system state
 
 ### During changes
 4. NO deleting any code, tables, or RPCs — only mark as deprecated
 5. NO refactoring or new features — only fixes and documentation
-6. Record EVERY change in `docs/good/05-fixes/FIX_HISTORY.md`
+6. Record EVERY change in `docs/08-FIXES-HISTORY/FIX_HISTORY.md`
 7. Use `is_upper_management()` instead of hardcoded role names
 8. Never hardcode employee codes (`WRQ1002`, `WRQ1004`)
 9. Route all DB access through governed RPCs — never `supabase.from()` directly
@@ -41,8 +41,8 @@
 - Pages: `src/pages/<module>/`
 - Components: `src/components/`
 - Types: `types/` or `src/types/`
-- Docs: `docs/good/` (use `docs/good/00-governance/DOCUMENTATION_INDEX.md` as index)
-- Fix records: `docs/good/05-fixes/FIX_HISTORY.md`
+- Docs: `docs/` (use `docs/00-INDEX/DOCUMENTATION_INDEX.md` as index)
+- Fix records: `docs/08-FIXES-HISTORY/FIX_HISTORY.md`
 
 ### Naming
 - Arabic-first for user-facing strings
@@ -50,23 +50,25 @@
 - SQL migrations: `YYYYMMDD_description.sql`
 
 ## Documentation Governance
-- **ALL new documentation** (reports, audits, analysis, architecture, governance, fix history, runtime docs, database docs) MUST be created inside `docs/good/`
+- **ALL new documentation** (reports, audits, analysis, architecture, governance, fix history, runtime docs, database docs) MUST be created inside the appropriate `docs/` subdirectory
 - NO documentation files at project root — ever
-- When editing an existing doc outside `docs/good/`, move it to the appropriate subdirectory inside `docs/good/` first
-- Classification follows the `docs/good/` directory structure:
-  - `00-governance/` — policies, governance rules
-  - `01-architecture/` — system maps, screen/RPC catalogs
-  - `02-runtime/` — runtime behavior analysis
-  - `03-database/` — database usage, schemas
-  - `04-security/` — role models, access control
-  - `05-fixes/` — fix history, regression guards, hotfix reports
-  - `06-reports/` — phase reports, status reports
-  - `07-audits/` — truth audits, integrity audits
-  - `08-operations/` — removal candidates, consolidation reports
-  - `09-reference/` — summaries, reference material
-  - `archive/` — old/duplicate docs (never delete)
-- `docs/new/` and `docs/old/` are staging areas only — reference them but create new content in `docs/good/`
-- Violation: any doc created outside `docs/good/` must be moved immediately
+- When editing an existing doc outside its proper directory, move it to the correct subdirectory first
+- Classification follows the `docs/` directory structure:
+  - `00-INDEX/` — index, summaries, master reference
+  - `01-ARCHITECTURE/` — system maps, screen/RPC catalogs, architecture decisions
+  - `02-DATABASE/` — database usage, schemas, integrity
+  - `03-RPCS-FUNCTIONS/` — RPC catalogs, function documentation
+  - `04-SECURITY/` — role models, access control
+  - `05-RUNTIME/` — runtime behavior analysis, tracking
+  - `06-FRONTEND/` — frontend UI documentation
+  - `07-AUDITS/` — truth audits, integrity audits, verification
+  - `08-FIXES-HISTORY/` — fix history, regression guards, hotfix reports
+  - `08-CHANGELOG/` — changelogs
+  - `09-REPORTS/` — phase reports, status reports, executive reports
+  - `10-OWNER-KNOWLEDGE/` — owner knowledge base
+  - `archive/` — historical docs, duplicates (never delete)
+- `docs/archive/` subdirectories: `duplicates/`, `historical/`, `business/`, `technical/`, `reports/`, `system-blueprint/`, `verification/`, `runtime-extraction/`, `project-state/`
+- Violation: any doc created outside its proper subdirectory must be moved immediately
 
 ## Verification
 - Always run type check after changes: `npx tsc --noEmit`

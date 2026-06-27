@@ -206,8 +206,7 @@ export default function HistoricalPerformancePanel() {
     setLoading(true)
     try {
       const token = localStorage.getItem('session_token')
-      if (!token) return
-      const { data: result, error } = await supabase.rpc('get_completed_workdays_history', {
+      const payload = {
         p_token: token,
         p_from: dateRange.from,
         p_to: dateRange.to,
@@ -216,8 +215,29 @@ export default function HistoricalPerformancePanel() {
         p_sort_order: sortOrder,
         p_page: page,
         p_per_page: perPage,
-      })
-      if (error) throw error
+      }
+      const obs = {
+        rawValue: token,
+        typeof: typeof token,
+        length: token?.length ?? 0,
+        equalsTrimmed: token === token?.trim(),
+        payload: {
+          p_token: payload.p_token,
+          p_from: payload.p_from,
+          p_to: payload.p_to,
+          p_search: payload.p_search,
+          p_sort_by: payload.p_sort_by,
+          p_sort_order: payload.p_sort_order,
+          p_page: payload.p_page,
+          p_per_page: payload.p_per_page,
+        },
+      }
+      const { data: result, error, status } = await supabase.rpc('get_completed_workdays_history', payload)
+      if (error) {
+        console.error('[HISTORY_DEBUG] RPC FAILED', JSON.stringify({ ...obs, httpStatus: status, pgCode: error.code, pgMessage: error.message, pgDetails: (error as any).details, pgHint: (error as any).hint }))
+        console.log('[HISTORY_DEBUG] RAW ERROR', error)
+        throw error
+      }
       if (result && typeof result === 'object' && !('error' in (result as Record<string, unknown>))) {
         const r = result as Record<string, unknown>
         const employeesRaw = (r.employees || []) as Record<string, unknown>[]
