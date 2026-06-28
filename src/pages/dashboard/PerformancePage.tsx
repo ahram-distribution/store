@@ -1,7 +1,5 @@
 import { useState } from 'react'
 import ActivityScreen from './ActivityScreen'
-import TargetsPage from './TargetsPage'
-import WeightsPage from './WeightsPage'
 
 const TABS = [
   { key: 'activity', label: 'النشاط' },
@@ -11,6 +9,18 @@ const TABS = [
 ] as const
 
 type TabKey = (typeof TABS)[number]['key']
+
+function Placeholder({ title }: { title: string }) {
+  return (
+    <div className="max-w-4xl mx-auto p-4">
+      <div className="text-center py-20 text-gray-400">
+        <div className="text-5xl mb-4">🏗️</div>
+        <p className="text-lg font-semibold">{title}</p>
+        <p className="text-sm mt-1">قيد التطوير — قريباً</p>
+      </div>
+    </div>
+  )
+}
 
 export default function PerformancePage() {
   const [activeTab, setActiveTab] = useState<TabKey>('activity')
@@ -38,27 +48,10 @@ export default function PerformancePage() {
         </div>
       </div>
 
-      <div className={activeTab !== 'activity' ? 'hidden' : ''}>
-        <ActivityScreen />
-      </div>
-
-      <div className={activeTab !== 'achievement' ? 'hidden' : ''}>
-        <div className="max-w-4xl mx-auto p-4">
-          <div className="text-center py-20 text-gray-400">
-            <div className="text-5xl mb-4">🏗️</div>
-            <p className="text-lg font-semibold">شاشة الإنجاز</p>
-            <p className="text-sm mt-1">قيد التطوير — قريباً</p>
-          </div>
-        </div>
-      </div>
-
-      <div className={activeTab !== 'targets' ? 'hidden' : ''}>
-        <TargetsPage />
-      </div>
-
-      <div className={activeTab !== 'weights' ? 'hidden' : ''}>
-        <WeightsPage />
-      </div>
+      {activeTab === 'activity' && <ActivityScreen />}
+      {activeTab === 'achievement' && <Placeholder title="شاشة الإنجاز" />}
+      {activeTab === 'targets' && <Placeholder title="شاشة التارجت" />}
+      {activeTab === 'weights' && <Placeholder title="شاشة الأوزان" />}
     </div>
   )
 }
