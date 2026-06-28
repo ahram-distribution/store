@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../store/auth'
@@ -55,17 +55,21 @@ const MODULE_ROUTES: Record<string, string> = {
   visits: '/command-center/modules/visits',
   credit: '/command-center/modules/credit',
   inventory: '/command-center/modules/inventory',
+  employees: '/command-center/modules/employees',
   returns: '/command-center/modules/returns',
   collections: '/command-center/modules/collections',
   delivery: '/command-center/modules/delivery',
   reports: '/command-center/modules/reports',
+  warehouse: '/command-center/modules/warehouse',
   targets: '/command-center/modules/employees',
   permissions: '/account/permissions',
   auctions: '/auctions',
   'daily-deals': '/daily-deals',
   'flash-offers': '/flash-offers',
   tiers: '/tiers',
+  companies: '/companies',
   deals: '/deals',
+  products: '/products',
   attendance: '/attendance/operations',
 }
 
@@ -75,6 +79,7 @@ const MODULE_EMOJI: Record<string, string> = {
   visits: '📍',
   credit: '💳',
   inventory: '📦',
+  employees: '👤',
   returns: '📋',
   collections: '💰',
   delivery: '🚚',
@@ -85,14 +90,17 @@ const MODULE_EMOJI: Record<string, string> = {
   'daily-deals': '⚡',
   'flash-offers': '⏰',
   tiers: '📈',
+  companies: '🏢',
+  warehouse: '🏗️',
   deals: '🏷️',
+  products: '📦',
   attendance: '📅',
 }
 
 const MODULE_TIERS = {
-  primary: ['orders', 'customers', 'visits', 'credit', 'inventory', 'attendance'],
-  secondary: ['returns', 'collections', 'delivery', 'reports' ],
-  technical: ['targets', 'permissions', 'auctions', 'daily-deals', 'flash-offers', 'tiers', 'deals' ],
+  primary: ['orders', 'customers', 'visits', 'credit', 'inventory', 'employees', 'attendance'],
+  secondary: ['returns', 'collections', 'delivery', 'reports', 'warehouse'],
+  technical: ['targets', 'permissions', 'auctions', 'daily-deals', 'flash-offers', 'tiers', 'companies', 'deals', 'products'],
 }
 
 const HEALTH_COLOR: Record<string, string> = {
@@ -355,6 +363,12 @@ export function CommandCenterPage() {
                   className="bg-surface rounded-xl p-3 text-center active:scale-95 transition-transform hover:shadow-sm">
                   <div className="text-xl mb-1">{'\u{1F4CD}'}</div>
                   <div className="text-[10px] font-semibold text-text">مشغل الزيارات</div>
+                  <div className="text-[8px] text-text-secondary">Launcher</div>
+                </button>
+                <button onClick={() => nav('/launcher/employees')}
+                  className="bg-surface rounded-xl p-3 text-center active:scale-95 transition-transform hover:shadow-sm">
+                  <div className="text-xl mb-1">{'\u{1F464}'}</div>
+                  <div className="text-[10px] font-semibold text-text">مشغل الموظفين</div>
                   <div className="text-[8px] text-text-secondary">Launcher</div>
                 </button>
                 <button onClick={() => nav('/launcher/reports')}

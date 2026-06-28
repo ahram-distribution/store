@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 
@@ -16,6 +16,9 @@ interface Counts {
   pending_returns: number
   today_orders: number
   today_visits: number
+  total_employees: number
+  total_companies: number
+  total_products: number
 }
 
 export function AdminWorkspace() {
@@ -44,6 +47,9 @@ export function AdminWorkspace() {
         pending_returns: m.pending_returns ?? 0,
         today_orders: m.today_orders ?? 0,
         today_visits: m.today_visits ?? 0,
+        total_employees: dc.employees_count ?? 0,
+        total_companies: dc.companies_count ?? 0,
+        total_products: prodCount,
       })
       setLoading(false)
     })
@@ -75,6 +81,18 @@ export function AdminWorkspace() {
           <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center mb-2"><span className="text-white text-lg font-bold">{data?.total_customers}</span></div>
           <span className="text-sm font-semibold text-text">العملاء</span>
         </button>
+        <button onClick={() => navigate('/employees')} className="bg-white rounded-xl border border-border p-4 text-right active:bg-surface transition-colors">
+          <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center mb-2"><span className="text-white text-lg font-bold">{data?.total_employees}</span></div>
+          <span className="text-sm font-semibold text-text">الموظفين</span>
+        </button>
+        <button onClick={() => navigate('/products')} className="bg-white rounded-xl border border-border p-4 text-right active:bg-surface transition-colors">
+          <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center mb-2"><span className="text-white text-lg font-bold">{data?.total_products}</span></div>
+          <span className="text-sm font-semibold text-text">المنتجات</span>
+        </button>
+        <button onClick={() => navigate('/companies')} className="bg-white rounded-xl border border-border p-4 text-right active:bg-surface transition-colors">
+          <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center mb-2"><span className="text-white text-lg font-bold">{data?.total_companies}</span></div>
+          <span className="text-sm font-semibold text-text">الشركات</span>
+        </button>
         <button onClick={() => navigate('/visits')} className="bg-white rounded-xl border border-border p-4 text-right active:bg-surface transition-colors">
           <div className="w-10 h-10 rounded-xl bg-success flex items-center justify-center mb-2"><span className="text-white text-lg font-bold">{data?.active_visits}</span></div>
           <span className="text-sm font-semibold text-text">زيارات نشطة</span>
@@ -86,6 +104,7 @@ export function AdminWorkspace() {
         <div className="grid grid-cols-2 gap-2">
           <button onClick={() => navigate('/orders/new')} className="bg-primary text-white text-xs py-2.5 rounded-lg">طلب جديد</button>
           <button onClick={() => navigate('/customers')} className="bg-primary text-white text-xs py-2.5 rounded-lg">إدارة العملاء</button>
+          <button onClick={() => navigate('/products')} className="bg-surface text-text text-xs py-2.5 rounded-lg border border-border">المنتجات</button>
           <button onClick={() => navigate('/orders/approval-queue')} className="bg-accent text-white text-xs py-2.5 rounded-lg">اعتماد الطلبات</button>
           <button onClick={() => navigate('/analytics/customers')} className="bg-surface text-text text-xs py-2.5 rounded-lg border border-border">تحليلات</button>
         </div>

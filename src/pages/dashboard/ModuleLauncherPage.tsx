@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { SubLauncherPage, type LauncherIcon } from './SubLauncherPage'
 import { useAuthStore } from '../../store/auth'
@@ -16,6 +16,7 @@ const MODULE_ICONS: Record<string, { title: string; icons: LauncherIcon[] }> = {
       { icon: '🚚', label: 'التسليم', path: '/delivery' },
       { icon: '🔄', label: 'المرتجعات', path: '/returns' },
       { icon: '🔍', label: 'متابعة الطلبات', path: '/orders/approval-queue' },
+      { icon: '📦', label: 'تجهيز المخزن', path: '/warehouse' },
       { icon: '📄', label: 'طلباتي', path: '/orders?my=1' },
       { icon: '📄', label: 'فواتيري', path: '/orders?my_invoices=1' },
     ],
@@ -43,7 +44,13 @@ const MODULE_ICONS: Record<string, { title: string; icons: LauncherIcon[] }> = {
   employees: {
     title: 'الموظفون',
     icons: [
+      { icon: '👤', label: 'كل الموظفين', path: '/employees' },
+      { icon: '➕', label: 'إضافة موظف', path: '/employees?add=1' },
+      { icon: '🧑‍💼', label: 'المناديب', path: '/employees?role=مندوب' },
+      { icon: '👔', label: 'المشرفين', path: '/employees?role=مشرف' },
       { icon: '🔗', label: 'الهيكل البيعي', path: '/hierarchy' },
+      { icon: '🎭', label: 'الأدوار', path: '/employees#roles' },
+      { icon: '🔐', label: 'الصلاحيات', path: '/employees#permissions' },
       { icon: '🔐', label: 'صلاحياتي', path: '/account/permissions' },
       { icon: '👤', label: 'بياناتي', path: '/account/profile' },
     ],
@@ -51,8 +58,14 @@ const MODULE_ICONS: Record<string, { title: string; icons: LauncherIcon[] }> = {
   inventory: {
     title: 'المخزون والمنتجات',
     icons: [
+      { icon: '📦', label: 'المخزون', path: '/warehouse' },
+      { icon: '🛍️', label: 'المنتجات', path: '/products' },
+      { icon: '➕', label: 'إضافة منتج', path: '/products?add=1' },
       { icon: '✏️', label: 'تعديل منتج', path: '/products/manage' },
+      { icon: '🏭', label: 'الشركات', path: '/companies' },
+      { icon: '➕', label: 'إضافة شركة', path: '/companies?add=1' },
       { icon: '✏️', label: 'تعديل شركة', path: '/companies/manage' },
+      { icon: '🔍', label: 'مراجعة المخزون', path: '/warehouse/review' },
     ],
   },
   deals: {
@@ -87,6 +100,7 @@ const MODULE_ICONS: Record<string, { title: string; icons: LauncherIcon[] }> = {
     icons: [
       { icon: '🏢', label: 'إعدادات الشركة', path: '/settings/company' },
       { icon: '👤', label: 'بيانات المستخدم', path: '/account/profile' },
+      { icon: '🔐', label: 'الصلاحيات', path: '/account/permissions' },
     ],
   },
   command_center: {
