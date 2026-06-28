@@ -392,6 +392,17 @@ From any screen: "← العودة" button goes back to previous level or to `/d
 
 ---
 
+## Phase E — Progress
+
+| Step | Screen | Status |
+|------|--------|--------|
+| 1 | الأوزان (`/dashboard/weights`) | ✅ Built — pending owner test |
+| 2 | التارجت (`/dashboard/targets`) | ⬜ Not started |
+| 3 | الإنجاز (`/dashboard/achievement`) | ⬜ Not started |
+| 4 | النشاط (`/dashboard/activity`) | ⬜ Not started |
+
+---
+
 ## 10. Pending Decisions
 
 | # | Decision | Status |
