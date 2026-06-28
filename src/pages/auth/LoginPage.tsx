@@ -50,6 +50,14 @@ export function LoginPage() {
     return () => window.removeEventListener('appinstalled', handler)
   }, [])
 
+  const { sessionExpired, clearSessionExpired } = useAuthStore()
+  useEffect(() => {
+    if (sessionExpired) {
+      toast('انتهت صلاحية الجلسة، يرجى تسجيل الدخول مرة أخرى.', { icon: '⏰' })
+      clearSessionExpired()
+    }
+  }, [sessionExpired, clearSessionExpired])
+
   const handleInstallClick = () => {
     if (deferredPrompt) {
       ;(deferredPrompt as any).prompt()

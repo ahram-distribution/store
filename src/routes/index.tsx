@@ -30,6 +30,7 @@ import WeightsPage from '../pages/dashboard/WeightsPage'
 import TargetsPage from '../pages/dashboard/TargetsPage'
 import EmployeeTargetsPage from '../pages/dashboard/EmployeeTargetsPage'
 import EmployeeAnalysisPage from '../pages/dashboard/EmployeeAnalysisPage'
+import ActivityScreen from '../pages/dashboard/ActivityScreen'
 import { ModuleLauncherPage } from '../pages/dashboard/ModuleLauncherPage'
 import { AnalyticsListPage } from '../pages/analytics/AnalyticsListPage'
 import { CustomerAnalyticsPage } from '../pages/analytics/CustomerAnalyticsPage'
@@ -79,7 +80,7 @@ export function AppRoutes() {
         <Route path="/auctions" element={<AuctionsPage />} />
         <Route path="/auctions/:id" element={<AuctionDetailPage />} />
         <Route path="/" element={<Navigate to="/storefront" replace />} />
-        <Route path="*" element={<NotFoundPage />} />
+        <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     )
   }
@@ -100,6 +101,7 @@ export function AppRoutes() {
       <Route path="/dashboard/employee-analysis" element={<ProtectedRoute employeeOnly><EmployeeAnalysisPage /></ProtectedRoute>} />
       <Route path="/dashboard/weights" element={<ProtectedRoute employeeOnly><WeightsPage /></ProtectedRoute>} />
       <Route path="/dashboard/targets" element={<ProtectedRoute employeeOnly><TargetsPage /></ProtectedRoute>} />
+      <Route path="/dashboard/activity" element={<ProtectedRoute employeeOnly><ActivityScreen /></ProtectedRoute>} />
 
       <Route path="/storefront" element={<ProtectedRoute><CompaniesPage /></ProtectedRoute>} />
       <Route path="/storefront/products" element={<ProtectedRoute><StorefrontPage /></ProtectedRoute>} />

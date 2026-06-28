@@ -145,6 +145,7 @@ export default function UpperManagementDashboard() {
     { icon: '📍', label: 'الانتشار', path: '/coverage-map' },
     { icon: '⚡', label: 'مركز النشاط اللحظي', path: '/command-center/live' },
     { icon: '📈', label: 'نشاط الشركة', path: '/runtime/activity' },
+    { icon: '📊', label: 'النشاط', path: '/dashboard/activity' },
     { icon: '🏆', label: 'إنجاز الشركة', path: '/runtime/achievement' },
     { icon: '📍', label: 'الزيارات', path: '/launcher/visits', isSubLauncher: true, badge: data?.active_visits },
     { icon: '👥', label: 'العملاء', path: '/launcher/customers', isSubLauncher: true, badge: data?.total_customers },

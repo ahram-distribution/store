@@ -16,16 +16,19 @@ interface AuthState {
   user: SessionUser | null
   token: string | null
   loading: boolean
+  sessionExpired: boolean
   login: (phone: string, password: string) => Promise<{ success: boolean; error?: string }>
   register: (params: RegisterParams) => Promise<{ success: boolean; error?: string }>
   logout: () => Promise<void>
   restoreSession: () => Promise<void>
+  clearSessionExpired: () => void
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   token: null,
   loading: true,
+  sessionExpired: false,
 
   login: async (phone: string, password: string) => {
     const result = await authService.login(phone, password)
@@ -87,7 +90,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       try { await authService.logout(token) } catch { /* ignore */ }
     }
     localStorage.removeItem('session_token')
-    set({ user: null, token: null })
+    set({ user: null, token: null, sessionExpired: false })
+  },
+
+  clearSessionExpired: () => {
+    set({ sessionExpired: false })
   },
 
   restoreSession: async () => {
@@ -101,7 +108,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const result = await authService.validateSession(token)
       if (!result.valid) {
         localStorage.removeItem('session_token')
-        set({ user: null, token: null, loading: false })
+        set({ user: null, token: null, loading: false, sessionExpired: true })
         return
       }
 
@@ -124,7 +131,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ user, token, loading: false })
     } catch {
       localStorage.removeItem('session_token')
-      set({ user: null, token: null, loading: false })
+      set({ user: null, token: null, loading: false, sessionExpired: true })
     }
   },
 }))
