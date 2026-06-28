@@ -71,6 +71,39 @@ export default function HierarchyTargetPage({ month: propMonth, year: propYear, 
           </div>
         </div>
 
+        {data.employees && data.employees.length > 0 && (() => {
+          const avgScore = data.employees.reduce((s, e) => s + (e.overall_achievement_score || 0), 0) / data.employees.length
+          const bestEmp = data.best_employee
+          return (
+            <div className="bg-white rounded-lg shadow p-6 border">
+              <h3 className="text-sm font-bold text-gray-900 mb-4">ملخص الأداء</h3>
+              <div className="grid grid-cols-3 gap-4 text-center">
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <p className="text-[9px] text-gray-500">عدد الموظفين</p>
+                  <p className="text-sm font-bold text-gray-900 mt-1">{data.employees.length}</p>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <p className="text-[9px] text-gray-500">متوسط الإنجاز</p>
+                  <p className={`text-sm font-bold mt-1 ${avgScore >= 50 ? 'text-green-600' : 'text-red-500'}`}>
+                    {avgScore.toFixed(1)}%
+                  </p>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <p className="text-[9px] text-gray-500">الأفضل</p>
+                  {bestEmp ? (
+                    <>
+                      <p className="text-xs font-bold text-blue-600 mt-1 truncate">{bestEmp.employee_name}</p>
+                      <p className="text-[10px] font-semibold text-green-600">{bestEmp.overall_achievement_score?.toFixed(1)}%</p>
+                    </>
+                  ) : (
+                    <p className="text-xs text-gray-400 mt-1">—</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )
+        })()}
+
         <button onClick={() => setView('managers')}
           className="w-full bg-white rounded-xl border border-gray-100 p-4 shadow-sm hover:shadow-md transition-all text-right flex items-center justify-between">
           <span className="font-semibold text-gray-900">فرق المبيعات</span>

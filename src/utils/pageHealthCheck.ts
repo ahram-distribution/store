@@ -171,8 +171,6 @@ export const ROUTE_MANIFEST = {
     employee: [
       '/dashboard',
       '/dashboard/performance',
-      '/dashboard/company-targets',
-      '/dashboard/employee-targets',
       '/dashboard/employee-analysis',
       '/visits',
       '/visits/screen',

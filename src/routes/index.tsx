@@ -25,8 +25,6 @@ import { AuctionsPage, AuctionDetailPage, AuctionsManagerPage } from '../pages/a
 import { CustomersPage, CustomerProfilePage, NewCustomerPage } from '../pages/customers'
 import { DashboardPage } from '../pages/dashboard'
 import PerformanceAnalysisPage from '../pages/dashboard/PerformanceAnalysisPage'
-import CompanyTargetsPage from '../pages/dashboard/CompanyTargetsPage'
-import EmployeeTargetsPage from '../pages/dashboard/EmployeeTargetsPage'
 import EmployeeAnalysisPage from '../pages/dashboard/EmployeeAnalysisPage'
 import ActivityScreen from '../pages/dashboard/ActivityScreen'
 import PerformancePage from '../pages/dashboard/PerformancePage'
@@ -94,8 +92,7 @@ export function AppRoutes() {
       {/* Protected routes */}
       <Route path="/dashboard" element={<ProtectedRoute employeeOnly><DashboardPage /></ProtectedRoute>} />
       <Route path="/dashboard/performance" element={<ProtectedRoute employeeOnly><PerformanceAnalysisPage /></ProtectedRoute>} />
-      <Route path="/dashboard/company-targets" element={<ProtectedRoute employeeOnly><CompanyTargetsPage /></ProtectedRoute>} />
-      <Route path="/dashboard/employee-targets" element={<ProtectedRoute employeeOnly><EmployeeTargetsPage /></ProtectedRoute>} />
+
       <Route path="/dashboard/employee-analysis" element={<ProtectedRoute employeeOnly><EmployeeAnalysisPage /></ProtectedRoute>} />
 
       <Route path="/dashboard/activity" element={<ProtectedRoute employeeOnly><ActivityScreen /></ProtectedRoute>} />
