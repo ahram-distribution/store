@@ -60,43 +60,53 @@
 
 ---
 
-## الشاشات القديمة — Legacy
+## استراتيجية الاستبدال — Zero Legacy
 
-تبقى هذه الشاشات موجودة مؤقتًا حتى تكتمل البدائل الجديدة، ثم تُستبدل بالكامل.
+- لا يوجد مفهوم "Legacy" أو "Deprecated" في النظام النهائي.
+- عند اكتمال البديل الجديد، تُحذف الشاشات القديمة **بالكامل** من المشروع.
+- لن يُحذف أي شيء إلا إذا كان البديل يؤدي **100%** من وظيفة القديم.
 
-**لا يُطوَّر عليها أي ميزات جديدة.**
+### ملفات الحذف المستهدفة (لكل شاشة)
 
-| الشاشة | المسار | سيحل محلها |
-|--------|--------|:----------:|
-| Company Targets (النسخة الحالية) | `/dashboard/company-targets` | شاشة الأوزان (معدلة) |
-| Performance Analysis | `/dashboard/performance` | شاشة الإنجاز |
-| Employee Targets | `/dashboard/employee-targets` | شاشة التارجت |
-| Employee Analysis | `/dashboard/employee-analysis` | شاشة الإنجاز |
-| Team Achievement | `/runtime/achievement` | شاشة الإنجاز |
-| Team Activity | `/runtime/activity` | شاشة النشاط |
-| Module Launcher (targets) | `/launcher/targets` | يُلغى |
-| HierarchyTargetPage | `/targets/hierarchy` | تندمج في شاشة الإنجاز |
+| الشاشة القديمة | سيحل محلها | الملفات المراد حذفها |
+|----------------|:----------:|----------------------|
+| Company Targets (حاليًا) | شاشة الأوزان (معدلة) | `CompanyTargetsPage.tsx` |
+| Performance Analysis | شاشة الإنجاز | `PerformanceAnalysisPage.tsx` |
+| Employee Targets | شاشة التارجت | `EmployeeTargetsPage.tsx` |
+| Employee Analysis | شاشة الإنجاز | `EmployeeAnalysisPage.tsx` |
+| Team Achievement | شاشة الإنجاز | `TeamAchievement.tsx`, Route `/runtime/achievement` |
+| Team Activity | شاشة النشاط | `TeamActivity.tsx`, Route `/runtime/activity` |
+| Module Launcher (targets) | يُلغى | القسم الخاص بالأهداف في `ModuleLauncherPage.tsx` |
+| HierarchyTargetPage | تندمج في شاشة الإنجاز | `HierarchyTargetPage.tsx` (تستبدل بمكون مدمج) |
+
+### شرط الحذف
+
+لن يُحذف أي ملف حتى يصبح **جميع المستهلكين (importers, routes, navigations)** قد انتقلوا إلى البديل الجديد.
+
+### تقرير الحذف النهائي
+
+بعد اكتمال الاستبدال، يُقدم تقرير يوضح:
+- كل شاشة قديمة ومسارها
+- كل ملف تم حذفه
+- كل Route أُزيل
+- ما حل محل كل شاشة قديمة
+- تأكيد عدم وجود أي import أو navigate يشير إلى المحذوفات
 
 ---
 
 ## خريطة الانتقال
 
 ```
-الوضع الحالي:
-  نشاط الشركة (قديم) ─┐
-  إنجاز الشركة (قديم) ─┤
-  Company Targets     ─┤
-  Performance Analysis─┤
-  Employee Targets    ─┤
-  Employee Analysis   ─┤
-  HierarchyTargetPage ─┤ ← نواة أولية
-                      └─→ كلها Legacy/انتقالية
+الوضع الحالي ← الوضع النهائي:
 
-الوضع النهائي:
-  شاشة النشاط   ← جديدة كليًا
-  شاشة الإنجاز  ← تبني على HierarchyTargetPage + توسع
-  شاشة الأوزان  ← Company Targets بعد التنظيف
-  شاشة التارجت  ← جديدة كليًا
+  TeamActivity           ─→  شاشة النشاط   (جديدة كليًا)
+  TeamAchievement        ─→  شاشة الإنجاز  (تبني على HierarchyTargetPage)
+  HierarchyTargetPage    ─→  └─ تندمج في شاشة الإنجاز
+  CompanyTargetsPage     ─→  شاشة الأوزان  (تُنظف — تُزال التقارير)
+  PerformanceAnalysis    ─→  شاشة الإنجاز  (تندمج)
+  EmployeeTargetsPage    ─→  شاشة التارجت  (جديدة كليًا)
+  EmployeeAnalysis       ─→  شاشة الإنجاز  (تندمج)
+  ModuleLauncher/targets ─→  └─ يُلغى
 ```
 
 ---
@@ -104,5 +114,5 @@
 ## ملاحظات
 
 1. **Collections + Attendance** — قيمها 0/null حاليًا في جميع الشاشات. سيتم تفعيلها في **Phase F**.
-2. **لا توجد شاشات أخرى** غير الأربع المذكورة. أي شاشة حالية خارج هذه الأربع هي Legacy.
+2. **لا توجد شاشات أخرى** غير الأربع المذكورة. أي شاشة حالية خارج هذه الأربع هي مؤقتة وستُحذف.
 3. **الأولوية** — تحدد في بداية كل مرحلة حسب رغبة صاحب المشروع.
