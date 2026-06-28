@@ -6,14 +6,12 @@ import { EmployeesPage } from './EmployeesPage'
 import { HierarchyPage } from './HierarchyPage'
 import { RolesTab } from './RolesTab'
 import { PermissionsTab } from './PermissionsTab'
-import { TargetsWeightsTab } from './TargetsWeightsTab'
 
 const TABS = [
   { key: 'employees', label: 'الموظفين' },
   { key: 'roles', label: 'الأدوار' },
   { key: 'permissions', label: 'الصلاحيات' },
   { key: 'hierarchy', label: 'الهيكل التنظيمي' },
-  { key: 'targets', label: 'الأهداف والأوزان' },
   { key: 'work_policies', label: 'سياسات العمل', external: true },
 ] as const
 
@@ -23,7 +21,6 @@ const HASH_MAP: Record<string, TabKey> = {
   '#roles': 'roles',
   '#permissions': 'permissions',
   '#hierarchy': 'hierarchy',
-  '#targets': 'targets',
   '#work-policies': 'work_policies',
 }
 
@@ -106,7 +103,6 @@ export function EmployeeManagementPage() {
         {activeTab === 'roles' && <RolesTab />}
         {activeTab === 'permissions' && <PermissionsTab />}
         {activeTab === 'hierarchy' && <HierarchyPage embedded />}
-        {activeTab === 'targets' && <TargetsWeightsTab />}
         {activeTab === 'work_policies' && (
           <div className="bg-white rounded-xl border border-border p-5 space-y-4" dir="rtl">
             <h3 className="text-sm font-bold text-text">سياسات العمل</h3>
