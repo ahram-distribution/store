@@ -3,6 +3,7 @@ import { supabase } from '../../lib/supabase'
 import { useNavigate } from 'react-router-dom'
 import { Search, TrendingUp, TrendingDown, Target, ShoppingCart, DollarSign, Users, MapPin, Clock, Medal, BarChart3, ChevronDown, ChevronUp, Star } from 'lucide-react'
 import TimeRangeFilter, { type TimeRange, todayRange } from '../../components/TimeRangeFilter'
+import { targetService } from '../../services/targets'
 
 interface EmpSales { total_value: number; order_count: number; avg_order_value: number }
 interface EmpOrders { total: number; completed: number; cancelled: number }
@@ -52,6 +53,15 @@ function StatCell({ label, value, color = 'text-gray-800' }: { label: string; va
   )
 }
 
+function getTargetMonth(from: string, to: string): { month: number; year: number } | null {
+  const f = new Date(from + 'T00:00:00')
+  const t = new Date(to + 'T00:00:00')
+  if (f.getFullYear() === t.getFullYear() && f.getMonth() === t.getMonth()) {
+    return { month: f.getMonth() + 1, year: f.getFullYear() }
+  }
+  return null
+}
+
 export default function SalesEffortPage() {
   const navigate = useNavigate()
   const token = getToken()
@@ -61,6 +71,7 @@ export default function SalesEffortPage() {
   const [timeRange, setTimeRange] = useState<TimeRange>(todayRange())
   const [search, setSearch] = useState('')
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
+  const [targetMonth, setTargetMonth] = useState<{ month: number; year: number } | null>(null)
 
   const toggleExpand = (id: string) => {
     setExpanded(prev => {
@@ -72,16 +83,66 @@ export default function SalesEffortPage() {
 
   const fetchData = useCallback(async () => {
     if (!token) return
+
+    const tm = getTargetMonth(timeRange.from, timeRange.to)
+    setTargetMonth(tm)
+
     const { data } = await supabase.rpc('get_sales_reps_effort', {
       p_token: token.trim(),
       p_from: timeRange.from,
       p_to: timeRange.to,
       p_search: search || null,
     })
+
+    let perfResult = null
+    if (tm) {
+      perfResult = await targetService.getPerformance(tm.month, tm.year)
+    }
+
     if (data && typeof data === 'object' && !('error' in (data as Record<string, unknown>))) {
       const d = data as { employees: EffortEmployee[]; summary: EffortSummary }
-      setEmployees(d.employees ?? [])
-      setSummary(d.summary ?? null)
+
+      if (perfResult?.data) {
+        const perf = perfResult.data as any
+        const perfMap = new Map<string, any>()
+        for (const emp of (perf.employees || [])) {
+          perfMap.set(emp.employee_id, emp)
+        }
+
+        const mergedEmployees = (d.employees || []).map((emp) => {
+          const p = perfMap.get(emp.employee_id)
+          if (p) {
+            return {
+              ...emp,
+              targets: {
+                sales_target: p.sales_target || 0,
+                sales_actual: p.effective_sales ?? p.gross_sales ?? 0,
+                achievement_pct: p.overall_achievement_score ?? 0,
+                orders_target: p.orders_target || 0,
+                orders_actual: p.effective_orders ?? p.gross_orders ?? 0,
+              },
+              performance_score: p.overall_achievement_score ?? 0,
+            }
+          }
+          return { ...emp, targets: { ...emp.targets, achievement_pct: 0 }, performance_score: 0 }
+        })
+
+        const best = perf.best_employee
+        const weakest = perf.weakest_employee
+        setSummary({
+          total_employees: d.summary?.total_employees ?? 0,
+          total_sales: d.summary?.total_sales ?? 0,
+          total_orders: d.summary?.total_orders ?? 0,
+          total_visits: d.summary?.total_visits ?? 0,
+          avg_performance_score: perf.company?.overall_achievement_pct ?? 0,
+          top_performer: best ? { employee_id: best.employee_id, name: best.employee_name, score: best.overall_achievement_score } : null,
+          worst_performer: weakest ? { employee_id: weakest.employee_id, name: weakest.employee_name, score: weakest.overall_achievement_score } : null,
+        })
+        setEmployees(mergedEmployees)
+      } else {
+        setEmployees(d.employees ?? [])
+        setSummary(d.summary ?? null)
+      }
     }
     setLoading(false)
   }, [token, timeRange.from, timeRange.to, search])
@@ -119,6 +180,13 @@ export default function SalesEffortPage() {
           </div>
         </div>
 
+        {/* Multi-month warning */}
+        {targetMonth === null && employees.length > 0 && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4 text-center">
+            <p className="text-xs text-amber-700 font-semibold">بيانات الأهداف والإنجاز متاحة فقط عند اختيار شهر واحد</p>
+          </div>
+        )}
+
         {/* Summary Cards */}
         {summary && (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
@@ -141,8 +209,8 @@ export default function SalesEffortPage() {
           </div>
         )}
 
-        {/* Top / Worst */}
-        {summary && (summary.top_performer || summary.worst_performer) && (
+        {/* Top / Worst — based on target data (single month only) */}
+        {targetMonth !== null && summary && (summary.top_performer || summary.worst_performer) && (
           <div className="grid grid-cols-2 gap-2 mb-4">
             {summary.top_performer?.name && (
               <div className="bg-gradient-to-l from-yellow-50 to-amber-50 rounded-xl p-3 flex items-center gap-2">
@@ -181,7 +249,7 @@ export default function SalesEffortPage() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5">
                         <span className="font-bold text-gray-800 text-sm truncate">{emp.name}</span>
-                        <ScoreBadge score={emp.performance_score} />
+                        {targetMonth !== null && <ScoreBadge score={emp.performance_score} />}
                       </div>
                       <div className="flex items-center gap-2 text-[9px] text-gray-400 mt-0.5">
                         <span>{emp.code}</span>
@@ -210,7 +278,7 @@ export default function SalesEffortPage() {
                       </div>
 
                       {/* KPIs Grid */}
-                      <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5">
+                      <div className={`grid grid-cols-2 gap-1.5 ${targetMonth !== null ? 'sm:grid-cols-5' : 'sm:grid-cols-4'}`}>
                         {/* Sales */}
                         <div className="bg-emerald-50 rounded-lg p-2 text-center">
                           <DollarSign className="w-3.5 h-3.5 text-emerald-500 mx-auto mb-0.5" />
@@ -239,26 +307,32 @@ export default function SalesEffortPage() {
                           <p className="text-[8px] text-amber-500">زيارات</p>
                           <p className="text-[8px] text-gray-400">نسبة {fmtPct(emp.visits.success_rate)}%</p>
                         </div>
-                        {/* Target Achievement */}
-                        <div className={`rounded-lg p-2 text-center ${emp.targets.achievement_pct >= 80 ? 'bg-green-50' : emp.targets.achievement_pct >= 50 ? 'bg-amber-50' : 'bg-red-50'}`}>
-                          <Target className="w-3.5 h-3.5 mx-auto mb-0.5 ${emp.targets.achievement_pct >= 80 ? 'text-green-500' : emp.targets.achievement_pct >= 50 ? 'text-amber-500' : 'text-red-500'}" />
-                          <p className="text-xs font-bold ${emp.targets.achievement_pct >= 80 ? 'text-green-700' : emp.targets.achievement_pct >= 50 ? 'text-amber-700' : 'text-red-700'}">{fmtPct(emp.targets.achievement_pct)}%</p>
-                          <p className="text-[8px] text-gray-500">تحقيق الهدف</p>
-                          <p className="text-[8px] text-gray-400">{fmt(emp.targets.sales_actual)} / {fmt(emp.targets.sales_target)}</p>
-                        </div>
+                        {/* Target Achievement — from unified target system (single month only) */}
+                        {targetMonth !== null && (
+                          <div className={`rounded-lg p-2 text-center ${emp.targets.achievement_pct >= 80 ? 'bg-green-50' : emp.targets.achievement_pct >= 50 ? 'bg-amber-50' : 'bg-red-50'}`}>
+                            <Target className="w-3.5 h-3.5 mx-auto mb-0.5" />
+                            <p className={`text-xs font-bold ${emp.targets.achievement_pct >= 80 ? 'text-green-700' : emp.targets.achievement_pct >= 50 ? 'text-amber-700' : 'text-red-700'}`}>{fmtPct(emp.targets.achievement_pct)}%</p>
+                            <p className="text-[8px] text-gray-500">تحقيق الهدف</p>
+                            <p className="text-[8px] text-gray-400">{fmt(emp.targets.sales_actual)} / {fmt(emp.targets.sales_target)}</p>
+                          </div>
+                        )}
                       </div>
 
-                      {/* Progress bar */}
-                      <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                        <div className={`h-full rounded-full transition-all duration-500 ${
-                          emp.performance_score >= 70 ? 'bg-green-500' : emp.performance_score >= 40 ? 'bg-amber-500' : 'bg-red-500'
-                        }`} style={{ width: `${Math.min(emp.performance_score, 100)}%` }} />
-                      </div>
-                      <div className="flex items-center justify-between text-[8px] text-gray-400">
-                        <span>مؤشر الأداء: {fmtPct(emp.performance_score)}%</span>
-                        <button onClick={() => navigate(`/attendance/employee/${emp.employee_id}/${timeRange.from}`)}
-                          className="text-blue-600 font-bold">التفاصيل الكاملة ←</button>
-                      </div>
+                      {/* Progress bar — only with target data */}
+                      {targetMonth !== null && (
+                        <>
+                          <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                            <div className={`h-full rounded-full transition-all duration-500 ${
+                              emp.performance_score >= 70 ? 'bg-green-500' : emp.performance_score >= 40 ? 'bg-amber-500' : 'bg-red-500'
+                            }`} style={{ width: `${Math.min(emp.performance_score, 100)}%` }} />
+                          </div>
+                          <div className="flex items-center justify-between text-[8px] text-gray-400">
+                            <span>مؤشر الأداء: {fmtPct(emp.performance_score)}%</span>
+                            <button onClick={() => navigate(`/attendance/employee/${emp.employee_id}/${timeRange.from}`)}
+                              className="text-blue-600 font-bold">التفاصيل الكاملة ←</button>
+                          </div>
+                        </>
+                      )}
                     </div>
                   )}
                 </div>
