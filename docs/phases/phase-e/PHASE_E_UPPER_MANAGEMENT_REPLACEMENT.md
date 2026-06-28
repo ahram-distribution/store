@@ -396,10 +396,46 @@ From any screen: "← العودة" button goes back to previous level or to `/d
 
 | Step | Screen | Status |
 |------|--------|--------|
+| — | 🔧 Service Worker: Navigation Strategy change | ✅ Deployed — in monitoring |
 | 1 | الأوزان (`/dashboard/weights`) | ✅ Built — pending owner test |
 | 2 | التارجت (`/dashboard/targets`) | ⬜ Not started |
 | 3 | الإنجاز (`/dashboard/achievement`) | ⬜ Not started |
 | 4 | النشاط (`/dashboard/activity`) | ⬜ Not started |
+
+---
+
+## Architectural Decision: Service Worker Navigation Strategy
+
+### Context
+After deploying Phase D and early Phase E builds, users occasionally experienced a transient 404 page when navigating to deep SPA routes (e.g., `/dashboard/weights`) immediately after a new deploy. The issue resolved on refresh.
+
+### Root Cause
+The Service Worker's navigation handler used **cache-first** strategy:
+```js
+caches.match('/store/index.html') || fetch('/store/index.html')
+```
+After deployment, the cached `index.html` (from the previous build) referenced old JS bundles with stale hashes. If those bundles were cleaned up during the new deploy, the browser failed to load them → 404.
+
+### Change
+Navigation handler changed to **network-first with cache fallback**:
+```js
+fetch('/store/index.html').catch(() => caches.match('/store/index.html'))
+```
+
+| Aspect | Before (Cache-first) | After (Network-first) |
+|--------|:--------------------:|:---------------------:|
+| After deploy | Serves stale cached index.html → 404 | Fetches fresh index.html → no 404 |
+| During CDN propagation | Serves stale → possible 404 | Fails to fetch → cache fallback (stale but functional) |
+| Offline | Serves from cache ✅ | Cache fallback ✅ |
+| All other SW handlers | Unchanged | Unchanged |
+
+### Reasoning
+GitHub Pages already provides SPA fallback via `404.html = index.html`. The cache-first strategy was redundant for the online case and actively harmful after deployments. Network-first keeps offline support intact (via cache fallback) while ensuring fresh content after each deploy.
+
+### Status
+- **Commit:** `2a3e91e`
+- **Run:** #155 ✅
+- **Monitoring:** The fix is deployed and under observation. If the 404 issue does not reappear after several deployment cycles, the fix will be considered permanent.
 
 ---
 
@@ -423,4 +459,4 @@ From any screen: "← العودة" button goes back to previous level or to `/d
 | Hierarchy becomes part of الإنجاز | Yes | الإنجاز IS the hierarchy — no need for a separate screen |
 | KPI drill-down from الإنجاز | Yes | Replaces PerformanceAnalysis without duplication |
 | النشاط uses runtime RPCs | Yes | Runtime RPCs already return correct activity data |
-| All 4 screens under `/upper/` | Proposed | Clean namespace for new upper management system |
+| All 4 screens under `/dashboard/` | `/dashboard/activity`, `/dashboard/achievement`, `/dashboard/weights`, `/dashboard/targets` | Consistent with existing dashboard namespace |
