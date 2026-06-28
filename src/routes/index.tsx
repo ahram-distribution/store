@@ -26,6 +26,7 @@ import { CustomersPage, CustomerProfilePage, NewCustomerPage } from '../pages/cu
 import { DashboardPage } from '../pages/dashboard'
 import PerformanceAnalysisPage from '../pages/dashboard/PerformanceAnalysisPage'
 import CompanyTargetsPage from '../pages/dashboard/CompanyTargetsPage'
+import WeightsPage from '../pages/dashboard/WeightsPage'
 import EmployeeTargetsPage from '../pages/dashboard/EmployeeTargetsPage'
 import EmployeeAnalysisPage from '../pages/dashboard/EmployeeAnalysisPage'
 import { ModuleLauncherPage } from '../pages/dashboard/ModuleLauncherPage'
@@ -96,6 +97,7 @@ export function AppRoutes() {
       <Route path="/dashboard/company-targets" element={<ProtectedRoute employeeOnly><CompanyTargetsPage /></ProtectedRoute>} />
       <Route path="/dashboard/employee-targets" element={<ProtectedRoute employeeOnly><EmployeeTargetsPage /></ProtectedRoute>} />
       <Route path="/dashboard/employee-analysis" element={<ProtectedRoute employeeOnly><EmployeeAnalysisPage /></ProtectedRoute>} />
+      <Route path="/dashboard/weights" element={<ProtectedRoute employeeOnly><WeightsPage /></ProtectedRoute>} />
 
       <Route path="/storefront" element={<ProtectedRoute><CompaniesPage /></ProtectedRoute>} />
       <Route path="/storefront/products" element={<ProtectedRoute><StorefrontPage /></ProtectedRoute>} />
