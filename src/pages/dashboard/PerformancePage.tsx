@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import ActivityScreen from './ActivityScreen'
+import TargetsPage from './TargetsPage'
+import WeightsPage from './WeightsPage'
 
 const MONTHS = ['يناير', 'فبراير', 'مارس', 'إبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر']
 
@@ -72,10 +74,10 @@ export default function PerformancePage() {
           <Placeholder title="شاشة الإنجاز" />
         </div>
         <div style={{ display: activeTab === 'targets' ? 'block' : 'none' }}>
-          <Placeholder title="شاشة التارجت" />
+          <TargetsPage />
         </div>
         <div style={{ display: activeTab === 'weights' ? 'block' : 'none' }}>
-          <Placeholder title="شاشة الأوزان" />
+          <WeightsPage />
         </div>
       </div>
     </div>

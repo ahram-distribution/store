@@ -94,13 +94,35 @@ export default function ActivityScreen({ month: propMonth, year: propYear, embed
         .finally(() => setLoading(false))
     } else if ((role === 'executive' && viewLevel === 'team') || role === 'manager') {
       const mgrId = viewMgrId || eid
-      supabase.rpc('get_runtime_team_activity', { p_manager_employee_id: mgrId, p_date_from: from, p_date_to: to })
-        .then(({ data, error: err }) => {
-          if (err) { console.error(err); setError(err.message) }
-          else setMembers((data as any[]) || [])
-          setRepData(null)
-        })
-        .finally(() => setLoading(false))
+      const mgrName = viewMgrName || user?.full_name || ''
+      Promise.all([
+        supabase.rpc('get_runtime_team_activity', { p_manager_employee_id: mgrId, p_date_from: from, p_date_to: to }),
+        supabase.rpc('get_runtime_activity', { p_employee_id: mgrId, p_date_from: from, p_date_to: to }),
+      ]).then(([teamResult, mgrResult]) => {
+        if (teamResult.error) { console.error(teamResult.error); setError(teamResult.error.message) }
+        else {
+          const team = (teamResult.data as any[]) || []
+          const mgrData = mgrResult.data as any
+          if (mgrData) {
+            const mgrEntry = {
+              employee_id: mgrId,
+              full_name: mgrName,
+              code: '',
+              is_manager: true,
+              sales: mgrData.created_sales || 0,
+              orders: mgrData.created_orders || 0,
+              completed_visits: mgrData.completed_visits || 0,
+              registered_customers: mgrData.registered_customers || 0,
+            }
+            const filtered = team.filter((m: any) => m.employee_id !== mgrId)
+            setMembers([mgrEntry, ...filtered])
+          } else {
+            setMembers(team)
+          }
+        }
+        setRepData(null)
+      })
+      .finally(() => setLoading(false))
     } else if (viewLevel === 'rep') {
       supabase.rpc('get_runtime_activity', { p_employee_id: viewRepId || eid, p_date_from: from, p_date_to: to })
         .then(({ data, error: err }) => {
@@ -258,16 +280,19 @@ export default function ActivityScreen({ month: propMonth, year: propYear, embed
 
       {!loading && viewLevel === 'team' && (
         <>
-          <p className="text-xs text-gray-500">فريق {viewMgrName} — {members.length} مندوب</p>
+          <p className="text-xs text-gray-500">فريق {viewMgrName} — {members.length} عضو</p>
           <div className="space-y-2">
             {members.length > 0 ? members.map((m: any) => (
               <button key={m.employee_id} onClick={() => drillToRep(m.employee_id, m.full_name)}
                 className="w-full bg-white rounded-xl border border-gray-100 p-4 shadow-sm hover:shadow-md transition-all text-right">
                 <div className="flex items-center justify-between">
-                  <div>
-                    <span className="font-semibold text-gray-800">{m.full_name}</span>
-                    <span className="text-xs text-gray-400 mr-2">{m.code}</span>
-                  </div>
+                    <div>
+                      <span className="font-semibold text-gray-800">{m.full_name}</span>
+                      <span className="text-xs text-gray-400 mr-2">{m.code}</span>
+                      {m.is_manager && (
+                        <span className="text-[10px] bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full mr-2">مدير</span>
+                      )}
+                    </div>
                   <span className="text-xs text-indigo-600">عرض التفاصيل ←</span>
                 </div>
                 <KpiGrid data={m} />
