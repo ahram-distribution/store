@@ -67,9 +67,7 @@ const MODULE_ROUTES: Record<string, string> = {
   'daily-deals': '/daily-deals',
   'flash-offers': '/flash-offers',
   tiers: '/tiers',
-  companies: '/companies',
   deals: '/deals',
-  products: '/products',
   attendance: '/attendance/operations',
 }
 
@@ -90,17 +88,15 @@ const MODULE_EMOJI: Record<string, string> = {
   'daily-deals': '⚡',
   'flash-offers': '⏰',
   tiers: '📈',
-  companies: '🏢',
   warehouse: '🏗️',
   deals: '🏷️',
-  products: '📦',
   attendance: '📅',
 }
 
 const MODULE_TIERS = {
   primary: ['orders', 'customers', 'visits', 'credit', 'inventory', 'employees', 'attendance'],
   secondary: ['returns', 'collections', 'delivery', 'reports', 'warehouse'],
-  technical: ['targets', 'permissions', 'auctions', 'daily-deals', 'flash-offers', 'tiers', 'companies', 'deals', 'products'],
+  technical: ['targets', 'permissions', 'auctions', 'daily-deals', 'flash-offers', 'tiers', 'deals'],
 }
 
 const HEALTH_COLOR: Record<string, string> = {

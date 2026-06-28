@@ -38,7 +38,7 @@ export function ProductProfilePage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3">
-        <button onClick={() => navigate('/products')} className="text-text-secondary text-lg">&larr;</button>
+        <button onClick={() => navigate('/products/manage')} className="text-text-secondary text-lg">&larr;</button>
         <h1 className="text-lg font-bold text-text">{product.product_name}</h1>
         {!product.is_active && <span className="text-[10px] bg-danger/10 text-danger px-2 py-0.5 rounded">غير نشط</span>}
       </div>

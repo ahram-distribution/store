@@ -360,7 +360,7 @@ export function ProductManagerPage() {
     <div className="min-h-screen bg-surface pb-24" dir="rtl">
       {/* Header */}
       <div className="bg-gradient-to-l from-primary to-primary/80 text-white px-4 py-4 flex items-center gap-3">
-        <button onClick={() => nav('/products')} className="text-white/80 hover:text-white">&larr;</button>
+        <button onClick={() => nav('/dashboard')} className="text-white/80 hover:text-white">&larr;</button>
         <h1 className="text-lg font-bold flex-1">إدارة المنتجات</h1>
         {canManage && (
           <button

@@ -74,7 +74,7 @@ export function WarehouseManagerWorkspace() {
         <div className="grid grid-cols-2 gap-2">
           <button onClick={() => navigate('/warehouse')} className="bg-primary text-white text-xs py-2.5 rounded-lg">المستودع</button>
           <button onClick={() => navigate('/warehouse/review')} className="bg-primary text-white text-xs py-2.5 rounded-lg">مراجعة</button>
-          <button onClick={() => navigate('/products')} className="bg-surface text-text text-xs py-2.5 rounded-lg border border-border">المنتجات</button>
+          <button onClick={() => navigate('/products/manage')} className="bg-surface text-text text-xs py-2.5 rounded-lg border border-border">المنتجات</button>
           <button onClick={() => navigate('/inventory')} className="bg-surface text-text text-xs py-2.5 rounded-lg border border-border">المخزون</button>
         </div>
       </div>

@@ -161,12 +161,9 @@ export default function UpperManagementDashboard() {
 
   const quickIcons: LauncherGroup[] = [
 
-    { icon: '🧑‍💼', label: 'المناديب', path: '/employees?role=مندوب' },
-    { icon: '👔', label: 'المشرفين', path: '/employees?role=مشرف' },
     { icon: '🎭', label: 'الأدوار', path: '/employees#roles' },
     { icon: '🔐', label: 'الصلاحيات', path: '/employees#permissions' },
     { icon: '📋', label: 'سياسات العمل', path: '/attendance/settings#work-policies' },
-    { icon: '🎯', label: 'الأهداف', path: '/employees#targets' },
     { icon: '🔄', label: 'النشاط الموحد', path: '/activity' },
     { icon: '📄', label: 'طلبي', path: '/orders?my=1' },
     { icon: '👤', label: 'عملائي', path: '/customers?my=1' },

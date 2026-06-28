@@ -46,8 +46,6 @@ const MODULE_ICONS: Record<string, { title: string; icons: LauncherIcon[] }> = {
     icons: [
       { icon: '👤', label: 'كل الموظفين', path: '/employees' },
       { icon: '➕', label: 'إضافة موظف', path: '/employees?add=1' },
-      { icon: '🧑‍💼', label: 'المناديب', path: '/employees?role=مندوب' },
-      { icon: '👔', label: 'المشرفين', path: '/employees?role=مشرف' },
       { icon: '🔗', label: 'الهيكل البيعي', path: '/hierarchy' },
       { icon: '🎭', label: 'الأدوار', path: '/employees#roles' },
       { icon: '🔐', label: 'الصلاحيات', path: '/employees#permissions' },
@@ -59,11 +57,7 @@ const MODULE_ICONS: Record<string, { title: string; icons: LauncherIcon[] }> = {
     title: 'المخزون والمنتجات',
     icons: [
       { icon: '📦', label: 'المخزون', path: '/warehouse' },
-      { icon: '🛍️', label: 'المنتجات', path: '/products' },
-      { icon: '➕', label: 'إضافة منتج', path: '/products?add=1' },
-      { icon: '✏️', label: 'تعديل منتج', path: '/products/manage' },
-      { icon: '🏭', label: 'الشركات', path: '/companies' },
-      { icon: '➕', label: 'إضافة شركة', path: '/companies?add=1' },
+      { icon: '✏️', label: 'إدارة المنتجات', path: '/products/manage' },
       { icon: '✏️', label: 'تعديل شركة', path: '/companies/manage' },
       { icon: '🔍', label: 'مراجعة المخزون', path: '/warehouse/review' },
     ],

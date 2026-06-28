@@ -41,7 +41,7 @@ export function CompanyProfilePage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3">
-        <button onClick={() => navigate('/companies')} className="text-text-secondary text-lg">&larr;</button>
+        <button onClick={() => navigate('/companies/manage')} className="text-text-secondary text-lg">&larr;</button>
         <h1 className="text-lg font-bold text-text">{company.company_name}</h1>
         {!company.is_active && <span className="text-[10px] bg-danger/10 text-danger px-2 py-0.5 rounded">غير نشط</span>}
       </div>
@@ -70,7 +70,7 @@ export function CompanyProfilePage() {
       <div className="bg-white rounded-xl border border-border p-4">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-bold">المنتجات ({products.length})</h2>
-          <button onClick={() => navigate(`/products?company=${id}`)} className="text-[10px] bg-primary/10 text-primary px-2 py-1 rounded">عرض الكل</button>
+          <button onClick={() => navigate('/products/manage')} className="text-[10px] bg-primary/10 text-primary px-2 py-1 rounded">عرض الكل</button>
         </div>
         {products.length === 0 ? (
           <p className="text-xs text-text-secondary text-center py-4">لا توجد منتجات</p>

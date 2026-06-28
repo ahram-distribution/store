@@ -167,9 +167,7 @@ export function SuperAdminWorkspace() {
         <div className="grid grid-cols-2 gap-2">
           <ModuleCard label="المخزن" icon="📦" desc="تجهيز ومراجعة الطلبات" path="/warehouse" onNavigate={navigate} />
           <ModuleCard label="التوصيل" icon="🚚" desc="إدارة الشحن والتسليم" path="/delivery" onNavigate={navigate} />
-          <ModuleCard label="المنتجات" icon="🛍️" desc="إدارة قائمة المنتجات" path="/products" onNavigate={navigate} />
           <ModuleCard label="الموظفين" icon="👥" desc="إدارة الموظفين والصلاحيات" path="/employees" onNavigate={navigate} />
-          <ModuleCard label="الشركات" icon="🏢" desc="إدارة الشركات المورّدة" path="/companies" onNavigate={navigate} />
           <ModuleCard label="التقارير" icon="📊" desc="تقارير وتحليلات" path="/reports" onNavigate={navigate} />
           <ModuleCard label="الهيكل البيعي" icon="🔗" desc="التسلسل الهرمي للمبيعات" path="/hierarchy" onNavigate={navigate} />
           <ModuleCard label="المزادات" icon="🔨" desc="المزادات والصفقات" path="/auctions" onNavigate={navigate} />

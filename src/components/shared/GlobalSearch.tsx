@@ -56,7 +56,7 @@ export function GlobalSearch() {
       ])
 
       for (const c of (custRes.data || []) as any[]) out.push({ type: 'customer', label: c.company_name || c.customer_name || '', sublabel: c.phone || '', path: `/customers/${c.id}` })
-      for (const p of (prodRes.data || []) as any[]) out.push({ type: 'product', label: p.product_name, sublabel: p.legacy_code || '', path: `/products` })
+      for (const p of (prodRes.data || []) as any[]) out.push({ type: 'product', label: p.product_name, sublabel: p.legacy_code || '', path: `/products/manage` })
       for (const r of (globalRes.data || []) as any[]) out.push({ type: r.type, label: r.label, sublabel: r.sublabel, path: r.path })
 
       setResults(out)

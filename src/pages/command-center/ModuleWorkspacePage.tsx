@@ -63,10 +63,8 @@ const MODULE_CONFIGS: Record<string, ModuleConfig> = {
     icon: '\u{1F4E6}',
     operations: [
       { icon: '\u{1F4E6}', label: 'المخزون', path: '/warehouse' },
-      { icon: '\u{1F6CD}\u{FE0F}', label: 'المنتجات', path: '/products' },
       { icon: '\u{1F50D}', label: 'مراجعة المخزون', path: '/warehouse/review' },
       { icon: '\u{270F}\u{FE0F}', label: 'إدارة المنتجات', path: '/products/manage' },
-      { icon: '\u{1F3ED}', label: 'الشركات', path: '/companies' },
     ],
   },
   employees: {

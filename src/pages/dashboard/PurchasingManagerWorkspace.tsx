@@ -38,14 +38,14 @@ export function PurchasingManagerWorkspace() {
           <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center mb-2"><span className="text-white text-lg font-bold">{active.length}</span></div>
           <span className="text-sm font-semibold text-text">منتجات نشطة</span>
         </div>
-        <button onClick={() => navigate('/products?filter=inactive')} className="bg-white rounded-xl border border-border p-4 text-right active:bg-surface transition-colors">
+        <div className="bg-white rounded-xl border border-border p-4 text-right">
           <div className="w-10 h-10 rounded-xl bg-accent flex items-center justify-center mb-2"><span className="text-white text-lg font-bold">{inactiveCount}</span></div>
           <span className="text-sm font-semibold text-text">غير نشطة</span>
-        </button>
-        <button onClick={() => navigate('/products?filter=noprice')} className="bg-white rounded-xl border border-border p-4 text-right active:bg-surface transition-colors">
+        </div>
+        <div className="bg-white rounded-xl border border-border p-4 text-right">
           <div className="w-10 h-10 rounded-xl bg-warning flex items-center justify-center mb-2"><span className="text-white text-lg font-bold">{noPrice}</span></div>
           <span className="text-sm font-semibold text-text">بلا سعر</span>
-        </button>
+        </div>
         <div className="bg-white rounded-xl border border-border p-4 text-right">
           <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center mb-2"><span className="text-white text-lg font-bold">{products.length}</span></div>
           <span className="text-sm font-semibold text-text">إجمالي المنتجات</span>
@@ -68,7 +68,7 @@ export function PurchasingManagerWorkspace() {
       <div className="bg-white rounded-xl border border-border p-4">
         <h3 className="text-sm font-semibold text-text mb-3">إجراءات سريعة</h3>
         <div className="grid grid-cols-2 gap-2">
-          <button onClick={() => navigate('/products')} className="bg-primary text-white text-xs py-2.5 rounded-lg">المنتجات</button>
+          <button onClick={() => navigate('/products/manage')} className="bg-primary text-white text-xs py-2.5 rounded-lg">المنتجات</button>
           <button onClick={() => navigate('/deals')} className="bg-surface text-text text-xs py-2.5 rounded-lg border border-border">العروض</button>
         </div>
       </div>
