@@ -26,8 +26,6 @@ import { CustomersPage, CustomerProfilePage, NewCustomerPage } from '../pages/cu
 import { DashboardPage } from '../pages/dashboard'
 import PerformanceAnalysisPage from '../pages/dashboard/PerformanceAnalysisPage'
 import CompanyTargetsPage from '../pages/dashboard/CompanyTargetsPage'
-import WeightsPage from '../pages/dashboard/WeightsPage'
-import TargetsPage from '../pages/dashboard/TargetsPage'
 import EmployeeTargetsPage from '../pages/dashboard/EmployeeTargetsPage'
 import EmployeeAnalysisPage from '../pages/dashboard/EmployeeAnalysisPage'
 import ActivityScreen from '../pages/dashboard/ActivityScreen'
@@ -57,8 +55,7 @@ import { AttendanceRouter } from '../components/attendance/AttendanceRouter'
 import { OperationsCenterPage } from '../pages/operations-center'
 import { SalesManagerCCPage } from '../pages/sales-manager'
 import { SalesEffortPage } from '../pages/sales-effort'
-import { TeamActivity } from '../pages/TeamActivity'
-import { TeamAchievement } from '../pages/TeamAchievement'
+
 import { GpsTestPage } from '../pages/diagnostics'
 import CoverageMapPage from '../pages/coverage/CoverageMapPage'
 import { DataDeletionCenter } from '../pages/data-center/DataDeletionCenter'
@@ -100,8 +97,7 @@ export function AppRoutes() {
       <Route path="/dashboard/company-targets" element={<ProtectedRoute employeeOnly><CompanyTargetsPage /></ProtectedRoute>} />
       <Route path="/dashboard/employee-targets" element={<ProtectedRoute employeeOnly><EmployeeTargetsPage /></ProtectedRoute>} />
       <Route path="/dashboard/employee-analysis" element={<ProtectedRoute employeeOnly><EmployeeAnalysisPage /></ProtectedRoute>} />
-      <Route path="/dashboard/weights" element={<ProtectedRoute employeeOnly><WeightsPage /></ProtectedRoute>} />
-      <Route path="/dashboard/targets" element={<ProtectedRoute employeeOnly><TargetsPage /></ProtectedRoute>} />
+
       <Route path="/dashboard/activity" element={<ProtectedRoute employeeOnly><ActivityScreen /></ProtectedRoute>} />
       <Route path="/dashboard/activity-target" element={<ProtectedRoute employeeOnly><PerformancePage /></ProtectedRoute>} />
 
@@ -189,8 +185,7 @@ export function AppRoutes() {
 
       <Route path="/sales-manager-cc" element={<ProtectedRoute employeeOnly><SalesManagerCCPage /></ProtectedRoute>} />
       <Route path="/sales-effort" element={<ProtectedRoute employeeOnly><SalesEffortPage /></ProtectedRoute>} />
-      <Route path="/runtime/activity" element={<ProtectedRoute employeeOnly><TeamActivity /></ProtectedRoute>} />
-      <Route path="/runtime/achievement" element={<ProtectedRoute employeeOnly><TeamAchievement /></ProtectedRoute>} />
+
 
       <Route path="/ops/gps-test" element={<ProtectedRoute requireUpperManagement><GpsTestPage /></ProtectedRoute>} />
       <Route path="/coverage-map" element={<ProtectedRoute requireUpperManagement><CoverageMapPage /></ProtectedRoute>} />

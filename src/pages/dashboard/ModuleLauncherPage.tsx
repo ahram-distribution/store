@@ -108,8 +108,7 @@ const MODULE_ICONS: Record<string, { title: string; icons: LauncherIcon[] }> = {
     icons: [
       { icon: '🎯', label: 'مركز قيادة المبيعات', path: '/sales-manager-cc' },
       { icon: '📊', label: 'مركز القيادة', path: '/command-center' },
-      { icon: '📈', label: 'نشاط الشركة', path: '/runtime/activity' },
-      { icon: '🏆', label: 'إنجاز الشركة', path: '/runtime/achievement' },
+
     ],
   },
 }

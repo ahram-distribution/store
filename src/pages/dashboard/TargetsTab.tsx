@@ -1,5 +1,4 @@
 import { useEffect, useState, useMemo, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { targetService } from '../../services/targets'
 
 interface EmployeeInfo {
@@ -32,8 +31,7 @@ interface EmployeeEdit {
   new_customers_target: string
 }
 
-const MONTHS = ['يناير', 'فبراير', 'مارس', 'إبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر']
-const KPI_FIELDS: { key: keyof EmployeeEdit; label: string; unit: string; prefix?: string }[] = [
+const KPI_FIELDS: { key: keyof EmployeeEdit; label: string; unit: string }[] = [
   { key: 'sales_target', label: 'المبيعات', unit: 'جنيه' },
   { key: 'visits_target', label: 'الزيارات', unit: 'عدد' },
   { key: 'orders_target', label: 'الطلبات', unit: 'عدد' },
@@ -44,11 +42,12 @@ function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
 }
 
-export default function TargetsPage() {
-  const nav = useNavigate()
-  const now = new Date()
-  const [selMonth, setSelMonth] = useState(now.getMonth() + 1)
-  const [selYear, setSelYear] = useState(now.getFullYear())
+interface TargetsTabProps {
+  month: number
+  year: number
+}
+
+export default function TargetsTab({ month: selMonth, year: selYear }: TargetsTabProps) {
   const [loading, setLoading] = useState(true)
 
   const [employees, setEmployees] = useState<EmployeeInfo[]>([])
@@ -57,8 +56,8 @@ export default function TargetsPage() {
   })
   const [employeeTargetMap, setEmployeeTargetMap] = useState<Record<string, EmployeeTarget>>({})
 
-  const [companyWeights, setCompanyWeights] = useState<CompanyWeights>(DEFAULT_WEIGHTS)
   const [companyEdit, setCompanyEdit] = useState({ sales_target: '', visits_target: '', orders_target: '', new_customers_target: '' })
+  const [companyWeights, setCompanyWeights] = useState<CompanyWeights>(DEFAULT_WEIGHTS)
   const [savingCompany, setSavingCompany] = useState(false)
   const [companySuccess, setCompanySuccess] = useState(false)
   const [companyError, setCompanyError] = useState('')
@@ -78,84 +77,66 @@ export default function TargetsPage() {
     return employees.filter(e => e.employee_manager_id === managerId)
   }
 
-  async function loadData(month: number, year: number) {
-    const token = getToken()
-    if (!token) { setLoading(false); return }
-    const [empResult, companyResult, empTargetResult] = await Promise.all([
-      targetService.getAllActiveEmployees(token),
-      targetService.getCompanyTarget(month, year, token),
-      targetService.getEmployeeTargets(month, year, token),
-    ])
-    if (!empResult.error && empResult.data) {
-      setEmployees((empResult.data as any[]).filter(e => e.role_type !== 'سوبر أدمن' && e.role_type !== 'الإدارة العليا'))
-    }
-    if (!companyResult.error && companyResult.data) {
-      const ct = companyResult.data as any
-      if (ct && ct.sales_target != null) {
-        setCompanyTarget({
-          sales_target: ct.sales_target, visits_target: ct.visits_target,
-          orders_target: ct.orders_target, new_customers_target: ct.new_customers_target,
-          is_locked: ct.is_locked,
-        })
-        setCompanyEdit({
-          sales_target: ct.sales_target.toString(),
-          visits_target: ct.visits_target.toString(),
-          orders_target: ct.orders_target.toString(),
-          new_customers_target: ct.new_customers_target.toString(),
-        })
-        setCompanyWeights({
-          sales: ct.sales_weight_percent, visits: ct.visits_weight_percent,
-          orders: ct.orders_weight_percent, new_customers: ct.new_customers_weight_percent,
-          collections: ct.collections_weight_percent, attendance: ct.attendance_weight_percent,
-        })
-      }
-    }
-    if (!empTargetResult.error && empTargetResult.data) {
-      const list: any[] = empTargetResult.data as any[]
-      const map: Record<string, EmployeeTarget> = {}
-      for (const et of list) {
-        map[et.employee_id] = {
-          employee_id: et.employee_id, sales_target: et.sales_target || 0,
-          visits_target: et.visits_target || 0, orders_target: et.orders_target || 0,
-          new_customers_target: et.new_customers_target || 0, is_locked: et.is_locked || false,
-        }
-      }
-      setEmployeeTargetMap(map)
-      const edits: Record<string, EmployeeEdit> = {}
-      for (const et of list) {
-        edits[et.employee_id] = {
-          employee_id: et.employee_id, employee_code: et.employee_code || '',
-          employee_name: et.employee_name || '',
-          sales_target: (et.sales_target || 0).toString(),
-          visits_target: (et.visits_target || 0).toString(),
-          orders_target: (et.orders_target || 0).toString(),
-          new_customers_target: (et.new_customers_target || 0).toString(),
-        }
-      }
-      setEmployeeEdits(edits)
-    }
-    setLoading(false)
-  }
-
   useEffect(() => {
     setLoading(true)
-    loadData(selMonth, selYear)
+    const token = getToken()
+    if (!token) { setLoading(false); return }
+    Promise.all([
+      targetService.getAllActiveEmployees(token),
+      targetService.getCompanyTarget(selMonth, selYear, token),
+      targetService.getEmployeeTargets(selMonth, selYear, token),
+    ]).then(([empResult, companyResult, empTargetResult]) => {
+      if (!empResult.error && empResult.data) {
+        setEmployees((empResult.data as any[]).filter(e => e.role_type !== 'سوبر أدمن' && e.role_type !== 'الإدارة العليا'))
+      }
+      if (!companyResult.error && companyResult.data) {
+        const ct = companyResult.data as any
+        if (ct && ct.sales_target != null) {
+          setCompanyTarget({
+            sales_target: ct.sales_target, visits_target: ct.visits_target,
+            orders_target: ct.orders_target, new_customers_target: ct.new_customers_target,
+            is_locked: ct.is_locked,
+          })
+          setCompanyEdit({
+            sales_target: ct.sales_target.toString(),
+            visits_target: ct.visits_target.toString(),
+            orders_target: ct.orders_target.toString(),
+            new_customers_target: ct.new_customers_target.toString(),
+          })
+          setCompanyWeights({
+            sales: ct.sales_weight_percent, visits: ct.visits_weight_percent,
+            orders: ct.orders_weight_percent, new_customers: ct.new_customers_weight_percent,
+            collections: ct.collections_weight_percent, attendance: ct.attendance_weight_percent,
+          })
+        }
+      }
+      if (!empTargetResult.error && empTargetResult.data) {
+        const list: any[] = empTargetResult.data as any[]
+        const map: Record<string, EmployeeTarget> = {}
+        for (const et of list) {
+          map[et.employee_id] = {
+            employee_id: et.employee_id, sales_target: et.sales_target || 0,
+            visits_target: et.visits_target || 0, orders_target: et.orders_target || 0,
+            new_customers_target: et.new_customers_target || 0, is_locked: et.is_locked || false,
+          }
+        }
+        setEmployeeTargetMap(map)
+        const edits: Record<string, EmployeeEdit> = {}
+        for (const et of list) {
+          edits[et.employee_id] = {
+            employee_id: et.employee_id, employee_code: et.employee_code || '',
+            employee_name: et.employee_name || '',
+            sales_target: (et.sales_target || 0).toString(),
+            visits_target: (et.visits_target || 0).toString(),
+            orders_target: (et.orders_target || 0).toString(),
+            new_customers_target: (et.new_customers_target || 0).toString(),
+          }
+        }
+        setEmployeeEdits(edits)
+      }
+      setLoading(false)
+    })
   }, [selMonth, selYear])
-
-  function goPrevMonth() {
-    if (selMonth === 1) { setSelMonth(12); setSelYear(selYear - 1) }
-    else setSelMonth(selMonth - 1)
-  }
-  function goNextMonth() {
-    if (selMonth === 12) { setSelMonth(1); setSelYear(selYear + 1) }
-    else setSelMonth(selMonth + 1)
-  }
-
-  const monthOptions = []
-  for (let i = -6; i <= 6; i++) {
-    const d = new Date(selYear, selMonth - 1 + i, 1)
-    monthOptions.push({ month: d.getMonth() + 1, year: d.getFullYear(), label: MONTHS[d.getMonth()] + ' ' + d.getFullYear() })
-  }
 
   const handleSaveCompany = useCallback(async () => {
     if (savingCompany) return
@@ -237,38 +218,20 @@ export default function TargetsPage() {
   }
 
   if (loading) {
-    return <div className="text-center py-12 text-text-secondary text-sm">جاري التحميل...</div>
+    return <div className="text-center py-12 text-gray-400 text-sm">جاري التحميل...</div>
   }
 
   return (
-    <div className="p-4 max-w-lg mx-auto space-y-6" dir="rtl">
-      <div className="flex items-center gap-2">
-        <button onClick={() => nav('/dashboard')} className="text-primary text-sm font-semibold hover:underline shrink-0">{'← العودة'}</button>
-        <h1 className="text-xl font-bold text-text flex-1">التارجت</h1>
-      </div>
-
-      <div className="flex items-center gap-2">
-        <button onClick={goPrevMonth} className="px-3 py-1.5 border border-border rounded-lg text-xs font-semibold text-text bg-white active:bg-surface shrink-0 cursor-pointer">{'‹ السابق'}</button>
-        <select value={`${selMonth}-${selYear}`} onChange={e => {
-          const [m, y] = e.target.value.split('-').map(Number); setSelMonth(m); setSelYear(y)
-        }}
-          className="flex-1 border border-border rounded-lg px-3 py-1.5 text-sm font-semibold text-text bg-white cursor-pointer text-center">
-          {monthOptions.map(opt => (
-            <option key={`${opt.month}-${opt.year}`} value={`${opt.month}-${opt.year}`}>{opt.label}</option>
-          ))}
-        </select>
-        <button onClick={goNextMonth} className="px-3 py-1.5 border border-border rounded-lg text-xs font-semibold text-text bg-white active:bg-surface shrink-0 cursor-pointer">{'التالي ›'}</button>
-      </div>
-
-      <div className="bg-white rounded-xl border border-border p-4">
-        <h3 className="text-sm font-bold text-text mb-3">هدف الشركة</h3>
+    <div className="p-4 space-y-6">
+      <div className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
+        <h3 className="text-sm font-bold text-gray-800 mb-3">هدف الشركة</h3>
         <div className="space-y-3">
           {KPI_FIELDS.map(field => (
             <div key={field.key}>
-              <label className="text-[10px] text-text-secondary block mb-1">{field.label} ({field.unit})</label>
+              <label className="text-[10px] text-gray-500 block mb-1">{field.label} ({field.unit})</label>
               <input type="number" value={companyEdit[field.key]}
                 onChange={e => setCompanyEdit(prev => ({ ...prev, [field.key]: e.target.value }))}
-                className="w-full border border-border rounded-lg p-2 text-sm text-text text-right bg-white" />
+                className="w-full border border-gray-200 rounded-lg p-2 text-sm text-gray-800 text-right bg-white" />
             </div>
           ))}
         </div>
@@ -279,28 +242,27 @@ export default function TargetsPage() {
           <div className="mt-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded-lg p-3">{companyError}</div>
         )}
         <button onClick={handleSaveCompany} disabled={savingCompany}
-          className="mt-3 w-full py-2.5 bg-primary text-white rounded-xl text-xs font-semibold active:opacity-80 disabled:opacity-50 transition-colors cursor-pointer">
+          className="mt-3 w-full py-2.5 bg-indigo-600 text-white rounded-xl text-xs font-semibold active:opacity-80 disabled:opacity-50 transition-colors cursor-pointer">
           {savingCompany ? 'جاري الحفظ...' : 'حفظ هدف الشركة'}
         </button>
       </div>
 
       {managers.length > 0 && (
         <div>
-          <h3 className="text-sm font-bold text-text mb-3">توزيع الأهداف على مدراء البيع</h3>
+          <h3 className="text-sm font-bold text-gray-800 mb-3">توزيع الأهداف على مدراء البيع</h3>
           <div className="space-y-3">
             {managers.map(mgr => {
               const team = getTeam(mgr.employee_id)
               const expanded = expandedManagers[mgr.employee_id]
-              const hasNoEdit = !employeeEdits[mgr.employee_id]
               return (
-                <div key={mgr.employee_id} className="bg-white rounded-xl border border-border overflow-hidden">
+                <div key={mgr.employee_id} className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
                   <button onClick={() => { ensureEdit(mgr); toggleManager(mgr.employee_id) }}
-                    className="w-full flex items-center justify-between p-4 active:bg-surface transition-colors cursor-pointer">
+                    className="w-full flex items-center justify-between p-4 active:bg-gray-50 transition-colors cursor-pointer">
                     <div className="flex items-center gap-2 min-w-0">
-                      <span className={`text-xs shrink-0 transition-transform ${expanded ? 'rotate-90' : ''}`}>▶</span>
+                      <span className={`text-xs shrink-0 transition-transform text-gray-400 ${expanded ? 'rotate-90' : ''}`}>▶</span>
                       <div className="text-right min-w-0">
-                        <p className="text-[10px] text-text-secondary font-mono">{mgr.employee_code}</p>
-                        <p className="text-sm font-bold text-text truncate">{mgr.employee_name}</p>
+                        <p className="text-[10px] text-gray-400 font-mono">{mgr.employee_code}</p>
+                        <p className="text-sm font-bold text-gray-800 truncate">{mgr.employee_name}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
@@ -308,7 +270,7 @@ export default function TargetsPage() {
                         {mgr.role_type}
                       </span>
                       {employeeTargetMap[mgr.employee_id] && (
-                        <span className="text-[10px] text-text-secondary bg-surface rounded-md px-2 py-0.5">
+                        <span className="text-[10px] text-gray-500 bg-gray-50 rounded-md px-2 py-0.5">
                           {'🎯 ' + employeeTargetMap[mgr.employee_id].sales_target.toLocaleString('ar-EG-u-nu-latn')}
                         </span>
                       )}
@@ -316,19 +278,19 @@ export default function TargetsPage() {
                   </button>
 
                   {expanded && (
-                    <div className="border-t border-border px-4 pb-4 pt-3 space-y-4">
+                    <div className="border-t border-gray-100 px-4 pb-4 pt-3 space-y-4">
                       <div className="space-y-3">
-                        <p className="text-xs font-semibold text-text-secondary">هدف {mgr.employee_name}</p>
+                        <p className="text-xs font-semibold text-gray-500">هدف {mgr.employee_name}</p>
                         {KPI_FIELDS.map(field => (
                           <div key={field.key}>
-                            <label className="text-[10px] text-text-secondary block mb-1">{field.label} ({field.unit})</label>
+                            <label className="text-[10px] text-gray-500 block mb-1">{field.label} ({field.unit})</label>
                             <input type="number"
                               value={employeeEdits[mgr.employee_id]?.[field.key] || '0'}
                               onChange={e => setEmployeeEdits(prev => ({
                                 ...prev,
                                 [mgr.employee_id]: { ...prev[mgr.employee_id], [field.key]: e.target.value },
                               }))}
-                              className="w-full border border-border rounded-lg p-2 text-sm text-text text-right bg-white" />
+                              className="w-full border border-gray-200 rounded-lg p-2 text-sm text-gray-800 text-right bg-white" />
                           </div>
                         ))}
                         {employeeSuccess === mgr.employee_id && (
@@ -339,20 +301,20 @@ export default function TargetsPage() {
                         )}
                         <button onClick={() => handleSaveEmployee(mgr.employee_id)}
                           disabled={savingEmployee === mgr.employee_id}
-                          className="w-full py-2 bg-primary text-white rounded-xl text-xs font-semibold active:opacity-80 disabled:opacity-50 transition-colors cursor-pointer">
+                          className="w-full py-2 bg-indigo-600 text-white rounded-xl text-xs font-semibold active:opacity-80 disabled:opacity-50 transition-colors cursor-pointer">
                           {savingEmployee === mgr.employee_id ? 'جاري الحفظ...' : 'حفظ هدف المدير'}
                         </button>
                       </div>
 
                       {team.length > 0 && (
-                        <div className="space-y-3 pt-2 border-t border-border/50">
-                          <p className="text-xs font-semibold text-text-secondary">فريق {mgr.employee_name}</p>
+                        <div className="space-y-3 pt-2 border-t border-gray-100/50">
+                          <p className="text-xs font-semibold text-gray-500">فريق {mgr.employee_name}</p>
                           {team.map(member => (
-                            <div key={member.employee_id} className="bg-surface rounded-lg border border-border/50 p-3 space-y-3">
+                            <div key={member.employee_id} className="bg-gray-50 rounded-lg border border-gray-100 p-3 space-y-3">
                               <div className="flex items-center justify-between">
                                 <div>
-                                  <p className="text-[10px] text-text-secondary font-mono">{member.employee_code}</p>
-                                  <p className="text-xs font-bold text-text">{member.employee_name}</p>
+                                  <p className="text-[10px] text-gray-400 font-mono">{member.employee_code}</p>
+                                  <p className="text-xs font-bold text-gray-800">{member.employee_name}</p>
                                 </div>
                                 <span className={`text-[9px] px-2 py-0.5 rounded-full font-semibold ${roleBadgeColor(member.role_type)}`}>
                                   {member.role_type}
@@ -360,7 +322,7 @@ export default function TargetsPage() {
                               </div>
                               {KPI_FIELDS.map(field => (
                                 <div key={field.key}>
-                                  <label className="text-[9px] text-text-secondary block mb-0.5">{field.label} ({field.unit})</label>
+                                  <label className="text-[9px] text-gray-500 block mb-0.5">{field.label} ({field.unit})</label>
                                   <input type="number"
                                     value={employeeEdits[member.employee_id]?.[field.key] || '0'}
                                     onChange={e => setEmployeeEdits(prev => ({
@@ -374,7 +336,7 @@ export default function TargetsPage() {
                                         [field.key]: e.target.value,
                                       },
                                     }))}
-                                    className="w-full border border-border rounded-lg p-1.5 text-xs text-text text-right bg-white" />
+                                    className="w-full border border-gray-200 rounded-lg p-1.5 text-xs text-gray-800 text-right bg-white" />
                                 </div>
                               ))}
                               {employeeSuccess === member.employee_id && (
@@ -382,7 +344,7 @@ export default function TargetsPage() {
                               )}
                               <button onClick={() => { ensureEdit(member); handleSaveEmployee(member.employee_id) }}
                                 disabled={savingEmployee === member.employee_id}
-                                className="w-full py-1.5 bg-primary text-white rounded-lg text-[11px] font-semibold active:opacity-80 disabled:opacity-50 transition-colors cursor-pointer">
+                                className="w-full py-1.5 bg-indigo-600 text-white rounded-lg text-[11px] font-semibold active:opacity-80 disabled:opacity-50 transition-colors cursor-pointer">
                                 {savingEmployee === member.employee_id ? 'جاري الحفظ...' : 'حفظ هدف العضو'}
                               </button>
                             </div>

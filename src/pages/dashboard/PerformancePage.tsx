@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import ActivityScreen from './ActivityScreen'
 import HierarchyTargetPage from '../target-runtime/HierarchyTargetPage'
-import TargetsPage from './TargetsPage'
-import WeightsPage from './WeightsPage'
+import TargetsTab from './TargetsTab'
+import WeightsTab from './WeightsTab'
 
 const MONTHS = ['يناير', 'فبراير', 'مارس', 'إبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر']
 
@@ -65,10 +65,10 @@ export default function PerformancePage() {
           <HierarchyTargetPage month={month} year={year} embedded />
         </div>
         <div style={{ display: activeTab === 'targets' ? 'block' : 'none' }}>
-          <TargetsPage />
+          <TargetsTab month={month} year={year} />
         </div>
         <div style={{ display: activeTab === 'weights' ? 'block' : 'none' }}>
-          <WeightsPage />
+          <WeightsTab month={month} year={year} />
         </div>
       </div>
     </div>

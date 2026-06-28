@@ -144,9 +144,7 @@ export default function UpperManagementDashboard() {
     { icon: '📋', label: 'الطلبات', path: '/launcher/orders', isSubLauncher: true, badge: pendingOrders },
     { icon: '📍', label: 'الانتشار', path: '/coverage-map' },
     { icon: '⚡', label: 'مركز النشاط اللحظي', path: '/command-center/live' },
-    { icon: '📈', label: 'نشاط الشركة', path: '/runtime/activity' },
     { icon: '📊', label: 'النشاط والتارجت', path: '/dashboard/activity-target' },
-    { icon: '🏆', label: 'إنجاز الشركة', path: '/runtime/achievement' },
     { icon: '📍', label: 'الزيارات', path: '/launcher/visits', isSubLauncher: true, badge: data?.active_visits },
     { icon: '👥', label: 'العملاء', path: '/launcher/customers', isSubLauncher: true, badge: data?.total_customers },
     { icon: '👤', label: 'الموظفون', path: '/launcher/employees', isSubLauncher: true },
@@ -154,8 +152,7 @@ export default function UpperManagementDashboard() {
     { icon: '📦', label: 'المخزون', path: '/launcher/inventory', isSubLauncher: true },
     { icon: '🏷️', label: 'الأقسام', path: '/launcher/deals', isSubLauncher: true },
     { icon: '📈', label: 'التقارير', path: '/launcher/reports', isSubLauncher: true },
-    { icon: '🎯', label: 'الأهداف', path: '/launcher/targets', isSubLauncher: true },
-    { icon: '🏛️', label: 'التسلسل الهرمي', path: '/targets/hierarchy' },
+
 
     { icon: '⚙️', label: 'الإعدادات', path: '/launcher/settings', isSubLauncher: true },
     { icon: '📡', label: 'اختبار GPS والموقع', path: '/ops/gps-test' },
