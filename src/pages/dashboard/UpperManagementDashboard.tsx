@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { targetService } from '../../services/targets'
@@ -147,9 +147,7 @@ export default function UpperManagementDashboard() {
     { icon: '📊', label: 'النشاط والتارجت', path: '/dashboard/activity-target' },
     { icon: '📍', label: 'الزيارات', path: '/launcher/visits', isSubLauncher: true, badge: data?.active_visits },
     { icon: '👥', label: 'العملاء', path: '/launcher/customers', isSubLauncher: true, badge: data?.total_customers },
-    { icon: '👤', label: 'الموظفون', path: '/launcher/employees', isSubLauncher: true },
     { icon: '⏱️', label: 'الحضور والانصراف', path: '/attendance' },
-    { icon: '📦', label: 'المخزون', path: '/launcher/inventory', isSubLauncher: true },
     { icon: '🏷️', label: 'الأقسام', path: '/launcher/deals', isSubLauncher: true },
     { icon: '📈', label: 'التقارير', path: '/launcher/reports', isSubLauncher: true },
 
@@ -161,12 +159,7 @@ export default function UpperManagementDashboard() {
 
   const quickIcons: LauncherGroup[] = [
 
-    { icon: '🧑‍💼', label: 'المناديب', path: '/employees?role=مندوب' },
-    { icon: '👔', label: 'المشرفين', path: '/employees?role=مشرف' },
-    { icon: '🎭', label: 'الأدوار', path: '/employees#roles' },
-    { icon: '🔐', label: 'الصلاحيات', path: '/employees#permissions' },
     { icon: '📋', label: 'سياسات العمل', path: '/attendance/settings#work-policies' },
-    { icon: '🎯', label: 'الأهداف', path: '/employees#targets' },
     { icon: '🔄', label: 'النشاط الموحد', path: '/activity' },
     { icon: '📄', label: 'طلبي', path: '/orders?my=1' },
     { icon: '👤', label: 'عملائي', path: '/customers?my=1' },

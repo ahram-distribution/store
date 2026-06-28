@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+﻿import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { ORDER_STATUS_LABELS } from '../../types/order-display'
@@ -94,7 +94,6 @@ export function SuperAdminWorkspace() {
         <KPIBox value={dash?.approved_orders ?? 0} label="معتمد" color="bg-success" onClick={() => navigate('/orders?filter=approved')} />
         <KPIBox value={dash?.today_orders ?? 0} label="طلبات اليوم" color="bg-indigo-600" onClick={() => navigate('/orders?filter=today')} />
         <KPIBox value={dash?.pending_collections ?? 0} label="تحصيلات" color="bg-accent" onClick={() => navigate('/collections')} />
-        <KPIBox value={activeEmp} label="موظفين" color="bg-purple-600" onClick={() => navigate('/employees')} />
       </div>
 
       {/* PENDING QUEUES */}
@@ -102,8 +101,7 @@ export function SuperAdminWorkspace() {
         <h3 className="text-sm font-bold text-text mb-3">قوائم الانتظار</h3>
         <div className="space-y-2">
           <QueueRowItem label="طلبات بانتظار الاعتماد" count={pendingApprovals} path="/orders/approval-queue" color="bg-accent" />
-          <QueueRowItem label="طلبات قيد التجهيز" count={preparingOrders} path="/warehouse" color="bg-amber-500" />
-          <QueueRowItem label="تحصيلات معلقة" count={dash?.pending_collections ?? 0} path="/collections" color="bg-orange-500" />
+                    <QueueRowItem label="تحصيلات معلقة" count={dash?.pending_collections ?? 0} path="/collections" color="bg-orange-500" />
           <QueueRowItem label="مرتجعات معلقة" count={dash?.pending_returns ?? 0} path="/returns" color="bg-red-500" />
         </div>
       </div>
@@ -131,8 +129,7 @@ export function SuperAdminWorkspace() {
           <QuickAction path="/customers/new" label="عميل جديد" icon="👤" color="bg-success" />
           <QuickAction path="/visits/new" label="زيارة" icon="📍" color="bg-indigo-600" />
           <QuickAction path="/collections/new" label="تحصيل" icon="💰" color="bg-amber-500" />
-          <QuickAction path="/warehouse/review" label="مراجعة مخزن" icon="📦" color="bg-purple-600" />
-        </div>
+                  </div>
       </div>
 
       {/* TODAY'S PERFORMANCE */}
@@ -165,12 +162,8 @@ export function SuperAdminWorkspace() {
       <div>
         <h3 className="text-sm font-bold text-text mb-2">وحدات التشغيل</h3>
         <div className="grid grid-cols-2 gap-2">
-          <ModuleCard label="المخزن" icon="📦" desc="تجهيز ومراجعة الطلبات" path="/warehouse" onNavigate={navigate} />
-          <ModuleCard label="التوصيل" icon="🚚" desc="إدارة الشحن والتسليم" path="/delivery" onNavigate={navigate} />
-          <ModuleCard label="المنتجات" icon="🛍️" desc="إدارة قائمة المنتجات" path="/products" onNavigate={navigate} />
-          <ModuleCard label="الموظفين" icon="👥" desc="إدارة الموظفين والصلاحيات" path="/employees" onNavigate={navigate} />
-          <ModuleCard label="الشركات" icon="🏢" desc="إدارة الشركات المورّدة" path="/companies" onNavigate={navigate} />
-          <ModuleCard label="التقارير" icon="📊" desc="تقارير وتحليلات" path="/reports" onNavigate={navigate} />
+                    <ModuleCard label="التوصيل" icon="🚚" desc="إدارة الشحن والتسليم" path="/delivery" onNavigate={navigate} />
+                                        <ModuleCard label="التقارير" icon="📊" desc="تقارير وتحليلات" path="/reports" onNavigate={navigate} />
           <ModuleCard label="الهيكل البيعي" icon="🔗" desc="التسلسل الهرمي للمبيعات" path="/hierarchy" onNavigate={navigate} />
           <ModuleCard label="المزادات" icon="🔨" desc="المزادات والصفقات" path="/auctions" onNavigate={navigate} />
         </div>

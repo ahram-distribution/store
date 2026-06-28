@@ -1,7 +1,2 @@
-export { EmployeesPage } from './EmployeesPage'
 export { EmployeeProfilePage } from './EmployeeProfilePage'
 export { HierarchyPage } from './HierarchyPage'
-export { EmployeeManagementPage } from './EmployeeManagementPage'
-export { RolesTab } from './RolesTab'
-export { PermissionsTab } from './PermissionsTab'
-export { TargetsWeightsTab } from './TargetsWeightsTab'

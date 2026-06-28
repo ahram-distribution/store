@@ -1,4 +1,4 @@
-import { useParams, useNavigate } from 'react-router-dom'
+﻿import { useParams, useNavigate } from 'react-router-dom'
 
 interface KpiCard {
   icon: string
@@ -24,7 +24,6 @@ const MODULE_CONFIGS: Record<string, ModuleConfig> = {
       { icon: '\u{1F50D}', label: 'متابعة الطلبات', path: '/orders/approval-queue' },
       { icon: '\u{1F69A}', label: 'التسليم', path: '/delivery' },
       { icon: '\u{1F504}', label: 'المرتجعات', path: '/returns' },
-      { icon: '\u{1F4E6}', label: 'تجهيز المخزن', path: '/warehouse' },
     ],
   },
   customers: {
@@ -62,21 +61,14 @@ const MODULE_CONFIGS: Record<string, ModuleConfig> = {
     title: 'المخزون',
     icon: '\u{1F4E6}',
     operations: [
-      { icon: '\u{1F4E6}', label: 'المخزون', path: '/warehouse' },
-      { icon: '\u{1F6CD}\u{FE0F}', label: 'المنتجات', path: '/products' },
-      { icon: '\u{1F50D}', label: 'مراجعة المخزون', path: '/warehouse/review' },
       { icon: '\u{270F}\u{FE0F}', label: 'إدارة المنتجات', path: '/products/manage' },
-      { icon: '\u{1F3ED}', label: 'الشركات', path: '/companies' },
     ],
   },
   employees: {
     title: 'الموظفون',
     icon: '\u{1F464}',
     operations: [
-      { icon: '\u{1F464}', label: 'كل الموظفين', path: '/employees' },
       { icon: '\u{1F465}', label: 'الهيكل البيعي', path: '/hierarchy' },
-      { icon: '\u{1F3AD}', label: 'الأدوار', path: '/employees#roles' },
-      { icon: '\u{1F510}', label: 'الصلاحيات', path: '/employees#permissions' },
       { icon: '\u{1F464}', label: 'بياناتي', path: '/account/profile' },
       { icon: '\u{1F510}', label: 'صلاحياتي', path: '/account/permissions' },
     ],
@@ -119,9 +111,6 @@ const MODULE_CONFIGS: Record<string, ModuleConfig> = {
     title: 'المستودع',
     icon: '\u{1F3D7}\u{FE0F}',
     operations: [
-      { icon: '\u{1F4E6}', label: 'المخزون', path: '/warehouse' },
-      { icon: '\u{1F50D}', label: 'مراجعة المخزون', path: '/warehouse/review' },
-      { icon: '\u{1F4E6}', label: 'تجهيز الطلبات', path: '/warehouse' },
     ],
   },
 }

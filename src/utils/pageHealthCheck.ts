@@ -1,4 +1,4 @@
-export interface PageHealthRecord {
+﻿export interface PageHealthRecord {
   path: string
   status: 'OK' | 'ERROR' | 'CRASH' | 'NOT_TESTED'
   errorCount: number
@@ -187,7 +187,6 @@ export const ROUTE_MANIFEST = {
       '/returns',
       '/returns/new',
       '/returns/:id',
-      '/products',
       '/products/:id',
       '/products/manage',
       '/deals',
@@ -200,15 +199,11 @@ export const ROUTE_MANIFEST = {
       '/credit/programs/manage',
       '/credit/applications',
       '/credit/applications/:id',
-      '/warehouse',
-      '/warehouse/review',
       '/warehouse/prep/:id',
       '/delivery',
       '/delivery/:id',
-      '/employees',
       '/employees/:id',
       '/hierarchy',
-      '/companies',
       '/companies/:id',
       '/companies/manage',
       '/reports',

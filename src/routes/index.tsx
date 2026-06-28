@@ -16,7 +16,7 @@ import { VisitsPage, VisitDetailPage, VisitScreen, NewVisitPage } from '../pages
 import { CollectionsPage, NewCollectionPage } from '../pages/collections'
 import { ReturnsPage, ReturnDetailPage, ReturnNewPage } from '../pages/returns'
 import { LiveActivityCenterPage } from '../pages/live-activity'
-import { ProductsPage, ProductProfilePage } from '../pages/products'
+import { ProductProfilePage } from '../pages/products'
 import { DealsPage } from '../pages/deals'
 import { DailyDealsPage, DailyDealDetailPage, DailyDealsManagementPage } from '../pages/daily-deals'
 import { FlashOffersPage, FlashOfferDetailPage, FlashOffersManagementPage } from '../pages/flash-offers'
@@ -34,9 +34,9 @@ import { CustomerAnalyticsPage } from '../pages/analytics/CustomerAnalyticsPage'
 import CustomerIntelligenceOverviewPage from '../pages/analytics/CustomerIntelligenceOverviewPage'
 import { CreditProgramsPage, CreditProgramsManagerPage, CreditApplicationsPage, CreditReviewPage, CustomerCreditPage, CreditManagementPage } from '../pages/credit'
 import { DeliveryPage, DeliveryDetailPage, CollectionFollowupPage } from '../pages/delivery'
-import { WarehousePage, WarehouseReviewPage, WarehousePrepDetail } from '../pages/warehouse'
-import { EmployeesPage, EmployeeProfilePage, HierarchyPage, EmployeeManagementPage } from '../pages/employees'
-import { CompaniesPage as MgmtCompaniesPage, CompanyProfilePage } from '../pages/companies'
+import { WarehousePrepDetail } from '../pages/warehouse'
+import { EmployeeProfilePage, HierarchyPage } from '../pages/employees'
+import { CompanyProfilePage } from '../pages/companies'
 import { ReportsPage } from '../pages/reports'
 import { CompanyProfilePage as SettingsCompanyProfilePage } from '../pages/settings'
 import ActivityPage from '../pages/activity/ActivityPage'
@@ -125,7 +125,6 @@ export function AppRoutes() {
       <Route path="/returns" element={<ProtectedRoute><ReturnsPage /></ProtectedRoute>} />
       <Route path="/returns/new" element={<ProtectedRoute><ReturnNewPage /></ProtectedRoute>} />
       <Route path="/returns/:id" element={<ProtectedRoute><ReturnDetailPage /></ProtectedRoute>} />
-      <Route path="/products" element={<ProtectedRoute employeeOnly><ProductsPage /></ProtectedRoute>} />
       <Route path="/products/:id" element={<ProtectedRoute employeeOnly><ProductProfilePage /></ProtectedRoute>} />
       <Route path="/deals" element={<ProtectedRoute employeeOnly><DealsPage /></ProtectedRoute>} />
       <Route path="/daily-deals" element={<ProtectedRoute><DailyDealsPage /></ProtectedRoute>} />
@@ -146,18 +145,14 @@ export function AppRoutes() {
       <Route path="/credit/programs/manage" element={<ProtectedRoute requireCapability="credit.program.manage"><CreditProgramsManagerPage /></ProtectedRoute>} />
       <Route path="/credit/applications" element={<ProtectedRoute requireCapability="credit.view"><CreditApplicationsPage /></ProtectedRoute>} />
       <Route path="/credit/applications/:id" element={<ProtectedRoute requireCapability="credit.review"><CreditReviewPage /></ProtectedRoute>} />
-      <Route path="/warehouse" element={<ProtectedRoute requireCapability="warehouse.prepare"><WarehousePage /></ProtectedRoute>} />
-      <Route path="/warehouse/review" element={<ProtectedRoute requireCapability="warehouse.prepare"><WarehouseReviewPage /></ProtectedRoute>} />
       <Route path="/warehouse/prep/:id" element={<ProtectedRoute requireCapability="warehouse.prepare"><WarehousePrepDetail /></ProtectedRoute>} />
       <Route path="/delivery" element={<ProtectedRoute requireCapability="delivery.dispatch"><DeliveryPage /></ProtectedRoute>} />
       <Route path="/delivery/:id" element={<ProtectedRoute requireCapability="delivery.deliver"><DeliveryDetailPage /></ProtectedRoute>} />
       <Route path="/collections/followup" element={<ProtectedRoute requireCapability="collections.read"><CollectionFollowupPage /></ProtectedRoute>} />
 
-      <Route path="/employees" element={<ProtectedRoute requireCapability="employees.manage"><EmployeeManagementPage /></ProtectedRoute>} />
       <Route path="/employees/:id" element={<ProtectedRoute employeeOnly><EmployeeProfilePage /></ProtectedRoute>} />
       <Route path="/hierarchy" element={<ProtectedRoute requireCapability="employees.manage"><HierarchyPage /></ProtectedRoute>} />
       <Route path="/targets/hierarchy" element={<ProtectedRoute employeeOnly><HierarchyTargetPage /></ProtectedRoute>} />
-      <Route path="/companies" element={<ProtectedRoute><MgmtCompaniesPage /></ProtectedRoute>} />
       <Route path="/companies/:id" element={<ProtectedRoute><CompanyProfilePage /></ProtectedRoute>} />
       <Route path="/reports" element={<ProtectedRoute employeeOnly><ReportsPage /></ProtectedRoute>} />
       <Route path="/activity" element={<ProtectedRoute employeeOnly><ActivityPage /></ProtectedRoute>} />
