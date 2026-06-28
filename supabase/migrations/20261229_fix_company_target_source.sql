@@ -1,22 +1,6 @@
--- ============================================================================
--- Phase D: Add Hierarchy section to get_governed_target_performance
--- DATE: 2026-12-27
---
--- WHAT:
---   1. Add employee_collections CTE for collections_actual data
---   2. Extend employee_calc with manager_id, manager_name, collections fields
---   3. Add employee_with_kpis CTE (pre-computed pcts + overall score)
---   4. Build hierarchy JSON with managers, team_summary, members with KPIs
---   5. Append 'hierarchy' key to return JSON
---
--- ADDITIVE ONLY: existing keys 'has_target', 'company', 'employees',
---   'best_employee', 'weakest_employee' are UNCHANGED.
---   Only 'hierarchy' is new.
--- ============================================================================
+-- Fix: Read company target from company_monthly_targets instead of SUM of employees
+-- This replaces the get_governed_target_performance function with corrected logic
 
--- ============================================================================
--- STEP 1: Replace the RPC function with hierarchy support
--- ============================================================================
 CREATE OR REPLACE FUNCTION public.get_governed_target_performance(
     p_token uuid, p_month int DEFAULT NULL, p_year int DEFAULT NULL
 )
@@ -478,3 +462,5 @@ BEGIN
     );
 END;
 $function$;
+
+
