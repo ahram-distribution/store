@@ -346,12 +346,13 @@ self.addEventListener('notificationclick', (event) => {
 self.addEventListener('fetch', (event) => {
   if (event.request.url.includes('/rest/v1/rpc/')) return
 
-  // SPA navigation: serve index.html for any navigation to non-asset URLs
+  // SPA navigation: network-first with cache fallback
+  // Network-first ensures fresh content after deployment while cache fallback provides offline support
   if (event.request.mode === 'navigate') {
     event.respondWith(
-      caches.match('/store/index.html').then((cached) => {
-        return cached || fetch('/store/index.html')
-      })
+      fetch('/store/index.html').catch(() =>
+        caches.match('/store/index.html')
+      )
     )
     return
   }
