@@ -43,9 +43,9 @@ CREATE OR REPLACE FUNCTION public.governed_upsert_company_monthly_target(
     p_token uuid, p_target_month int, p_target_year int,
     p_sales_target numeric DEFAULT 0, p_visits_target numeric DEFAULT 0, p_orders_target numeric DEFAULT 0,
     p_new_customers_target numeric DEFAULT 0,
-    p_sales_weight_percent numeric DEFAULT 35, p_visits_weight_percent numeric DEFAULT 15,
-    p_orders_weight_percent numeric DEFAULT 7.5, p_new_customers_weight_percent numeric DEFAULT 15,
-    p_collections_weight_percent numeric DEFAULT 20, p_attendance_weight_percent numeric DEFAULT 15
+    p_sales_weight_percent numeric DEFAULT 40, p_visits_weight_percent numeric DEFAULT 15,
+    p_orders_weight_percent numeric DEFAULT 15, p_new_customers_weight_percent numeric DEFAULT 10,
+    p_collections_weight_percent numeric DEFAULT 10, p_attendance_weight_percent numeric DEFAULT 10
 )
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, extensions
 AS $function$

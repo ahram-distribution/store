@@ -12,6 +12,15 @@ interface CompanyTarget {
   new_customers_target: number; is_locked: boolean
 }
 
+interface CompanyWeights {
+  sales: number; visits: number; orders: number
+  new_customers: number; collections: number; attendance: number
+}
+
+const DEFAULT_WEIGHTS: CompanyWeights = {
+  sales: 40, visits: 15, orders: 15, new_customers: 10, collections: 10, attendance: 10,
+}
+
 interface EmployeeTarget {
   employee_id: string; sales_target: number; visits_target: number
   orders_target: number; new_customers_target: number; is_locked: boolean
@@ -48,6 +57,7 @@ export default function TargetsPage() {
   })
   const [employeeTargetMap, setEmployeeTargetMap] = useState<Record<string, EmployeeTarget>>({})
 
+  const [companyWeights, setCompanyWeights] = useState<CompanyWeights>(DEFAULT_WEIGHTS)
   const [companyEdit, setCompanyEdit] = useState({ sales_target: '', visits_target: '', orders_target: '', new_customers_target: '' })
   const [savingCompany, setSavingCompany] = useState(false)
   const [companySuccess, setCompanySuccess] = useState(false)
@@ -92,6 +102,11 @@ export default function TargetsPage() {
           visits_target: ct.visits_target.toString(),
           orders_target: ct.orders_target.toString(),
           new_customers_target: ct.new_customers_target.toString(),
+        })
+        setCompanyWeights({
+          sales: ct.sales_weight_percent, visits: ct.visits_weight_percent,
+          orders: ct.orders_weight_percent, new_customers: ct.new_customers_weight_percent,
+          collections: ct.collections_weight_percent, attendance: ct.attendance_weight_percent,
         })
       }
     }
@@ -155,7 +170,8 @@ export default function TargetsPage() {
       parseFloat(companyEdit.visits_target) || 0,
       parseFloat(companyEdit.orders_target) || 0,
       parseFloat(companyEdit.new_customers_target) || 0,
-      35, 15, 7.5, 15, 20, 15, token
+      companyWeights.sales, companyWeights.visits, companyWeights.orders,
+      companyWeights.new_customers, companyWeights.collections, companyWeights.attendance, token
     )
     setSavingCompany(false)
     if (error) { setCompanyError(error.message || 'حدث خطأ أثناء الحفظ'); return }
