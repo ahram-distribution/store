@@ -4,15 +4,24 @@ import type { PerformanceData, HierarchyManager, HierarchyMember, HierarchyKpis,
 
 type ViewLevel = 'company' | 'manager' | 'member'
 
-export default function HierarchyTargetPage() {
+type Props = {
+  month?: number
+  year?: number
+  embedded?: boolean
+}
+
+export default function HierarchyTargetPage({ month: propMonth, year: propYear, embedded }: Props = {}) {
   const [data, setData] = useState<PerformanceData | null>(null)
   const [loading, setLoading] = useState(true)
   const [view, setView] = useState<ViewLevel>('company')
   const [selectedManager, setSelectedManager] = useState<HierarchyManager | null>(null)
   const [selectedMember, setSelectedMember] = useState<HierarchyMember | null>(null)
-  const [selMonth, setSelMonth] = useState(new Date().getMonth() + 1)
-  const [selYear, setSelYear] = useState(new Date().getFullYear())
+  const [localMonth, setLocalMonth] = useState(new Date().getMonth() + 1)
+  const [localYear, setLocalYear] = useState(new Date().getFullYear())
   const [error, setError] = useState<string | null>(null)
+
+  const selMonth = propMonth ?? localMonth
+  const selYear = propYear ?? localYear
 
   useEffect(() => {
     targetService.getPerformance(selMonth, selYear)
@@ -39,16 +48,17 @@ export default function HierarchyTargetPage() {
 
     return (
       <div className="p-4 max-w-6xl mx-auto space-y-6" dir="rtl">
-        {/* Month selector */}
-        <div className="flex items-center gap-4">
-          <h1 className="text-xl font-bold text-gray-900">التسلسل الهرمي للأهداف</h1>
-          <select value={selMonth} onChange={e => setSelMonth(+e.target.value)} className="border rounded px-2 py-1 text-sm">
-            {['يناير','فبراير','مارس','إبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'].map((n,i) => <option key={i} value={i+1}>{n}</option>)}
-          </select>
-          <select value={selYear} onChange={e => setSelYear(+e.target.value)} className="border rounded px-2 py-1 text-sm">
-            {[2025,2026,2027].map(y => <option key={y} value={y}>{y}</option>)}
-          </select>
-        </div>
+        {!embedded && (
+          <div className="flex items-center gap-4">
+            <h1 className="text-xl font-bold text-gray-900">التسلسل الهرمي للأهداف</h1>
+            <select value={selMonth} onChange={e => setLocalMonth(+e.target.value)} className="border rounded px-2 py-1 text-sm">
+              {['يناير','فبراير','مارس','إبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'].map((n,i) => <option key={i} value={i+1}>{n}</option>)}
+            </select>
+            <select value={selYear} onChange={e => setLocalYear(+e.target.value)} className="border rounded px-2 py-1 text-sm">
+              {[2025,2026,2027].map(y => <option key={y} value={y}>{y}</option>)}
+            </select>
+          </div>
+        )}
 
         {/* Company Overview */}
         <div className="bg-white rounded-lg shadow p-6 border">

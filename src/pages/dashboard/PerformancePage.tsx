@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import ActivityScreen from './ActivityScreen'
+import HierarchyTargetPage from '../target-runtime/HierarchyTargetPage'
 import TargetsPage from './TargetsPage'
 import WeightsPage from './WeightsPage'
 
@@ -13,16 +14,6 @@ const TABS = [
 ] as const
 
 type TabKey = (typeof TABS)[number]['key']
-
-function Placeholder({ title }: { title: string }) {
-  return (
-    <div className="text-center py-24 text-gray-400">
-      <div className="text-5xl mb-4">🏗️</div>
-      <p className="text-lg font-semibold">{title}</p>
-      <p className="text-sm mt-1">قيد التطوير — قريباً</p>
-    </div>
-  )
-}
 
 export default function PerformancePage() {
   const now = new Date()
@@ -71,7 +62,7 @@ export default function PerformancePage() {
           <ActivityScreen month={month} year={year} embedded />
         </div>
         <div style={{ display: activeTab === 'achievement' ? 'block' : 'none' }}>
-          <Placeholder title="شاشة الإنجاز" />
+          <HierarchyTargetPage month={month} year={year} embedded />
         </div>
         <div style={{ display: activeTab === 'targets' ? 'block' : 'none' }}>
           <TargetsPage />
