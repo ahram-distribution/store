@@ -31,6 +31,7 @@ import TargetsPage from '../pages/dashboard/TargetsPage'
 import EmployeeTargetsPage from '../pages/dashboard/EmployeeTargetsPage'
 import EmployeeAnalysisPage from '../pages/dashboard/EmployeeAnalysisPage'
 import ActivityScreen from '../pages/dashboard/ActivityScreen'
+import PerformancePage from '../pages/dashboard/PerformancePage'
 import { ModuleLauncherPage } from '../pages/dashboard/ModuleLauncherPage'
 import { AnalyticsListPage } from '../pages/analytics/AnalyticsListPage'
 import { CustomerAnalyticsPage } from '../pages/analytics/CustomerAnalyticsPage'
@@ -102,6 +103,7 @@ export function AppRoutes() {
       <Route path="/dashboard/weights" element={<ProtectedRoute employeeOnly><WeightsPage /></ProtectedRoute>} />
       <Route path="/dashboard/targets" element={<ProtectedRoute employeeOnly><TargetsPage /></ProtectedRoute>} />
       <Route path="/dashboard/activity" element={<ProtectedRoute employeeOnly><ActivityScreen /></ProtectedRoute>} />
+      <Route path="/dashboard/activity-target" element={<ProtectedRoute employeeOnly><PerformancePage /></ProtectedRoute>} />
 
       <Route path="/storefront" element={<ProtectedRoute><CompaniesPage /></ProtectedRoute>} />
       <Route path="/storefront/products" element={<ProtectedRoute><StorefrontPage /></ProtectedRoute>} />
