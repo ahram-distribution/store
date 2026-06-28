@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { targetService } from '../../services/targets'
 import type { PerformanceData, HierarchyManager, HierarchyMember, HierarchyKpis, HierarchyTeamSummary } from './TargetRuntimePage'
 
-type ViewLevel = 'company' | 'manager' | 'member'
+type ViewLevel = 'company' | 'managers' | 'manager' | 'member'
 
 type Props = {
   month?: number
@@ -42,8 +42,6 @@ export default function HierarchyTargetPage({ month: propMonth, year: propYear, 
   // ── Level 1: Company ──
   if (view === 'company') {
     const company = data.company!
-    const managers = hierarchy.managers
-    const unassigned = hierarchy.unassigned
     const pct = company.overall_achievement_pct
 
     return (
@@ -60,7 +58,6 @@ export default function HierarchyTargetPage({ month: propMonth, year: propYear, 
           </div>
         )}
 
-        {/* Company Overview */}
         <div className="bg-white rounded-lg shadow p-6 border">
           <h2 className="text-lg font-bold text-gray-900 mb-4">الشركة</h2>
           <div className="grid grid-cols-4 gap-4 text-sm">
@@ -74,7 +71,24 @@ export default function HierarchyTargetPage({ month: propMonth, year: propYear, 
           </div>
         </div>
 
-        {/* Managers Table */}
+        <button onClick={() => setView('managers')}
+          className="w-full bg-white rounded-xl border border-gray-100 p-4 shadow-sm hover:shadow-md transition-all text-right flex items-center justify-between">
+          <span className="font-semibold text-gray-900">فرق المبيعات</span>
+          <span className="text-blue-600">←</span>
+        </button>
+      </div>
+    )
+  }
+
+  // ── Level 2: Managers list ──
+  if (view === 'managers') {
+    const managers = hierarchy.managers
+    const unassigned = hierarchy.unassigned
+
+    return (
+      <div className="p-4 max-w-6xl mx-auto space-y-6" dir="rtl">
+        <button onClick={() => setView('company')} className="text-blue-600 hover:text-blue-800 text-sm">&larr; العودة للشركة</button>
+
         <div className="bg-white rounded-lg shadow border">
           <div className="px-6 py-3 border-b bg-gray-50 flex items-center justify-between">
             <h3 className="font-bold text-gray-900">مديري البيع</h3>
@@ -124,7 +138,6 @@ export default function HierarchyTargetPage({ month: propMonth, year: propYear, 
           )}
         </div>
 
-        {/* Unassigned count */}
         {unassigned.length > 0 && (
           <div className="text-sm text-gray-500">موظفون بدون مدير: {hierarchy.unassigned_count}</div>
         )}
@@ -132,7 +145,7 @@ export default function HierarchyTargetPage({ month: propMonth, year: propYear, 
     )
   }
 
-  // ── Level 2: Manager Team ──
+  // ── Level 3: Manager Team ──
   if (view === 'manager' && selectedManager) {
     const mgr = selectedManager
     const ts = mgr.team_summary
@@ -202,7 +215,7 @@ export default function HierarchyTargetPage({ month: propMonth, year: propYear, 
     )
   }
 
-  // ── Level 3: Member details ──
+  // ── Level 4: Member details ──
   if (view === 'member' && selectedMember) {
     const m = selectedMember
 

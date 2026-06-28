@@ -24,7 +24,7 @@ function monthRange(month: number, year: number) {
   }
 }
 
-type ViewLevel = 'company' | 'team' | 'rep'
+type ViewLevel = 'company' | 'managers' | 'team' | 'rep'
 
 const KPI_LABELS = [
   { key: 'sales', label: 'المبيعات', money: true },
@@ -67,6 +67,7 @@ export default function ActivityScreen({ month: propMonth, year: propYear, embed
   function getTitle(): string {
     if (role === 'rep' || viewLevel === 'rep') return `نشاط ${viewRepName || user?.full_name || ''}`
     if (viewLevel === 'team') return `نشاط فريق ${viewMgrName}`
+    if (viewLevel === 'managers') return 'فرق المبيعات'
     return 'نشاط الشركة'
   }
 
@@ -84,7 +85,7 @@ export default function ActivityScreen({ month: propMonth, year: propYear, embed
           setMembers([])
         })
         .finally(() => setLoading(false))
-    } else if (role === 'executive' && viewLevel === 'company') {
+    } else if (role === 'executive' && (viewLevel === 'company' || viewLevel === 'managers')) {
       supabase.rpc('get_runtime_team_activity', { p_manager_employee_id: null, p_date_from: from, p_date_to: to })
         .then(({ data, error: err }) => {
           if (err) { console.error(err); setError(err.message) }
@@ -135,8 +136,20 @@ export default function ActivityScreen({ month: propMonth, year: propYear, embed
     }
   }, [month, year, user?.employee_id, viewLevel, viewMgrId, viewRepId])
 
+  const companyTotals = useMemo(() => {
+    if (viewLevel !== 'company') return null
+    let sales = 0, orders = 0, completed_visits = 0, registered_customers = 0
+    members.forEach((m: any) => {
+      sales += m.sales || 0
+      orders += m.orders || 0
+      completed_visits += m.completed_visits || 0
+      registered_customers += m.registered_customers || 0
+    })
+    return { sales, orders, completed_visits, registered_customers }
+  }, [viewLevel, members])
+
   const managerRows = useMemo(() => {
-    if (viewLevel !== 'company' || role !== 'executive') return []
+    if ((viewLevel !== 'company' && viewLevel !== 'managers') || role !== 'executive') return []
     const mgrMap = new Map<string, { name: string; code: string }>()
     members.forEach((m: any) => {
       if (m.manager_id) mgrMap.set(m.manager_id, { name: m.manager_name || m.full_name, code: m.manager_code || '' })
@@ -166,6 +179,14 @@ export default function ActivityScreen({ month: propMonth, year: propYear, embed
     return rows.sort((a, b) => b.sales - a.sales)
   }, [viewLevel, role, members])
 
+  function drillToManagers() {
+    setViewLevel('managers')
+    setViewMgrId(null)
+    setViewMgrName('')
+    setViewRepId(null)
+    setViewRepName('')
+  }
+
   function drillToManager(mgrId: string, mgrName: string) {
     setViewMgrId(mgrId)
     setViewMgrName(mgrName)
@@ -186,9 +207,11 @@ export default function ActivityScreen({ month: propMonth, year: propYear, embed
       setViewRepId(null)
       setViewRepName('')
     } else if (viewLevel === 'team' && role === 'executive') {
-      setViewLevel('company')
+      setViewLevel('managers')
       setViewMgrId(null)
       setViewMgrName('')
+    } else if (viewLevel === 'managers') {
+      setViewLevel('company')
     } else {
       nav(-1)
     }
@@ -216,7 +239,9 @@ export default function ActivityScreen({ month: propMonth, year: propYear, embed
   const body = (
     <>
       <div className="flex items-center gap-3">
-        <button onClick={goBack} className="text-sm text-indigo-600 font-semibold hover:underline">→ رجوع</button>
+        {viewLevel !== 'company' && (
+          <button onClick={goBack} className="text-sm text-indigo-600 font-semibold hover:underline">→ رجوع</button>
+        )}
         <h1 className="text-xl font-bold text-gray-800">{getTitle()}</h1>
       </div>
 
@@ -252,7 +277,30 @@ export default function ActivityScreen({ month: propMonth, year: propYear, embed
         </div>
       )}
 
-      {!loading && role === 'executive' && viewLevel === 'company' && (
+      {!loading && role === 'executive' && viewLevel === 'company' && companyTotals && (
+        <div>
+          <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm mb-4">
+            <h2 className="text-base font-bold text-gray-800 mb-3">نشاط الشركة</h2>
+            <div className="grid grid-cols-4 gap-3">
+              {KPI_LABELS.map((item) => (
+                <div key={item.key} className="text-center">
+                  <div className="text-lg font-bold text-gray-800">
+                    {item.money ? fmtMoney(companyTotals[item.key]) : fmt(companyTotals[item.key])}
+                  </div>
+                  <div className="text-[10px] text-gray-400">{item.label}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <button onClick={drillToManagers}
+            className="w-full bg-white rounded-xl border border-gray-100 p-4 shadow-sm hover:shadow-md transition-all text-right flex items-center justify-between">
+            <span className="font-semibold text-gray-800">فرق المبيعات</span>
+            <span className="text-xs text-indigo-600">عرض ←</span>
+          </button>
+        </div>
+      )}
+
+      {!loading && role === 'executive' && viewLevel === 'managers' && (
         <>
           {managerRows.length > 0 && (
             <div className="space-y-3">
