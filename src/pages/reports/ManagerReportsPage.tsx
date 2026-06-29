@@ -2,7 +2,6 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { targetService } from '../../services/targets'
-import { attendanceService } from '../../services/attendance'
 import * as XLSX from 'xlsx'
 
 const MONTHS = ['يناير', 'فبراير', 'مارس', 'إبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر']
@@ -26,19 +25,6 @@ interface SSession {
   collection_count: number; collection_amount: number; new_customer_count: number
   attendance_status: string | null; late_minutes: number | null; distance_meters: number; tracking_points_count: number
 }
-
-interface SSummary {
-  total_days: number; total_net_minutes: number; avg_net_minutes: number
-  total_orders: number; total_sales_value: number; total_collection_count: number
-  total_collection_amount: number; total_new_customers: number; total_visits: number
-  total_distance_meters: number; total_tracking_points: number
-  late_count: number; ontime_count: number; early_departure_count: number
-}
-
-interface SWEmployee { employee_id: string; employee_name: string; employee_code: string; summary: SSummary; sessions: SSession[] }
-interface SWTotals { total_employees: number; total_visits: number; total_orders: number; total_sales: number; total_collection_amount: number; total_new_customers: number; total_net_minutes: number }
-interface LWEmployee { employee_id: string; name: string; started_at?: string; ended_at?: string; duration_minutes?: number; net_minutes?: number; break_minutes?: number; break_count?: number; visit_count: number; order_count: number; sales_value: number; collection_count: number; collection_amount: number; new_customer_count: number; latitude?: number; longitude?: number; last_seen_at?: string; status: string; attendance_status?: string | null; late_minutes?: number; target_pct?: number | null }
-interface SWSEmployee { employee_id: string; name: string; ended_at?: string; duration_minutes?: number; net_minutes?: number; visit_count?: number; order_count?: number; sales_value?: number; collection_count?: number; collection_amount?: number; new_customer_count?: number; break_minutes?: number; attendance_status?: string | null; late_minutes?: number }
 
 interface TLEvent { time: string; type: string; title: string; description: string; latitude?: string | null; longitude?: string | null }
 interface TLData { employee: { full_name: string; code: string }; session: { start_time: string; end_time?: string | null }; events: TLEvent[] }
@@ -138,10 +124,6 @@ export default function ManagerReportsPage() {
   const [selectedManagerId, setSelectedManagerId] = useState<string | null>(null)
   const [selectedRepId, setSelectedRepId] = useState<string | null>(null)
   const [perfData, setPerfData] = useState<PData | null>(null)
-  const [workdayEmps, setWorkdayEmps] = useState<SWEmployee[]>([])
-  const [workdayTotals, setWorkdayTotals] = useState<SWTotals | null>(null)
-  const [liveEmps, setLiveEmps] = useState<LWEmployee[]>([])
-  const [endedEmps, setEndedEmps] = useState<SWSEmployee[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
@@ -169,23 +151,11 @@ export default function ManagerReportsPage() {
 
   useEffect(() => {
     setLoading(true); setError(null); setSelectedRepId(null)
-    setWorkdayEmps([]); setWorkdayTotals(null); setLiveEmps([]); setEndedEmps([])
-    const promises: Promise<any>[] = [targetService.getPerformance(perfMonth, perfYear)]
-    const isToday = period === 'today'
-    if (isToday) {
-      promises.push(supabase.rpc('get_live_workday_overview', { p_token: localStorage.getItem('session_token') }))
-    } else if (fromParam && toParam) {
-      promises.push(attendanceService.getCompletedWorkdaysHistory({ p_from: fromParam, p_to: toParam, p_per_page: 1000 }))
-    }
-    Promise.all(promises).then(([perf, extra]) => {
+    targetService.getPerformance(perfMonth, perfYear).then((perf) => {
       if (perf.error) { setError(perf.error.message); return }
       setPerfData(perf.data as unknown as PData)
-      if (extra) {
-        if (isToday) { const ov = extra.data as any; if (ov && typeof ov === 'object') { setLiveEmps(Array.isArray(ov.employees) ? ov.employees : []); setEndedEmps(Array.isArray(ov.ended_employees) ? ov.ended_employees : []) } }
-        else { const wh = extra as any; if (wh?.employees) { setWorkdayEmps(wh.employees as SWEmployee[]); if (wh.totals) setWorkdayTotals(wh.totals as SWTotals) } }
-      }
     }).catch((e) => setError(e.message || 'خطأ في تحميل البيانات')).finally(() => setLoading(false))
-  }, [perfMonth, perfYear, period, fromParam, toParam])
+  }, [perfMonth, perfYear])
 
   useEffect(() => {
     if (!selectedRepId || !fromParam || !toParam) { setRepSessions([]); setRepTimeline(null); return }
@@ -201,8 +171,6 @@ export default function ManagerReportsPage() {
       if (t && typeof t === 'object' && !('error' in t)) setRepTimeline(t as TLData)
     }).finally(() => setRepLoading(false))
   }, [selectedRepId, fromParam, toParam, effectiveFrom])
-
-  const isToday = period === 'today'
 
   const allManagers = useMemo(() => {
     if (!perfData?.hierarchy?.managers) return []
@@ -231,46 +199,32 @@ export default function ManagerReportsPage() {
     if (!selectedManagerId) return []
     const members = teamMembers
     if (!members.length) return []
-    const ehMap = new Map<string, SWEmployee>(); workdayEmps.forEach((e) => ehMap.set(e.employee_id, e))
-    const lhMap = new Map<string, LWEmployee>(); liveEmps.forEach((e) => lhMap.set(e.employee_id, e))
-    const endedMap = new Map<string, SWSEmployee>(); endedEmps.forEach((e) => endedMap.set(e.employee_id, e))
     const perfMap = new Map<string, EPerf>(); if (perfData?.employees) perfData.employees.forEach((e) => perfMap.set(e.employee_id, e))
     return members.map((m) => {
       const perf = perfMap.get(m.employee_id); const k = m.kpis
-      if (isToday) {
-        const lw = lhMap.get(m.employee_id); const ended = endedMap.get(m.employee_id); const src = ended || lw
-        return {
-          employee_id: m.employee_id, employee_name: m.employee_name, employee_code: m.employee_code, manager_id: selectedManagerId,
-          start_time: lw?.started_at ?? null, end_time: ended?.ended_at ?? null,
-          net_minutes: src?.net_minutes ?? (src?.duration_minutes ?? 0), break_minutes: src?.break_minutes ?? 0,
-          tracking_points: 0, distance_meters: 0,
-          visit_count: src?.visit_count ?? 0, order_count: src?.order_count ?? 0, sales_value: src?.sales_value ?? 0,
-          collection_count: src?.collection_count ?? 0, collection_amount: src?.collection_amount ?? 0, new_customer_count: src?.new_customer_count ?? 0,
-          late_minutes: src?.late_minutes ?? null, attendance_status: src?.attendance_status ?? null, day_count: 1,
-          sales_target: perf?.sales_target ?? k?.sales?.target ?? 0, orders_target: perf?.orders_target ?? k?.orders?.target ?? 0,
-          visits_target: perf?.visits_target ?? k?.visits?.target ?? 0, customers_target: perf?.new_customers_target ?? k?.new_customers?.target ?? 0,
-          sales_pct: perf?.sales_achievement_pct ?? k?.sales?.pct ?? null, orders_pct: perf?.orders_achievement_pct ?? k?.orders?.pct ?? null,
-          visits_pct: perf?.visits_achievement_pct ?? k?.visits?.pct ?? null, customers_pct: perf?.new_customers_achievement_pct ?? k?.new_customers?.pct ?? null,
-          overall_score: m.overall_achievement_score, has_target: m.has_target, has_activity: m.has_activity,
-        }
-      }
-      const wh = ehMap.get(m.employee_id); const s = wh?.summary
       return {
         employee_id: m.employee_id, employee_name: m.employee_name, employee_code: m.employee_code, manager_id: selectedManagerId,
-        start_time: wh?.sessions?.[0]?.start_time ?? null, end_time: wh?.sessions?.[wh.sessions.length - 1]?.end_time ?? null,
-        net_minutes: s?.total_net_minutes ?? 0, break_minutes: wh?.sessions?.reduce((sum, sess) => sum + (sess.break_minutes || 0), 0) ?? 0,
-        tracking_points: s?.total_tracking_points ?? 0, distance_meters: s?.total_distance_meters ?? 0,
-        visit_count: s?.total_visits ?? 0, order_count: s?.total_orders ?? 0, sales_value: s?.total_sales_value ?? 0,
-        collection_count: s?.total_collection_count ?? 0, collection_amount: s?.total_collection_amount ?? 0, new_customer_count: s?.total_new_customers ?? 0,
-        late_minutes: null, attendance_status: null, day_count: s?.total_days ?? 0,
-        sales_target: perf?.sales_target ?? k?.sales?.target ?? 0, orders_target: perf?.orders_target ?? k?.orders?.target ?? 0,
-        visits_target: perf?.visits_target ?? k?.visits?.target ?? 0, customers_target: perf?.new_customers_target ?? k?.new_customers?.target ?? 0,
-        sales_pct: perf?.sales_achievement_pct ?? k?.sales?.pct ?? null, orders_pct: perf?.orders_achievement_pct ?? k?.orders?.pct ?? null,
-        visits_pct: perf?.visits_achievement_pct ?? k?.visits?.pct ?? null, customers_pct: perf?.new_customers_achievement_pct ?? k?.new_customers?.pct ?? null,
+        start_time: null, end_time: null,
+        net_minutes: 0, break_minutes: 0, tracking_points: 0, distance_meters: 0,
+        visit_count: k?.visits?.actual ?? perf?.visits_actual ?? 0,
+        order_count: k?.orders?.actual ?? perf?.gross_orders ?? 0,
+        sales_value: k?.sales?.actual ?? perf?.gross_sales ?? 0,
+        collection_count: 0,
+        collection_amount: k?.collections?.actual ?? 0,
+        new_customer_count: k?.new_customers?.actual ?? perf?.new_customers_actual ?? 0,
+        late_minutes: null, attendance_status: null, day_count: 1,
+        sales_target: k?.sales?.target ?? perf?.sales_target ?? 0,
+        orders_target: k?.orders?.target ?? perf?.orders_target ?? 0,
+        visits_target: k?.visits?.target ?? perf?.visits_target ?? 0,
+        customers_target: k?.new_customers?.target ?? perf?.new_customers_target ?? 0,
+        sales_pct: k?.sales?.pct ?? perf?.sales_achievement_pct ?? null,
+        orders_pct: k?.orders?.pct ?? perf?.orders_achievement_pct ?? null,
+        visits_pct: k?.visits?.pct ?? perf?.visits_achievement_pct ?? null,
+        customers_pct: k?.new_customers?.pct ?? perf?.new_customers_achievement_pct ?? null,
         overall_score: m.overall_achievement_score, has_target: m.has_target, has_activity: m.has_activity,
       }
     })
-  }, [teamMembers, workdayEmps, liveEmps, endedEmps, perfData, selectedManagerId, isToday])
+  }, [teamMembers, perfData, selectedManagerId])
 
   const handleSort = useCallback((key: string) => {
     if (sortKey === key) setSortDir((p) => (p === 'asc' ? 'desc' : 'asc'))
@@ -329,11 +283,21 @@ export default function ManagerReportsPage() {
     }, null as HMember | null)
   }, [selectedManager])
 
+  const companyTotals = useMemo(() => {
+    if (!perfData?.employees?.length) return { sales: 0, orders: 0, visits: 0, customers: 0 }
+    const emps = perfData.employees
+    return {
+      sales: emps.reduce((s, e) => s + (e.gross_sales || 0), 0),
+      orders: emps.reduce((s, e) => s + (e.gross_orders || 0), 0),
+      visits: emps.reduce((s, e) => s + (e.visits_actual || 0), 0),
+      customers: emps.reduce((s, e) => s + (e.new_customers_actual || 0), 0),
+    }
+  }, [perfData])
+
   const activeRepCount = useMemo(() => {
     if (!selectedManagerId) return 0
-    const activeIds = new Set(isToday ? liveEmps.map((e) => e.employee_id) : workdayEmps.map((e) => e.employee_id))
-    return teamMembers.filter((m) => activeIds.has(m.employee_id)).length
-  }, [selectedManagerId, teamMembers, liveEmps, workdayEmps, isToday])
+    return teamMembers.filter((m) => m.has_activity).length
+  }, [selectedManagerId, teamMembers])
 
   function toggleCol(key: string) {
     const next = new Set(visibleCols)
@@ -744,13 +708,13 @@ export default function ManagerReportsPage() {
       ) : (
         <>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            <div className="bg-white rounded-lg border border-border p-3 text-center"><div className="text-lg font-bold text-green-600">{fmtMoney(workdayTotals?.total_sales ?? perfData?.company?.sales_actual ?? 0)}</div><div className="text-[10px] text-text-secondary">إجمالي المبيعات</div></div>
-            <div className="bg-white rounded-lg border border-border p-3 text-center"><div className="text-lg font-bold text-text">{fmtNum(workdayTotals?.total_orders ?? 0)}</div><div className="text-[10px] text-text-secondary">إجمالي الطلبات</div></div>
-            <div className="bg-white rounded-lg border border-border p-3 text-center"><div className="text-lg font-bold text-text">{fmtNum(workdayTotals?.total_visits ?? 0)}</div><div className="text-[10px] text-text-secondary">إجمالي الزيارات</div></div>
-            <div className="bg-white rounded-lg border border-border p-3 text-center"><div className="text-lg font-bold text-text">{fmtMoney(workdayTotals?.total_collection_amount ?? 0)}</div><div className="text-[10px] text-text-secondary">إجمالي التحصيل</div></div>
-            <div className="bg-white rounded-lg border border-border p-3 text-center"><div className="text-lg font-bold text-text">{fmtNum(workdayTotals?.total_new_customers ?? 0)}</div><div className="text-[10px] text-text-secondary">عملاء جدد</div></div>
+            <div className="bg-white rounded-lg border border-border p-3 text-center"><div className="text-lg font-bold text-green-600">{fmtMoney(companyTotals.sales || perfData?.company?.sales_actual || 0)}</div><div className="text-[10px] text-text-secondary">إجمالي المبيعات</div></div>
+            <div className="bg-white rounded-lg border border-border p-3 text-center"><div className="text-lg font-bold text-text">{fmtNum(companyTotals.orders || 0)}</div><div className="text-[10px] text-text-secondary">إجمالي الطلبات</div></div>
+            <div className="bg-white rounded-lg border border-border p-3 text-center"><div className="text-lg font-bold text-text">{fmtNum(companyTotals.visits || 0)}</div><div className="text-[10px] text-text-secondary">إجمالي الزيارات</div></div>
+            <div className="bg-white rounded-lg border border-border p-3 text-center"><div className="text-lg font-bold text-text">{fmtMoney(0)}</div><div className="text-[10px] text-text-secondary">إجمالي التحصيل</div></div>
+            <div className="bg-white rounded-lg border border-border p-3 text-center"><div className="text-lg font-bold text-text">{fmtNum(companyTotals.customers || 0)}</div><div className="text-[10px] text-text-secondary">عملاء جدد</div></div>
             <div className="bg-white rounded-lg border border-border p-3 text-center"><div className={`text-lg font-bold ${getPctColor(perfData?.company?.overall_achievement_pct)}`}>{fmtPct(perfData?.company?.overall_achievement_pct)}</div><div className="text-[10px] text-text-secondary">نسبة الإنجاز</div></div>
-            <div className="bg-white rounded-lg border border-border p-3 text-center"><div className="text-lg font-bold text-text">{fmtNum(workdayTotals?.total_employees ?? allManagers.reduce((s, m) => s + m.member_count, 0))}</div><div className="text-[10px] text-text-secondary">إجمالي المندوبين</div></div>
+            <div className="bg-white rounded-lg border border-border p-3 text-center"><div className="text-lg font-bold text-text">{fmtNum(perfData?.employees?.length ?? 0)}</div><div className="text-[10px] text-text-secondary">إجمالي المندوبين</div></div>
             <div className="bg-white rounded-lg border border-border p-3 text-center"><div className="text-lg font-bold text-text">{allManagers.length}</div><div className="text-[10px] text-text-secondary">عدد المدراء</div></div>
           </div>
 

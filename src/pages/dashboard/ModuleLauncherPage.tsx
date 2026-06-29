@@ -1,11 +1,9 @@
-import { useEffect, useState, lazy, Suspense } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { SubLauncherPage, type LauncherIcon } from './SubLauncherPage'
 import { useAuthStore } from '../../store/auth'
 import { normalizeEmployeeRole } from '../../utils/roleNormalization'
 import { targetService } from '../../services/targets'
-
-const ManagerReportsPage = lazy(() => import('../reports/ManagerReportsPage'))
 
 const MODULE_HOME_TARGETS = new Set(['الإدارة العليا', 'مدير بيع'])
 
@@ -84,6 +82,7 @@ const MODULE_ICONS: Record<string, { title: string; icons: LauncherIcon[] }> = {
     title: 'التقارير والتحليلات',
     icons: [
       { icon: '📈', label: 'التقارير', path: '/reports' },
+      { icon: '📊', label: 'تقرير مدير المبيعات', path: '/reports/manager' },
       { icon: '📊', label: 'تقارير العملاء', path: '/analytics/customers' },
       { icon: '💳', label: 'إدارة برامج الائتمان', path: '/credit/programs/manage' },
       { icon: '💳', label: 'تقارير الائتمان', path: '/credit/manage' },
@@ -210,10 +209,6 @@ export function ModuleLauncherPage() {
 
   if (module === 'targets') {
     return <TargetSummaryCard />
-  }
-
-  if (module === 'reports') {
-    return <Suspense fallback={<div className="text-center py-12 text-text-secondary text-sm">جاري التحميل...</div>}><ManagerReportsPage /></Suspense>
   }
 
   const config = MODULE_ICONS[module]

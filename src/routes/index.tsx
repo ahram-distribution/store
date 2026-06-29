@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { NotFoundPage } from '../components/shared/NotFoundPage'
 import { useAuthStore } from '../store/auth'
@@ -38,6 +39,7 @@ import { WarehousePage, WarehouseReviewPage, WarehousePrepDetail } from '../page
 import { EmployeesPage, EmployeeProfilePage, HierarchyPage, EmployeeManagementPage } from '../pages/employees'
 import { CompanyProfilePage } from '../pages/companies'
 import { ReportsPage } from '../pages/reports'
+const ManagerReportsPage = lazy(() => import('../pages/reports/ManagerReportsPage'))
 import { CompanyProfilePage as SettingsCompanyProfilePage } from '../pages/settings'
 import ActivityPage from '../pages/activity/ActivityPage'
 
@@ -158,6 +160,7 @@ export function AppRoutes() {
       <Route path="/targets/hierarchy" element={<ProtectedRoute employeeOnly><HierarchyTargetPage /></ProtectedRoute>} />
       <Route path="/companies/:id" element={<ProtectedRoute><CompanyProfilePage /></ProtectedRoute>} />
       <Route path="/reports" element={<ProtectedRoute employeeOnly><ReportsPage /></ProtectedRoute>} />
+      <Route path="/reports/manager" element={<ProtectedRoute employeeOnly><Suspense fallback={<div className="text-center py-12 text-text-secondary text-sm">جاري التحميل...</div>}><ManagerReportsPage /></Suspense></ProtectedRoute>} />
       <Route path="/activity" element={<ProtectedRoute employeeOnly><ActivityPage /></ProtectedRoute>} />
       <Route path="/settings/company" element={<ProtectedRoute employeeOnly><SettingsCompanyProfilePage /></ProtectedRoute>} />
       <Route path="/launcher/:module" element={<ProtectedRoute employeeOnly><ModuleLauncherPage /></ProtectedRoute>} />
