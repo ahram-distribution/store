@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { formatCurrencyShort } from '../../utils/format'
+import * as XLSX from 'xlsx'
 
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
@@ -155,6 +156,15 @@ export function ReportsPage() {
           <span className="text-xs text-text-secondary">الإجمالي</span>
           <div className="text-lg font-bold text-success">{formatCurrencyShort(totalAmount)}</div>
         </div>
+      )}
+
+      {Array.isArray(sortedData) && sortedData.length > 0 && (
+        <button onClick={() => {
+          const ws = XLSX.utils.json_to_sheet(sortedData)
+          const wb = XLSX.utils.book_new()
+          XLSX.utils.book_append_sheet(wb, ws, activeSection)
+          XLSX.writeFile(wb, `تقرير_${activeSection}_${new Date().toISOString().slice(0,10)}.xlsx`)
+        }} className="bg-primary text-white text-xs px-3 py-1.5 rounded-lg font-semibold">Excel</button>
       )}
 
       {loading ? (
