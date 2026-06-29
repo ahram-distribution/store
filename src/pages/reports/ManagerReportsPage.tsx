@@ -108,9 +108,9 @@ function fmtDist(meters: number | null | undefined): string {
 
 function getAchievementClass(score: number | null | undefined): string {
   if (score == null) return ''
-  if (score >= 80) return 'row-high'
-  if (score >= 50) return 'row-mid'
-  return 'row-low'
+  if (score >= 80) return 'bg-green-50/60'
+  if (score >= 50) return 'bg-yellow-50/60'
+  return 'bg-red-50/60'
 }
 
 function getDateRange(period: PeriodType): { from: string; to: string } {
@@ -383,24 +383,9 @@ export default function ManagerReportsPage() {
     return 'text-red-500'
   }
 
-  const style = document.createElement('style')
-  style.textContent = `
-    .sticky-col-first { position: sticky; right: 0; z-index: 3; background: inherit; }
-    .sticky-col-first::after { content: ''; position: absolute; left: -1px; top: 0; bottom: 0; width: 1px; background: #e5e7eb; }
-    .sticky-header { position: sticky; top: 0; z-index: 5; }
-    .sticky-header.sticky-col-first { z-index: 6; }
-    .row-high { background-color: rgba(34, 197, 94, 0.06) !important; }
-    .row-mid { background-color: rgba(234, 179, 8, 0.06) !important; }
-    .row-low { background-color: rgba(239, 68, 68, 0.06) !important; }
-    .row-high:hover { background-color: rgba(34, 197, 94, 0.12) !important; }
-    .row-mid:hover { background-color: rgba(234, 179, 8, 0.12) !important; }
-    .row-low:hover { background-color: rgba(239, 68, 68, 0.12) !important; }
-    .rep-table-wrap { overflow: auto; max-height: 550px; position: relative; }
-    .rep-table-wrap table { border-collapse: separate; border-spacing: 0; min-width: 100%; }
-    .rep-table-wrap th, .rep-table-wrap td { border-bottom: 1px solid #e5e7eb; }
-    .rep-table-wrap thead th { box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
-  `
-  if (!document.getElementById('rep-table-style')) { style.id = 'rep-table-style'; document.head.appendChild(style) }
+  const stickyStyle: React.CSSProperties = { position: 'sticky', right: 0, zIndex: 3, background: 'inherit' }
+  const stickyBorderStyle: React.CSSProperties = { position: 'sticky', right: 0, zIndex: 3, background: 'inherit', borderLeft: '1px solid #e5e7eb' }
+  const stickyHeadStyle: React.CSSProperties = { position: 'sticky', right: 0, zIndex: 6, background: 'inherit', borderLeft: '1px solid #e5e7eb' }
 
   const cols = visibleColsArr()
   const showDetailCol = true
@@ -696,14 +681,14 @@ export default function ManagerReportsPage() {
 
           {filteredRows.length > 0 ? (
             <div className="bg-white rounded-xl border border-border overflow-hidden">
-              <div className="rep-table-wrap" ref={tableRef}>
-                <table className="w-full text-xs">
+              <div className="overflow-auto max-h-[550px] relative" ref={tableRef}>
+                <table className="w-full text-xs border-separate border-spacing-0">
                   <thead>
                     <tr>
                       {cols.map((col, ci) => (
                         <th key={col.key}
-                          className={`px-2 py-2 text-right font-semibold text-text-secondary bg-surface ${ci === 0 ? 'sticky-col-first' : ''} ${col.numeric ? 'cursor-pointer hover:bg-gray-100 select-none' : ''}`}
-                          style={{ minWidth: col.key === 'employee_name' ? 120 : col.key === 'employee_code' ? 70 : 80 }}
+                          className={`px-2 py-2 text-right font-semibold text-text-secondary bg-surface ${col.numeric ? 'cursor-pointer hover:bg-gray-100 select-none' : ''}`}
+                          style={{ ...(ci === 0 ? stickyHeadStyle : {}), minWidth: col.key === 'employee_name' ? 120 : col.key === 'employee_code' ? 70 : 80 }}
                           onClick={() => col.numeric && handleSort(col.key)}>
                           <div className="flex items-center gap-1">
                             <span>{col.label}</span>
@@ -717,11 +702,12 @@ export default function ManagerReportsPage() {
                   <tbody>
                     {filteredRows.map((row, i) => (
                       <tr key={row.employee_id}
-                        className={`border-t border-border/50 cursor-pointer transition-colors ${getAchievementClass(row.overall_score)} ${i % 2 === 0 ? '' : ''}`}
+                        className={`border-t border-border/50 cursor-pointer transition-colors ${getAchievementClass(row.overall_score)} hover:brightness-95`}
                         onClick={() => setSelectedRepId(row.employee_id)}>
                         {cols.map((col, ci) => (
                           <td key={col.key}
-                            className={`px-2 py-2 ${ci === 0 ? 'sticky-col-first font-semibold bg-white' : ''} ${col.key === 'overall_score' ? getPctColor(row.overall_score) : ''}`}>
+                            style={ci === 0 ? stickyStyle : undefined}
+                            className={`px-2 py-2 ${ci === 0 ? 'font-semibold' : ''} ${col.key === 'overall_score' ? getPctColor(row.overall_score) : ''}`}>
                             {col.key === 'employee_name' ? row.employee_name
                               : col.key === 'employee_code' ? row.employee_code
                               : fmtCellVal(col.key, row)}
@@ -733,7 +719,7 @@ export default function ManagerReportsPage() {
                     {totalsRow && (
                       <tr className="border-t-2 border-border bg-surface font-bold sticky bottom-0">
                         {cols.map((col, ci) => (
-                          <td key={col.key} className={`px-2 py-2 ${ci === 0 ? 'sticky-col-first bg-surface' : ''}`}>
+                          <td key={col.key} style={ci === 0 ? { ...stickyStyle, background: 'rgb(249 250 251)' } : undefined} className="px-2 py-2">
                             {col.key === 'employee_name' ? 'الإجمالي'
                               : col.key === 'employee_code' ? ''
                               : col.key === 'start_time' || col.key === 'end_time' ? ''
