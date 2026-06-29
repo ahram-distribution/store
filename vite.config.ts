@@ -78,6 +78,7 @@ export default defineConfig({
             manifest: pwaManifest,
             workbox: {
               globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
+              maximumFileSizeToCacheInBytes: 5_000_000,
             },
           }),
         ]),

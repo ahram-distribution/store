@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, lazy, Suspense } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { SubLauncherPage, type LauncherIcon } from './SubLauncherPage'
 import { useAuthStore } from '../../store/auth'
 import { normalizeEmployeeRole } from '../../utils/roleNormalization'
 import { targetService } from '../../services/targets'
-import ManagerReportsPage from '../reports/ManagerReportsPage'
+
+const ManagerReportsPage = lazy(() => import('../reports/ManagerReportsPage'))
 
 const MODULE_HOME_TARGETS = new Set(['الإدارة العليا', 'مدير بيع'])
 
@@ -212,7 +213,7 @@ export function ModuleLauncherPage() {
   }
 
   if (module === 'reports') {
-    return <ManagerReportsPage />
+    return <Suspense fallback={<div className="text-center py-12 text-text-secondary text-sm">جاري التحميل...</div>}><ManagerReportsPage /></Suspense>
   }
 
   const config = MODULE_ICONS[module]
