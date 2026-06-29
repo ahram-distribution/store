@@ -53,10 +53,7 @@ export default function UpperManagementDashboard() {
   const [kpiData, setKpiData] = useState<{ sales: number; orders: number; new_customers: number } | null>(null)
   const [achievementPct, setAchievementPct] = useState(0)
   const [dashMgmt, setDashMgmt] = useState<DashMgmt | null>(null)
-  const [attendance, setAttendance] = useState<AttendanceOverview>({
-    active_count: 0, on_break_count: 0, on_visit_count: 0, connection_loss_count: 0,
-    no_start_count: 0, ended_count: 0,
-  })
+  const [attendance, setAttendance] = useState<AttendanceOverview | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
 
   useEffect(() => {
@@ -210,28 +207,29 @@ export default function UpperManagementDashboard() {
 
       {/* ===== 3. ATTENDANCE OVERVIEW ===== */}
       {attendance && (
-        <div className="bg-white rounded-2xl border border-border shadow-sm overflow-hidden">
-          <div className="bg-gradient-to-l from-teal-600 to-teal-700 px-5 py-3.5">
-            <h2 className="text-sm font-bold text-white">⏱️ الحضور والانصراف</h2>
+        <div className="bg-white rounded-xl border border-border p-3" dir="rtl">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[13px] font-semibold text-text">الحضور والانصراف</span>
+            <span className="text-[10px] text-text-secondary">
+              {((attendance.employees ?? []).length > 0 ? (attendance.employees as unknown[]).length + ' موظف' : '—')}
+            </span>
           </div>
-          <div className="p-5">
-            <div className="grid grid-cols-4 gap-3 text-center">
-              <div className="bg-gradient-to-br from-blue-50 to-blue-100/60 rounded-xl py-3.5 border border-blue-200/50 shadow-sm">
-                <div className="text-xl font-bold text-blue-700">{attendance.active_count}</div>
-                <div className="text-[10px] text-text-secondary mt-1">يعمل الآن</div>
-              </div>
-              <div className="bg-gradient-to-br from-amber-50 to-yellow-100/60 rounded-xl py-3.5 border border-amber-200/50 shadow-sm">
-                <div className="text-xl font-bold text-amber-700">{attendance.on_break_count}</div>
-                <div className="text-[10px] text-text-secondary mt-1">في استراحة</div>
-              </div>
-              <div className="bg-gradient-to-br from-green-50 to-emerald-100/60 rounded-xl py-3.5 border border-green-200/50 shadow-sm">
-                <div className="text-xl font-bold text-green-700">{attendance.ended_count}</div>
-                <div className="text-[10px] text-text-secondary mt-1">أنهوا اليوم</div>
-              </div>
-              <div className="bg-gradient-to-br from-gray-50 to-slate-100/60 rounded-xl py-3.5 border border-gray-200/50 shadow-sm">
-                <div className="text-xl font-bold text-gray-500">{attendance.no_start_count}</div>
-                <div className="text-[10px] text-text-secondary mt-1">لم يبدأوا</div>
-              </div>
+          <div className="grid grid-cols-4 gap-2 text-center">
+            <div className="bg-blue-50 rounded-lg py-2">
+              <div className="text-lg font-bold text-blue-700">{attendance.active_count}</div>
+              <div className="text-[9px] text-text-secondary">يعمل الآن</div>
+            </div>
+            <div className="bg-amber-50 rounded-lg py-2">
+              <div className="text-lg font-bold text-amber-700">{attendance.on_break_count}</div>
+              <div className="text-[9px] text-text-secondary">في استراحة</div>
+            </div>
+            <div className="bg-green-50 rounded-lg py-2">
+              <div className="text-lg font-bold text-green-700">{attendance.ended_count}</div>
+              <div className="text-[9px] text-text-secondary">أنهوا اليوم</div>
+            </div>
+            <div className="bg-gray-50 rounded-lg py-2">
+              <div className="text-lg font-bold text-gray-500">{attendance.no_start_count}</div>
+              <div className="text-[9px] text-text-secondary">لم يبدأوا</div>
             </div>
           </div>
         </div>
