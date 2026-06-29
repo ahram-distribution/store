@@ -4,7 +4,6 @@ import { supabase } from '../../lib/supabase'
 import { targetService } from '../../services/targets'
 import { useAuthStore } from '../../store/auth'
 import { formatCurrencyShort } from '../../utils/format'
-import LiveMonitoringPage from '../attendance/LiveMonitoringPage'
 
 interface DashMgmt {
   total_orders: number; pending_orders: number; approved_orders: number
@@ -98,6 +97,7 @@ export default function UpperManagementDashboard() {
     { icon: '📍', label: 'الزيارات', path: '/launcher/visits', isSubLauncher: true, badge: dashMgmt?.active_visits },
     { icon: '👥', label: 'العملاء', path: '/launcher/customers', isSubLauncher: true, badge: dashMgmt?.total_customers },
     { icon: '👤', label: 'الموظفون', path: '/launcher/employees', isSubLauncher: true },
+    { icon: '⏱️', label: 'الحضور والانصراف', path: '/attendance' },
     { icon: '📦', label: 'المخزون', path: '/launcher/inventory', isSubLauncher: true },
     { icon: '🏷️', label: 'الأقسام', path: '/launcher/deals', isSubLauncher: true },
     { icon: '📈', label: 'التقارير', path: '/launcher/reports', isSubLauncher: true },
@@ -189,17 +189,7 @@ export default function UpperManagementDashboard() {
         </div>
       </div>
 
-      {/* ===== 3. ATTENDANCE OVERVIEW ===== */}
-      <div className="bg-white rounded-2xl border border-border shadow-sm overflow-hidden">
-        <div className="bg-gradient-to-l from-teal-600 to-teal-700 px-5 py-3.5">
-          <h2 className="text-sm font-bold text-white">⏱️ الحضور والانصراف</h2>
-        </div>
-        <div className="p-5">
-          <LiveMonitoringPage embedded />
-        </div>
-      </div>
-
-      {/* ===== 4. OPERATIONAL MODULES ===== */}
+      {/* ===== 3. OPERATIONAL MODULES ===== */}
       {operationalFiltered.length > 0 && (
         <div className="bg-white rounded-2xl border border-border shadow-sm overflow-hidden">
           <div className="bg-gradient-to-l from-secondary to-blue-900 px-5 py-3.5">
@@ -224,7 +214,7 @@ export default function UpperManagementDashboard() {
         </div>
       )}
 
-      {/* ===== 5. ADMIN MODULES ===== */}
+      {/* ===== 4. ADMIN MODULES ===== */}
       {adminFiltered.length > 0 && (
         <div className="bg-white rounded-2xl border border-border shadow-sm overflow-hidden">
           <div className="bg-gradient-to-l from-amber-600 to-amber-700 px-5 py-3.5">
@@ -244,7 +234,7 @@ export default function UpperManagementDashboard() {
         </div>
       )}
 
-      {/* ===== 6. QUICK ACCESS ===== */}
+      {/* ===== 5. QUICK ACCESS ===== */}
       {quickFiltered.length > 0 && (
         <div className="bg-white rounded-2xl border border-border shadow-sm overflow-hidden">
           <div className="bg-gradient-to-l from-accent to-amber-500 px-5 py-3.5">
