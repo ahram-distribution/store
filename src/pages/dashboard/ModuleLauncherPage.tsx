@@ -4,6 +4,7 @@ import { SubLauncherPage, type LauncherIcon } from './SubLauncherPage'
 import { useAuthStore } from '../../store/auth'
 import { normalizeEmployeeRole } from '../../utils/roleNormalization'
 import { targetService } from '../../services/targets'
+import ManagerReportsPage from '../reports/ManagerReportsPage'
 
 const MODULE_HOME_TARGETS = new Set(['الإدارة العليا', 'مدير بيع'])
 
@@ -208,6 +209,10 @@ export function ModuleLauncherPage() {
 
   if (module === 'targets') {
     return <TargetSummaryCard />
+  }
+
+  if (module === 'reports') {
+    return <ManagerReportsPage />
   }
 
   const config = MODULE_ICONS[module]
