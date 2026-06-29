@@ -2,32 +2,8 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { targetService } from '../../services/targets'
-import { attendanceService } from '../../services/attendance'
 import { useAuthStore } from '../../store/auth'
 import { formatCurrencyShort } from '../../utils/format'
-
-interface TrackingSessionStat {
-  employee_code: string
-  employee_name: string
-  start_time: string
-  end_time: string
-  duration_minutes: number
-  expected_points: number
-  captured_points: number
-  capture_rate: number
-}
-
-interface DashboardData {
-  new_orders: number; pending_orders: number; active_visits: number; today_visits: number
-  new_customers: number; stagnant_customers: number; daily_sales: number; monthly_sales: number
-  total_customers: number; total_reps: number
-}
-
-interface DashMgmt {
-  total_orders: number; pending_orders: number; approved_orders: number
-  total_customers: number; active_visits: number; pending_collections: number
-  pending_returns: number; today_orders: number; today_visits: number
-}
 
 interface AttendanceOverview {
   active_count: number
@@ -41,34 +17,10 @@ interface AttendanceOverview {
   ended_employees?: unknown[]
 }
 
-interface AutoClosedSession {
-  employee_name: string
-  employee_code: string
-  close_reason: string
-  last_seen_at: string
-  auto_closed_at: string
-  start_time: string
-  date: string
-}
-
-interface AutoClosedMonth {
-  total_count: number
-  by_reason: Record<string, number>
-  details: Array<Record<string, unknown>>
-}
-
-function getToken(): string | null {
-  try { return localStorage.getItem('session_token') } catch { return null }
-}
-
-const now = new Date()
-const CUR_MONTH = now.getMonth() + 1
-const CUR_YEAR = now.getFullYear()
-const MONTHS = ['يناير', 'فبراير', 'مارس', 'إبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر']
-
-const REASON_LABELS: Record<string, string> = {
-  no_activity_timeout: 'انتهت المهلة',
-  day_rollover: 'تجاوز منتصف الليل',
+interface DashMgmt {
+  total_orders: number; pending_orders: number; approved_orders: number
+  total_customers: number; active_visits: number; pending_collections: number
+  pending_returns: number; today_orders: number; today_visits: number
 }
 
 interface LauncherGroup {
@@ -79,74 +31,88 @@ interface LauncherGroup {
   badge?: string | number
 }
 
+const now = new Date()
+const CUR_MONTH = now.getMonth() + 1
+const CUR_YEAR = now.getFullYear()
+const MONTHS = ['يناير', 'فبراير', 'مارس', 'إبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر']
+
+function monthRange(month: number, year: number) {
+  return {
+    from: new Date(year, month - 1, 1).toISOString().slice(0, 10),
+    to: new Date(year, month, 1).toISOString().slice(0, 10),
+  }
+}
+
+function getToken(): string | null {
+  try { return localStorage.getItem('session_token') } catch { return null }
+}
+
 export default function UpperManagementDashboard() {
   const nav = useNavigate()
   const user = useAuthStore((s) => s.user)
-  const [data, setData] = useState<DashboardData | null>(null)
+  const [kpiData, setKpiData] = useState<{ sales: number; orders: number; new_customers: number } | null>(null)
+  const [achievementPct, setAchievementPct] = useState(0)
   const [dashMgmt, setDashMgmt] = useState<DashMgmt | null>(null)
-  const [companyPerf, setCompanyPerf] = useState<{ sales_target: number; overall_achievement_pct: number } | null>(null)
   const [attendance, setAttendance] = useState<AttendanceOverview | null>(null)
-  const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
-  const [autoClosedToday, setAutoClosedToday] = useState<AutoClosedSession[]>([])
-  const [autoClosedMonth, setAutoClosedMonth] = useState<AutoClosedMonth | null>(null)
-  const [showAutoClosedModal, setShowAutoClosedModal] = useState(false)
-  const [healthData, setHealthData] = useState<any>(null)
-  const [trackingStats, setTrackingStats] = useState<TrackingSessionStat[]>([])
-
-  function getToken(): string | null {
-    try { return localStorage.getItem('session_token') } catch { return null }
-  }
 
   useEffect(() => {
     const token = getToken()
-    if (!token) { setLoading(false); return }
-    Promise.all([
-      supabase.rpc('get_upper_management_dashboard', { p_token: token }),
-      supabase.rpc('get_dashboard_management', { p_token: token }),
-      targetService.getPerformance(CUR_MONTH, CUR_YEAR, token),
-      supabase.rpc('get_live_workday_overview', { p_token: token }),
-      attendanceService.getAutoClosedToday().catch(() => []),
-      attendanceService.getAutoClosedMonth().catch(() => null),
-      supabase.rpc('get_attendance_health', { p_token: token }).then(r => r, () => null),
-      supabase.rpc('get_tracking_session_stats', { p_token: token, p_employee_id: null, p_date: new Date().toISOString().slice(0,10) }).then(r => r, () => null),
-    ]).then(([umd, mgmt, perfResult, attResult, autoToday, autoMonth, health, tracking]) => {
-      if (!umd.error && umd.data) setData(umd.data as DashboardData)
-      if (!mgmt.error && mgmt.data) setDashMgmt(mgmt.data as DashMgmt)
-      if (!perfResult.error && perfResult.data) {
-        const p = perfResult.data as any
-        if (p.company) setCompanyPerf({
-          sales_target: p.company.sales_target || 0,
-          overall_achievement_pct: p.company.overall_achievement_pct || 0,
+    if (!token) return
+
+    const { from, to } = monthRange(CUR_MONTH, CUR_YEAR)
+
+    supabase.rpc('get_runtime_team_activity', {
+      p_manager_employee_id: null,
+      p_date_from: from,
+      p_date_to: to,
+    }).then(({ data, error: err }) => {
+      if (!err && data) {
+        const members = data as any[]
+        let sales = 0, orders = 0, new_customers = 0
+        members.forEach((m: any) => {
+          sales += m.sales || 0
+          orders += m.orders || 0
+          new_customers += m.registered_customers || 0
         })
+        setKpiData({ sales, orders, new_customers })
       }
+    })
+
+    targetService.getPerformance(CUR_MONTH, CUR_YEAR, token).then((result) => {
+      if (!result.error && result.data) {
+        const p = result.data as any
+        if (p.company) {
+          setAchievementPct(p.company.overall_achievement_pct || 0)
+        }
+      }
+    })
+
+    Promise.all([
+      supabase.rpc('get_dashboard_management', { p_token: token }),
+      supabase.rpc('get_live_workday_overview', { p_token: token }),
+    ]).then(([mgmtResult, attResult]) => {
+      if (!mgmtResult.error && mgmtResult.data) setDashMgmt(mgmtResult.data as DashMgmt)
       if (!attResult.error && attResult.data) setAttendance(attResult.data as AttendanceOverview)
-      if (autoToday) setAutoClosedToday(autoToday as AutoClosedSession[])
-      if (autoMonth) setAutoClosedMonth(autoMonth as AutoClosedMonth)
-      if (health?.data && !health.error) setHealthData(health.data)
-      if (tracking?.data && !tracking.error) setTrackingStats(tracking.data as TrackingSessionStat[])
-      setLoading(false)
     })
   }, [])
 
-  const totalOrders = dashMgmt?.total_orders ?? 0
-  const pendingOrders = (data?.pending_orders ?? 0) + (dashMgmt?.pending_orders ?? 0)
-  const achievementPct = companyPerf?.overall_achievement_pct ?? 0
+  const achievementValue = achievementPct
 
   const statItems = [
-    { label: 'مبيعات الشهر', value: data?.monthly_sales != null ? formatCurrencyShort(data.monthly_sales) : '0', color: 'text-success' },
-    { label: 'الطلبات', value: String(totalOrders), color: 'text-primary' },
-    { label: 'الإنجاز', value: achievementPct.toFixed(1) + '%', color: achievementPct >= 50 ? 'text-success' : 'text-warning' },
-    { label: 'عملاء جدد', value: String(data?.new_customers ?? 0), color: 'text-accent' },
+    { label: 'مبيعات الشهر', value: kpiData?.sales != null ? formatCurrencyShort(kpiData.sales) : '0', color: 'text-success' },
+    { label: 'الطلبات', value: String(kpiData?.orders ?? 0), color: 'text-primary' },
+    { label: 'الإنجاز', value: achievementValue.toFixed(1) + '%', color: achievementValue >= 50 ? 'text-success' : 'text-warning' },
+    { label: 'عملاء جدد', value: String(kpiData?.new_customers ?? 0), color: 'text-accent' },
   ]
 
   const groups: LauncherGroup[] = [
     { icon: '📊', label: 'النشاط والتارجت', path: '/dashboard/activity-target' },
-    { icon: '📋', label: 'الطلبات', path: '/launcher/orders', isSubLauncher: true, badge: pendingOrders },
+    { icon: '📋', label: 'الطلبات', path: '/launcher/orders', isSubLauncher: true, badge: dashMgmt?.pending_orders },
     { icon: '📍', label: 'الانتشار', path: '/coverage-map' },
     { icon: '⚡', label: 'مركز النشاط اللحظي', path: '/command-center/live' },
-    { icon: '📍', label: 'الزيارات', path: '/launcher/visits', isSubLauncher: true, badge: data?.active_visits },
-    { icon: '👥', label: 'العملاء', path: '/launcher/customers', isSubLauncher: true, badge: data?.total_customers },
+    { icon: '📍', label: 'الزيارات', path: '/launcher/visits', isSubLauncher: true, badge: dashMgmt?.active_visits },
+    { icon: '👥', label: 'العملاء', path: '/launcher/customers', isSubLauncher: true, badge: dashMgmt?.total_customers },
     { icon: '👤', label: 'الموظفون', path: '/launcher/employees', isSubLauncher: true },
     { icon: '📦', label: 'المخزون', path: '/launcher/inventory', isSubLauncher: true },
     { icon: '🏷️', label: 'الأقسام', path: '/launcher/deals', isSubLauncher: true },
@@ -190,10 +156,6 @@ export default function UpperManagementDashboard() {
     return g.label.toLowerCase().includes(q)
   })
 
-  if (loading) {
-    return <div className="text-center py-12 text-text-secondary text-sm">جاري التحميل...</div>
-  }
-
   return (
     <div className="p-4 space-y-6" dir="rtl">
       {/* ===== 1. HEADER ===== */}
@@ -206,7 +168,7 @@ export default function UpperManagementDashboard() {
             </div>
             <div className="text-left">
               <div className="text-xs text-white/60">{curMonthLabel}</div>
-              <div className="text-xl font-bold text-gold-light mt-0.5">{achievementPct.toFixed(1)}%</div>
+              <div className="text-xl font-bold text-gold-light mt-0.5">{achievementValue.toFixed(1)}%</div>
             </div>
           </div>
           <div className="mt-4 relative">
@@ -243,65 +205,31 @@ export default function UpperManagementDashboard() {
         </div>
       </div>
 
-      {/* ===== 3. ALERTS ===== */}
-      {(autoClosedToday.length > 0 || (autoClosedMonth?.total_count ?? 0) > 0 || trackingStats.length > 0) && (
+      {/* ===== 3. ATTENDANCE OVERVIEW ===== */}
+      {attendance && (
         <div className="bg-white rounded-2xl border border-border shadow-sm overflow-hidden">
-          <div className="bg-gradient-to-l from-danger to-red-600 px-5 py-3.5">
-            <h2 className="text-sm font-bold text-white">🚨 التنبيهات والمهام</h2>
+          <div className="bg-gradient-to-l from-teal-600 to-teal-700 px-5 py-3.5">
+            <h2 className="text-sm font-bold text-white">⏱️ الحضور والانصراف</h2>
           </div>
-          <div className="p-5 space-y-4">
-            {(autoClosedToday.length > 0 || (autoClosedMonth?.total_count ?? 0) > 0) && (
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-xs font-semibold text-text">جلسات الإنهاء التلقائي</span>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <button onClick={() => setShowAutoClosedModal(true)}
-                    className="bg-gradient-to-br from-red-50 to-red-100/60 rounded-xl py-4 text-center border border-red-200/50 shadow-sm active:scale-95 transition-transform">
-                    <div className="text-2xl font-bold text-red-700">{autoClosedToday.length}</div>
-                    <div className="text-[10px] text-text-secondary mt-1">اليوم</div>
-                  </button>
-                  <div className="bg-gradient-to-br from-orange-50 to-amber-100/60 rounded-xl py-4 text-center border border-orange-200/50 shadow-sm">
-                    <div className="text-2xl font-bold text-orange-700">{autoClosedMonth?.total_count ?? 0}</div>
-                    <div className="text-[10px] text-text-secondary mt-1">هذا الشهر</div>
-                  </div>
-                </div>
+          <div className="p-5">
+            <div className="grid grid-cols-4 gap-3 text-center">
+              <div className="bg-gradient-to-br from-blue-50 to-blue-100/60 rounded-xl py-3.5 border border-blue-200/50 shadow-sm">
+                <div className="text-xl font-bold text-blue-700">{attendance.active_count}</div>
+                <div className="text-[10px] text-text-secondary mt-1">يعمل الآن</div>
               </div>
-            )}
-            {trackingStats.length > 0 && (
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-xs font-semibold text-text">موثوقية التتبع GPS</span>
-                  <span className="text-[9px] text-text-secondary">اليوم</span>
-                </div>
-                <div className="space-y-2">
-                  {trackingStats.map((s, i) => (
-                    <div key={i} className="flex items-center justify-between bg-surface rounded-xl px-3.5 py-2.5 border border-border/60">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className="text-xs font-semibold text-text truncate">{s.employee_name}</span>
-                        <span className="text-[9px] text-text-secondary shrink-0">{s.employee_code}</span>
-                      </div>
-                      <div className="flex items-center gap-3 text-[10px] text-text-secondary shrink-0">
-                        <span>{s.captured_points}/{s.expected_points}</span>
-                        <span className={`font-bold ${s.capture_rate >= 80 ? 'text-green-600' : s.capture_rate >= 50 ? 'text-amber-600' : 'text-red-600'}`}>
-                          {s.capture_rate}%
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <div className="border-t border-border/60 pt-2.5 mt-2.5 text-[10px] text-text-secondary flex justify-between">
-                  <span>
-                    الإجمالي: {trackingStats.reduce((a, s) => a + s.captured_points, 0)} / {trackingStats.reduce((a, s) => a + s.expected_points, 0)} نقطة
-                  </span>
-                  <span>
-                    {trackingStats.length > 0
-                      ? Math.round(trackingStats.reduce((a, s) => a + s.captured_points, 0) / Math.max(trackingStats.reduce((a, s) => a + s.expected_points, 0), 1) * 100) + '%'
-                      : '0%'}
-                  </span>
-                </div>
+              <div className="bg-gradient-to-br from-amber-50 to-yellow-100/60 rounded-xl py-3.5 border border-amber-200/50 shadow-sm">
+                <div className="text-xl font-bold text-amber-700">{attendance.on_break_count}</div>
+                <div className="text-[10px] text-text-secondary mt-1">في استراحة</div>
               </div>
-            )}
+              <div className="bg-gradient-to-br from-green-50 to-emerald-100/60 rounded-xl py-3.5 border border-green-200/50 shadow-sm">
+                <div className="text-xl font-bold text-green-700">{attendance.ended_count}</div>
+                <div className="text-[10px] text-text-secondary mt-1">أنهوا اليوم</div>
+              </div>
+              <div className="bg-gradient-to-br from-gray-50 to-slate-100/60 rounded-xl py-3.5 border border-gray-200/50 shadow-sm">
+                <div className="text-xl font-bold text-gray-500">{attendance.no_start_count}</div>
+                <div className="text-[10px] text-text-secondary mt-1">لم يبدأوا</div>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -371,41 +299,8 @@ export default function UpperManagementDashboard() {
         </div>
       )}
 
-      {/* Empty search state */}
       {searchQuery && operationalFiltered.length === 0 && adminFiltered.length === 0 && quickFiltered.length === 0 && (
         <div className="text-center py-12 text-text-secondary text-sm">لا توجد نتائج لـ "{searchQuery}"</div>
-      )}
-
-      {/* Auto-Closed Today Modal */}
-      {showAutoClosedModal && (
-        <div className="fixed inset-0 z-20 flex items-end sm:items-center justify-center bg-black/30">
-          <div className="w-full sm:max-w-sm bg-white rounded-t-2xl sm:rounded-2xl p-4 max-h-[70vh] overflow-y-auto space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold text-text">جلسات الإنهاء التلقائي اليوم</h3>
-              <button type="button" onClick={() => setShowAutoClosedModal(false)} className="text-xs text-text-secondary">إغلاق</button>
-            </div>
-            {autoClosedToday.length === 0 ? (
-              <p className="text-center text-xs text-text-secondary py-6">لا توجد جلسات</p>
-            ) : (
-              <div className="space-y-2">
-                {autoClosedToday.map((s, i) => (
-                  <div key={i} className="bg-surface rounded-lg p-3 border border-border/50">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-semibold text-text">{s.employee_name}</span>
-                      <span className="text-[10px] text-text-secondary">{s.employee_code}</span>
-                    </div>
-                    <div className="text-[11px] text-text-secondary mt-1">
-                      السبب: {REASON_LABELS[s.close_reason] || s.close_reason}
-                    </div>
-                    <div className="text-[10px] text-text-secondary">
-                      {s.start_time ? 'البداية: ' + s.start_time : ''}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
       )}
     </div>
   )
