@@ -4,18 +4,7 @@ import { supabase } from '../../lib/supabase'
 import { targetService } from '../../services/targets'
 import { useAuthStore } from '../../store/auth'
 import { formatCurrencyShort } from '../../utils/format'
-
-interface AttendanceOverview {
-  active_count: number
-  on_break_count: number
-  on_visit_count: number
-  connection_loss_count: number
-  no_start_count: number
-  ended_count: number
-  employees?: unknown[]
-  no_start_employees?: unknown[]
-  ended_employees?: unknown[]
-}
+import LiveMonitoringPage from '../attendance/LiveMonitoringPage'
 
 interface DashMgmt {
   total_orders: number; pending_orders: number; approved_orders: number
@@ -53,7 +42,6 @@ export default function UpperManagementDashboard() {
   const [kpiData, setKpiData] = useState<{ sales: number; orders: number; new_customers: number } | null>(null)
   const [achievementPct, setAchievementPct] = useState(0)
   const [dashMgmt, setDashMgmt] = useState<DashMgmt | null>(null)
-  const [attendance, setAttendance] = useState<AttendanceOverview | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
 
   useEffect(() => {
@@ -88,12 +76,8 @@ export default function UpperManagementDashboard() {
       }
     })
 
-    Promise.all([
-      supabase.rpc('get_dashboard_management', { p_token: token }),
-      supabase.rpc('get_live_workday_overview', { p_token: token }),
-    ]).then(([mgmtResult, attResult]) => {
+    supabase.rpc('get_dashboard_management', { p_token: token }).then((mgmtResult) => {
       if (!mgmtResult.error && mgmtResult.data) setDashMgmt(mgmtResult.data as DashMgmt)
-      if (!attResult.error && attResult.data) setAttendance(attResult.data as AttendanceOverview)
     })
   }, [])
 
@@ -206,34 +190,14 @@ export default function UpperManagementDashboard() {
       </div>
 
       {/* ===== 3. ATTENDANCE OVERVIEW ===== */}
-      {attendance && (
-        <div className="bg-white rounded-xl border border-border p-3" dir="rtl">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[13px] font-semibold text-text">الحضور والانصراف</span>
-            <span className="text-[10px] text-text-secondary">
-              {((attendance.employees ?? []).length > 0 ? (attendance.employees as unknown[]).length + ' موظف' : '—')}
-            </span>
-          </div>
-          <div className="grid grid-cols-4 gap-2 text-center">
-            <div className="bg-blue-50 rounded-lg py-2">
-              <div className="text-lg font-bold text-blue-700">{attendance.active_count}</div>
-              <div className="text-[9px] text-text-secondary">يعمل الآن</div>
-            </div>
-            <div className="bg-amber-50 rounded-lg py-2">
-              <div className="text-lg font-bold text-amber-700">{attendance.on_break_count}</div>
-              <div className="text-[9px] text-text-secondary">في استراحة</div>
-            </div>
-            <div className="bg-green-50 rounded-lg py-2">
-              <div className="text-lg font-bold text-green-700">{attendance.ended_count}</div>
-              <div className="text-[9px] text-text-secondary">أنهوا اليوم</div>
-            </div>
-            <div className="bg-gray-50 rounded-lg py-2">
-              <div className="text-lg font-bold text-gray-500">{attendance.no_start_count}</div>
-              <div className="text-[9px] text-text-secondary">لم يبدأوا</div>
-            </div>
-          </div>
+      <div className="bg-white rounded-2xl border border-border shadow-sm overflow-hidden">
+        <div className="bg-gradient-to-l from-teal-600 to-teal-700 px-5 py-3.5">
+          <h2 className="text-sm font-bold text-white">⏱️ الحضور والانصراف</h2>
         </div>
-      )}
+        <div className="p-5">
+          <LiveMonitoringPage embedded />
+        </div>
+      </div>
 
       {/* ===== 4. OPERATIONAL MODULES ===== */}
       {operationalFiltered.length > 0 && (
