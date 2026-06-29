@@ -53,7 +53,10 @@ export default function UpperManagementDashboard() {
   const [kpiData, setKpiData] = useState<{ sales: number; orders: number; new_customers: number } | null>(null)
   const [achievementPct, setAchievementPct] = useState(0)
   const [dashMgmt, setDashMgmt] = useState<DashMgmt | null>(null)
-  const [attendance, setAttendance] = useState<AttendanceOverview | null>(null)
+  const [attendance, setAttendance] = useState<AttendanceOverview>({
+    active_count: 0, on_break_count: 0, on_visit_count: 0, connection_loss_count: 0,
+    no_start_count: 0, ended_count: 0,
+  })
   const [searchQuery, setSearchQuery] = useState('')
 
   useEffect(() => {
