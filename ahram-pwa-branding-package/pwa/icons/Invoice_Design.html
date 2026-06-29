@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body { font-family: 'Arial', sans-serif; margin: 0; padding: 20px; color: #000; }
+        .page { width: 210mm; margin: auto; padding: 10mm; border: 1px solid #ccc; }
+        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #002366; padding-bottom: 10px; }
+        .logo-title { display: flex; align-items: center; gap: 15px; }
+        .logo { width: 80px; }
+        h1 { color: #002366; margin: 0; font-size: 20px; }
+        .header-info { font-size: 14px; color: #555; }
+        .title-box { text-align: center; background: #B8860B; color: white; padding: 5px 20px; font-size: 18px; font-weight: bold; }
+        
+        .section { margin: 20px 0; border: 1px solid #aaa; padding: 10px; border-radius: 5px; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th { background: #002366; color: white; padding: 8px; border: 1px solid #000; }
+        td { padding: 8px; border: 1px solid #000; text-align: center; }
+        
+        .legal { margin-top: 20px; padding: 10px; background: #f9f9f9; border-right: 5px solid #B8860B; font-size: 13px; }
+        .signatures { display: flex; justify-content: space-around; margin-top: 40px; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="page">
+        <div class="header">
+            <div class="logo-title">
+                <img src="icon-180x180.png" class="logo">
+                <div>
+                    <h1>شركة الاهرام للتجارة والتوزيع</h1>
+                    <div class="header-info">كورنيش النيل - الوراق - جيزة | ت: 01040880002</div>
+                </div>
+            </div>
+            <div>
+                <div class="title-box">إذن تسليم</div>
+                <div style="text-align: center; font-weight: bold;">رقم: 2492 | التاريخ: 2026/06/25</div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="grid">
+                <div><strong>اسم العميل:</strong> سيد الصياد</div>
+                <div><strong>تليفون العميل:</strong> .................</div>
+                <div style="grid-column: span 2;"><strong>عنوان العميل:</strong> الغردقة</div>
+                <div><strong>اسم المندوب:</strong> .................</div>
+                <div><strong>نوع الدفع:</strong> [ ] كاش &nbsp; [ ] آجل</div>
+            </div>
+        </div>
+
+        <table>
+            <thead>
+                <tr><th>م</th><th>رقم الصنف</th><th>اسم الصنف</th><th>الوحدة</th><th>الكمية</th></tr>
+            </thead>
+            <tbody>
+                <tr><td>1</td><td>201</td><td>اسبراي اكس...</td><td>كرتونة</td><td>1</td></tr>
+                <tr><td>2</td><td>255</td><td>اسبراي اكس...</td><td>كرتونة</td><td>1</td></tr>
+            </tbody>
+        </table>
+
+        <div class="legal">
+            <strong>تنويه قانوني:</strong><br>
+            بموجب توقيعي أدناه، أقر بأنني استلمت البضائع الموضحة أعلاه بحالة جيدة، وأصبحت من هذه اللحظة في عهدتي، وأقر بأن قيمتها المالية حق للشركة يجب الالتزام به.
+        </div>
+
+        <div class="signatures">
+            <div>توقيع المندوب: ___________</div>
+            <div>توقيع الاستلام: ___________</div>
+        </div>
+    </div>
+</body>
+</html>

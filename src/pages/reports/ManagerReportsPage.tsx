@@ -498,6 +498,110 @@ export default function ManagerReportsPage() {
     XLSX.writeFile(wb, `تقرير_مدير_المبيعات_${filePeriod}.xlsx`)
   }
 
+  function exportRepDetailToExcel() {
+    const detail = repRows.find((r) => r.employee_id === selectedRepId)
+    const member = teamMembers.find((m) => m.employee_id === selectedRepId)
+    if (!detail) return
+
+    const periodLabel = effectiveFrom && effectiveTo
+      ? `من ${effectiveFrom.slice(0, 10)} إلى ${effectiveTo.slice(0, 10)}`
+      : `${MONTHS[perfMonth - 1]} ${perfYear}`
+    const now = new Date()
+    const dateStr = now.toLocaleDateString('ar-EG-u-nu-latn') + ' ' + now.toLocaleTimeString('ar-EG-u-nu-latn', { hour: '2-digit', minute: '2-digit' })
+
+    const ws = XLSX.utils.aoa_to_sheet([])
+
+    // Title rows
+    XLSX.utils.sheet_add_aoa(ws, [[`المندوب: ${detail.employee_name} (${detail.employee_code})`]], { origin: 'A1' })
+    XLSX.utils.sheet_add_aoa(ws, [[`الفترة: ${periodLabel}`]], { origin: 'A2' })
+    XLSX.utils.sheet_add_aoa(ws, [[`تاريخ التقرير: ${dateStr}`]], { origin: 'A3' })
+
+    // Section 1: KPI Summary (2-column layout)
+    const kpiData = [
+      ['بداية اليوم', detail.start_time || '\u2014', 'نهاية اليوم', detail.end_time || '\u2014'],
+      ['صافي ساعات', fmtHours(detail.net_minutes), 'الاستراحة', fmtHours(detail.break_minutes)],
+      ['الزيارات', fmtNum(detail.visit_count), 'الطلبات', fmtNum(detail.order_count)],
+      ['المبيعات', fmtMoney(detail.sales_value), 'التحصيل', fmtMoney(detail.collection_amount)],
+      ['عملاء جدد', fmtNum(detail.new_customer_count), 'نقاط التتبع', fmtNum(detail.tracking_points)],
+      ['المسافة', fmtDist(detail.distance_meters), 'أيام العمل', fmtNum(detail.day_count)],
+    ]
+    XLSX.utils.sheet_add_aoa(ws, [['ملخص الأداء']], { origin: 'A5' })
+    XLSX.utils.sheet_add_aoa(ws, kpiData, { origin: 'A6' })
+
+    let curRow = 6 + kpiData.length + 1
+
+    // Section 2: Achievement vs Target
+    if (member && member.has_target) {
+      XLSX.utils.sheet_add_aoa(ws, [['الإنجاز مقابل الهدف']], { origin: `A${curRow}` })
+      curRow++
+      const achHeaders = ['المؤشر', 'الهدف', 'المنفذ', '%']
+      XLSX.utils.sheet_add_aoa(ws, [achHeaders], { origin: `A${curRow}` })
+      curRow++
+
+      const achVals = [
+        { label: 'المبيعات', target: member.kpis.sales.target, actual: member.kpis.sales.actual, pct: member.kpis.sales.pct },
+        { label: 'الزيارات', target: member.kpis.visits.target, actual: member.kpis.visits.actual, pct: member.kpis.visits.pct },
+        { label: 'الطلبات', target: member.kpis.orders.target, actual: member.kpis.orders.actual, pct: member.kpis.orders.pct },
+        { label: 'عملاء جدد', target: member.kpis.new_customers.target, actual: member.kpis.new_customers.actual, pct: member.kpis.new_customers.pct },
+      ]
+
+      for (const item of achVals) {
+        XLSX.utils.sheet_add_aoa(ws, [[item.label, item.target, item.actual, item.pct != null ? item.pct / 100 : '']], { origin: `A${curRow}` })
+        curRow++
+      }
+      XLSX.utils.sheet_add_aoa(ws, [['الإجمالي', '', '', member.overall_achievement_score != null ? member.overall_achievement_score / 100 : '']], { origin: `A${curRow}` })
+      curRow += 2
+    }
+
+    // Section 3: Sessions detail table
+    if (repSessions.length > 0) {
+      XLSX.utils.sheet_add_aoa(ws, [['تفاصيل الجلسات']], { origin: `A${curRow}` })
+      curRow++
+      const sessHeaders = ['التاريخ', 'البداية', 'النهاية', 'صافي ساعات', 'استراحة', 'زيارات', 'طلبات', 'مبيعات', 'تحصيل', 'عملاء', 'مسافة', 'نقاط']
+      XLSX.utils.sheet_add_aoa(ws, [sessHeaders], { origin: `A${curRow}` })
+      curRow++
+
+      for (const s of repSessions) {
+        XLSX.utils.sheet_add_aoa(ws, [[
+          s.date?.slice(0, 10) || '', s.start_time || '', s.end_time || '',
+          s.net_minutes / 60, s.break_minutes / 60,
+          s.visit_count || 0, s.order_count || 0, s.sales_value || 0,
+          s.collection_amount || 0, s.new_customer_count || 0,
+          s.distance_meters || 0, s.tracking_points_count || 0,
+        ]], { origin: `A${curRow}` })
+        curRow++
+      }
+    }
+
+    // Merges for title rows
+    const maxCols = 12
+    ws['!merges'] = [
+      { s: { r: 0, c: 0 }, e: { r: 0, c: maxCols - 1 } },
+      { s: { r: 1, c: 0 }, e: { r: 1, c: maxCols - 1 } },
+      { s: { r: 2, c: 0 }, e: { r: 2, c: maxCols - 1 } },
+    ]
+
+    // Format time columns (4 and 5 in sessions section, 2 and 4 in kpi section)
+    for (let R = 6; R < curRow; R++) {
+      for (let C = 0; C < maxCols; C++) {
+        const addr = XLSX.utils.encode_cell({ r: R, c: C })
+        if (ws[addr] && typeof ws[addr].v === 'number') {
+          // Columns 4=صافي, 5=استراحة in sessions (0-indexed), or hours columns in KPIs
+          if (C === 3 || C === 4) ws[addr].z = 'h:mm'
+          if (C === 10 || C === 7 || C === 8) ws[addr].z = '#,##0'
+        }
+      }
+    }
+
+    ws['!cols'] = Array(maxCols).fill(null).map((_, i) => ({ wch: i === 0 ? 16 : 14 }))
+    ws['!freeze'] = { x: 0, y: curRow > 15 ? curRow - 6 : curRow }
+
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'التقرير')
+    const filePeriod = effectiveFrom && effectiveTo ? `${effectiveFrom.slice(0, 10)}_${effectiveTo.slice(0, 10)}` : `${perfYear}_${String(perfMonth).padStart(2, '0')}`
+    XLSX.writeFile(wb, `تقرير_مندوب_${detail.employee_code}_${filePeriod}.xlsx`)
+  }
+
   function goBack() {
     if (selectedRepId) { setSelectedRepId(null); setRepSessions([]); setRepTimeline(null); return }
     if (selectedManagerId) { setSelectedManagerId(null); return }
@@ -517,6 +621,7 @@ export default function ManagerReportsPage() {
           <button onClick={goBack} className="text-text-secondary text-lg">&larr;</button>
           <h1 className="text-lg font-bold text-text">{detail.employee_name}</h1>
           <span className="text-xs text-text-secondary">{detail.employee_code}</span>
+          <button onClick={exportRepDetailToExcel} className="bg-primary text-white text-xs px-2.5 py-1 rounded-lg font-semibold mr-auto">Excel</button>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
