@@ -626,7 +626,7 @@ export default function ManagerReportsPage() {
 
   function DetailModal() {
     if (!detailModalKpi) return null
-    const records = detailData?.[detailModalKpi] || []
+    const records = detailData?.[{ orders: 'orders', sales: 'orders', customers: 'customers', visits: 'visits', collections: 'collections' }[detailModalKpi]] || []
     const label = kpiLabelMap[detailModalKpi] || detailModalKpi
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setDetailModalKpi(null)}>
