@@ -3,6 +3,9 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { targetService } from '../../services/targets'
 import { attendanceService } from '../../services/attendance'
+import { BusinessActivityPanel } from '../../modules/BusinessActivityModule'
+import { KpiDrillDownModal } from '../../components/KpiDrillDownModal'
+import { getBusinessDetailData } from '../../services/businessActivity'
 import * as XLSX from 'xlsx'
 
 /* ===================================================================
@@ -168,9 +171,7 @@ export default function ManagerReportsPage() {
   const [repSessions, setRepSessions] = useState<SSession[]>([])
   const [repTimeline, setRepTimeline] = useState<TLData | null>(null)
   const [repLoading, setRepLoading] = useState(false)
-  const [detailModalKpi, setDetailModalKpi] = useState<string | null>(null)
-  const [detailData, setDetailData] = useState<any>(null)
-  const [detailLoading, setDetailLoading] = useState(false)
+  const [dd, setDd] = useState({ kpiType: null as string | null, records: [] as any[], loading: false, title: '', recordType: '' })
 
   const range = getDateRange(period)
   const effectiveFrom = period === 'custom' ? dateFrom : range.from
@@ -605,125 +606,28 @@ export default function ManagerReportsPage() {
     XLSX.writeFile(wb, `تقرير_مندوب_${detail.employee_code}_${filePeriod}.xlsx`)
   }
 
-  const fetchDetailData = useCallback(async (kpiType: string) => {
-    if (!selectedRepId || !effectiveFrom || !effectiveTo) return
-    setDetailLoading(true)
-    setDetailModalKpi(kpiType)
-    setDetailData(null)
-    const token = localStorage.getItem('session_token')
-    const { data, error } = await supabase.rpc('get_employee_detail_data', {
-      p_token: token,
-      p_employee_id: selectedRepId,
-      p_from: effectiveFrom,
-      p_to: effectiveTo,
-    })
-    if (error) console.error(error)
-    else setDetailData(data as any)
-    setDetailLoading(false)
-  }, [selectedRepId, effectiveFrom, effectiveTo])
-
-  const kpiLabelMap: Record<string, string> = { orders: 'الطلبات', sales: 'المبيعات', customers: 'عملاء جدد', visits: 'الزيارات', collections: 'التحصيل' }
-
-  function DetailModal() {
-    if (!detailModalKpi) return null
-    const records = detailData?.[{ orders: 'orders', sales: 'orders', customers: 'customers', visits: 'visits', collections: 'collections' }[detailModalKpi]] || []
-    const label = kpiLabelMap[detailModalKpi] || detailModalKpi
-    return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setDetailModalKpi(null)}>
-        <div className="bg-white rounded-xl border border-border shadow-xl w-full max-w-lg mx-4 max-h-[80vh] overflow-auto p-4" dir="rtl" onClick={(e) => e.stopPropagation()}>
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-bold">{label} — تفاصيل</h2>
-            <button onClick={() => setDetailModalKpi(null)} className="text-text-secondary text-lg">&times;</button>
-          </div>
-          {detailLoading ? (
-            <div className="text-center py-4 text-xs text-text-secondary">جاري التحميل...</div>
-          ) : records.length === 0 ? (
-            <div className="text-center py-4 text-xs text-text-secondary">لا توجد سجلات</div>
-          ) : detailModalKpi === 'orders' ? (
-            <table className="w-full text-xs">
-              <thead><tr className="border-b border-border bg-surface">
-                <th className="px-2 py-1.5 text-right font-semibold text-text-secondary">رقم الطلب</th>
-                <th className="px-2 py-1.5 text-right font-semibold text-text-secondary">العميل</th>
-                <th className="px-2 py-1.5 text-left font-semibold text-text-secondary">المبلغ</th>
-                <th className="px-2 py-1.5 text-center font-semibold text-text-secondary">الحالة</th>
-                <th className="px-2 py-1.5 text-center font-semibold text-text-secondary">التاريخ</th>
-              </tr></thead>
-              <tbody>{records.map((r: any, i: number) => (
-                <tr key={i} className="border-b border-border/50">
-                  <td className="px-2 py-1.5">{r.order_number}</td>
-                  <td className="px-2 py-1.5">{r.customer_name}</td>
-                  <td className="px-2 py-1.5 text-left font-semibold">{fmtMoney(r.total_amount)}</td>
-                  <td className="px-2 py-1.5 text-center">{r.status}</td>
-                  <td className="px-2 py-1.5 text-center text-[10px]">{r.submitted_at?.slice(0, 10)}</td>
-                </tr>
-              ))}</tbody>
-            </table>
-          ) : detailModalKpi === 'customers' ? (
-            <table className="w-full text-xs">
-              <thead><tr className="border-b border-border bg-surface">
-                <th className="px-2 py-1.5 text-right font-semibold text-text-secondary">الكود</th>
-                <th className="px-2 py-1.5 text-right font-semibold text-text-secondary">الاسم</th>
-                <th className="px-2 py-1.5 text-right font-semibold text-text-secondary">المسؤول</th>
-                <th className="px-2 py-1.5 text-center font-semibold text-text-secondary">تاريخ الإنشاء</th>
-              </tr></thead>
-              <tbody>{records.map((r: any, i: number) => (
-                <tr key={i} className="border-b border-border/50">
-                  <td className="px-2 py-1.5">{r.code}</td>
-                  <td className="px-2 py-1.5">{r.company_name}</td>
-                  <td className="px-2 py-1.5">{r.responsible_name}</td>
-                  <td className="px-2 py-1.5 text-center text-[10px]">{r.created_at?.slice(0, 10)}</td>
-                </tr>
-              ))}</tbody>
-            </table>
-          ) : detailModalKpi === 'visits' ? (
-            <table className="w-full text-xs">
-              <thead><tr className="border-b border-border bg-surface">
-                <th className="px-2 py-1.5 text-right font-semibold text-text-secondary">كود الزيارة</th>
-                <th className="px-2 py-1.5 text-right font-semibold text-text-secondary">العميل</th>
-                <th className="px-2 py-1.5 text-center font-semibold text-text-secondary">الحالة</th>
-                <th className="px-2 py-1.5 text-center font-semibold text-text-secondary">النتيجة</th>
-                <th className="px-2 py-1.5 text-center font-semibold text-text-secondary">التاريخ</th>
-              </tr></thead>
-              <tbody>{records.map((r: any, i: number) => (
-                <tr key={i} className="border-b border-border/50">
-                  <td className="px-2 py-1.5">{r.code}</td>
-                  <td className="px-2 py-1.5">{r.customer_name}</td>
-                  <td className="px-2 py-1.5 text-center">{r.status}</td>
-                  <td className="px-2 py-1.5 text-center">{r.visit_result}</td>
-                  <td className="px-2 py-1.5 text-center text-[10px]">{r.check_in_at?.slice(0, 10)}</td>
-                </tr>
-              ))}</tbody>
-            </table>
-          ) : detailModalKpi === 'collections' ? (
-            <table className="w-full text-xs">
-              <thead><tr className="border-b border-border bg-surface">
-                <th className="px-2 py-1.5 text-right font-semibold text-text-secondary">الكود</th>
-                <th className="px-2 py-1.5 text-right font-semibold text-text-secondary">العميل</th>
-                <th className="px-2 py-1.5 text-left font-semibold text-text-secondary">المبلغ</th>
-                <th className="px-2 py-1.5 text-center font-semibold text-text-secondary">الحالة</th>
-                <th className="px-2 py-1.5 text-center font-semibold text-text-secondary">التاريخ</th>
-              </tr></thead>
-              <tbody>{records.map((r: any, i: number) => (
-                <tr key={i} className="border-b border-border/50">
-                  <td className="px-2 py-1.5">{r.code}</td>
-                  <td className="px-2 py-1.5">{r.customer_name}</td>
-                  <td className="px-2 py-1.5 text-left font-semibold">{fmtMoney(r.amount)}</td>
-                  <td className="px-2 py-1.5 text-center">{r.status}</td>
-                  <td className="px-2 py-1.5 text-center text-[10px]">{r.created_at?.slice(0, 10)}</td>
-                </tr>
-              ))}</tbody>
-            </table>
-          ) : null}
-        </div>
-      </div>
-    )
-  }
-
   function goBack() {
     if (selectedRepId) { setSelectedRepId(null); setRepSessions([]); setRepTimeline(null); return }
     if (selectedManagerId) { setSelectedManagerId(null); return }
     nav('/launcher/reports')
   }
+
+  const KPI_TITLE: Record<string, string> = {
+    orders: 'الطلبات', sales: 'المبيعات', customers: 'عملاء جدد', visits: 'الزيارات', collections: 'التحصيل',
+  }
+
+  const handleKpiClick = useCallback(async (kpiType: string) => {
+    if (!selectedRepId || !effectiveFrom || !effectiveTo) return
+    setDd({ kpiType, records: [], loading: true, title: '', recordType: '' })
+    const result = await getBusinessDetailData({
+      employeeId: selectedRepId,
+      kpiType,
+      from: effectiveFrom,
+      to: effectiveTo,
+      token: localStorage.getItem('session_token') || '',
+    })
+    setDd({ kpiType, records: result.records, loading: false, title: KPI_TITLE[kpiType] || kpiType, recordType: result.recordType })
+  }, [selectedRepId, effectiveFrom, effectiveTo])
 
   if (selectedRepId) {
     const detail = repRows.find((r) => r.employee_id === selectedRepId)
@@ -746,11 +650,16 @@ export default function ManagerReportsPage() {
           <div className="bg-white rounded-lg border border-border p-3 text-center"><div className="text-lg font-bold text-text">{fmtTime(detail.end_time)}</div><div className="text-[10px] text-text-secondary">نهاية اليوم</div></div>
           <div className="bg-white rounded-lg border border-border p-3 text-center"><div className="text-lg font-bold text-text">{fmtHours(detail.net_minutes)}</div><div className="text-[10px] text-text-secondary">صافي ساعات</div></div>
           <div className="bg-white rounded-lg border border-border p-3 text-center"><div className="text-lg font-bold text-text">{fmtHours(detail.break_minutes)}</div><div className="text-[10px] text-text-secondary">الاستراحة</div></div>
-          <button onClick={() => fetchDetailData('visits')} className="bg-white rounded-lg border border-border p-3 text-center cursor-pointer hover:bg-primary/5 transition-colors"><div className="text-lg font-bold text-text">{fmtNum(detail.visit_count)}</div><div className="text-[10px] text-text-secondary">الزيارات</div></button>
-          <button onClick={() => fetchDetailData('orders')} className="bg-white rounded-lg border border-border p-3 text-center cursor-pointer hover:bg-primary/5 transition-colors"><div className="text-lg font-bold text-text">{fmtNum(detail.order_count)}</div><div className="text-[10px] text-text-secondary">الطلبات</div></button>
-          <button onClick={() => fetchDetailData('sales')} className="bg-white rounded-lg border border-border p-3 text-center cursor-pointer hover:bg-primary/5 transition-colors"><div className="text-lg font-bold text-green-600">{fmtMoney(detail.sales_value)}</div><div className="text-[10px] text-text-secondary">المبيعات</div></button>
-          <button onClick={() => fetchDetailData('collections')} className="bg-white rounded-lg border border-border p-3 text-center cursor-pointer hover:bg-primary/5 transition-colors"><div className="text-lg font-bold text-text">{fmtMoney(detail.collection_amount)}</div><div className="text-[10px] text-text-secondary">التحصيل</div></button>
-          <button onClick={() => fetchDetailData('customers')} className="bg-white rounded-lg border border-border p-3 text-center cursor-pointer hover:bg-primary/5 transition-colors"><div className="text-lg font-bold text-text">{fmtNum(detail.new_customer_count)}</div><div className="text-[10px] text-text-secondary">عملاء جدد</div></button>
+          <BusinessActivityPanel
+            kpis={{
+              orders: { value: detail.order_count, target: detail.orders_target, pct: detail.orders_pct },
+              sales: { value: detail.sales_value, target: detail.sales_target, pct: detail.sales_pct },
+              customers: { value: detail.new_customer_count, target: detail.customers_target, pct: detail.customers_pct },
+              visits: { value: detail.visit_count, target: detail.visits_target, pct: detail.visits_pct },
+              collections: { value: detail.collection_amount },
+            }}
+            onKpiClick={handleKpiClick}
+          />
           <div className="bg-white rounded-lg border border-border p-3 text-center"><div className="text-lg font-bold text-text">{fmtNum(detail.tracking_points)}</div><div className="text-[10px] text-text-secondary">نقاط التتبع</div></div>
           <div className="bg-white rounded-lg border border-border p-3 text-center"><div className="text-lg font-bold text-text">{fmtDist(detail.distance_meters)}</div><div className="text-[10px] text-text-secondary">المسافة</div></div>
           <div className="bg-white rounded-lg border border-border p-3 text-center"><div className="text-lg font-bold text-text">{fmtNum(detail.day_count)}</div><div className="text-[10px] text-text-secondary">أيام العمل</div></div>
@@ -842,7 +751,24 @@ export default function ManagerReportsPage() {
             {effectiveFrom.slice(0, 10)} → {effectiveTo.slice(0, 10)} | {MONTHS[perfMonth - 1]} {perfYear}
           </div>
         )}
-        <DetailModal />
+        <KpiDrillDownModal
+          open={dd.kpiType !== null}
+          title={dd.title}
+          recordType={dd.recordType}
+          records={dd.records}
+          loading={dd.loading}
+          onClose={() => setDd({ ...dd, kpiType: null })}
+          onRecordClick={(entityType, entityId) => {
+            setDd({ ...dd, kpiType: null })
+            const routes: Record<string, string> = {
+              order: `/orders/${entityId}`,
+              customer: `/customers/${entityId}`,
+              visit: `/visits/${entityId}`,
+              collection: `/collections`,
+            }
+            nav(routes[entityType] || '#')
+          }}
+        />
       </div>
     )
   }
