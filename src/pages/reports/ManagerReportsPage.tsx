@@ -534,18 +534,20 @@ export default function ManagerReportsPage() {
     orders: 'الطلبات', sales: 'المبيعات', customers: 'عملاء جدد', visits: 'الزيارات', collections: 'التحصيل',
   }
 
-  const handleKpiClick = useCallback(async (kpiType: string) => {
-    if (!selectedRepId || !effectiveFrom || !effectiveTo) return
+  const handleKpiClick = useCallback(async (kpiType: string, employeeId?: string) => {
+    const empId = employeeId || selectedRepId
+    if (!empId || !effectiveFrom || !effectiveTo) return
     setDd({ kpiType, records: [], loading: true, title: '', recordType: '' })
     const result = await getBusinessDetailData({
-      employeeId: selectedRepId,
+      employeeId: empId,
       kpiType,
       from: effectiveFrom,
       to: effectiveTo,
       token: localStorage.getItem('session_token') || '',
     })
-    setDd({ kpiType, records: result.records, loading: false, title: KPI_TITLE[kpiType] || kpiType, recordType: result.recordType })
-  }, [selectedRepId, effectiveFrom, effectiveTo])
+    const empName = employeeId ? teamMembers.find(m => m.employee_id === employeeId)?.employee_name : undefined
+    setDd({ kpiType, records: result.records, loading: false, title: (KPI_TITLE[kpiType] || kpiType) + (empName ? ` - ${empName}` : ''), recordType: result.recordType })
+  }, [selectedRepId, effectiveFrom, effectiveTo, teamMembers])
 
   async function handleSessionKpiClick(kpiType: string, sessionDate: string) {
     if (!selectedRepId) return
@@ -958,11 +960,11 @@ ${getContent()}
             <div className="p-4">
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
                 <div className="bg-blue-50 rounded-lg p-2.5 text-center"><div className="text-lg font-bold text-blue-700">{fmtNum(periodSummary.daysWorked)}</div><div className="text-[10px] text-blue-600">أيام العمل</div></div>
-                <div className="bg-green-50 rounded-lg p-2.5 text-center"><div className="text-lg font-bold text-green-700">{fmtNum(periodSummary.totalVisits)}</div><div className="text-[10px] text-green-600">إجمالي الزيارات</div></div>
-                <div className="bg-amber-50 rounded-lg p-2.5 text-center"><div className="text-lg font-bold text-amber-700">{fmtNum(periodSummary.totalOrders)}</div><div className="text-[10px] text-amber-600">إجمالي الطلبات</div></div>
-                <div className="bg-emerald-50 rounded-lg p-2.5 text-center"><div className="text-lg font-bold text-emerald-700">{fmtMoney(periodSummary.totalSales)}</div><div className="text-[10px] text-emerald-600">إجمالي المبيعات</div></div>
-                <div className="bg-cyan-50 rounded-lg p-2.5 text-center"><div className="text-lg font-bold text-cyan-700">{fmtNum(periodSummary.totalNewCustomers)}</div><div className="text-[10px] text-cyan-600">عملاء جدد</div></div>
-                <div className="bg-purple-50 rounded-lg p-2.5 text-center"><div className="text-lg font-bold text-purple-700">{fmtMoney(periodSummary.totalCollections)}</div><div className="text-[10px] text-purple-600">التحصيل</div></div>
+                <div className="bg-green-50 rounded-lg p-2.5 text-center cursor-pointer hover:brightness-95 transition-all" onClick={() => handleKpiClick('visits')}><div className="text-lg font-bold text-green-700">{fmtNum(member?.kpis.visits.actual ?? periodSummary.totalVisits)}</div><div className="text-[10px] text-green-600">إجمالي الزيارات</div></div>
+                <div className="bg-amber-50 rounded-lg p-2.5 text-center cursor-pointer hover:brightness-95 transition-all" onClick={() => handleKpiClick('orders')}><div className="text-lg font-bold text-amber-700">{fmtNum(member?.kpis.orders.actual ?? periodSummary.totalOrders)}</div><div className="text-[10px] text-amber-600">إجمالي الطلبات</div></div>
+                <div className="bg-emerald-50 rounded-lg p-2.5 text-center cursor-pointer hover:brightness-95 transition-all" onClick={() => handleKpiClick('sales')}><div className="text-lg font-bold text-emerald-700">{fmtMoney(member?.kpis.sales.actual ?? periodSummary.totalSales)}</div><div className="text-[10px] text-emerald-600">إجمالي المبيعات</div></div>
+                <div className="bg-cyan-50 rounded-lg p-2.5 text-center cursor-pointer hover:brightness-95 transition-all" onClick={() => handleKpiClick('customers')}><div className="text-lg font-bold text-cyan-700">{fmtNum(member?.kpis.new_customers.actual ?? periodSummary.totalNewCustomers)}</div><div className="text-[10px] text-cyan-600">عملاء جدد</div></div>
+                <div className="bg-purple-50 rounded-lg p-2.5 text-center cursor-pointer hover:brightness-95 transition-all" onClick={() => handleKpiClick('collections')}><div className="text-lg font-bold text-purple-700">{fmtMoney(member?.kpis.collections.actual ?? periodSummary.totalCollections)}</div><div className="text-[10px] text-purple-600">التحصيل</div></div>
                 <div className="bg-indigo-50 rounded-lg p-2.5 text-center"><div className="text-lg font-bold text-indigo-700">{periodSummary.bestSalesDate ? periodSummary.bestSalesDate.slice(5) : '\u2014'}</div><div className="text-[10px] text-indigo-600">أفضل يوم مبيعات</div></div>
                 <div className="bg-orange-50 rounded-lg p-2.5 text-center"><div className="text-xs font-bold text-orange-700">{periodSummary.daysWithoutSales > 0 ? `${periodSummary.daysWithoutSales} أيام` : 'لا يوجد'}</div><div className="text-[10px] text-orange-600">أيام بدون مبيعات</div></div>
               </div>
@@ -976,11 +978,11 @@ ${getContent()}
           <div className="p-4">
             <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-3">
               <div className="bg-surface rounded-lg p-2 text-center"><div className="text-lg font-bold text-text">{fmtMoney(member?.kpis.sales.target ?? detail.sales_target ?? 0)}</div><div className="text-[10px] text-text-secondary">الهدف</div></div>
-              <div className="bg-surface rounded-lg p-2 text-center"><div className="text-lg font-bold text-green-600">{fmtMoney(member?.kpis.sales.actual ?? detail.sales_value)}</div><div className="text-[10px] text-text-secondary">المنفذ</div></div>
+              <div className="bg-surface rounded-lg p-2 text-center cursor-pointer hover:bg-green-50 transition-colors" onClick={() => handleKpiClick('sales')}><div className="text-lg font-bold text-green-600">{fmtMoney(member?.kpis.sales.actual ?? detail.sales_value)}</div><div className="text-[10px] text-text-secondary">المنفذ</div></div>
               <div className="bg-surface rounded-lg p-2 text-center"><div className={`text-lg font-bold ${getPctColor(detail.sales_pct)}`}>{fmtPct(detail.sales_pct)}</div><div className="text-[10px] text-text-secondary">نسبة الإنجاز</div></div>
               <div className="bg-surface rounded-lg p-2 text-center"><div className="text-lg font-bold text-red-500">{fmtMoney(Math.max(0, (member?.kpis.sales.target ?? detail.sales_target ?? 0) - (member?.kpis.sales.actual ?? detail.sales_value)))}</div><div className="text-[10px] text-text-secondary">المتبقي</div></div>
               <div className="bg-surface rounded-lg p-2 text-center"><div className="text-lg font-bold text-text">{detail.day_count}</div><div className="text-[10px] text-text-secondary">أيام العمل</div></div>
-              <div className="bg-surface rounded-lg p-2 text-center"><div className="text-lg font-bold text-text">{detail.day_count > 0 ? fmtMoney(Math.round(detail.sales_value / detail.day_count)) : '\u2014'}</div><div className="text-[10px] text-text-secondary">المعدل/يوم</div></div>
+              <div className="bg-surface rounded-lg p-2 text-center"><div className="text-lg font-bold text-text">{detail.day_count > 0 ? fmtMoney(Math.round((member?.kpis.sales.actual ?? detail.sales_value) / detail.day_count)) : '\u2014'}</div><div className="text-[10px] text-text-secondary">المعدل/يوم</div></div>
             </div>
 
             {detail.sales_pct != null && (member?.kpis.sales.target ?? detail.sales_target ?? 0) > 0 && (
@@ -1013,14 +1015,15 @@ ${getContent()}
                   </tr>
                 </thead>
                 <tbody>
-                  {achievementItems.map((item) => {
+                    {achievementItems.map((item) => {
                     const pct = item.pct
                     const status = getStatusLabel(pct)
+                    const kpiKey = ({ 'المبيعات': 'sales', 'الزيارات': 'visits', 'الطلبات': 'orders', 'عملاء جدد': 'customers' })[item.label] || ''
                     return (
                       <tr key={item.label} className="border-t border-border/40 hover:bg-surface/30 transition-colors">
                         <td className="px-3 py-2.5 font-semibold text-text-secondary">{item.label}</td>
                         <td className="px-3 py-2.5 text-left font-mono">{fmtMoney(item.target)}</td>
-                        <td className="px-3 py-2.5 text-left font-mono">{fmtMoney(item.actual)}</td>
+                        <td className="px-3 py-2.5 text-left font-mono cursor-pointer text-blue-600 hover:underline" onClick={() => kpiKey && handleKpiClick(kpiKey)}>{fmtMoney(item.actual)}</td>
                         <td className={`px-3 py-2.5 text-left font-bold font-mono ${getPctColor(pct)}`}>{fmtPct(pct)}</td>
                         <td className="px-3 py-2.5">
                           <div className="w-full bg-gray-200 rounded-full h-2 min-w-[80px]">
@@ -1294,19 +1297,26 @@ ${getContent()}
                   <tbody>
                     {filteredRows.map((row, i) => {
                       const rowStatus = getStatusLabel(row.overall_score)
+                      const kpiCellCol = (colKey: string) => {
+                        const kpiMap: Record<string, string> = { visit_count: 'visits', order_count: 'orders', sales_value: 'sales', collection_amount: 'collections', new_customer_count: 'customers' }
+                        return kpiMap[colKey] || ''
+                      }
                       return (
                       <tr key={row.employee_id}
                         className={`border-t border-border/50 cursor-pointer transition-colors ${rowStatus.bg.replace('bg-', 'bg-').replace('50', '50/30')} hover:brightness-95`}
                         onClick={() => setSelectedRepId(row.employee_id)}>
-                        {cols.map((col, ci) => (
+                        {cols.map((col, ci) => {
+                          const kk = kpiCellCol(col.key)
+                          return (
                           <td key={col.key}
                             style={ci === 0 ? stickyStyle : undefined}
-                            className={`px-2 py-2 ${ci === 0 ? 'font-semibold' : ''} ${col.key === 'overall_score' ? getPctColor(row.overall_score) : ''}`}>
+                            className={`px-2 py-2 ${ci === 0 ? 'font-semibold' : ''} ${col.key === 'overall_score' ? getPctColor(row.overall_score) : ''} ${kk ? 'cursor-pointer text-blue-600 hover:underline' : ''}`}
+                            onClick={kk ? (e) => { e.stopPropagation(); handleKpiClick(kk, row.employee_id) } : undefined}>
                             {col.key === 'employee_name' ? row.employee_name
                               : col.key === 'employee_code' ? row.employee_code
                               : fmtCellVal(col.key, row)}
                           </td>
-                        ))}
+                        )})}
                         {showDetailCol && <td className="px-2 py-2"><button className="text-primary text-[10px] font-semibold">عرض ←</button></td>}
                       </tr>
                     )})}
