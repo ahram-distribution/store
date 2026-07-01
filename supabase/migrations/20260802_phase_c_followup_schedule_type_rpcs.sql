@@ -216,7 +216,8 @@ BEGIN
         SELECT 0 AS evt_order, wds.start_time AS event_time, 'workday_start'::text AS event_type,
             'بداية يوم العمل'::text AS title,
             CASE WHEN wds.status = 'active' THEN 'جاري' ELSE wds.status END AS description,
-            NULL::numeric AS e_lat, NULL::numeric AS e_lng
+            NULL::numeric AS e_lat, NULL::numeric AS e_lng,
+            '{}'::jsonb AS e_metadata
         FROM public.workday_sessions wds
         WHERE wds.employee_id = p_employee_id AND wds.date = p_date
         UNION ALL
@@ -224,32 +225,32 @@ BEGIN
         SELECT 1, wds.end_time, 'workday_end',
             'نهاية يوم العمل',
             wds.status,
-            NULL, NULL
+            NULL, NULL, '{}'::jsonb
         FROM public.workday_sessions wds
         WHERE wds.employee_id = p_employee_id AND wds.date = p_date AND wds.end_time IS NOT NULL
         UNION ALL
         -- breaks
-        SELECT 2, wbs.started_at, 'break_start',
+        SELECT 2, wbs.break_start, 'break_start',
             'بداية استراحة',
             NULL,
-            wbs.latitude, wbs.longitude
+            wbs.latitude, wbs.longitude, '{}'::jsonb
         FROM public.workday_breaks wbs
         JOIN public.workday_sessions wds ON wds.id = wbs.session_id
         WHERE wds.employee_id = p_employee_id AND wds.date = p_date
         UNION ALL
-        SELECT 3, wbs.ended_at, 'break_end',
+        SELECT 3, wbs.break_end, 'break_end',
             'نهاية استراحة',
             'المدة: ' || ROUND(COALESCE(wbs.duration_seconds, 0) / 60) || ' دقيقة',
-            wbs.latitude, wbs.longitude
+            wbs.latitude, wbs.longitude, '{}'::jsonb
         FROM public.workday_breaks wbs
         JOIN public.workday_sessions wds ON wds.id = wbs.session_id
-        WHERE wds.employee_id = p_employee_id AND wds.date = p_date AND wbs.ended_at IS NOT NULL
+        WHERE wds.employee_id = p_employee_id AND wds.date = p_date AND wbs.break_end IS NOT NULL
         UNION ALL
         -- visit start
         SELECT 4, v.check_in_at, 'visit_start',
             'بداية زيارة',
-            c.name,
-            v.latitude, v.longitude
+            c.company_name,
+            v.latitude, v.longitude, '{}'::jsonb
         FROM public.visits v
         JOIN public.customers c ON c.id = v.customer_id
         WHERE public.resolve_employee_id(v.created_by) = p_employee_id AND v.check_in_at::date = p_date
@@ -257,8 +258,8 @@ BEGIN
         -- visit end
         SELECT 5, v.check_out_at, 'visit_end',
             'نهاية زيارة',
-            c.name || CASE WHEN v.result IS NOT NULL THEN ' — ' || v.result ELSE '' END,
-            v.latitude, v.longitude
+            c.company_name || CASE WHEN v.result IS NOT NULL THEN ' — ' || v.result ELSE '' END,
+            v.latitude, v.longitude, '{}'::jsonb
         FROM public.visits v
         JOIN public.customers c ON c.id = v.customer_id
         WHERE public.resolve_employee_id(v.created_by) = p_employee_id AND v.check_out_at::date = p_date
@@ -267,7 +268,7 @@ BEGIN
         SELECT 6, o.created_at, 'order_created',
             'طلب جديد',
             'رقم: ' || COALESCE(o.order_number, o.id::text),
-            NULL, NULL
+            NULL, NULL, jsonb_build_object('amount', o.total_amount, 'status', o.status)
         FROM public.orders o
         WHERE public.resolve_employee_id(o.owner_id) = p_employee_id AND o.created_at::date = p_date
         UNION ALL
@@ -275,15 +276,15 @@ BEGIN
         SELECT 7, c2.created_at, 'collection_taken',
             'تحصيل',
             'المبلغ: ' || COALESCE(c2.amount, 0)::text,
-            NULL, NULL
+            NULL, NULL, jsonb_build_object('amount', c2.amount)
         FROM public.collections c2
         WHERE public.resolve_employee_id(c2.owner_id) = p_employee_id AND c2.created_at::date = p_date
         UNION ALL
         -- new customers
         SELECT 8, c3.created_at, 'new_customer',
             'عميل جديد',
-            c3.name,
-            NULL, NULL
+            c3.company_name,
+            NULL, NULL, '{}'::jsonb
         FROM public.customers c3
         WHERE public.resolve_employee_id(c3.owner_id) = p_employee_id AND c3.created_at::date = p_date
     )
@@ -294,7 +295,7 @@ BEGIN
         'description', e.description,
         'latitude', e.e_lat,
         'longitude', e.e_lng,
-        'metadata', jsonb_build_object()
+        'metadata', e.e_metadata
     ) ORDER BY e.event_time, e.evt_order)
     INTO v_events_json
     FROM events e
