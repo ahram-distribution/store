@@ -1,0 +1,1 @@
+class t{async start(){}async stop(){}async getStatus(){return{running:!1,nativeService:!1}}async isBatteryOptimizationEnabled(){return{enabled:!1}}async requestDisableBatteryOptimization(){}async openBatterySettings(){}async getBatteryLevel(){return{level:-1}}}export{t as TrackingServiceWeb};
