@@ -8,24 +8,8 @@ import { KpiDrillDownModal } from '../../components/KpiDrillDownModal'
 import TrackingExplorerModal from '../../components/TrackingExplorerModal'
 import { getBusinessDetailData } from '../../services/businessActivity'
 import * as XLSX from 'xlsx'
-
-/* ===================================================================
-   Column Data Source Map (مرجع أعمدة الجدول)
-   ===================================================================
-   name / code        → hierarchy members (get_governed_target_performance)
-   start/end_time     → get_live_workday_overview (today) / get_employee_workday_history (period)
-   net_minutes        → get_live_workday_overview (today) / get_completed_workdays_history (period)
-   break_minutes      → same as net_minutes
-   tracking_points    → get_employee_day_map (via get_employee_day_timeline in drill-down)
-   distance_meters    → get_employee_day_map (via timeline — currently 0 in history RPC, see docs)
-   visit_count        → get_live_workday_overview / get_completed_workdays_history (ACTIVITY)
-   order_count        → same (ACTIVITY)
-   sales_value        → same (ACTIVITY)
-   collection_amount  → same (ACTIVITY)
-   new_customer_count → same (ACTIVITY)
-   sales_target       → get_governed_target_performance (ACHIEVEMENT)
-   overall_score      → get_governed_target_performance (ACHIEVEMENT)
-   =================================================================== */
+import { jsPDF } from 'jspdf'
+import autoTable from 'jspdf-autotable'
 
 const MONTHS = ['يناير', 'فبراير', 'مارس', 'إبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر']
 
@@ -74,6 +58,15 @@ interface RepRow {
   overall_score: number | null; has_target: boolean; has_activity: boolean
 }
 
+interface PSummary {
+  daysWorked: number; totalVisits: number; totalOrders: number; totalSales: number
+  totalNewCustomers: number; totalCollections: number
+  bestSalesDate: string | null; bestSalesValue: number
+  lowestActivityDate: string | null; lowestActivityVisits: number
+  daysWithoutSales: number; daysWithoutVisits: number
+  lastActivityDate: string | null
+}
+
 const ALL_COLUMNS = [
   { key: 'employee_name', label: 'المندوب', numeric: false, group: 'info' },
   { key: 'employee_code', label: 'الكود', numeric: false, group: 'info' },
@@ -104,6 +97,7 @@ function fmtPct(n: number | null | undefined): string {
 
 function fmtMoney(n: number | null | undefined): string {
   if (n == null) return '\u2014'
+  if (n === 0) return '0'
   return Math.round(n).toLocaleString('ar-EG-u-nu-latn')
 }
 
@@ -126,11 +120,28 @@ function fmtDist(meters: number | null | undefined): string {
   return Math.round(meters) + ' م'
 }
 
-function getAchievementClass(score: number | null | undefined): string {
-  if (score == null) return ''
-  if (score >= 80) return 'bg-green-50/60'
-  if (score >= 50) return 'bg-yellow-50/60'
-  return 'bg-red-50/60'
+function getPctColor(pct: number | null | undefined): string {
+  if (pct == null) return 'text-text'
+  if (pct >= 100) return 'text-green-600'
+  if (pct >= 80) return 'text-green-600'
+  if (pct >= 50) return 'text-yellow-600'
+  return 'text-red-500'
+}
+
+function getBarColor(pct: number | null | undefined): string {
+  if (pct == null) return 'bg-gray-300'
+  if (pct >= 100) return 'bg-green-500'
+  if (pct >= 80) return 'bg-green-500'
+  if (pct >= 50) return 'bg-yellow-500'
+  return 'bg-red-500'
+}
+
+function getStatusLabel(pct: number | null | undefined): { label: string; color: string; bg: string } {
+  if (pct == null) return { label: '—', color: 'text-gray-400', bg: 'bg-gray-50' }
+  if (pct >= 100) return { label: 'ممتاز', color: 'text-green-700', bg: 'bg-green-50' }
+  if (pct >= 80) return { label: 'جيد', color: 'text-green-700', bg: 'bg-green-50' }
+  if (pct >= 50) return { label: 'متوسط', color: 'text-yellow-700', bg: 'bg-yellow-50' }
+  return { label: 'حرج', color: 'text-red-700', bg: 'bg-red-50' }
 }
 
 function getDateRange(period: PeriodType): { from: string; to: string } {
@@ -147,6 +158,39 @@ function getDateRange(period: PeriodType): { from: string; to: string } {
 function getMonthYear(from: string): { month: number; year: number } {
   const d = new Date(from || Date.now())
   return { month: d.getMonth() + 1, year: d.getFullYear() }
+}
+
+function generateInsight(overallScore: number | null, member: HMember | null): { verdict: string; explanation: string; details: string[]; color: string } {
+  if (overallScore == null || !member) {
+    return { verdict: 'لا توجد بيانات', explanation: 'غير كافٍ للتقييم', details: [], color: 'gray' }
+  }
+
+  const s = member.kpis.sales.pct
+  const v = member.kpis.visits.pct
+  const o = member.kpis.orders.pct
+  const c = member.kpis.new_customers.pct
+  const col = member.kpis.collections.actual
+
+  const details: string[] = []
+  let verdict: string
+  let color: string
+  let explanation: string
+
+  if (overallScore >= 100) { verdict = 'أداء ممتاز'; color = 'green'; explanation = 'تجاوز المستهدف بنجاح' }
+  else if (overallScore >= 80) { verdict = 'أداء جيد'; color = 'green'; explanation = 'يقترب من تحقيق الهدف' }
+  else if (overallScore >= 50) { verdict = 'أداء متوسط'; color = 'yellow'; explanation = 'يحتاج إلى تطوير' }
+  else { verdict = 'أداء ضعيف'; color = 'red'; explanation = 'أقل من المتوقع بشكل كبير' }
+
+  if (v != null && v < 50) details.push('انخفاض عدد الزيارات يؤثر سلباً على الأداء')
+  if (o != null && s != null && o > 0 && s != null && s < 50 && o >= 80) details.push('زيارات مرتفعة ولكن تحويل منخفض — نسبة التحويل ضعيفة')
+  if (o != null && s != null && o > 0 && s / o < 50) details.push('متوسط قيمة الطلب منخفض')
+  if (col === 0) details.push('لا يوجد تحصيل خلال الفترة')
+  if (c != null && c >= 100) details.push('اكتساب عملاء جيد')
+
+  if (details.length === 0 && overallScore >= 80) details.push('جميع المؤشرات ضمن المستوى المطلوب')
+  if (details.length === 0 && overallScore < 80) details.push('الأداء العام يحتاج إلى مراجعة شاملة')
+
+  return { verdict, explanation, details, color }
 }
 
 export default function ManagerReportsPage() {
@@ -215,7 +259,6 @@ export default function ManagerReportsPage() {
     }).catch((e) => setError(e.message || 'خطأ في تحميل البيانات')).finally(() => setLoading(false))
   }, [perfMonth, perfYear, period, fromParam, toParam])
 
-  /* ========== UI state persistence (P1-02) ========== */
   useEffect(() => {
     if (stateRestoredRef.current) return
     try {
@@ -252,7 +295,6 @@ export default function ManagerReportsPage() {
       sessionStorage.setItem(SAVE_KEY, JSON.stringify({ ...saved, scrollY: tableRef.current?.scrollTop || 0 }))
     } catch {}
   }
-  /* ================================================== */
 
   useEffect(() => {
     if (!selectedRepId || !fromParam || !toParam) { setRepSessions([]); setRepTimeline(null); return }
@@ -308,7 +350,6 @@ export default function ManagerReportsPage() {
         const lw = lhMap.get(m.employee_id); const ended = endedMap.get(m.employee_id); const src = ended || lw
         return {
           employee_id: m.employee_id, employee_name: m.employee_name, employee_code: m.employee_code, manager_id: selectedManagerId,
-          /* ACTIVITY — from get_live_workday_overview */
           start_time: lw?.started_at ?? null, end_time: ended?.ended_at ?? null,
           net_minutes: src?.net_minutes ?? (src?.duration_minutes ?? 0), break_minutes: src?.break_minutes ?? 0,
           tracking_points: 0, distance_meters: 0,
@@ -316,7 +357,6 @@ export default function ManagerReportsPage() {
           collection_count: src?.collection_count ?? 0, collection_amount: src?.collection_amount ?? 0,
           new_customer_count: src?.new_customer_count ?? 0,
           late_minutes: src?.late_minutes ?? null, attendance_status: src?.attendance_status ?? null, day_count: 1,
-          /* ACHIEVEMENT — from get_governed_target_performance */
           sales_target: perf?.sales_target ?? k?.sales?.target ?? 0,
           orders_target: perf?.orders_target ?? k?.orders?.target ?? 0,
           visits_target: perf?.visits_target ?? k?.visits?.target ?? 0,
@@ -331,7 +371,6 @@ export default function ManagerReportsPage() {
       const wh = ehMap.get(m.employee_id); const s = wh?.summary
       return {
         employee_id: m.employee_id, employee_name: m.employee_name, employee_code: m.employee_code, manager_id: selectedManagerId,
-        /* ACTIVITY — from get_completed_workdays_history */
         start_time: wh?.sessions?.[0]?.start_time ?? null, end_time: wh?.sessions?.[wh.sessions.length - 1]?.end_time ?? null,
         net_minutes: s?.total_net_minutes ?? 0, break_minutes: wh?.sessions?.reduce((sum, sess) => sum + (sess.break_minutes || 0), 0) ?? 0,
         tracking_points: s?.total_tracking_points ?? 0, distance_meters: s?.total_distance_meters ?? 0,
@@ -339,7 +378,6 @@ export default function ManagerReportsPage() {
         collection_count: s?.total_collection_count ?? 0, collection_amount: s?.total_collection_amount ?? 0,
         new_customer_count: s?.total_new_customers ?? 0,
         late_minutes: null, attendance_status: null, day_count: s?.total_days ?? 0,
-        /* ACHIEVEMENT — from get_governed_target_performance */
         sales_target: perf?.sales_target ?? k?.sales?.target ?? 0,
         orders_target: perf?.orders_target ?? k?.orders?.target ?? 0,
         visits_target: perf?.visits_target ?? k?.visits?.target ?? 0,
@@ -416,6 +454,35 @@ export default function ManagerReportsPage() {
     return teamMembers.filter((m) => activeIds.has(m.employee_id)).length
   }, [selectedManagerId, teamMembers, liveEmps, workdayEmps, isToday])
 
+  const periodSummary = useMemo<PSummary | null>(() => {
+    if (!repSessions.length) return null
+    const totalVisits = repSessions.reduce((s, sess) => s + (sess.visit_count || 0), 0)
+    const totalOrders = repSessions.reduce((s, sess) => s + (sess.order_count || 0), 0)
+    const totalSales = repSessions.reduce((s, sess) => s + (sess.sales_value || 0), 0)
+    const totalNewCustomers = repSessions.reduce((s, sess) => s + (sess.new_customer_count || 0), 0)
+    const totalCollections = repSessions.reduce((s, sess) => s + (sess.collection_amount || 0), 0)
+
+    const sortedBySales = [...repSessions].sort((a, b) => (b.sales_value || 0) - (a.sales_value || 0))
+    const bestSalesDay = sortedBySales[0]
+    const sortedByVisits = [...repSessions].sort((a, b) => (a.visit_count || 0) - (b.visit_count || 0))
+    const lowestActivityDay = sortedByVisits[0]
+    const sortedByDate = [...repSessions].sort((a, b) => (a.date || '').localeCompare(b.date || ''))
+    const lastSession = sortedByDate[sortedByDate.length - 1]
+
+    return {
+      daysWorked: repSessions.length,
+      totalVisits, totalOrders, totalSales,
+      totalNewCustomers, totalCollections,
+      bestSalesDate: bestSalesDay?.date?.slice(0, 10) || null,
+      bestSalesValue: bestSalesDay?.sales_value || 0,
+      lowestActivityDate: lowestActivityDay?.date?.slice(0, 10) || null,
+      lowestActivityVisits: lowestActivityDay?.visit_count || 0,
+      daysWithoutSales: repSessions.filter(s => (s.sales_value || 0) === 0).length,
+      daysWithoutVisits: repSessions.filter(s => (s.visit_count || 0) === 0).length,
+      lastActivityDate: lastSession?.date?.slice(0, 10) || null,
+    }
+  }, [repSessions])
+
   function toggleCol(key: string) {
     const next = new Set(visibleCols)
     if (next.has(key) && next.size > 2) next.delete(key)
@@ -457,13 +524,6 @@ export default function ManagerReportsPage() {
     return member?.overall_achievement_score ?? null
   }
 
-  function getPctColor(pct: number | null | undefined): string {
-    if (pct == null) return 'text-text'
-    if (pct >= 100) return 'text-green-600'
-    if (pct >= 50) return 'text-yellow-600'
-    return 'text-red-500'
-  }
-
   const stickyStyle: React.CSSProperties = { position: 'sticky', right: 0, zIndex: 3, background: 'inherit' }
   const stickyBorderStyle: React.CSSProperties = { position: 'sticky', right: 0, zIndex: 3, background: 'inherit', borderLeft: '1px solid #e5e7eb' }
   const stickyHeadStyle: React.CSSProperties = { position: 'sticky', right: 0, zIndex: 6, background: 'inherit', borderLeft: '1px solid #e5e7eb' }
@@ -471,9 +531,48 @@ export default function ManagerReportsPage() {
   const cols = visibleColsArr()
   const showDetailCol = true
 
-  const EVENT_LABELS: Record<string, string> = {
-    workday_start: 'بداية اليوم', workday_end: 'نهاية اليوم', break_start: 'بداية استراحة', break_end: 'نهاية استراحة',
-    visit_start: 'بداية زيارة', visit_end: 'نهاية زيارة', order_created: 'إنشاء طلب', collection_taken: 'تحصيل', new_customer: 'عميل جديد',
+  const KPI_TITLE: Record<string, string> = {
+    orders: 'الطلبات', sales: 'المبيعات', customers: 'عملاء جدد', visits: 'الزيارات', collections: 'التحصيل',
+  }
+
+  const handleKpiClick = useCallback(async (kpiType: string) => {
+    if (!selectedRepId || !effectiveFrom || !effectiveTo) return
+    setDd({ kpiType, records: [], loading: true, title: '', recordType: '' })
+    const result = await getBusinessDetailData({
+      employeeId: selectedRepId,
+      kpiType,
+      from: effectiveFrom,
+      to: effectiveTo,
+      token: localStorage.getItem('session_token') || '',
+    })
+    setDd({ kpiType, records: result.records, loading: false, title: KPI_TITLE[kpiType] || kpiType, recordType: result.recordType })
+  }, [selectedRepId, effectiveFrom, effectiveTo])
+
+  async function handleSessionKpiClick(kpiType: string, sessionDate: string) {
+    if (!selectedRepId) return
+    setDd({ kpiType, records: [], loading: true, title: '', recordType: '' })
+    const from = sessionDate
+    const to = new Date(new Date(sessionDate + 'T00:00:00').getTime() + 86400000).toISOString().slice(0, 10)
+    const result = await getBusinessDetailData({
+      employeeId: selectedRepId, kpiType, from, to,
+      token: localStorage.getItem('session_token') || '',
+    })
+    setDd({ kpiType, records: result.records, loading: false, title: (KPI_TITLE[kpiType] || kpiType) + ` — ${sessionDate.slice(0, 10)}`, recordType: result.recordType })
+  }
+
+  async function openTrackingExplorer() {
+    if (!selectedRepId || !effectiveFrom) return
+    setTrackingLoading(true)
+    setShowTrackingExplorer(true)
+    try {
+      const res = await supabase.rpc('get_employee_day_map', {
+        p_token: localStorage.getItem('session_token'),
+        p_employee_id: selectedRepId,
+        p_date: effectiveFrom,
+      })
+      if (res.data) setTrackingMapData(res.data)
+    } catch { setTrackingMapData(null) }
+    setTrackingLoading(false)
   }
 
   function exportToExcel() {
@@ -549,6 +648,142 @@ export default function ManagerReportsPage() {
     XLSX.writeFile(wb, `تقرير_مدير_المبيعات_${filePeriod}.xlsx`)
   }
 
+  function exportRepToPDF() {
+    const detail = repRows.find((r) => r.employee_id === selectedRepId)
+    const member = teamMembers.find((m) => m.employee_id === selectedRepId)
+    if (!detail) return
+
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+    const pageW = doc.internal.pageSize.getWidth()
+    const margin = 14
+    const contentW = pageW - 2 * margin
+    let y = margin
+
+    const periodLabel = effectiveFrom && effectiveTo
+      ? `من ${effectiveFrom.slice(0, 10)} إلى ${effectiveTo.slice(0, 10)}`
+      : `${MONTHS[perfMonth - 1]} ${perfYear}`
+
+    doc.setFont('Helvetica', 'bold')
+    doc.setFontSize(14)
+    doc.text(`تقرير أداء المندوب`, pageW / 2, y, { align: 'center' })
+    y += 7
+
+    doc.setFontSize(10)
+    doc.setFont('Helvetica', 'normal')
+    doc.text(`${detail.employee_name} (${detail.employee_code})`, margin, y)
+    y += 5
+    doc.text(`الفترة: ${periodLabel}`, margin, y)
+    y += 8
+
+    doc.setFontSize(9)
+    doc.setFont('Helvetica', 'bold')
+    doc.text(`ملخص الأداء`, margin, y)
+    y += 5
+
+    const kpiLines = [
+      `الهدف: ${fmtMoney(member?.kpis.sales.target ?? detail.sales_target ?? 0)}`,
+      `المنفذ: ${fmtMoney(detail.sales_value)}`,
+      `نسبة الإنجاز: ${fmtPct(detail.sales_pct)}`,
+      `أيام العمل: ${detail.day_count}`,
+      `الزيارات: ${fmtNum(detail.visit_count)}`,
+      `الطلبات: ${fmtNum(detail.order_count)}`,
+      `المبيعات: ${fmtMoney(detail.sales_value)}`,
+      `التحصيل: ${fmtMoney(detail.collection_amount)}`,
+      `عملاء جدد: ${fmtNum(detail.new_customer_count)}`,
+      `المسافة: ${fmtDist(detail.distance_meters)}`,
+      `نقاط التتبع: ${fmtNum(detail.tracking_points)}`,
+    ]
+
+    doc.setFont('Helvetica', 'normal')
+    doc.setFontSize(8)
+    const colH = 4
+    let kpiX = margin
+    let kpiY = y
+    kpiLines.forEach((line, i) => {
+      if (i > 0 && i % 4 === 0) { kpiX += pageW / 4; kpiY = y }
+      doc.text(line, kpiX, kpiY + (i % 4) * colH)
+    })
+    y += 4 * colH + 6
+
+    if (member && member.has_target) {
+      doc.setFont('Helvetica', 'bold')
+      doc.setFontSize(9)
+      doc.text(`الإنجاز مقابل الهدف`, margin, y)
+      y += 4
+
+      const achRows = [
+        ['المؤشر', 'الهدف', 'المنفذ', 'النسبة', 'الحالة'],
+        ...([
+          { label: 'المبيعات', target: member.kpis.sales.target, actual: member.kpis.sales.actual, pct: member.kpis.sales.pct },
+          { label: 'الزيارات', target: member.kpis.visits.target, actual: member.kpis.visits.actual, pct: member.kpis.visits.pct },
+          { label: 'الطلبات', target: member.kpis.orders.target, actual: member.kpis.orders.actual, pct: member.kpis.orders.pct },
+          { label: 'عملاء جدد', target: member.kpis.new_customers.target, actual: member.kpis.new_customers.actual, pct: member.kpis.new_customers.pct },
+        ].map(item => [item.label, fmtMoney(item.target), fmtMoney(item.actual), fmtPct(item.pct), getStatusLabel(item.pct).label])),
+      ]
+
+      autoTable(doc, {
+        startY: y,
+        head: [achRows[0]],
+        body: achRows.slice(1),
+        margin: { left: margin, right: margin },
+        tableWidth: contentW,
+        styles: { fontSize: 8, halign: 'right', font: 'Helvetica' },
+        headStyles: { fillColor: [59, 130, 246], textColor: 255 },
+        columnStyles: { 0: { cellWidth: 30 }, 1: { cellWidth: 30 }, 2: { cellWidth: 30 }, 3: { cellWidth: 20 }, 4: { cellWidth: 20 } },
+      })
+      y = (doc as any).lastAutoTable.finalY + 6
+    }
+
+    doc.setFont('Helvetica', 'bold')
+    doc.setFontSize(9)
+    doc.text(`المؤشرات المركبة`, margin, y)
+    y += 5
+
+    const totalActivity = (detail.visit_count || 0) + (detail.order_count || 0) + (detail.new_customer_count || 0)
+    doc.setFont('Helvetica', 'normal')
+    doc.setFontSize(8)
+    doc.text(`إجمالي النشاط: ${fmtNum(totalActivity)} (زيارات: ${fmtNum(detail.visit_count)} | طلبات: ${fmtNum(detail.order_count)} | عملاء جدد: ${fmtNum(detail.new_customer_count)})`, margin, y)
+    y += 4
+    doc.text(`الإنجاز الكلي: ${fmtPct(member?.overall_achievement_score ?? detail.overall_score)}`, margin, y)
+    y += 6
+
+    if (repSessions.length > 0) {
+      doc.setFont('Helvetica', 'bold')
+      doc.setFontSize(9)
+      doc.text(`تفاصيل الجلسات (${repSessions.length})`, margin, y)
+      y += 4
+
+      const sessHeaders = ['التاريخ', 'البداية', 'النهاية', 'صافي', 'زيارات', 'طلبات', 'مبيعات', 'تحصيل']
+      const sessRows = repSessions.slice(0, 20).map(s => [
+        s.date?.slice(0, 10) || '',
+        fmtTime(s.start_time),
+        fmtTime(s.end_time),
+        fmtHours(s.net_minutes),
+        fmtNum(s.visit_count),
+        fmtNum(s.order_count),
+        fmtMoney(s.sales_value),
+        fmtMoney(s.collection_amount),
+      ])
+
+      autoTable(doc, {
+        startY: y,
+        head: [sessHeaders],
+        body: sessRows,
+        margin: { left: margin, right: margin },
+        tableWidth: contentW,
+        styles: { fontSize: 7, halign: 'right', font: 'Helvetica' },
+        headStyles: { fillColor: [100, 116, 139], textColor: 255 },
+      })
+      y = (doc as any).lastAutoTable.finalY + 6
+    }
+
+    doc.setFont('Helvetica', 'bold')
+    doc.setFontSize(8)
+    doc.text(`تم التصدير: ${new Date().toLocaleDateString('ar-EG-u-nu-latn')}`, margin, y)
+
+    doc.save(`تقرير_مندوب_${detail.employee_code}_${periodLabel.replace(/[/\\?%*:|"<>]/g, '_')}.pdf`)
+  }
+
   function exportRepDetailToExcel() {
     const detail = repRows.find((r) => r.employee_id === selectedRepId)
     const member = teamMembers.find((m) => m.employee_id === selectedRepId)
@@ -562,12 +797,10 @@ export default function ManagerReportsPage() {
 
     const ws = XLSX.utils.aoa_to_sheet([])
 
-    // Title rows
     XLSX.utils.sheet_add_aoa(ws, [[`المندوب: ${detail.employee_name} (${detail.employee_code})`]], { origin: 'A1' })
     XLSX.utils.sheet_add_aoa(ws, [[`الفترة: ${periodLabel}`]], { origin: 'A2' })
     XLSX.utils.sheet_add_aoa(ws, [[`تاريخ التقرير: ${dateStr}`]], { origin: 'A3' })
 
-    // Section 1: KPI Summary (2-column layout)
     const kpiData = [
       ['بداية اليوم', detail.start_time || '\u2014', 'نهاية اليوم', detail.end_time || '\u2014'],
       ['صافي ساعات', fmtHours(detail.net_minutes), 'الاستراحة', fmtHours(detail.break_minutes)],
@@ -581,11 +814,10 @@ export default function ManagerReportsPage() {
 
     let curRow = 6 + kpiData.length + 1
 
-    // Section 2: Achievement vs Target
     if (member && member.has_target) {
       XLSX.utils.sheet_add_aoa(ws, [['الإنجاز مقابل الهدف']], { origin: `A${curRow}` })
       curRow++
-      const achHeaders = ['المؤشر', 'الهدف', 'المنفذ', '%']
+      const achHeaders = ['المؤشر', 'الهدف', 'المنفذ', '%', 'الحالة']
       XLSX.utils.sheet_add_aoa(ws, [achHeaders], { origin: `A${curRow}` })
       curRow++
 
@@ -597,14 +829,26 @@ export default function ManagerReportsPage() {
       ]
 
       for (const item of achVals) {
-        XLSX.utils.sheet_add_aoa(ws, [[item.label, item.target, item.actual, item.pct != null ? item.pct / 100 : '']], { origin: `A${curRow}` })
+        XLSX.utils.sheet_add_aoa(ws, [[item.label, item.target, item.actual, item.pct != null ? item.pct / 100 : '', getStatusLabel(item.pct).label]], { origin: `A${curRow}` })
         curRow++
       }
-      XLSX.utils.sheet_add_aoa(ws, [['الإجمالي', '', '', member.overall_achievement_score != null ? member.overall_achievement_score / 100 : '']], { origin: `A${curRow}` })
+      XLSX.utils.sheet_add_aoa(ws, [['الإجمالي', '', '', member.overall_achievement_score != null ? member.overall_achievement_score / 100 : '', getStatusLabel(member.overall_achievement_score).label]], { origin: `A${curRow}` })
       curRow += 2
     }
 
-    // Section 3: Sessions detail table
+    if (periodSummary) {
+      XLSX.utils.sheet_add_aoa(ws, [['ملخص الفترة']], { origin: `A${curRow}` })
+      curRow++
+      const summaryLines = [
+        ['أيام العمل', fmtNum(periodSummary.daysWorked), 'إجمالي الزيارات', fmtNum(periodSummary.totalVisits)],
+        ['إجمالي الطلبات', fmtNum(periodSummary.totalOrders), 'إجمالي المبيعات', fmtMoney(periodSummary.totalSales)],
+        ['عملاء جدد', fmtNum(periodSummary.totalNewCustomers), 'التحصيل', fmtMoney(periodSummary.totalCollections)],
+        ['أفضل يوم مبيعات', periodSummary.bestSalesDate || '\u2014', 'أقل يوم نشاط', periodSummary.lowestActivityDate || '\u2014'],
+      ]
+      XLSX.utils.sheet_add_aoa(ws, summaryLines, { origin: `A${curRow}` })
+      curRow += summaryLines.length + 1
+    }
+
     if (repSessions.length > 0) {
       XLSX.utils.sheet_add_aoa(ws, [['تفاصيل الجلسات']], { origin: `A${curRow}` })
       curRow++
@@ -624,7 +868,6 @@ export default function ManagerReportsPage() {
       }
     }
 
-    // Merges for title rows
     const maxCols = 12
     ws['!merges'] = [
       { s: { r: 0, c: 0 }, e: { r: 0, c: maxCols - 1 } },
@@ -632,12 +875,10 @@ export default function ManagerReportsPage() {
       { s: { r: 2, c: 0 }, e: { r: 2, c: maxCols - 1 } },
     ]
 
-    // Format time columns (4 and 5 in sessions section, 2 and 4 in kpi section)
     for (let R = 6; R < curRow; R++) {
       for (let C = 0; C < maxCols; C++) {
         const addr = XLSX.utils.encode_cell({ r: R, c: C })
         if (ws[addr] && typeof ws[addr].v === 'number') {
-          // Columns 4=صافي, 5=استراحة in sessions (0-indexed), or hours columns in KPIs
           if (C === 3 || C === 4) ws[addr].z = 'h:mm'
           if (C === 10 || C === 7 || C === 8) ws[addr].z = '#,##0'
         }
@@ -659,96 +900,145 @@ export default function ManagerReportsPage() {
     nav('/launcher/reports')
   }
 
-  const KPI_TITLE: Record<string, string> = {
-    orders: 'الطلبات', sales: 'المبيعات', customers: 'عملاء جدد', visits: 'الزيارات', collections: 'التحصيل',
-  }
-
-  const handleKpiClick = useCallback(async (kpiType: string) => {
-    if (!selectedRepId || !effectiveFrom || !effectiveTo) return
-    setDd({ kpiType, records: [], loading: true, title: '', recordType: '' })
-    const result = await getBusinessDetailData({
-      employeeId: selectedRepId,
-      kpiType,
-      from: effectiveFrom,
-      to: effectiveTo,
-      token: localStorage.getItem('session_token') || '',
-    })
-    setDd({ kpiType, records: result.records, loading: false, title: KPI_TITLE[kpiType] || kpiType, recordType: result.recordType })
-  }, [selectedRepId, effectiveFrom, effectiveTo])
-
-  async function handleSessionKpiClick(kpiType: string, sessionDate: string) {
-    if (!selectedRepId) return
-    setDd({ kpiType, records: [], loading: true, title: '', recordType: '' })
-    const from = sessionDate
-    const to = new Date(new Date(sessionDate + 'T00:00:00').getTime() + 86400000).toISOString().slice(0, 10)
-    const result = await getBusinessDetailData({
-      employeeId: selectedRepId, kpiType, from, to,
-      token: localStorage.getItem('session_token') || '',
-    })
-    setDd({ kpiType, records: result.records, loading: false, title: (KPI_TITLE[kpiType] || kpiType) + ` — ${sessionDate.slice(0, 10)}`, recordType: result.recordType })
-  }
-
-  async function openTrackingExplorer() {
-    if (!selectedRepId || !effectiveFrom) return
-    setTrackingLoading(true)
-    setShowTrackingExplorer(true)
-    try {
-      const res = await supabase.rpc('get_employee_day_map', {
-        p_token: localStorage.getItem('session_token'),
-        p_employee_id: selectedRepId,
-        p_date: effectiveFrom,
-      })
-      if (res.data) setTrackingMapData(res.data)
-    } catch { setTrackingMapData(null) }
-    setTrackingLoading(false)
-  }
-
   if (selectedRepId) {
     const detail = repRows.find((r) => r.employee_id === selectedRepId)
     const member = teamMembers.find((m) => m.employee_id === selectedRepId)
     if (!detail) return null
 
-    /* Business Story data */
-    const storyEvents = repTimeline ? [...repTimeline.events].sort((a, b) => a.time.localeCompare(b.time)) : []
-    const storyFirst = storyEvents[0]; const storyLast = storyEvents[storyEvents.length - 1]
-    const storyVisits = storyEvents.filter((e) => e.type === 'visit_start').length
-    const storyOrders = storyEvents.filter((e) => e.type === 'order_created').length
-    const storyBreaks = storyEvents.filter((e) => e.type === 'break_start').length
-    const storyColor = (type: string) => {
-      if (type === 'workday_start' || type === 'workday_end') return 'bg-blue-400'
-      if (type === 'visit_start' || type === 'visit_end') return 'bg-green-400'
-      if (type === 'break_start' || type === 'break_end') return 'bg-purple-400'
-      if (type === 'order_created') return 'bg-amber-400'
-      if (type === 'collection_taken') return 'bg-emerald-400'
-      if (type === 'new_customer') return 'bg-cyan-400'
-      return 'bg-gray-300'
-    }
+    const insight = generateInsight(member?.overall_achievement_score ?? null, member ?? null)
+
+    const achievementItems = member && member.has_target ? [
+      { label: 'المبيعات', target: member.kpis.sales.target, actual: member.kpis.sales.actual, pct: member.kpis.sales.pct },
+      { label: 'الزيارات', target: member.kpis.visits.target, actual: member.kpis.visits.actual, pct: member.kpis.visits.pct },
+      { label: 'الطلبات', target: member.kpis.orders.target, actual: member.kpis.orders.actual, pct: member.kpis.orders.pct },
+      { label: 'عملاء جدد', target: member.kpis.new_customers.target, actual: member.kpis.new_customers.actual, pct: member.kpis.new_customers.pct },
+    ] : []
+
+    const totalActivity = (detail.visit_count || 0) + (detail.order_count || 0) + (detail.new_customer_count || 0)
 
     return (
-      <div className="space-y-4" dir="rtl">
+      <div className="space-y-5" dir="rtl">
         <div className="flex items-center gap-3">
           <button onClick={goBack} className="text-text-secondary text-lg">&larr;</button>
           <h1 className="text-lg font-bold text-text">{detail.employee_name}</h1>
           <span className="text-xs text-text-secondary">{detail.employee_code}</span>
-          <button onClick={exportRepDetailToExcel} className="bg-primary text-white text-xs px-2.5 py-1 rounded-lg font-semibold mr-auto">Excel</button>
+          <div className="mr-auto flex gap-1.5">
+            <button onClick={exportRepToPDF} className="bg-red-600 text-white text-xs px-2.5 py-1 rounded-lg font-semibold">PDF</button>
+            <button onClick={exportRepDetailToExcel} className="bg-primary text-white text-xs px-2.5 py-1 rounded-lg font-semibold">Excel</button>
+          </div>
         </div>
 
-        <div className="bg-white rounded-lg border border-border p-4">
-          <h3 className="text-xs font-bold text-text mb-3">ملخص الأداء الشهري</h3>
-          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-3">
-            <div className="bg-surface rounded-lg p-2 text-center"><div className="text-lg font-bold text-text">{fmtMoney(member?.kpis.sales.target ?? detail.sales_target ?? 0)}</div><div className="text-[10px] text-text-secondary">الهدف</div></div>
-            <div className="bg-surface rounded-lg p-2 text-center"><div className="text-lg font-bold text-green-600">{fmtMoney(detail.sales_value)}</div><div className="text-[10px] text-text-secondary">المنفذ</div></div>
-            <div className="bg-surface rounded-lg p-2 text-center"><div className={`text-lg font-bold ${getPctColor(detail.sales_pct)}`}>{fmtPct(detail.sales_pct)}</div><div className="text-[10px] text-text-secondary">نسبة الإنجاز</div></div>
-            <div className="bg-surface rounded-lg p-2 text-center"><div className="text-lg font-bold text-red-500">{fmtMoney(Math.max(0, (member?.kpis.sales.target ?? detail.sales_target ?? 0) - detail.sales_value))}</div><div className="text-[10px] text-text-secondary">المتبقي</div></div>
-            <div className="bg-surface rounded-lg p-2 text-center"><div className="text-lg font-bold text-text">{detail.day_count}</div><div className="text-[10px] text-text-secondary">أيام العمل</div></div>
-            <div className="bg-surface rounded-lg p-2 text-center"><div className="text-lg font-bold text-text">{detail.day_count > 0 ? fmtMoney(Math.round(detail.sales_value / detail.day_count)) : '\u2014'}</div><div className="text-[10px] text-text-secondary">المعدل/يوم</div></div>
-          </div>
-          {detail.sales_pct != null && (member?.kpis.sales.target ?? detail.sales_target ?? 0) > 0 && (
-            <div className="w-full bg-gray-200 rounded-full h-2">
-              <div className={`h-2 rounded-full transition-all ${detail.sales_pct >= 80 ? 'bg-green-500' : detail.sales_pct >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`} style={{ width: `${Math.min(100, detail.sales_pct)}%` }} />
+        <div className="bg-white rounded-xl border border-border shadow-sm overflow-hidden">
+          <h3 className="text-sm font-bold text-text px-4 pt-4 pb-2 border-b border-border/50">ملخص الفترة</h3>
+          {periodSummary ? (
+            <div className="p-4">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
+                <div className="bg-blue-50 rounded-lg p-2.5 text-center"><div className="text-lg font-bold text-blue-700">{fmtNum(periodSummary.daysWorked)}</div><div className="text-[10px] text-blue-600">أيام العمل</div></div>
+                <div className="bg-green-50 rounded-lg p-2.5 text-center"><div className="text-lg font-bold text-green-700">{fmtNum(periodSummary.totalVisits)}</div><div className="text-[10px] text-green-600">إجمالي الزيارات</div></div>
+                <div className="bg-amber-50 rounded-lg p-2.5 text-center"><div className="text-lg font-bold text-amber-700">{fmtNum(periodSummary.totalOrders)}</div><div className="text-[10px] text-amber-600">إجمالي الطلبات</div></div>
+                <div className="bg-emerald-50 rounded-lg p-2.5 text-center"><div className="text-lg font-bold text-emerald-700">{fmtMoney(periodSummary.totalSales)}</div><div className="text-[10px] text-emerald-600">إجمالي المبيعات</div></div>
+                <div className="bg-cyan-50 rounded-lg p-2.5 text-center"><div className="text-lg font-bold text-cyan-700">{fmtNum(periodSummary.totalNewCustomers)}</div><div className="text-[10px] text-cyan-600">عملاء جدد</div></div>
+                <div className="bg-purple-50 rounded-lg p-2.5 text-center"><div className="text-lg font-bold text-purple-700">{fmtMoney(periodSummary.totalCollections)}</div><div className="text-[10px] text-purple-600">التحصيل</div></div>
+                <div className="bg-indigo-50 rounded-lg p-2.5 text-center"><div className="text-lg font-bold text-indigo-700">{periodSummary.bestSalesDate ? periodSummary.bestSalesDate.slice(5) : '\u2014'}</div><div className="text-[10px] text-indigo-600">أفضل يوم مبيعات</div></div>
+                <div className="bg-orange-50 rounded-lg p-2.5 text-center"><div className="text-xs font-bold text-orange-700">{periodSummary.daysWithoutSales > 0 ? `${periodSummary.daysWithoutSales} أيام` : 'لا يوجد'}</div><div className="text-[10px] text-orange-600">أيام بدون مبيعات</div></div>
+              </div>
             </div>
+          ) : (
+            <div className="p-4 text-center text-text-secondary text-sm">لا تتوفر بيانات كافية للملخص</div>
           )}
         </div>
+
+        <div className="bg-white rounded-xl border border-border shadow-sm overflow-hidden">
+          <div className="p-4">
+            <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-3">
+              <div className="bg-surface rounded-lg p-2 text-center"><div className="text-lg font-bold text-text">{fmtMoney(member?.kpis.sales.target ?? detail.sales_target ?? 0)}</div><div className="text-[10px] text-text-secondary">الهدف</div></div>
+              <div className="bg-surface rounded-lg p-2 text-center"><div className="text-lg font-bold text-green-600">{fmtMoney(detail.sales_value)}</div><div className="text-[10px] text-text-secondary">المنفذ</div></div>
+              <div className="bg-surface rounded-lg p-2 text-center"><div className={`text-lg font-bold ${getPctColor(detail.sales_pct)}`}>{fmtPct(detail.sales_pct)}</div><div className="text-[10px] text-text-secondary">نسبة الإنجاز</div></div>
+              <div className="bg-surface rounded-lg p-2 text-center"><div className="text-lg font-bold text-red-500">{fmtMoney(Math.max(0, (member?.kpis.sales.target ?? detail.sales_target ?? 0) - detail.sales_value))}</div><div className="text-[10px] text-text-secondary">المتبقي</div></div>
+              <div className="bg-surface rounded-lg p-2 text-center"><div className="text-lg font-bold text-text">{detail.day_count}</div><div className="text-[10px] text-text-secondary">أيام العمل</div></div>
+              <div className="bg-surface rounded-lg p-2 text-center"><div className="text-lg font-bold text-text">{detail.day_count > 0 ? fmtMoney(Math.round(detail.sales_value / detail.day_count)) : '\u2014'}</div><div className="text-[10px] text-text-secondary">المعدل/يوم</div></div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 mb-3">
+              <div className="bg-indigo-50/50 rounded-lg p-3 text-center"><div className="text-lg font-bold text-indigo-700">{fmtNum(totalActivity)}</div><div className="text-[10px] text-indigo-600">إجمالي النشاط</div><div className="text-[9px] text-indigo-500 mt-0.5">زيارات {fmtNum(detail.visit_count)} | طلبات {fmtNum(detail.order_count)} | عملاء {fmtNum(detail.new_customer_count)}</div></div>
+              <div className={`rounded-lg p-3 text-center ${insight.color === 'green' ? 'bg-green-50/50' : insight.color === 'yellow' ? 'bg-yellow-50/50' : 'bg-red-50/50'}`}>
+                <div className={`text-lg font-bold ${insight.color === 'green' ? 'text-green-700' : insight.color === 'yellow' ? 'text-yellow-700' : 'text-red-700'}`}>{fmtPct(member?.overall_achievement_score ?? detail.overall_score)}</div>
+                <div className={`text-[10px] ${insight.color === 'green' ? 'text-green-600' : insight.color === 'yellow' ? 'text-yellow-600' : 'text-red-600'}`}>إجمالي المحقق</div>
+                <div className="text-[9px] text-text-secondary mt-0.5">{insight.verdict}</div>
+              </div>
+            </div>
+
+            {detail.sales_pct != null && (member?.kpis.sales.target ?? detail.sales_target ?? 0) > 0 && (
+              <div>
+                <div className="w-full bg-gray-200 rounded-full h-3 relative overflow-hidden">
+                  <div className={`h-3 rounded-full transition-all ${getBarColor(detail.sales_pct)}`} style={{ width: `${Math.min(100, detail.sales_pct)}%` }} />
+                </div>
+                <div className="flex justify-between mt-1 text-[10px]">
+                  <span className="font-semibold text-text">{fmtPct(detail.sales_pct)} محقق</span>
+                  <span className="text-text-secondary">{fmtPct(100 - Math.min(100, detail.sales_pct || 0))} متبقي</span>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {achievementItems.length > 0 && (
+          <div className="bg-white rounded-xl border border-border shadow-sm overflow-hidden">
+            <h2 className="text-sm font-bold text-text px-4 pt-4 pb-2 border-b border-border/50">الإنجاز مقابل الهدف</h2>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="bg-surface/80">
+                    <th className="px-3 py-2.5 text-right font-semibold text-text-secondary">المؤشر</th>
+                    <th className="px-3 py-2.5 text-left font-semibold text-text-secondary">الهدف</th>
+                    <th className="px-3 py-2.5 text-left font-semibold text-text-secondary">المنفذ</th>
+                    <th className="px-3 py-2.5 text-left font-semibold text-text-secondary">%</th>
+                    <th className="px-3 py-2.5 text-left font-semibold text-text-secondary min-w-[100px]">التقدم</th>
+                    <th className="px-3 py-2.5 text-center font-semibold text-text-secondary">الحالة</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {achievementItems.map((item) => {
+                    const pct = item.pct
+                    const status = getStatusLabel(pct)
+                    return (
+                      <tr key={item.label} className="border-t border-border/40 hover:bg-surface/30 transition-colors">
+                        <td className="px-3 py-2.5 font-semibold text-text-secondary">{item.label}</td>
+                        <td className="px-3 py-2.5 text-left font-mono">{fmtMoney(item.target)}</td>
+                        <td className="px-3 py-2.5 text-left font-mono">{fmtMoney(item.actual)}</td>
+                        <td className={`px-3 py-2.5 text-left font-bold font-mono ${getPctColor(pct)}`}>{fmtPct(pct)}</td>
+                        <td className="px-3 py-2.5">
+                          <div className="w-full bg-gray-200 rounded-full h-2 min-w-[80px]">
+                            <div className={`h-2 rounded-full ${getBarColor(pct)}`} style={{ width: `${Math.min(100, pct ?? 0)}%` }} />
+                          </div>
+                        </td>
+                        <td className="px-3 py-2.5 text-center">
+                          <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold ${status.bg} ${status.color}`}>{status.label}</span>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t-2 border-border/80 bg-surface/50">
+                    <td className="px-3 py-2.5 font-bold text-text">الإجمالي</td>
+                    <td className="px-3 py-2.5" />
+                    <td className="px-3 py-2.5" />
+                    <td className={`px-3 py-2.5 text-left font-bold font-mono ${getPctColor(member?.overall_achievement_score)}`}>{fmtPct(member?.overall_achievement_score)}</td>
+                    <td className="px-3 py-2.5">
+                      <div className="w-full bg-gray-200 rounded-full h-2 min-w-[80px]">
+                        <div className={`h-2 rounded-full ${getBarColor(member?.overall_achievement_score)}`} style={{ width: `${Math.min(100, member?.overall_achievement_score ?? 0)}%` }} />
+                      </div>
+                    </td>
+                    <td className="px-3 py-2.5 text-center">
+                      <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold ${getStatusLabel(member?.overall_achievement_score).bg} ${getStatusLabel(member?.overall_achievement_score).color}`}>{getStatusLabel(member?.overall_achievement_score).label}</span>
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           <BusinessActivityPanel
@@ -761,73 +1051,54 @@ export default function ManagerReportsPage() {
             }}
             onKpiClick={handleKpiClick}
           />
-          <div className="bg-white rounded-lg border border-border p-3 text-center cursor-pointer hover:bg-primary/5 transition-colors" onClick={() => openTrackingExplorer()}><div className="text-lg font-bold text-text">{fmtNum(detail.tracking_points)}</div><div className="text-[10px] text-text-secondary">نقاط التتبع</div></div>
-          <div className="bg-white rounded-lg border border-border p-3 text-center cursor-pointer hover:bg-primary/5 transition-colors" onClick={() => openTrackingExplorer()}><div className="text-lg font-bold text-text">{fmtDist(detail.distance_meters)}</div><div className="text-[10px] text-text-secondary">المسافة</div></div>
-          <div className="bg-white rounded-lg border border-border p-3 text-center"><div className="text-lg font-bold text-text">{fmtNum(detail.day_count)}</div><div className="text-[10px] text-text-secondary">أيام العمل</div></div>
+          <div className="bg-white rounded-lg border border-border p-3 text-center cursor-pointer hover:bg-primary/5 transition-colors shadow-sm" onClick={() => openTrackingExplorer()}>
+            <div className="text-lg font-bold text-text">{fmtNum(detail.tracking_points)}</div>
+            <div className="text-[10px] text-text-secondary">نقاط التتبع</div>
+          </div>
+          <div className="bg-white rounded-lg border border-border p-3 text-center cursor-pointer hover:bg-primary/5 transition-colors shadow-sm" onClick={() => openTrackingExplorer()}>
+            <div className="text-lg font-bold text-text">{fmtDist(detail.distance_meters)}</div>
+            <div className="text-[10px] text-text-secondary">المسافة</div>
+          </div>
+          <div className="bg-white rounded-lg border border-border p-3 text-center shadow-sm">
+            <div className="text-lg font-bold text-text">{fmtNum(detail.day_count)}</div>
+            <div className="text-[10px] text-text-secondary">أيام العمل</div>
+          </div>
         </div>
 
-        {member && member.has_target && (
-          <div className="bg-white rounded-lg border border-border p-4 space-y-3">
-            <h2 className="text-sm font-bold text-text">الإنجاز مقابل الهدف</h2>
-            <div className="space-y-2 text-xs">
-              <div className="grid grid-cols-4 gap-2 py-1.5 font-bold border-b border-border/50">
-                <span className="text-text-secondary">المؤشر</span><span className="text-left">الهدف</span><span className="text-left">المنفذ</span><span className="text-left">%</span>
-              </div>
-              {[
-                { label: 'المبيعات', target: member.kpis.sales.target, actual: member.kpis.sales.actual, pct: member.kpis.sales.pct },
-                { label: 'الزيارات', target: member.kpis.visits.target, actual: member.kpis.visits.actual, pct: member.kpis.visits.pct },
-                { label: 'الطلبات', target: member.kpis.orders.target, actual: member.kpis.orders.actual, pct: member.kpis.orders.pct },
-                { label: 'عملاء جدد', target: member.kpis.new_customers.target, actual: member.kpis.new_customers.actual, pct: member.kpis.new_customers.pct },
-              ].map((item) => (
-                <div key={item.label} className="grid grid-cols-4 gap-2 py-1.5 border-b border-border/50 last:border-0">
-                  <span className="font-semibold text-text-secondary">{item.label}</span>
-                  <span className="text-left">{fmtMoney(item.target)}</span>
-                  <span className="text-left">{fmtMoney(item.actual)}</span>
-                  <span className={`text-left font-bold ${getPctColor(item.pct)}`}>{fmtPct(item.pct)}</span>
-                </div>
+        <div className={`rounded-xl border p-4 shadow-sm ${
+          insight.color === 'green' ? 'bg-green-50/40 border-green-200' :
+          insight.color === 'yellow' ? 'bg-yellow-50/40 border-yellow-200' :
+          insight.color === 'red' ? 'bg-red-50/40 border-red-200' :
+          'bg-gray-50/40 border-gray-200'
+        }`}>
+          <h3 className="text-sm font-bold text-text mb-2">تحليل الأداء</h3>
+          <div className="flex items-center gap-2 mb-2">
+            <span className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-bold ${
+              insight.color === 'green' ? 'bg-green-200 text-green-800' :
+              insight.color === 'yellow' ? 'bg-yellow-200 text-yellow-800' :
+              insight.color === 'red' ? 'bg-red-200 text-red-800' :
+              'bg-gray-200 text-gray-800'
+            }`}>{insight.verdict}</span>
+            <span className="text-xs text-text-secondary">{insight.explanation}</span>
+          </div>
+          {insight.details.length > 0 && (
+            <ul className="text-xs space-y-1">
+              {insight.details.map((d, i) => (
+                <li key={i} className="flex items-center gap-1.5 text-text-secondary">
+                  <span className="w-1.5 h-1.5 rounded-full bg-current shrink-0" />
+                  {d}
+                </li>
               ))}
-              <div className="grid grid-cols-4 gap-2 pt-2 font-bold">
-                <span className="text-text">الإجمالي</span><span className="text-left">{fmtPct(member.overall_achievement_score)}</span><span /><span />
-              </div>
-            </div>
-          </div>
-        )}
-
-        {storyEvents.length > 0 ? (
-          <div className="bg-white rounded-lg border border-border p-4 space-y-3">
-            <h2 className="text-sm font-bold text-text">قصة اليوم</h2>
-            <div className="flex flex-wrap gap-1.5">
-              {storyFirst ? <span className="bg-blue-50 text-blue-700 text-[10px] px-2.5 py-1 rounded-full font-medium"><span className="opacity-60 ml-1">🕐</span>بداية {fmtTime(storyFirst.time)}</span> : null}
-              {storyLast ? <span className="bg-gray-100 text-gray-600 text-[10px] px-2.5 py-1 rounded-full font-medium"><span className="opacity-60 ml-1">🏁</span>نهاية {fmtTime(storyLast.time)}</span> : null}
-              {storyVisits > 0 ? <span className="bg-green-50 text-green-700 text-[10px] px-2.5 py-1 rounded-full font-medium"><span className="opacity-60 ml-1">📍</span>{storyVisits} زيارة</span> : null}
-              {storyOrders > 0 ? <span className="bg-amber-50 text-amber-700 text-[10px] px-2.5 py-1 rounded-full font-medium"><span className="opacity-60 ml-1">📦</span>{storyOrders} طلب</span> : null}
-              {storyBreaks > 0 ? <span className="bg-purple-50 text-purple-700 text-[10px] px-2.5 py-1 rounded-full font-medium"><span className="opacity-60 ml-1">☕</span>{storyBreaks} استراحة</span> : null}
-            </div>
-            <div className="space-y-2 text-xs max-h-60 overflow-y-auto pr-1">
-              {storyEvents.map(function(ev, i) {
-                var evLabel = EVENT_LABELS[ev.type] || ev.title
-                return (
-                <div key={i} className="flex items-start gap-3 py-2 border-b border-border/20 last:border-0">
-                  <span className="text-text-secondary shrink-0 text-[10px] w-14 pt-0.5 text-left font-mono">{fmtTime(ev.time)}</span>
-                  <div className="flex flex-col gap-0.5 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className={'w-2.5 h-2.5 rounded-full ' + storyColor(ev.type) + ' shrink-0 ring-1 ring-white'} />
-                      <span className="font-semibold text-text-secondary text-[11px]">{evLabel}</span>
-                    </div>
-                    {ev.description ? <span className="text-text mr-5 text-[11px] leading-relaxed">{ev.description}</span> : null}
-                  </div>
-                </div>
-              )})}
-            </div>
-          </div>
-        ) : null}
+            </ul>
+          )}
+        </div>
 
         {repSessions.length > 0 && (
-          <div className="bg-white rounded-lg border border-border p-4 space-y-3">
-            <h2 className="text-sm font-bold text-text">تفاصيل الجلسات ({repSessions.length})</h2>
+          <div className="bg-white rounded-xl border border-border shadow-sm overflow-hidden">
+            <h2 className="text-sm font-bold text-text px-4 pt-4 pb-2 border-b border-border/50">تفاصيل الجلسات ({repSessions.length})</h2>
             <div className="overflow-x-auto">
               <table className="w-full text-xs whitespace-nowrap">
-                <thead className="bg-surface">
+                <thead className="bg-surface/80">
                   <tr>
                     {['التاريخ', 'البداية', 'النهاية', 'صافي ساعات', 'استراحة', 'زيارات', 'طلبات', 'مبيعات', 'تحصيل', 'عملاء', 'مسافة', 'نقاط'].map((l) => (
                       <th key={l} className="px-2 py-1.5 text-right font-semibold text-text-secondary">{l}</th>
@@ -954,7 +1225,7 @@ export default function ManagerReportsPage() {
               <div className="bg-surface rounded-lg p-2 text-center"><span className="font-bold text-lg text-green-600">{fmtMoney(totalsRow?.sales_value ?? 0)}</span><div className="text-text-secondary text-[10px]">مبيعات</div></div>
               <div className="bg-surface rounded-lg p-2 text-center"><span className="font-bold text-lg">{fmtNum(totalsRow?.order_count ?? 0)}</span><div className="text-text-secondary text-[10px]">طلبات</div></div>
               <div className="bg-surface rounded-lg p-2 text-center"><span className="font-bold text-lg">{fmtNum(totalsRow?.visit_count ?? 0)}</span><div className="text-text-secondary text-[10px]">زيارات</div></div>
-              <div className="bg-surface rounded-lg p-2 text-center"><span className={`font-bold text-lg ${avgAchievement != null && avgAchievement >= 80 ? 'text-green-600' : avgAchievement != null && avgAchievement >= 50 ? 'text-yellow-600' : 'text-red-500'}`}>{fmtPct(avgAchievement)}</span><div className="text-text-secondary text-[10px]">إنجاز</div></div>
+              <div className={`bg-surface rounded-lg p-2 text-center`}><span className={`font-bold text-lg ${avgAchievement != null && avgAchievement >= 80 ? 'text-green-600' : avgAchievement != null && avgAchievement >= 50 ? 'text-yellow-600' : 'text-red-500'}`}>{fmtPct(avgAchievement)}</span><div className="text-text-secondary text-[10px]">إنجاز</div></div>
               <div className="bg-surface rounded-lg p-2 text-center"><span className="font-bold text-lg text-blue-600 truncate block">{bestMember ? bestMember.employee_name : '\u2014'}</span><div className="text-text-secondary text-[10px]">الأفضل</div></div>
               <div className="bg-surface rounded-lg p-2 text-center"><span className="font-bold text-lg text-red-500 truncate block">{worstMember ? worstMember.employee_name : '\u2014'}</span><div className="text-text-secondary text-[10px]">الأضعف</div></div>
             </div>
@@ -1004,9 +1275,11 @@ export default function ManagerReportsPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredRows.map((row, i) => (
+                    {filteredRows.map((row, i) => {
+                      const rowStatus = getStatusLabel(row.overall_score)
+                      return (
                       <tr key={row.employee_id}
-                        className={`border-t border-border/50 cursor-pointer transition-colors ${getAchievementClass(row.overall_score)} hover:brightness-95`}
+                        className={`border-t border-border/50 cursor-pointer transition-colors ${rowStatus.bg.replace('bg-', 'bg-').replace('50', '50/30')} hover:brightness-95`}
                         onClick={() => setSelectedRepId(row.employee_id)}>
                         {cols.map((col, ci) => (
                           <td key={col.key}
@@ -1019,7 +1292,7 @@ export default function ManagerReportsPage() {
                         ))}
                         {showDetailCol && <td className="px-2 py-2"><button className="text-primary text-[10px] font-semibold">عرض ←</button></td>}
                       </tr>
-                    ))}
+                    )})}
                     {totalsRow && (
                       <tr className="border-t-2 border-border bg-surface font-bold sticky bottom-0">
                         {cols.map((col, ci) => (

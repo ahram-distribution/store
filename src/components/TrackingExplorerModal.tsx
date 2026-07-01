@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, useCallback } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import { MapContainer, TileLayer, Polyline, CircleMarker, Popup, Marker as LeafletMarker, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import { locationService } from '../services/location'
@@ -69,7 +69,9 @@ export default function TrackingExplorerModal({ open, onClose, employeeName, emp
     const s = new Date(sessionStart).getTime()
     const e = new Date(sessionEnd).getTime()
     if (isNaN(s) || isNaN(e)) return null
-    return Math.round((e - s) / 60000)
+    const raw = Math.round((e - s) / 60000)
+    if (raw > 960) return null
+    return raw
   }, [sessionStart, sessionEnd])
 
   if (!open) return null
