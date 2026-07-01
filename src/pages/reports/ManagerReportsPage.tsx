@@ -8,8 +8,7 @@ import { KpiDrillDownModal } from '../../components/KpiDrillDownModal'
 import TrackingExplorerModal from '../../components/TrackingExplorerModal'
 import { getBusinessDetailData } from '../../services/businessActivity'
 import * as XLSX from 'xlsx'
-import { jsPDF } from 'jspdf'
-import autoTable from 'jspdf-autotable'
+
 
 const MONTHS = ['يناير', 'فبراير', 'مارس', 'إبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر']
 
@@ -648,140 +647,167 @@ export default function ManagerReportsPage() {
     XLSX.writeFile(wb, `تقرير_مدير_المبيعات_${filePeriod}.xlsx`)
   }
 
+  function printToPdf(title: string, getContent: () => string) {
+    const win = window.open('', '_blank')
+    if (!win) return
+    const periodLabel = effectiveFrom && effectiveTo
+      ? `من ${effectiveFrom.slice(0, 10)} إلى ${effectiveTo.slice(0, 10)}`
+      : `${MONTHS[perfMonth - 1]} ${perfYear}`
+    win.document.write(`<!DOCTYPE html><html dir="rtl"><head><meta charset="utf-8"><title>${title}</title>
+<style>
+  @page { size: A4; margin: 15mm }
+  body { font-family: 'Segoe UI', Tahoma, Arial, sans-serif; font-size: 12px; color: #1e293b; margin: 0; padding: 0; }
+  .header { text-align: center; border-bottom: 2px solid #2563eb; padding-bottom: 10px; margin-bottom: 15px; }
+  .header h1 { font-size: 18px; color: #1e293b; margin: 0 0 4px; }
+  .header p { font-size: 11px; color: #64748b; margin: 2px 0; }
+  .section { margin-bottom: 15px; }
+  .section h2 { font-size: 13px; color: #2563eb; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px; margin: 0 0 8px; }
+  table { width: 100%; border-collapse: collapse; font-size: 11px; margin-bottom: 8px; }
+  th { background: #f1f5f9; text-align: right; padding: 6px 8px; font-weight: 600; color: #64748b; border: 1px solid #e2e8f0; }
+  td { padding: 5px 8px; border: 1px solid #e2e8f0; }
+  .kpi-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 8px; }
+  .kpi-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px; text-align: center; }
+  .kpi-card .value { font-size: 15px; font-weight: 700; }
+  .kpi-card .label { font-size: 10px; color: #64748b; }
+  .status-badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 600; }
+  .status-green { background: #dcfce7; color: #166534; }
+  .status-yellow { background: #fef9c3; color: #854d0e; }
+  .status-red { background: #fee2e2; color: #991b1b; }
+  .text-green { color: #16a34a; }
+  .text-yellow { color: #ca8a04; }
+  .text-red { color: #dc2626; }
+  .text-muted { color: #64748b; }
+  .bar-bg { background: #e2e8f0; border-radius: 4px; height: 8px; overflow: hidden; }
+  .bar-fill { height: 8px; border-radius: 4px; }
+  .footer { text-align: center; font-size: 9px; color: #94a3b8; margin-top: 20px; padding-top: 8px; border-top: 1px solid #e2e8f0; }
+  .summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 8px; }
+  .summary-card { padding: 6px; text-align: center; border-radius: 6px; }
+  .summary-card .value { font-size: 14px; font-weight: 700; }
+  .summary-card .label { font-size: 9px; }
+</style></head><body>
+<div class="header"><h1>${title}</h1><p>${periodLabel}</p><p class="text-muted">${new Date().toLocaleDateString('ar-EG-u-nu-latn')}</p></div>
+${getContent()}
+<div class="footer">تم التصدير بواسطة نظام الأهرام للتوزيع المتكامل</div>
+</body></html>`)
+    win.document.close()
+    win.focus()
+    setTimeout(() => { win.print() }, 500)
+  }
+
   function exportRepToPDF() {
     const detail = repRows.find((r) => r.employee_id === selectedRepId)
     const member = teamMembers.find((m) => m.employee_id === selectedRepId)
     if (!detail) return
 
-    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
-    const pageW = doc.internal.pageSize.getWidth()
-    const margin = 14
-    const contentW = pageW - 2 * margin
-    let y = margin
+    printToPdf(`تقرير أداء المندوب: ${detail.employee_name}`, () => {
+      const saleActual = member?.kpis.sales.actual ?? detail.sales_value
+      const saleTarget = member?.kpis.sales.target ?? detail.sales_target ?? 0
 
-    const periodLabel = effectiveFrom && effectiveTo
-      ? `من ${effectiveFrom.slice(0, 10)} إلى ${effectiveTo.slice(0, 10)}`
-      : `${MONTHS[perfMonth - 1]} ${perfYear}`
+      let html = ''
 
-    doc.setFont('Helvetica', 'bold')
-    doc.setFontSize(14)
-    doc.text(`تقرير أداء المندوب`, pageW / 2, y, { align: 'center' })
-    y += 7
+      html += '<div class="section"><h2>ملخص الفترة</h2><div class="summary-grid">'
+      if (periodSummary) {
+        html += `<div class="summary-card" style="background:#eff6ff"><div class="value" style="color:#2563eb">${fmtNum(periodSummary.daysWorked)}</div><div class="label" style="color:#3b82f6">أيام العمل</div></div>`
+        html += `<div class="summary-card" style="background:#f0fdf4"><div class="value" style="color:#16a34a">${fmtNum(periodSummary.totalVisits)}</div><div class="label" style="color:#22c55e">إجمالي الزيارات</div></div>`
+        html += `<div class="summary-card" style="background:#fffbeb"><div class="value" style="color:#d97706">${fmtNum(periodSummary.totalOrders)}</div><div class="label" style="color:#f59e0b">إجمالي الطلبات</div></div>`
+        html += `<div class="summary-card" style="background:#ecfdf5"><div class="value" style="color:#059669">${fmtMoney(periodSummary.totalSales)}</div><div class="label" style="color:#10b981">إجمالي المبيعات</div></div>`
+        html += `<div class="summary-card" style="background:#fdf4ff"><div class="value" style="color:#9333ea">${fmtMoney(periodSummary.totalCollections)}</div><div class="label" style="color:#a855f7">التحصيل</div></div>`
+        html += `<div class="summary-card" style="background:#ecfeff"><div class="value" style="color:#0891b2">${fmtNum(periodSummary.totalNewCustomers)}</div><div class="label" style="color:#06b6d4">عملاء جدد</div></div>`
+        html += `<div class="summary-card" style="background:#eef2ff"><div class="value" style="color:#4338ca">${periodSummary.bestSalesDate || '\u2014'}</div><div class="label" style="color:#6366f1">أفضل يوم مبيعات</div></div>`
+        html += `<div class="summary-card" style="background:#fff7ed"><div class="value" style="color:#c2410c">${periodSummary.daysWithoutSales > 0 ? periodSummary.daysWithoutSales + ' أيام' : 'لا يوجد'}</div><div class="label" style="color:#ea580c">أيام بدون مبيعات</div></div>`
+      }
+      html += '</div></div>'
 
-    doc.setFontSize(10)
-    doc.setFont('Helvetica', 'normal')
-    doc.text(`${detail.employee_name} (${detail.employee_code})`, margin, y)
-    y += 5
-    doc.text(`الفترة: ${periodLabel}`, margin, y)
-    y += 8
+      html += '<div class="section"><h2>مؤشرات الأداء</h2><div class="kpi-grid">'
+      html += `<div class="kpi-card"><div class="value">${fmtMoney(saleTarget)}</div><div class="label">الهدف</div></div>`
+      html += `<div class="kpi-card"><div class="value text-green">${fmtMoney(saleActual)}</div><div class="label">المنفذ</div></div>`
+      const pctColor = detail.sales_pct != null && detail.sales_pct >= 80 ? 'text-green' : detail.sales_pct != null && detail.sales_pct >= 50 ? 'text-yellow' : 'text-red'
+      html += `<div class="kpi-card"><div class="value ${pctColor}">${fmtPct(detail.sales_pct)}</div><div class="label">نسبة الإنجاز</div></div>`
+      html += `<div class="kpi-card"><div class="value text-red">${fmtMoney(Math.max(0, saleTarget - saleActual))}</div><div class="label">المتبقي</div></div>`
+      html += `<div class="kpi-card"><div class="value">${detail.day_count}</div><div class="label">أيام العمل</div></div>`
+      html += `<div class="kpi-card"><div class="value">${detail.day_count > 0 ? fmtMoney(Math.round(detail.sales_value / detail.day_count)) : '\u2014'}</div><div class="label">المعدل/يوم</div></div>`
+      html += '</div>'
 
-    doc.setFontSize(9)
-    doc.setFont('Helvetica', 'bold')
-    doc.text(`ملخص الأداء`, margin, y)
-    y += 5
+      if (detail.sales_pct != null && saleTarget > 0) {
+        const barColor = detail.sales_pct >= 80 ? '#22c55e' : detail.sales_pct >= 50 ? '#eab308' : '#ef4444'
+        html += `<div class="bar-bg"><div class="bar-fill" style="width:${Math.min(100, detail.sales_pct)}%;background:${barColor}"></div></div>`
+        html += `<div style="display:flex;justify-content:space-between;font-size:10px;margin-top:2px"><span>${fmtPct(detail.sales_pct)} محقق</span><span class="text-muted">${fmtPct(100 - Math.min(100, detail.sales_pct || 0))} متبقي</span></div>`
+      }
+      html += '</div>'
 
-    const kpiLines = [
-      `الهدف: ${fmtMoney(member?.kpis.sales.target ?? detail.sales_target ?? 0)}`,
-      `المنفذ: ${fmtMoney(detail.sales_value)}`,
-      `نسبة الإنجاز: ${fmtPct(detail.sales_pct)}`,
-      `أيام العمل: ${detail.day_count}`,
-      `الزيارات: ${fmtNum(detail.visit_count)}`,
-      `الطلبات: ${fmtNum(detail.order_count)}`,
-      `المبيعات: ${fmtMoney(detail.sales_value)}`,
-      `التحصيل: ${fmtMoney(detail.collection_amount)}`,
-      `عملاء جدد: ${fmtNum(detail.new_customer_count)}`,
-      `المسافة: ${fmtDist(detail.distance_meters)}`,
-      `نقاط التتبع: ${fmtNum(detail.tracking_points)}`,
-    ]
-
-    doc.setFont('Helvetica', 'normal')
-    doc.setFontSize(8)
-    const colH = 4
-    let kpiX = margin
-    let kpiY = y
-    kpiLines.forEach((line, i) => {
-      if (i > 0 && i % 4 === 0) { kpiX += pageW / 4; kpiY = y }
-      doc.text(line, kpiX, kpiY + (i % 4) * colH)
-    })
-    y += 4 * colH + 6
-
-    if (member && member.has_target) {
-      doc.setFont('Helvetica', 'bold')
-      doc.setFontSize(9)
-      doc.text(`الإنجاز مقابل الهدف`, margin, y)
-      y += 4
-
-      const achRows = [
-        ['المؤشر', 'الهدف', 'المنفذ', 'النسبة', 'الحالة'],
-        ...([
+      if (member && member.has_target) {
+        html += '<div class="section"><h2>الإنجاز مقابل الهدف</h2><table><thead><tr><th>المؤشر</th><th>الهدف</th><th>المنفذ</th><th>%</th><th>الحالة</th></tr></thead><tbody>'
+        const items = [
           { label: 'المبيعات', target: member.kpis.sales.target, actual: member.kpis.sales.actual, pct: member.kpis.sales.pct },
           { label: 'الزيارات', target: member.kpis.visits.target, actual: member.kpis.visits.actual, pct: member.kpis.visits.pct },
           { label: 'الطلبات', target: member.kpis.orders.target, actual: member.kpis.orders.actual, pct: member.kpis.orders.pct },
           { label: 'عملاء جدد', target: member.kpis.new_customers.target, actual: member.kpis.new_customers.actual, pct: member.kpis.new_customers.pct },
-        ].map(item => [item.label, fmtMoney(item.target), fmtMoney(item.actual), fmtPct(item.pct), getStatusLabel(item.pct).label])),
-      ]
+        ]
+        for (const item of items) {
+          const st = getStatusLabel(item.pct)
+          const bc = item.pct != null && item.pct >= 80 ? '#22c55e' : item.pct != null && item.pct >= 50 ? '#eab308' : '#ef4444'
+          html += `<tr><td style="font-weight:600">${item.label}</td><td>${fmtMoney(item.target)}</td><td>${fmtMoney(item.actual)}</td><td style="font-weight:700;color:${bc}">${fmtPct(item.pct)}</td><td><span class="status-badge ${st.color === 'text-green-700' ? 'status-green' : st.color === 'text-yellow-700' ? 'status-yellow' : 'status-red'}">${st.label}</span></td></tr>`
+        }
+        if (member.overall_achievement_score != null) {
+          const ost = getStatusLabel(member.overall_achievement_score)
+          html += `<tr style="font-weight:700;background:#f8fafc"><td>الإجمالي</td><td></td><td></td><td>${fmtPct(member.overall_achievement_score)}</td><td><span class="status-badge ${ost.color === 'text-green-700' ? 'status-green' : ost.color === 'text-yellow-700' ? 'status-yellow' : 'status-red'}">${ost.label}</span></td></tr>`
+        }
+        html += '</tbody></table></div>'
+      }
 
-      autoTable(doc, {
-        startY: y,
-        head: [achRows[0]],
-        body: achRows.slice(1),
-        margin: { left: margin, right: margin },
-        tableWidth: contentW,
-        styles: { fontSize: 8, halign: 'right', font: 'Helvetica' },
-        headStyles: { fillColor: [59, 130, 246], textColor: 255 },
-        columnStyles: { 0: { cellWidth: 30 }, 1: { cellWidth: 30 }, 2: { cellWidth: 30 }, 3: { cellWidth: 20 }, 4: { cellWidth: 20 } },
-      })
-      y = (doc as any).lastAutoTable.finalY + 6
-    }
+      if (repSessions.length > 0) {
+        html += `<div class="section"><h2>تفاصيل الجلسات (${repSessions.length})</h2><table><thead><tr><th>التاريخ</th><th>البداية</th><th>النهاية</th><th>صافي</th><th>زيارات</th><th>طلبات</th><th>مبيعات</th><th>تحصيل</th></tr></thead><tbody>`
+        for (const s of repSessions.slice(0, 50)) {
+          html += `<tr><td>${s.date?.slice(0, 10) || ''}</td><td>${fmtTime(s.start_time)}</td><td>${fmtTime(s.end_time)}</td><td>${fmtHours(s.net_minutes)}</td><td>${fmtNum(s.visit_count)}</td><td>${fmtNum(s.order_count)}</td><td>${fmtMoney(s.sales_value)}</td><td>${fmtMoney(s.collection_amount)}</td></tr>`
+        }
+        html += '</tbody></table></div>'
+      }
 
-    doc.setFont('Helvetica', 'bold')
-    doc.setFontSize(9)
-    doc.text(`المؤشرات المركبة`, margin, y)
-    y += 5
+      return html
+    })
+  }
 
-    const totalActivity = (detail.visit_count || 0) + (detail.order_count || 0) + (detail.new_customer_count || 0)
-    doc.setFont('Helvetica', 'normal')
-    doc.setFontSize(8)
-    doc.text(`إجمالي النشاط: ${fmtNum(totalActivity)} (زيارات: ${fmtNum(detail.visit_count)} | طلبات: ${fmtNum(detail.order_count)} | عملاء جدد: ${fmtNum(detail.new_customer_count)})`, margin, y)
-    y += 4
-    doc.text(`الإنجاز الكلي: ${fmtPct(member?.overall_achievement_score ?? detail.overall_score)}`, margin, y)
-    y += 6
+  function exportToPDF() {
+    if (!selectedManagerId) return
+    const periodLabel = effectiveFrom && effectiveTo
+      ? `من ${effectiveFrom.slice(0, 10)} إلى ${effectiveTo.slice(0, 10)}`
+      : `${MONTHS[perfMonth - 1]} ${perfYear}`
 
-    if (repSessions.length > 0) {
-      doc.setFont('Helvetica', 'bold')
-      doc.setFontSize(9)
-      doc.text(`تفاصيل الجلسات (${repSessions.length})`, margin, y)
-      y += 4
+    printToPdf(`تقرير مدير المبيعات: ${selectedManager?.manager_name || ''}`, () => {
+      let html = '<div class="section"><h2>ملخص الفريق</h2>'
 
-      const sessHeaders = ['التاريخ', 'البداية', 'النهاية', 'صافي', 'زيارات', 'طلبات', 'مبيعات', 'تحصيل']
-      const sessRows = repSessions.slice(0, 20).map(s => [
-        s.date?.slice(0, 10) || '',
-        fmtTime(s.start_time),
-        fmtTime(s.end_time),
-        fmtHours(s.net_minutes),
-        fmtNum(s.visit_count),
-        fmtNum(s.order_count),
-        fmtMoney(s.sales_value),
-        fmtMoney(s.collection_amount),
-      ])
+      if (selectedManager) {
+        html += '<div class="kpi-grid">'
+        html += `<div class="kpi-card"><div class="value">${selectedManager.team_summary.team_member_count}</div><div class="label">الفريق</div></div>`
+        html += `<div class="kpi-card"><div class="value">${fmtNum(activeRepCount)}</div><div class="label">نشط</div></div>`
+        html += `<div class="kpi-card"><div class="value text-green">${fmtMoney(totalsRow?.sales_value ?? 0)}</div><div class="label">المبيعات</div></div>`
+        html += `<div class="kpi-card"><div class="value">${fmtNum(totalsRow?.order_count ?? 0)}</div><div class="label">الطلبات</div></div>`
+        html += `<div class="kpi-card"><div class="value">${fmtNum(totalsRow?.visit_count ?? 0)}</div><div class="label">الزيارات</div></div>`
+        if (avgAchievement != null) {
+          const ac = avgAchievement >= 80 ? 'text-green' : avgAchievement >= 50 ? 'text-yellow' : 'text-red'
+          html += `<div class="kpi-card"><div class="value ${ac}">${fmtPct(avgAchievement)}</div><div class="label">متوسط الإنجاز</div></div>`
+        }
+        if (bestMember) html += `<div class="kpi-card"><div class="value" style="color:#2563eb">${bestMember.employee_name}</div><div class="label">الأفضل</div></div>`
+        if (worstMember) html += `<div class="kpi-card"><div class="value" style="color:#dc2626">${worstMember.employee_name}</div><div class="label">الأضعف</div></div>`
+        html += '</div>'
+      }
 
-      autoTable(doc, {
-        startY: y,
-        head: [sessHeaders],
-        body: sessRows,
-        margin: { left: margin, right: margin },
-        tableWidth: contentW,
-        styles: { fontSize: 7, halign: 'right', font: 'Helvetica' },
-        headStyles: { fillColor: [100, 116, 139], textColor: 255 },
-      })
-      y = (doc as any).lastAutoTable.finalY + 6
-    }
+      html += '</div>'
 
-    doc.setFont('Helvetica', 'bold')
-    doc.setFontSize(8)
-    doc.text(`تم التصدير: ${new Date().toLocaleDateString('ar-EG-u-nu-latn')}`, margin, y)
+      if (filteredRows.length > 0) {
+        html += '<div class="section"><h2>قائمة المندوبين</h2><table><thead><tr><th>المندوب</th><th>الكود</th><th>صافي ساعات</th><th>الزيارات</th><th>الطلبات</th><th>المبيعات</th><th>التحصيل</th><th>%</th></tr></thead><tbody>'
+        for (const r of filteredRows) {
+          const rc = r.overall_score != null && r.overall_score >= 80 ? '#16a34a' : r.overall_score != null && r.overall_score >= 50 ? '#ca8a04' : '#dc2626'
+          html += `<tr><td style="font-weight:600">${r.employee_name}</td><td>${r.employee_code}</td><td>${fmtHours(r.net_minutes)}</td><td>${fmtNum(r.visit_count)}</td><td>${fmtNum(r.order_count)}</td><td>${fmtMoney(r.sales_value)}</td><td>${fmtMoney(r.collection_amount)}</td><td style="font-weight:700;color:${rc}">${fmtPct(r.overall_score)}</td></tr>`
+        }
+        if (totalsRow) {
+          html += `<tr style="font-weight:700;background:#f8fafc"><td>الإجمالي</td><td></td><td>${fmtHours(totalsRow.net_minutes)}</td><td>${fmtNum(totalsRow.visit_count)}</td><td>${fmtNum(totalsRow.order_count)}</td><td>${fmtMoney(totalsRow.sales_value)}</td><td>${fmtMoney(totalsRow.collection_amount)}</td><td></td></tr>`
+        }
+        html += '</tbody></table></div>'
+      }
 
-    doc.save(`تقرير_مندوب_${detail.employee_code}_${periodLabel.replace(/[/\\?%*:|"<>]/g, '_')}.pdf`)
+      return html
+    })
   }
 
   function exportRepDetailToExcel() {
@@ -914,8 +940,6 @@ export default function ManagerReportsPage() {
       { label: 'عملاء جدد', target: member.kpis.new_customers.target, actual: member.kpis.new_customers.actual, pct: member.kpis.new_customers.pct },
     ] : []
 
-    const totalActivity = (detail.visit_count || 0) + (detail.order_count || 0) + (detail.new_customer_count || 0)
-
     return (
       <div className="space-y-5" dir="rtl">
         <div className="flex items-center gap-3">
@@ -952,20 +976,11 @@ export default function ManagerReportsPage() {
           <div className="p-4">
             <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-3">
               <div className="bg-surface rounded-lg p-2 text-center"><div className="text-lg font-bold text-text">{fmtMoney(member?.kpis.sales.target ?? detail.sales_target ?? 0)}</div><div className="text-[10px] text-text-secondary">الهدف</div></div>
-              <div className="bg-surface rounded-lg p-2 text-center"><div className="text-lg font-bold text-green-600">{fmtMoney(detail.sales_value)}</div><div className="text-[10px] text-text-secondary">المنفذ</div></div>
+              <div className="bg-surface rounded-lg p-2 text-center"><div className="text-lg font-bold text-green-600">{fmtMoney(member?.kpis.sales.actual ?? detail.sales_value)}</div><div className="text-[10px] text-text-secondary">المنفذ</div></div>
               <div className="bg-surface rounded-lg p-2 text-center"><div className={`text-lg font-bold ${getPctColor(detail.sales_pct)}`}>{fmtPct(detail.sales_pct)}</div><div className="text-[10px] text-text-secondary">نسبة الإنجاز</div></div>
-              <div className="bg-surface rounded-lg p-2 text-center"><div className="text-lg font-bold text-red-500">{fmtMoney(Math.max(0, (member?.kpis.sales.target ?? detail.sales_target ?? 0) - detail.sales_value))}</div><div className="text-[10px] text-text-secondary">المتبقي</div></div>
+              <div className="bg-surface rounded-lg p-2 text-center"><div className="text-lg font-bold text-red-500">{fmtMoney(Math.max(0, (member?.kpis.sales.target ?? detail.sales_target ?? 0) - (member?.kpis.sales.actual ?? detail.sales_value)))}</div><div className="text-[10px] text-text-secondary">المتبقي</div></div>
               <div className="bg-surface rounded-lg p-2 text-center"><div className="text-lg font-bold text-text">{detail.day_count}</div><div className="text-[10px] text-text-secondary">أيام العمل</div></div>
               <div className="bg-surface rounded-lg p-2 text-center"><div className="text-lg font-bold text-text">{detail.day_count > 0 ? fmtMoney(Math.round(detail.sales_value / detail.day_count)) : '\u2014'}</div><div className="text-[10px] text-text-secondary">المعدل/يوم</div></div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2 mb-3">
-              <div className="bg-indigo-50/50 rounded-lg p-3 text-center"><div className="text-lg font-bold text-indigo-700">{fmtNum(totalActivity)}</div><div className="text-[10px] text-indigo-600">إجمالي النشاط</div><div className="text-[9px] text-indigo-500 mt-0.5">زيارات {fmtNum(detail.visit_count)} | طلبات {fmtNum(detail.order_count)} | عملاء {fmtNum(detail.new_customer_count)}</div></div>
-              <div className={`rounded-lg p-3 text-center ${insight.color === 'green' ? 'bg-green-50/50' : insight.color === 'yellow' ? 'bg-yellow-50/50' : 'bg-red-50/50'}`}>
-                <div className={`text-lg font-bold ${insight.color === 'green' ? 'text-green-700' : insight.color === 'yellow' ? 'text-yellow-700' : 'text-red-700'}`}>{fmtPct(member?.overall_achievement_score ?? detail.overall_score)}</div>
-                <div className={`text-[10px] ${insight.color === 'green' ? 'text-green-600' : insight.color === 'yellow' ? 'text-yellow-600' : 'text-red-600'}`}>إجمالي المحقق</div>
-                <div className="text-[9px] text-text-secondary mt-0.5">{insight.verdict}</div>
-              </div>
             </div>
 
             {detail.sales_pct != null && (member?.kpis.sales.target ?? detail.sales_target ?? 0) > 0 && (
@@ -1249,6 +1264,8 @@ export default function ManagerReportsPage() {
                 </div>
               )}
             </div>
+            <button onClick={exportToPDF}
+              className="bg-red-600 text-white text-xs px-3 py-1.5 rounded-lg font-semibold whitespace-nowrap">PDF</button>
             <button onClick={exportToExcel}
               className="bg-primary text-white text-xs px-3 py-1.5 rounded-lg font-semibold whitespace-nowrap">Excel</button>
           </div>
