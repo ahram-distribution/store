@@ -5,6 +5,7 @@ import { targetService } from '../../services/targets'
 import { attendanceService } from '../../services/attendance'
 import { BusinessActivityPanel } from '../../modules/BusinessActivityModule'
 import { KpiDrillDownModal } from '../../components/KpiDrillDownModal'
+import TrackingExplorerModal from '../../components/TrackingExplorerModal'
 import { getBusinessDetailData } from '../../services/businessActivity'
 import * as XLSX from 'xlsx'
 
@@ -28,7 +29,7 @@ import * as XLSX from 'xlsx'
 
 const MONTHS = ['يناير', 'فبراير', 'مارس', 'إبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر']
 
-type PeriodType = 'today' | 'week' | 'month' | 'custom'
+type PeriodType = 'today' | 'week' | 'month' | 'previous_month' | 'custom'
 
 interface HKpiValue { target: number; actual: number; pct: number | null }
 interface HKpis { sales: HKpiValue; visits: HKpiValue; orders: HKpiValue; new_customers: HKpiValue; collections: HKpiValue; attendance: HKpiValue }
@@ -102,7 +103,7 @@ function fmtPct(n: number | null | undefined): string {
 }
 
 function fmtMoney(n: number | null | undefined): string {
-  if (n == null || n === 0) return '\u2014'
+  if (n == null) return '\u2014'
   return Math.round(n).toLocaleString('ar-EG-u-nu-latn')
 }
 
@@ -138,6 +139,7 @@ function getDateRange(period: PeriodType): { from: string; to: string } {
     case 'today': return { from: new Date(y, m, d).toISOString().slice(0, 10), to: new Date(y, m, d + 1).toISOString().slice(0, 10) }
     case 'week': { const dow = now.getDay(); const sun = new Date(y, m, d - dow); const sat = new Date(y, m, d + (6 - dow)); return { from: sun.toISOString().slice(0, 10), to: new Date(sat.getFullYear(), sat.getMonth(), sat.getDate() + 1).toISOString().slice(0, 10) } }
     case 'month': return { from: new Date(y, m, 1).toISOString().slice(0, 10), to: new Date(y, m + 1, 1).toISOString().slice(0, 10) }
+    case 'previous_month': { const pm = new Date(y, m - 1, 1); return { from: new Date(pm.getFullYear(), pm.getMonth(), 1).toISOString().slice(0, 10), to: new Date(y, m, 1).toISOString().slice(0, 10) } }
     default: return { from: '', to: '' }
   }
 }
@@ -150,6 +152,9 @@ function getMonthYear(from: string): { month: number; year: number } {
 export default function ManagerReportsPage() {
   const nav = useNavigate()
   const tableRef = useRef<HTMLDivElement>(null)
+  const stateRestoredRef = useRef(false)
+
+  const SAVE_KEY = 'mgr_report_state'
 
   const [period, setPeriod] = useState<PeriodType>('month')
   const [dateFrom, setDateFrom] = useState('')
@@ -170,6 +175,9 @@ export default function ManagerReportsPage() {
   const [showColMenu, setShowColMenu] = useState(false)
   const [repSessions, setRepSessions] = useState<SSession[]>([])
   const [repTimeline, setRepTimeline] = useState<TLData | null>(null)
+  const [showTrackingExplorer, setShowTrackingExplorer] = useState(false)
+  const [trackingMapData, setTrackingMapData] = useState<any>(null)
+  const [trackingLoading, setTrackingLoading] = useState(false)
   const [repLoading, setRepLoading] = useState(false)
   const [dd, setDd] = useState({ kpiType: null as string | null, records: [] as any[], loading: false, title: '', recordType: '' })
 
@@ -206,6 +214,45 @@ export default function ManagerReportsPage() {
       }
     }).catch((e) => setError(e.message || 'خطأ في تحميل البيانات')).finally(() => setLoading(false))
   }, [perfMonth, perfYear, period, fromParam, toParam])
+
+  /* ========== UI state persistence (P1-02) ========== */
+  useEffect(() => {
+    if (stateRestoredRef.current) return
+    try {
+      const saved = sessionStorage.getItem(SAVE_KEY)
+      if (saved) {
+        const s = JSON.parse(saved)
+        if (s.period && s.period !== 'custom') setPeriod(s.period as PeriodType)
+        if (s.selectedManagerId) setSelectedManagerId(s.selectedManagerId)
+        if (s.selectedRepId) setSelectedRepId(s.selectedRepId)
+        if (s.dateFrom) setDateFrom(s.dateFrom)
+        if (s.dateTo) setDateTo(s.dateTo)
+        if (s.scrollY) {
+          requestAnimationFrame(() => {
+            if (tableRef.current) tableRef.current.scrollTop = s.scrollY
+          })
+        }
+      }
+    } catch {}
+    stateRestoredRef.current = true
+  }, [])
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(SAVE_KEY, JSON.stringify({
+        period, selectedManagerId, selectedRepId, dateFrom, dateTo,
+        scrollY: tableRef.current?.scrollTop || 0,
+      }))
+    } catch {}
+  }, [period, selectedManagerId, selectedRepId, dateFrom, dateTo])
+
+  function saveScrollBeforeNavigate() {
+    try {
+      const saved = JSON.parse(sessionStorage.getItem(SAVE_KEY) || '{}')
+      sessionStorage.setItem(SAVE_KEY, JSON.stringify({ ...saved, scrollY: tableRef.current?.scrollTop || 0 }))
+    } catch {}
+  }
+  /* ================================================== */
 
   useEffect(() => {
     if (!selectedRepId || !fromParam || !toParam) { setRepSessions([]); setRepTimeline(null); return }
@@ -629,12 +676,53 @@ export default function ManagerReportsPage() {
     setDd({ kpiType, records: result.records, loading: false, title: KPI_TITLE[kpiType] || kpiType, recordType: result.recordType })
   }, [selectedRepId, effectiveFrom, effectiveTo])
 
+  async function handleSessionKpiClick(kpiType: string, sessionDate: string) {
+    if (!selectedRepId) return
+    setDd({ kpiType, records: [], loading: true, title: '', recordType: '' })
+    const from = sessionDate
+    const to = new Date(new Date(sessionDate + 'T00:00:00').getTime() + 86400000).toISOString().slice(0, 10)
+    const result = await getBusinessDetailData({
+      employeeId: selectedRepId, kpiType, from, to,
+      token: localStorage.getItem('session_token') || '',
+    })
+    setDd({ kpiType, records: result.records, loading: false, title: (KPI_TITLE[kpiType] || kpiType) + ` — ${sessionDate.slice(0, 10)}`, recordType: result.recordType })
+  }
+
+  async function openTrackingExplorer() {
+    if (!selectedRepId || !effectiveFrom) return
+    setTrackingLoading(true)
+    setShowTrackingExplorer(true)
+    try {
+      const res = await supabase.rpc('get_employee_day_map', {
+        p_token: localStorage.getItem('session_token'),
+        p_employee_id: selectedRepId,
+        p_date: effectiveFrom,
+      })
+      if (res.data) setTrackingMapData(res.data)
+    } catch { setTrackingMapData(null) }
+    setTrackingLoading(false)
+  }
+
   if (selectedRepId) {
     const detail = repRows.find((r) => r.employee_id === selectedRepId)
     const member = teamMembers.find((m) => m.employee_id === selectedRepId)
     if (!detail) return null
 
-    const todayStr = effectiveFrom || new Date().toISOString().slice(0, 10)
+    /* Business Story data */
+    const storyEvents = repTimeline ? [...repTimeline.events].sort((a, b) => a.time.localeCompare(b.time)) : []
+    const storyFirst = storyEvents[0]; const storyLast = storyEvents[storyEvents.length - 1]
+    const storyVisits = storyEvents.filter((e) => e.type === 'visit_start').length
+    const storyOrders = storyEvents.filter((e) => e.type === 'order_created').length
+    const storyBreaks = storyEvents.filter((e) => e.type === 'break_start').length
+    const storyColor = (type: string) => {
+      if (type === 'workday_start' || type === 'workday_end') return 'bg-blue-400'
+      if (type === 'visit_start' || type === 'visit_end') return 'bg-green-400'
+      if (type === 'break_start' || type === 'break_end') return 'bg-purple-400'
+      if (type === 'order_created') return 'bg-amber-400'
+      if (type === 'collection_taken') return 'bg-emerald-400'
+      if (type === 'new_customer') return 'bg-cyan-400'
+      return 'bg-gray-300'
+    }
 
     return (
       <div className="space-y-4" dir="rtl">
@@ -645,11 +733,24 @@ export default function ManagerReportsPage() {
           <button onClick={exportRepDetailToExcel} className="bg-primary text-white text-xs px-2.5 py-1 rounded-lg font-semibold mr-auto">Excel</button>
         </div>
 
+        <div className="bg-white rounded-lg border border-border p-4">
+          <h3 className="text-xs font-bold text-text mb-3">ملخص الأداء الشهري</h3>
+          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-3">
+            <div className="bg-surface rounded-lg p-2 text-center"><div className="text-lg font-bold text-text">{fmtMoney(member?.kpis.sales.target ?? detail.sales_target ?? 0)}</div><div className="text-[10px] text-text-secondary">الهدف</div></div>
+            <div className="bg-surface rounded-lg p-2 text-center"><div className="text-lg font-bold text-green-600">{fmtMoney(detail.sales_value)}</div><div className="text-[10px] text-text-secondary">المنفذ</div></div>
+            <div className="bg-surface rounded-lg p-2 text-center"><div className={`text-lg font-bold ${getPctColor(detail.sales_pct)}`}>{fmtPct(detail.sales_pct)}</div><div className="text-[10px] text-text-secondary">نسبة الإنجاز</div></div>
+            <div className="bg-surface rounded-lg p-2 text-center"><div className="text-lg font-bold text-red-500">{fmtMoney(Math.max(0, (member?.kpis.sales.target ?? detail.sales_target ?? 0) - detail.sales_value))}</div><div className="text-[10px] text-text-secondary">المتبقي</div></div>
+            <div className="bg-surface rounded-lg p-2 text-center"><div className="text-lg font-bold text-text">{detail.day_count}</div><div className="text-[10px] text-text-secondary">أيام العمل</div></div>
+            <div className="bg-surface rounded-lg p-2 text-center"><div className="text-lg font-bold text-text">{detail.day_count > 0 ? fmtMoney(Math.round(detail.sales_value / detail.day_count)) : '\u2014'}</div><div className="text-[10px] text-text-secondary">المعدل/يوم</div></div>
+          </div>
+          {detail.sales_pct != null && (member?.kpis.sales.target ?? detail.sales_target ?? 0) > 0 && (
+            <div className="w-full bg-gray-200 rounded-full h-2">
+              <div className={`h-2 rounded-full transition-all ${detail.sales_pct >= 80 ? 'bg-green-500' : detail.sales_pct >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`} style={{ width: `${Math.min(100, detail.sales_pct)}%` }} />
+            </div>
+          )}
+        </div>
+
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          <div className="bg-white rounded-lg border border-border p-3 text-center"><div className="text-lg font-bold text-text">{fmtTime(detail.start_time)}</div><div className="text-[10px] text-text-secondary">بداية اليوم</div></div>
-          <div className="bg-white rounded-lg border border-border p-3 text-center"><div className="text-lg font-bold text-text">{fmtTime(detail.end_time)}</div><div className="text-[10px] text-text-secondary">نهاية اليوم</div></div>
-          <div className="bg-white rounded-lg border border-border p-3 text-center"><div className="text-lg font-bold text-text">{fmtHours(detail.net_minutes)}</div><div className="text-[10px] text-text-secondary">صافي ساعات</div></div>
-          <div className="bg-white rounded-lg border border-border p-3 text-center"><div className="text-lg font-bold text-text">{fmtHours(detail.break_minutes)}</div><div className="text-[10px] text-text-secondary">الاستراحة</div></div>
           <BusinessActivityPanel
             kpis={{
               orders: { value: detail.order_count, target: detail.orders_target, pct: detail.orders_pct },
@@ -660,8 +761,8 @@ export default function ManagerReportsPage() {
             }}
             onKpiClick={handleKpiClick}
           />
-          <div className="bg-white rounded-lg border border-border p-3 text-center"><div className="text-lg font-bold text-text">{fmtNum(detail.tracking_points)}</div><div className="text-[10px] text-text-secondary">نقاط التتبع</div></div>
-          <div className="bg-white rounded-lg border border-border p-3 text-center"><div className="text-lg font-bold text-text">{fmtDist(detail.distance_meters)}</div><div className="text-[10px] text-text-secondary">المسافة</div></div>
+          <div className="bg-white rounded-lg border border-border p-3 text-center cursor-pointer hover:bg-primary/5 transition-colors" onClick={() => openTrackingExplorer()}><div className="text-lg font-bold text-text">{fmtNum(detail.tracking_points)}</div><div className="text-[10px] text-text-secondary">نقاط التتبع</div></div>
+          <div className="bg-white rounded-lg border border-border p-3 text-center cursor-pointer hover:bg-primary/5 transition-colors" onClick={() => openTrackingExplorer()}><div className="text-lg font-bold text-text">{fmtDist(detail.distance_meters)}</div><div className="text-[10px] text-text-secondary">المسافة</div></div>
           <div className="bg-white rounded-lg border border-border p-3 text-center"><div className="text-lg font-bold text-text">{fmtNum(detail.day_count)}</div><div className="text-[10px] text-text-secondary">أيام العمل</div></div>
         </div>
 
@@ -692,22 +793,34 @@ export default function ManagerReportsPage() {
           </div>
         )}
 
-        {repTimeline && repTimeline.events.length > 0 && (
+        {storyEvents.length > 0 ? (
           <div className="bg-white rounded-lg border border-border p-4 space-y-3">
-            <h2 className="text-sm font-bold text-text">خط سير اليوم</h2>
-            <div className="space-y-1 text-xs max-h-60 overflow-y-auto">
-              {repTimeline.events.sort((a, b) => a.time.localeCompare(b.time)).map((ev, i) => (
-                <div key={i} className="flex items-center gap-2 py-1 border-b border-border/30">
-                  <span className="text-text-secondary w-12 shrink-0">{fmtTime(ev.time)}</span>
-                  <span className="w-2 h-2 rounded-full bg-primary/40 shrink-0" />
-                  <span className="font-semibold text-text-secondary">{EVENT_LABELS[ev.type] || ev.title}</span>
-                  {ev.description && <span className="text-text">{ev.description}</span>}
-                  {ev.latitude && <span className="text-[9px] text-text-secondary mr-auto">📍 {Number(ev.latitude).toFixed(4)}, {Number(ev.longitude).toFixed(4)}</span>}
+            <h2 className="text-sm font-bold text-text">قصة اليوم</h2>
+            <div className="flex flex-wrap gap-1.5">
+              {storyFirst ? <span className="bg-blue-50 text-blue-700 text-[10px] px-2.5 py-1 rounded-full font-medium"><span className="opacity-60 ml-1">🕐</span>بداية {fmtTime(storyFirst.time)}</span> : null}
+              {storyLast ? <span className="bg-gray-100 text-gray-600 text-[10px] px-2.5 py-1 rounded-full font-medium"><span className="opacity-60 ml-1">🏁</span>نهاية {fmtTime(storyLast.time)}</span> : null}
+              {storyVisits > 0 ? <span className="bg-green-50 text-green-700 text-[10px] px-2.5 py-1 rounded-full font-medium"><span className="opacity-60 ml-1">📍</span>{storyVisits} زيارة</span> : null}
+              {storyOrders > 0 ? <span className="bg-amber-50 text-amber-700 text-[10px] px-2.5 py-1 rounded-full font-medium"><span className="opacity-60 ml-1">📦</span>{storyOrders} طلب</span> : null}
+              {storyBreaks > 0 ? <span className="bg-purple-50 text-purple-700 text-[10px] px-2.5 py-1 rounded-full font-medium"><span className="opacity-60 ml-1">☕</span>{storyBreaks} استراحة</span> : null}
+            </div>
+            <div className="space-y-2 text-xs max-h-60 overflow-y-auto pr-1">
+              {storyEvents.map(function(ev, i) {
+                var evLabel = EVENT_LABELS[ev.type] || ev.title
+                return (
+                <div key={i} className="flex items-start gap-3 py-2 border-b border-border/20 last:border-0">
+                  <span className="text-text-secondary shrink-0 text-[10px] w-14 pt-0.5 text-left font-mono">{fmtTime(ev.time)}</span>
+                  <div className="flex flex-col gap-0.5 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className={'w-2.5 h-2.5 rounded-full ' + storyColor(ev.type) + ' shrink-0 ring-1 ring-white'} />
+                      <span className="font-semibold text-text-secondary text-[11px]">{evLabel}</span>
+                    </div>
+                    {ev.description ? <span className="text-text mr-5 text-[11px] leading-relaxed">{ev.description}</span> : null}
+                  </div>
                 </div>
-              ))}
+              )})}
             </div>
           </div>
-        )}
+        ) : null}
 
         {repSessions.length > 0 && (
           <div className="bg-white rounded-lg border border-border p-4 space-y-3">
@@ -729,11 +842,11 @@ export default function ManagerReportsPage() {
                       <td className="px-2 py-1.5">{fmtTime(s.end_time)}</td>
                       <td className="px-2 py-1.5">{fmtHours(s.net_minutes)}</td>
                       <td className="px-2 py-1.5">{fmtHours(s.break_minutes)}</td>
-                      <td className="px-2 py-1.5">{fmtNum(s.visit_count)}</td>
-                      <td className="px-2 py-1.5">{fmtNum(s.order_count)}</td>
-                      <td className="px-2 py-1.5">{fmtMoney(s.sales_value)}</td>
-                      <td className="px-2 py-1.5">{fmtMoney(s.collection_amount)}</td>
-                      <td className="px-2 py-1.5">{fmtNum(s.new_customer_count)}</td>
+                      <td className="px-2 py-1.5 cursor-pointer text-blue-600 hover:underline" onClick={() => s.date && handleSessionKpiClick('visits', s.date)}>{fmtNum(s.visit_count)}</td>
+                      <td className="px-2 py-1.5 cursor-pointer text-blue-600 hover:underline" onClick={() => s.date && handleSessionKpiClick('orders', s.date)}>{fmtNum(s.order_count)}</td>
+                      <td className="px-2 py-1.5 cursor-pointer text-blue-600 hover:underline" onClick={() => s.date && handleSessionKpiClick('sales', s.date)}>{fmtMoney(s.sales_value)}</td>
+                      <td className="px-2 py-1.5 cursor-pointer text-blue-600 hover:underline" onClick={() => s.date && handleSessionKpiClick('collections', s.date)}>{fmtMoney(s.collection_amount)}</td>
+                      <td className="px-2 py-1.5 cursor-pointer text-blue-600 hover:underline" onClick={() => s.date && handleSessionKpiClick('customers', s.date)}>{fmtNum(s.new_customer_count)}</td>
                       <td className="px-2 py-1.5">{fmtDist(s.distance_meters)}</td>
                       <td className="px-2 py-1.5">{fmtNum(s.tracking_points_count)}</td>
                     </tr>
@@ -759,6 +872,7 @@ export default function ManagerReportsPage() {
           loading={dd.loading}
           onClose={() => setDd({ ...dd, kpiType: null })}
           onRecordClick={(entityType, entityId) => {
+            saveScrollBeforeNavigate()
             setDd({ ...dd, kpiType: null })
             const routes: Record<string, string> = {
               order: `/orders/${entityId}`,
@@ -768,6 +882,17 @@ export default function ManagerReportsPage() {
             }
             nav(routes[entityType] || '#')
           }}
+        />
+        <TrackingExplorerModal
+          open={showTrackingExplorer}
+          onClose={() => { setShowTrackingExplorer(false); setTrackingMapData(null) }}
+          employeeName={detail.employee_name}
+          employeeCode={detail.employee_code}
+          date={effectiveFrom || ''}
+          sessionStart={repTimeline?.session?.start_time}
+          sessionEnd={repTimeline?.session?.end_time}
+          timeline={repTimeline}
+          mapData={trackingMapData}
         />
       </div>
     )
@@ -784,10 +909,10 @@ export default function ManagerReportsPage() {
 
       <div className="bg-white rounded-lg border border-border p-3 space-y-3">
         <div className="flex gap-1 bg-surface rounded-lg p-1">
-          {(['today', 'week', 'month', 'custom'] as PeriodType[]).map((p) => (
+          {(['today', 'week', 'month', 'previous_month', 'custom'] as PeriodType[]).map((p) => (
             <button key={p} onClick={() => setPeriod(p)}
               className={`flex-1 text-[11px] py-1.5 rounded-md font-semibold transition-colors ${period === p ? 'bg-primary text-white' : 'text-text-secondary hover:text-text'}`}>
-              {p === 'today' ? 'اليوم' : p === 'week' ? 'الأسبوع' : p === 'month' ? 'الشهر' : 'مخصص'}
+              {p === 'today' ? 'اليوم' : p === 'week' ? 'الأسبوع' : p === 'month' ? 'الشهر' : p === 'previous_month' ? 'الشهر الماضي' : 'مخصص'}
             </button>
           ))}
         </div>
@@ -932,6 +1057,14 @@ export default function ManagerReportsPage() {
             <div className="bg-white rounded-lg border border-border p-3 text-center"><div className="text-lg font-bold text-text">{fmtNum(workdayTotals?.total_employees ?? perfData?.employees?.length ?? 0)}</div><div className="text-[10px] text-text-secondary">إجمالي المندوبين</div></div>
             <div className="bg-white rounded-lg border border-border p-3 text-center"><div className="text-lg font-bold text-text">{allManagers.length}</div><div className="text-[10px] text-text-secondary">عدد المدراء</div></div>
           </div>
+
+          {allManagers.length > 0 && (
+            <div className="bg-gradient-to-r from-primary/5 to-transparent rounded-lg border border-primary/10 p-3 text-xs">
+              <div className="flex flex-wrap gap-x-4 gap-y-1 text-text-secondary">
+                <span>عدد المدراء: <strong className="text-text">{allManagers.length}</strong></span>
+              </div>
+            </div>
+          )}
 
           {allManagers.length > 0 ? (
             <div className="bg-white rounded-xl border border-border overflow-hidden">

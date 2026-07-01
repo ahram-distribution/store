@@ -11,7 +11,7 @@ function fmtNum(n: number | null | undefined): string {
 }
 
 function fmtMoney(n: number | null | undefined): string {
-  if (n == null || n === 0) return '\u2014'
+  if (n == null) return '\u2014'
   return Math.round(n).toLocaleString('ar-EG-u-nu-latn')
 }
 
