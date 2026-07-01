@@ -65,7 +65,7 @@ export function KpiDrillDownModal({ open, title, recordType, records, loading, o
                 <tr
                   key={i}
                   className="border-b border-border/50 cursor-pointer hover:bg-primary/5 transition-colors"
-                  onClick={() => onRecordClick(entityType, r.order_number || r.id)}
+                  onClick={() => onRecordClick(entityType, r.id || r.order_number)}
                 >
                   <td className="px-2 py-1.5">{r.order_number}</td>
                   <td className="px-2 py-1.5">{r.customer_name}</td>
@@ -91,7 +91,7 @@ export function KpiDrillDownModal({ open, title, recordType, records, loading, o
                 <tr
                   key={i}
                   className="border-b border-border/50 cursor-pointer hover:bg-primary/5 transition-colors"
-                  onClick={() => onRecordClick(entityType, r.code || r.id)}
+                  onClick={() => onRecordClick(entityType, r.id || r.code)}
                 >
                   <td className="px-2 py-1.5">{r.code}</td>
                   <td className="px-2 py-1.5">{r.company_name}</td>
@@ -117,7 +117,7 @@ export function KpiDrillDownModal({ open, title, recordType, records, loading, o
                 <tr
                   key={i}
                   className="border-b border-border/50 cursor-pointer hover:bg-primary/5 transition-colors"
-                  onClick={() => onRecordClick(entityType, r.code || r.id)}
+                  onClick={() => onRecordClick(entityType, r.id || r.code)}
                 >
                   <td className="px-2 py-1.5">{r.code}</td>
                   <td className="px-2 py-1.5">{r.customer_name}</td>
@@ -144,7 +144,7 @@ export function KpiDrillDownModal({ open, title, recordType, records, loading, o
                 <tr
                   key={i}
                   className="border-b border-border/50 cursor-pointer hover:bg-primary/5 transition-colors"
-                  onClick={() => onRecordClick(entityType, r.code || r.id)}
+                  onClick={() => onRecordClick(entityType, r.id || r.code)}
                 >
                   <td className="px-2 py-1.5">{r.code}</td>
                   <td className="px-2 py-1.5">{r.customer_name}</td>
