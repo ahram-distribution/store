@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { targetService } from '../../services/targets'
 import { attendanceService } from '../../services/attendance'
-import { BusinessActivityPanel } from '../../modules/BusinessActivityModule'
+
 import { KpiDrillDownModal } from '../../components/KpiDrillDownModal'
 import TrackingExplorerModal from '../../components/TrackingExplorerModal'
 import { getBusinessDetailData } from '../../services/businessActivity'
@@ -707,27 +707,39 @@ ${getContent()}
 
       let html = ''
 
-      html += '<div class="section"><h2>ملخص الفترة</h2><div class="summary-grid">'
+      html += '<div class="section" style="border:1px solid #bfdbfe;border-radius:8px;padding:10px;margin-bottom:12px">'
+      html += '<div style="display:flex;align-items:center;gap:6px;border-bottom:1px solid #bfdbfe;padding-bottom:8px;margin-bottom:10px">'
+      html += '<span style="width:8px;height:8px;border-radius:50%;background:#3b82f6;display:inline-block"></span>'
+      html += '<h2 style="margin:0;font-size:14px;color:#1e40af">إجمالي النشاط</h2>'
+      html += '<span style="font-size:9px;color:#60a5fa;margin-right:auto">ماذا فعل المندوب خلال الفترة؟</span>'
+      html += '</div>'
+      html += '<div class="summary-grid">'
       if (periodSummary) {
         html += `<div class="summary-card" style="background:#eff6ff"><div class="value" style="color:#2563eb">${fmtNum(periodSummary.daysWorked)}</div><div class="label" style="color:#3b82f6">أيام العمل</div></div>`
-        html += `<div class="summary-card" style="background:#f0fdf4"><div class="value" style="color:#16a34a">${fmtNum(periodSummary.totalVisits)}</div><div class="label" style="color:#22c55e">إجمالي الزيارات</div></div>`
-        html += `<div class="summary-card" style="background:#fffbeb"><div class="value" style="color:#d97706">${fmtNum(periodSummary.totalOrders)}</div><div class="label" style="color:#f59e0b">إجمالي الطلبات</div></div>`
-        html += `<div class="summary-card" style="background:#ecfdf5"><div class="value" style="color:#059669">${fmtMoney(periodSummary.totalSales)}</div><div class="label" style="color:#10b981">إجمالي المبيعات</div></div>`
-        html += `<div class="summary-card" style="background:#fdf4ff"><div class="value" style="color:#9333ea">${fmtMoney(periodSummary.totalCollections)}</div><div class="label" style="color:#a855f7">التحصيل</div></div>`
-        html += `<div class="summary-card" style="background:#ecfeff"><div class="value" style="color:#0891b2">${fmtNum(periodSummary.totalNewCustomers)}</div><div class="label" style="color:#06b6d4">عملاء جدد</div></div>`
-        html += `<div class="summary-card" style="background:#eef2ff"><div class="value" style="color:#4338ca">${periodSummary.bestSalesDate || '\u2014'}</div><div class="label" style="color:#6366f1">أفضل يوم مبيعات</div></div>`
-        html += `<div class="summary-card" style="background:#fff7ed"><div class="value" style="color:#c2410c">${periodSummary.daysWithoutSales > 0 ? periodSummary.daysWithoutSales + ' أيام' : 'لا يوجد'}</div><div class="label" style="color:#ea580c">أيام بدون مبيعات</div></div>`
+        html += `<div class="summary-card" style="background:#f0fdf4"><div class="value" style="color:#0d9488">${fmtNum(member?.kpis.visits.actual ?? periodSummary.totalVisits)}</div><div class="label" style="color:#14b8a6">الزيارات المنفذة</div></div>`
+        html += `<div class="summary-card" style="background:#fffbeb"><div class="value" style="color:#d97706">${fmtNum(member?.kpis.orders.actual ?? periodSummary.totalOrders)}</div><div class="label" style="color:#f59e0b">الطلبات</div></div>`
+        html += `<div class="summary-card" style="background:#ecfdf5"><div class="value" style="color:#059669">${fmtMoney(member?.kpis.sales.actual ?? periodSummary.totalSales)}</div><div class="label" style="color:#10b981">المبيعات</div></div>`
+        html += `<div class="summary-card" style="background:#fdf4ff"><div class="value" style="color:#9333ea">${fmtMoney(member?.kpis.collections.actual ?? periodSummary.totalCollections)}</div><div class="label" style="color:#a855f7">التحصيل</div></div>`
+        html += `<div class="summary-card" style="background:#ecfeff"><div class="value" style="color:#0891b2">${fmtNum(member?.kpis.new_customers.actual ?? periodSummary.totalNewCustomers)}</div><div class="label" style="color:#06b6d4">عملاء جدد</div></div>`
+        html += `<div class="summary-card" style="background:#f1f5f9"><div class="value" style="color:#475569">${fmtNum(detail.tracking_points)}</div><div class="label" style="color:#64748b">نقاط التتبع</div></div>`
+        html += `<div class="summary-card" style="background:#f1f5f9"><div class="value" style="color:#475569">${fmtDist(detail.distance_meters)}</div><div class="label" style="color:#64748b">المسافة</div></div>`
       }
       html += '</div></div>'
 
-      html += '<div class="section"><h2>مؤشرات الأداء</h2><div class="kpi-grid">'
+      html += '<div class="section" style="border:1px solid #a7f3d0;border-radius:8px;padding:10px;margin-bottom:12px">'
+      html += '<div style="display:flex;align-items:center;gap:6px;border-bottom:1px solid #a7f3d0;padding-bottom:8px;margin-bottom:10px">'
+      html += '<span style="width:8px;height:8px;border-radius:50%;background:#10b981;display:inline-block"></span>'
+      html += '<h2 style="margin:0;font-size:14px;color:#065f46">المتحقق من التارجت</h2>'
+      html += '<span style="font-size:9px;color:#34d399;margin-right:auto">نسبة الإنجاز مقابل الأهداف المحددة</span>'
+      html += '</div>'
+      html += '<div class="kpi-grid">'
       html += `<div class="kpi-card"><div class="value">${fmtMoney(saleTarget)}</div><div class="label">الهدف</div></div>`
       html += `<div class="kpi-card"><div class="value text-green">${fmtMoney(saleActual)}</div><div class="label">المنفذ</div></div>`
       const pctColor = detail.sales_pct != null && detail.sales_pct >= 80 ? 'text-green' : detail.sales_pct != null && detail.sales_pct >= 50 ? 'text-yellow' : 'text-red'
       html += `<div class="kpi-card"><div class="value ${pctColor}">${fmtPct(detail.sales_pct)}</div><div class="label">نسبة الإنجاز</div></div>`
       html += `<div class="kpi-card"><div class="value text-red">${fmtMoney(Math.max(0, saleTarget - saleActual))}</div><div class="label">المتبقي</div></div>`
       html += `<div class="kpi-card"><div class="value">${detail.day_count}</div><div class="label">أيام العمل</div></div>`
-      html += `<div class="kpi-card"><div class="value">${detail.day_count > 0 ? fmtMoney(Math.round(detail.sales_value / detail.day_count)) : '\u2014'}</div><div class="label">المعدل/يوم</div></div>`
+      html += `<div class="kpi-card"><div class="value">${detail.day_count > 0 ? fmtMoney(Math.round(saleActual / detail.day_count)) : '\u2014'}</div><div class="label">المعدل/يوم</div></div>`
       html += '</div>'
 
       if (detail.sales_pct != null && saleTarget > 0) {
@@ -738,7 +750,9 @@ ${getContent()}
       html += '</div>'
 
       if (member && member.has_target) {
-        html += '<div class="section"><h2>الإنجاز مقابل الهدف</h2><table><thead><tr><th>المؤشر</th><th>الهدف</th><th>المنفذ</th><th>%</th><th>الحالة</th></tr></thead><tbody>'
+        html += '<div class="section" style="border:1px solid #a7f3d0;border-radius:8px;padding:10px;margin-bottom:12px">'
+        html += '<h2 style="margin:0 0 8px;font-size:13px;color:#065f46">الإنجاز مقابل الهدف</h2>'
+        html += '<table><thead><tr><th>المؤشر</th><th>الهدف</th><th>المنفذ</th><th>%</th><th>الحالة</th></tr></thead><tbody>'
         const items = [
           { label: 'المبيعات', target: member.kpis.sales.target, actual: member.kpis.sales.actual, pct: member.kpis.sales.pct },
           { label: 'الزيارات', target: member.kpis.visits.target, actual: member.kpis.visits.actual, pct: member.kpis.visits.pct },
@@ -758,7 +772,7 @@ ${getContent()}
       }
 
       if (repSessions.length > 0) {
-        html += `<div class="section"><h2>تفاصيل الجلسات (${repSessions.length})</h2><table><thead><tr><th>التاريخ</th><th>البداية</th><th>النهاية</th><th>صافي</th><th>زيارات</th><th>طلبات</th><th>مبيعات</th><th>تحصيل</th></tr></thead><tbody>`
+        html += `<div class="section" style="border:1px solid #e2e8f0;border-radius:8px;padding:10px"><h2 style="margin:0 0 8px;font-size:13px;color:#1e293b">تفاصيل الجلسات (${repSessions.length})</h2><table><thead><tr><th>التاريخ</th><th>البداية</th><th>النهاية</th><th>صافي</th><th>زيارات</th><th>طلبات</th><th>مبيعات</th><th>تحصيل</th></tr></thead><tbody>`
         for (const s of repSessions.slice(0, 50)) {
           html += `<tr><td>${s.date?.slice(0, 10) || ''}</td><td>${fmtTime(s.start_time)}</td><td>${fmtTime(s.end_time)}</td><td>${fmtHours(s.net_minutes)}</td><td>${fmtNum(s.visit_count)}</td><td>${fmtNum(s.order_count)}</td><td>${fmtMoney(s.sales_value)}</td><td>${fmtMoney(s.collection_amount)}</td></tr>`
         }
@@ -829,20 +843,32 @@ ${getContent()}
     XLSX.utils.sheet_add_aoa(ws, [[`الفترة: ${periodLabel}`]], { origin: 'A2' })
     XLSX.utils.sheet_add_aoa(ws, [[`تاريخ التقرير: ${dateStr}`]], { origin: 'A3' })
 
-    const kpiData = [
-      ['بداية اليوم', detail.start_time || '\u2014', 'نهاية اليوم', detail.end_time || '\u2014'],
-      ['صافي ساعات', fmtHours(detail.net_minutes), 'الاستراحة', fmtHours(detail.break_minutes)],
-      ['الزيارات', fmtNum(detail.visit_count), 'الطلبات', fmtNum(detail.order_count)],
-      ['المبيعات', fmtMoney(detail.sales_value), 'التحصيل', fmtMoney(detail.collection_amount)],
-      ['عملاء جدد', fmtNum(detail.new_customer_count), 'نقاط التتبع', fmtNum(detail.tracking_points)],
-      ['المسافة', fmtDist(detail.distance_meters), 'أيام العمل', fmtNum(detail.day_count)],
-    ]
-    XLSX.utils.sheet_add_aoa(ws, [['ملخص الأداء']], { origin: 'A5' })
-    XLSX.utils.sheet_add_aoa(ws, kpiData, { origin: 'A6' })
+    let curRow = 5
+    const saleActual = member?.kpis.sales.actual ?? detail.sales_value
+    const saleTarget = member?.kpis.sales.target ?? detail.sales_target ?? 0
 
-    let curRow = 6 + kpiData.length + 1
+    XLSX.utils.sheet_add_aoa(ws, [['إجمالي النشاط']], { origin: `A${curRow}` })
+    curRow++
+    const activityData = [
+      ['أيام العمل', fmtNum(periodSummary?.daysWorked ?? detail.day_count), 'الزيارات المنفذة', fmtNum(member?.kpis.visits.actual ?? detail.visit_count)],
+      ['الطلبات', fmtNum(member?.kpis.orders.actual ?? detail.order_count), 'المبيعات', fmtMoney(member?.kpis.sales.actual ?? detail.sales_value)],
+      ['التحصيل', fmtMoney(member?.kpis.collections.actual ?? detail.collection_amount), 'عملاء جدد', fmtNum(member?.kpis.new_customers.actual ?? detail.new_customer_count)],
+      ['نقاط التتبع', fmtNum(detail.tracking_points), 'المسافة', fmtDist(detail.distance_meters)],
+    ]
+    XLSX.utils.sheet_add_aoa(ws, activityData, { origin: `A${curRow}` })
+    curRow += activityData.length + 1
 
     if (member && member.has_target) {
+      XLSX.utils.sheet_add_aoa(ws, [['المتحقق من التارجت']], { origin: `A${curRow}` })
+      curRow++
+      const kpiSummary = [
+        ['الهدف', fmtMoney(saleTarget), 'المنفذ', fmtMoney(saleActual)],
+        ['نسبة الإنجاز', fmtPct(detail.sales_pct), 'المتبقي', fmtMoney(Math.max(0, saleTarget - saleActual))],
+        ['أيام العمل', fmtNum(detail.day_count), 'المعدل/يوم', detail.day_count > 0 ? fmtMoney(Math.round(saleActual / detail.day_count)) : '\u2014'],
+      ]
+      XLSX.utils.sheet_add_aoa(ws, kpiSummary, { origin: `A${curRow}` })
+      curRow += kpiSummary.length + 1
+
       XLSX.utils.sheet_add_aoa(ws, [['الإنجاز مقابل الهدف']], { origin: `A${curRow}` })
       curRow++
       const achHeaders = ['المؤشر', 'الهدف', 'المنفذ', '%', 'الحالة']
@@ -862,19 +888,6 @@ ${getContent()}
       }
       XLSX.utils.sheet_add_aoa(ws, [['الإجمالي', '', '', member.overall_achievement_score != null ? member.overall_achievement_score / 100 : '', getStatusLabel(member.overall_achievement_score).label]], { origin: `A${curRow}` })
       curRow += 2
-    }
-
-    if (periodSummary) {
-      XLSX.utils.sheet_add_aoa(ws, [['ملخص الفترة']], { origin: `A${curRow}` })
-      curRow++
-      const summaryLines = [
-        ['أيام العمل', fmtNum(periodSummary.daysWorked), 'إجمالي الزيارات', fmtNum(periodSummary.totalVisits)],
-        ['إجمالي الطلبات', fmtNum(periodSummary.totalOrders), 'إجمالي المبيعات', fmtMoney(periodSummary.totalSales)],
-        ['عملاء جدد', fmtNum(periodSummary.totalNewCustomers), 'التحصيل', fmtMoney(periodSummary.totalCollections)],
-        ['أفضل يوم مبيعات', periodSummary.bestSalesDate || '\u2014', 'أقل يوم نشاط', periodSummary.lowestActivityDate || '\u2014'],
-      ]
-      XLSX.utils.sheet_add_aoa(ws, summaryLines, { origin: `A${curRow}` })
-      curRow += summaryLines.length + 1
     }
 
     if (repSessions.length > 0) {
@@ -954,27 +967,40 @@ ${getContent()}
           </div>
         </div>
 
-        <div className="bg-white rounded-xl border border-border shadow-sm overflow-hidden">
-          <h3 className="text-sm font-bold text-text px-4 pt-4 pb-2 border-b border-border/50">ملخص الفترة</h3>
+        {!periodSummary && (
+          <div className="bg-blue-50/40 border border-blue-200 rounded-xl p-4 text-center text-text-secondary text-sm">لا تتوفر بيانات كافية للنشاط</div>
+        )}
+
+        <div className="bg-white rounded-xl border border-blue-200 shadow-sm overflow-hidden">
+          <div className="bg-blue-50/60 px-4 py-3 border-b border-blue-100 flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
+            <h2 className="text-sm font-bold text-blue-800">إجمالي النشاط</h2>
+            <span className="text-[9px] text-blue-500 mr-auto">ماذا فعل المندوب خلال الفترة؟</span>
+          </div>
           {periodSummary ? (
             <div className="p-4">
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
-                <div className="bg-blue-50 rounded-lg p-2.5 text-center"><div className="text-lg font-bold text-blue-700">{fmtNum(periodSummary.daysWorked)}</div><div className="text-[10px] text-blue-600">أيام العمل</div></div>
-                <div className="bg-green-50 rounded-lg p-2.5 text-center cursor-pointer hover:brightness-95 transition-all" onClick={() => handleKpiClick('visits')}><div className="text-lg font-bold text-green-700">{fmtNum(member?.kpis.visits.actual ?? periodSummary.totalVisits)}</div><div className="text-[10px] text-green-600">إجمالي الزيارات</div></div>
-                <div className="bg-amber-50 rounded-lg p-2.5 text-center cursor-pointer hover:brightness-95 transition-all" onClick={() => handleKpiClick('orders')}><div className="text-lg font-bold text-amber-700">{fmtNum(member?.kpis.orders.actual ?? periodSummary.totalOrders)}</div><div className="text-[10px] text-amber-600">إجمالي الطلبات</div></div>
-                <div className="bg-emerald-50 rounded-lg p-2.5 text-center cursor-pointer hover:brightness-95 transition-all" onClick={() => handleKpiClick('sales')}><div className="text-lg font-bold text-emerald-700">{fmtMoney(member?.kpis.sales.actual ?? periodSummary.totalSales)}</div><div className="text-[10px] text-emerald-600">إجمالي المبيعات</div></div>
-                <div className="bg-cyan-50 rounded-lg p-2.5 text-center cursor-pointer hover:brightness-95 transition-all" onClick={() => handleKpiClick('customers')}><div className="text-lg font-bold text-cyan-700">{fmtNum(member?.kpis.new_customers.actual ?? periodSummary.totalNewCustomers)}</div><div className="text-[10px] text-cyan-600">عملاء جدد</div></div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <div className="bg-blue-50/80 rounded-lg p-2.5 text-center"><div className="text-lg font-bold text-blue-700">{fmtNum(periodSummary.daysWorked)}</div><div className="text-[10px] text-blue-600">أيام العمل</div></div>
+                <div className="bg-teal-50 rounded-lg p-2.5 text-center cursor-pointer hover:brightness-95 transition-all" onClick={() => handleKpiClick('visits')}><div className="text-lg font-bold text-teal-700">{fmtNum(member?.kpis.visits.actual ?? periodSummary.totalVisits)}</div><div className="text-[10px] text-teal-600">الزيارات المنفذة</div></div>
+                <div className="bg-amber-50 rounded-lg p-2.5 text-center cursor-pointer hover:brightness-95 transition-all" onClick={() => handleKpiClick('orders')}><div className="text-lg font-bold text-amber-700">{fmtNum(member?.kpis.orders.actual ?? periodSummary.totalOrders)}</div><div className="text-[10px] text-amber-600">الطلبات</div></div>
+                <div className="bg-emerald-50 rounded-lg p-2.5 text-center cursor-pointer hover:brightness-95 transition-all" onClick={() => handleKpiClick('sales')}><div className="text-lg font-bold text-emerald-700">{fmtMoney(member?.kpis.sales.actual ?? periodSummary.totalSales)}</div><div className="text-[10px] text-emerald-600">المبيعات</div></div>
                 <div className="bg-purple-50 rounded-lg p-2.5 text-center cursor-pointer hover:brightness-95 transition-all" onClick={() => handleKpiClick('collections')}><div className="text-lg font-bold text-purple-700">{fmtMoney(member?.kpis.collections.actual ?? periodSummary.totalCollections)}</div><div className="text-[10px] text-purple-600">التحصيل</div></div>
-                <div className="bg-indigo-50 rounded-lg p-2.5 text-center"><div className="text-lg font-bold text-indigo-700">{periodSummary.bestSalesDate ? periodSummary.bestSalesDate.slice(5) : '\u2014'}</div><div className="text-[10px] text-indigo-600">أفضل يوم مبيعات</div></div>
-                <div className="bg-orange-50 rounded-lg p-2.5 text-center"><div className="text-xs font-bold text-orange-700">{periodSummary.daysWithoutSales > 0 ? `${periodSummary.daysWithoutSales} أيام` : 'لا يوجد'}</div><div className="text-[10px] text-orange-600">أيام بدون مبيعات</div></div>
+                <div className="bg-cyan-50 rounded-lg p-2.5 text-center cursor-pointer hover:brightness-95 transition-all" onClick={() => handleKpiClick('customers')}><div className="text-lg font-bold text-cyan-700">{fmtNum(member?.kpis.new_customers.actual ?? periodSummary.totalNewCustomers)}</div><div className="text-[10px] text-cyan-600">عملاء جدد</div></div>
+                <div className="bg-slate-100 rounded-lg p-2.5 text-center cursor-pointer hover:brightness-95 transition-all shadow-sm" onClick={() => openTrackingExplorer()}><div className="text-lg font-bold text-slate-700">{fmtNum(detail.tracking_points)}</div><div className="text-[10px] text-slate-600">نقاط التتبع</div></div>
+                <div className="bg-slate-100 rounded-lg p-2.5 text-center cursor-pointer hover:brightness-95 transition-all shadow-sm" onClick={() => openTrackingExplorer()}><div className="text-lg font-bold text-slate-700">{fmtDist(detail.distance_meters)}</div><div className="text-[10px] text-slate-600">المسافة</div></div>
               </div>
             </div>
           ) : (
-            <div className="p-4 text-center text-text-secondary text-sm">لا تتوفر بيانات كافية للملخص</div>
+            <div className="p-4 text-center text-text-secondary text-sm">لا تتوفر بيانات نشاط للمندوب</div>
           )}
         </div>
 
-        <div className="bg-white rounded-xl border border-border shadow-sm overflow-hidden">
+        <div className="bg-white rounded-xl border border-emerald-200 shadow-sm overflow-hidden">
+          <div className="bg-emerald-50/60 px-4 py-3 border-b border-emerald-100 flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+            <h2 className="text-sm font-bold text-emerald-800">المتحقق من التارجت</h2>
+            <span className="text-[9px] text-emerald-500 mr-auto">نسبة الإنجاز مقابل الأهداف المحددة</span>
+          </div>
           <div className="p-4">
             <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-3">
               <div className="bg-surface rounded-lg p-2 text-center"><div className="text-lg font-bold text-text">{fmtMoney(member?.kpis.sales.target ?? detail.sales_target ?? 0)}</div><div className="text-[10px] text-text-secondary">الهدف</div></div>
@@ -1000,7 +1026,7 @@ ${getContent()}
         </div>
 
         {achievementItems.length > 0 && (
-          <div className="bg-white rounded-xl border border-border shadow-sm overflow-hidden">
+          <div className="bg-white rounded-xl border border-emerald-200 shadow-sm overflow-hidden">
             <h2 className="text-sm font-bold text-text px-4 pt-4 pb-2 border-b border-border/50">الإنجاز مقابل الهدف</h2>
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
@@ -1057,31 +1083,6 @@ ${getContent()}
             </div>
           </div>
         )}
-
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          <BusinessActivityPanel
-            kpis={{
-              orders: { value: detail.order_count, target: detail.orders_target, pct: detail.orders_pct },
-              sales: { value: detail.sales_value, target: detail.sales_target, pct: detail.sales_pct },
-              customers: { value: detail.new_customer_count, target: detail.customers_target, pct: detail.customers_pct },
-              visits: { value: detail.visit_count, target: detail.visits_target, pct: detail.visits_pct },
-              collections: { value: detail.collection_amount },
-            }}
-            onKpiClick={handleKpiClick}
-          />
-          <div className="bg-white rounded-lg border border-border p-3 text-center cursor-pointer hover:bg-primary/5 transition-colors shadow-sm" onClick={() => openTrackingExplorer()}>
-            <div className="text-lg font-bold text-text">{fmtNum(detail.tracking_points)}</div>
-            <div className="text-[10px] text-text-secondary">نقاط التتبع</div>
-          </div>
-          <div className="bg-white rounded-lg border border-border p-3 text-center cursor-pointer hover:bg-primary/5 transition-colors shadow-sm" onClick={() => openTrackingExplorer()}>
-            <div className="text-lg font-bold text-text">{fmtDist(detail.distance_meters)}</div>
-            <div className="text-[10px] text-text-secondary">المسافة</div>
-          </div>
-          <div className="bg-white rounded-lg border border-border p-3 text-center shadow-sm">
-            <div className="text-lg font-bold text-text">{fmtNum(detail.day_count)}</div>
-            <div className="text-[10px] text-text-secondary">أيام العمل</div>
-          </div>
-        </div>
 
         <div className={`rounded-xl border p-4 shadow-sm ${
           insight.color === 'green' ? 'bg-green-50/40 border-green-200' :
