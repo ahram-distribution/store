@@ -58,10 +58,8 @@ interface RepRow {
 }
 
 interface PSummary {
-  daysWorked: number; netMinutes: number; breakCount: number; breakMinutes: number
-  ontimeDays: number; lateDays: number; earlyDepartureDays: number; lateMinutes: number
-  totalVisits: number; totalOrders: number; totalCollectionCount: number; totalNewCustomers: number
-  totalTrackingPoints: number; totalDistanceMeters: number
+  daysWorked: number; totalVisits: number; totalOrders: number; totalSales: number
+  totalNewCustomers: number; totalCollectionAmount: number; totalCollectionCount: number
 }
 
 const ALL_COLUMNS = [
@@ -454,21 +452,15 @@ export default function ManagerReportsPage() {
   const periodSummary = useMemo<PSummary | null>(() => {
     if (!repSessions.length) return null
     const daysWorked = repSessions.length
-    const netMinutes = repSessions.reduce((s, sess) => s + (sess.net_minutes || 0), 0)
-    const breakCount = repSessions.reduce((s, sess) => s + (sess.break_count || 0), 0)
-    const breakMinutes = repSessions.reduce((s, sess) => s + (sess.break_minutes || 0), 0)
-    const ontimeDays = repSessions.filter((s) => s.attendance_status === 'ontime').length
-    const lateDays = repSessions.filter((s) => s.attendance_status === 'late').length
-    const earlyDepartureDays = repSessions.filter((s) => s.attendance_status === 'early_departure').length
-    const lateMinutes = repSessions.reduce((s, sess) => s + (sess.late_minutes || 0), 0)
     const totalVisits = repSessions.reduce((s, sess) => s + (sess.visit_count || 0), 0)
     const totalOrders = repSessions.reduce((s, sess) => s + (sess.order_count || 0), 0)
-    const totalCollectionCount = repSessions.reduce((s, sess) => s + (sess.collection_count || 0), 0)
+    const totalSales = repSessions.reduce((s, sess) => s + (sess.sales_value || 0), 0)
     const totalNewCustomers = repSessions.reduce((s, sess) => s + (sess.new_customer_count || 0), 0)
+    const totalCollectionCount = repSessions.reduce((s, sess) => s + (sess.collection_count || 0), 0)
+    const totalCollectionAmount = repSessions.reduce((s, sess) => s + (sess.collection_amount || 0), 0)
     return {
-      daysWorked, netMinutes, breakCount, breakMinutes,
-      ontimeDays, lateDays, earlyDepartureDays, lateMinutes,
-      totalVisits, totalOrders, totalCollectionCount, totalNewCustomers,
+      daysWorked, totalVisits, totalOrders, totalSales,
+      totalNewCustomers, totalCollectionAmount, totalCollectionCount,
     }
   }, [repSessions])
 
@@ -703,19 +695,16 @@ ${getContent()}
       html += '<h2 style="margin:0;font-size:14px;color:#1e40af">إجمالي النشاط</h2>'
       html += '<span style="font-size:9px;color:#60a5fa;margin-right:auto">ماذا فعل المندوب خلال الفترة؟</span>'
       html += '</div>'
-      html += '<div class="summary-grid" style="grid-template-columns:repeat(4,1fr)">'
+      html += '<div class="summary-grid">'
       if (periodSummary) {
+        html += `<div class="summary-card" style="background:#ecfdf5"><div class="value" style="color:#059669">${fmtMoney(member?.kpis.sales.actual ?? detail.sales_value)}</div><div class="label" style="color:#10b981">إجمالي المبيعات</div></div>`
+        html += `<div class="summary-card" style="background:#f0fdf4"><div class="value" style="color:#0d9488">${fmtNum(member?.kpis.visits.actual ?? periodSummary.totalVisits)}</div><div class="label" style="color:#14b8a6">إجمالي الزيارات</div></div>`
+        html += `<div class="summary-card" style="background:#fffbeb"><div class="value" style="color:#d97706">${fmtNum(member?.kpis.orders.actual ?? periodSummary.totalOrders)}</div><div class="label" style="color:#f59e0b">إجمالي الطلبات</div></div>`
+        html += `<div class="summary-card" style="background:#fdf4ff"><div class="value" style="color:#9333ea">${fmtMoney(member?.kpis.collections.actual ?? periodSummary.totalCollectionAmount)}</div><div class="label" style="color:#a855f7">إجمالي التحصيلات</div></div>`
+        html += `<div class="summary-card" style="background:#ecfeff"><div class="value" style="color:#0891b2">${fmtNum(member?.kpis.new_customers.actual ?? periodSummary.totalNewCustomers)}</div><div class="label" style="color:#06b6d4">إجمالي العملاء الجدد</div></div>`
         html += `<div class="summary-card" style="background:#eff6ff"><div class="value" style="color:#2563eb">${fmtNum(periodSummary.daysWorked)}</div><div class="label" style="color:#3b82f6">أيام العمل</div></div>`
-        html += `<div class="summary-card" style="background:#eff6ff"><div class="value" style="color:#2563eb">${fmtHours(detail.net_minutes)}</div><div class="label" style="color:#3b82f6">صافي ساعات</div></div>`
-        html += `<div class="summary-card" style="background:#eff6ff"><div class="value" style="color:#2563eb">${fmtNum(periodSummary.breakCount)}</div><div class="label" style="color:#3b82f6">فترات راحة</div></div>`
-        const attCompliance = periodSummary.ontimeDays > 0 || periodSummary.lateDays > 0 || periodSummary.earlyDepartureDays > 0
-        html += `<div class="summary-card" style="background:#eff6ff"><div class="value" style="color:#2563eb;font-size:11px">${attCompliance ? periodSummary.ontimeDays + '/' + periodSummary.lateDays + '/' + periodSummary.earlyDepartureDays : '\u2014'}</div><div class="label" style="color:#3b82f6">على الوقت/متأخر/مبكر</div></div>`
-        html += `<div class="summary-card" style="background:#f0fdf4"><div class="value" style="color:#0d9488">${fmtNum(member?.kpis.visits.actual ?? periodSummary.totalVisits)}</div><div class="label" style="color:#14b8a6">زيارات منفذة</div></div>`
-        html += `<div class="summary-card" style="background:#fffbeb"><div class="value" style="color:#d97706">${fmtNum(member?.kpis.orders.actual ?? periodSummary.totalOrders)}</div><div class="label" style="color:#f59e0b">طلبات منشأة</div></div>`
-        html += `<div class="summary-card" style="background:#fdf4ff"><div class="value" style="color:#9333ea">${fmtNum(member?.kpis.collections.actual ?? periodSummary.totalCollectionCount)}</div><div class="label" style="color:#a855f7">تحصيل منشأ</div></div>`
-        html += `<div class="summary-card" style="background:#ecfeff"><div class="value" style="color:#0891b2">${fmtNum(member?.kpis.new_customers.actual ?? periodSummary.totalNewCustomers)}</div><div class="label" style="color:#06b6d4">عملاء جدد</div></div>`
         html += `<div class="summary-card" style="background:#f1f5f9"><div class="value" style="color:#475569">${fmtNum(detail.tracking_points)}</div><div class="label" style="color:#64748b">نقاط التتبع</div></div>`
-        html += `<div class="summary-card" style="background:#f1f5f9"><div class="value" style="color:#475569">${fmtDist(detail.distance_meters)}</div><div class="label" style="color:#64748b">المسافة</div></div>`
+        html += `<div class="summary-card" style="background:#f1f5f9"><div class="value" style="color:#475569">${fmtDist(detail.distance_meters)}</div><div class="label" style="color:#64748b">المسافة المقطوعة</div></div>`
       }
       html += '</div></div>'
 
@@ -842,17 +831,11 @@ ${getContent()}
 
     XLSX.utils.sheet_add_aoa(ws, [['إجمالي النشاط']], { origin: `A${curRow}` })
     curRow++
-    const breakCount = periodSummary?.breakCount ?? 0
-    const ontimeDays = periodSummary?.ontimeDays ?? 0
-    const lateDays = periodSummary?.lateDays ?? 0
-    const earlyDepartureDays = periodSummary?.earlyDepartureDays ?? 0
     const activityData = [
-      ['أيام العمل الفعلية', fmtNum(periodSummary?.daysWorked ?? detail.day_count), 'صافي ساعات العمل', fmtHours(detail.net_minutes)],
-      ['فترات الراحة', fmtNum(breakCount), 'المواظبة (على الوقت/متأخر/مبكر)', `${fmtNum(ontimeDays)}/${fmtNum(lateDays)}/${fmtNum(earlyDepartureDays)}`],
-      ['زيارات منفذة', fmtNum(member?.kpis.visits.actual ?? detail.visit_count), 'طلبات منشأة', fmtNum(member?.kpis.orders.actual ?? detail.order_count)],
-      ['تحصيل منشأ', fmtNum(member?.kpis.collections.actual ?? detail.collection_count), 'عملاء جدد', fmtNum(member?.kpis.new_customers.actual ?? detail.new_customer_count)],
+      ['إجمالي المبيعات', fmtMoney(member?.kpis.sales.actual ?? detail.sales_value), 'إجمالي الزيارات', fmtNum(member?.kpis.visits.actual ?? detail.visit_count)],
+      ['إجمالي الطلبات', fmtNum(member?.kpis.orders.actual ?? detail.order_count), 'إجمالي التحصيلات', fmtMoney(member?.kpis.collections.actual ?? detail.collection_amount)],
+      ['إجمالي العملاء الجدد', fmtNum(member?.kpis.new_customers.actual ?? detail.new_customer_count), 'أيام العمل', fmtNum(periodSummary?.daysWorked ?? detail.day_count)],
       ['نقاط التتبع', fmtNum(detail.tracking_points), 'المسافة المقطوعة', fmtDist(detail.distance_meters)],
-      ['دقائق التأخير', fmtHours(periodSummary?.lateMinutes ?? 0), 'نسبة الالتزام', periodSummary?.daysWorked ? fmtPct(Math.round((ontimeDays / periodSummary.daysWorked) * 100)) : '\u2014'],
     ]
     XLSX.utils.sheet_add_aoa(ws, activityData, { origin: `A${curRow}` })
     curRow += activityData.length + 1
@@ -978,19 +961,15 @@ ${getContent()}
           </div>
           {periodSummary ? (
             <div className="p-4">
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="bg-blue-50/80 rounded-xl p-3 text-center shadow-sm border border-blue-100"><div className="text-xl font-bold text-blue-700">{fmtNum(periodSummary.daysWorked)}</div><div className="text-[9px] text-blue-500 mt-0.5">أيام العمل الفعلية</div></div>
-                <div className="bg-blue-50/80 rounded-xl p-3 text-center shadow-sm border border-blue-100"><div className="text-xl font-bold text-blue-700">{fmtHours(detail.net_minutes)}</div><div className="text-[9px] text-blue-500 mt-0.5">صافي ساعات العمل</div></div>
-                <div className="bg-blue-50/80 rounded-xl p-3 text-center shadow-sm border border-blue-100"><div className="text-xl font-bold text-blue-700">{fmtNum(periodSummary.breakCount)}</div><div className="text-[9px] text-blue-500 mt-0.5">فترات الراحة</div><div className="text-[8px] text-blue-400">({fmtHours(detail.break_minutes)})</div></div>
-                <div className="bg-blue-50/80 rounded-xl p-3 text-center shadow-sm border border-blue-100"><div className="flex items-center justify-center gap-1.5 text-sm"><span className={`font-bold ${periodSummary.ontimeDays > 0 ? 'text-emerald-600' : 'text-slate-400'}`}>{fmtNum(periodSummary.ontimeDays)}</span><span className="text-slate-400">/</span><span className={`font-bold ${periodSummary.lateDays > 0 ? 'text-amber-600' : 'text-slate-400'}`}>{fmtNum(periodSummary.lateDays)}</span><span className="text-slate-400">/</span><span className={`font-bold ${periodSummary.earlyDepartureDays > 0 ? 'text-red-500' : 'text-slate-400'}`}>{fmtNum(periodSummary.earlyDepartureDays)}</span></div><div className="text-[8px] text-blue-500 mt-0.5">على الوقت / متأخر / مبكر</div></div>
-                <div className="bg-teal-50 rounded-xl p-3 text-center shadow-sm border border-teal-100 cursor-pointer hover:brightness-95 transition-all" onClick={() => handleKpiClick('visits')}><div className="text-xl font-bold text-teal-700">{fmtNum(member?.kpis.visits.actual ?? periodSummary.totalVisits)}</div><div className="text-[9px] text-teal-500 mt-0.5">زيارات منفذة</div></div>
-                <div className="bg-amber-50 rounded-xl p-3 text-center shadow-sm border border-amber-100 cursor-pointer hover:brightness-95 transition-all" onClick={() => handleKpiClick('orders')}><div className="text-xl font-bold text-amber-700">{fmtNum(member?.kpis.orders.actual ?? periodSummary.totalOrders)}</div><div className="text-[9px] text-amber-500 mt-0.5">طلبات منشأة</div></div>
-                <div className="bg-purple-50 rounded-xl p-3 text-center shadow-sm border border-purple-100 cursor-pointer hover:brightness-95 transition-all" onClick={() => handleKpiClick('collections')}><div className="text-xl font-bold text-purple-700">{fmtNum(member?.kpis.collections.actual ?? periodSummary.totalCollectionCount)}</div><div className="text-[9px] text-purple-500 mt-0.5">تحصيل منشأ</div></div>
-                <div className="bg-cyan-50 rounded-xl p-3 text-center shadow-sm border border-cyan-100 cursor-pointer hover:brightness-95 transition-all" onClick={() => handleKpiClick('customers')}><div className="text-xl font-bold text-cyan-700">{fmtNum(member?.kpis.new_customers.actual ?? periodSummary.totalNewCustomers)}</div><div className="text-[9px] text-cyan-500 mt-0.5">عملاء جدد</div></div>
-                <div className="bg-slate-100 rounded-xl p-3 text-center shadow-sm border border-slate-200 cursor-pointer hover:brightness-95 transition-all" onClick={() => openTrackingExplorer()}><div className="text-xl font-bold text-slate-700">{fmtNum(detail.tracking_points)}</div><div className="text-[9px] text-slate-500 mt-0.5">نقاط التتبع</div></div>
-                <div className="bg-slate-100 rounded-xl p-3 text-center shadow-sm border border-slate-200 cursor-pointer hover:brightness-95 transition-all" onClick={() => openTrackingExplorer()}><div className="text-xl font-bold text-slate-700">{fmtDist(detail.distance_meters)}</div><div className="text-[9px] text-slate-500 mt-0.5">المسافة المقطوعة</div></div>
-                <div className="bg-rose-50 rounded-xl p-3 text-center shadow-sm border border-rose-100"><div className="text-xl font-bold text-rose-600">{periodSummary.lateMinutes > 0 ? fmtHours(periodSummary.lateMinutes) : '\u2014'}</div><div className="text-[9px] text-rose-500 mt-0.5">إجمالي دقائق التأخير</div></div>
-                <div className="bg-sky-50 rounded-xl p-3 text-center shadow-sm border border-sky-100"><div className="text-xl font-bold text-sky-700">{periodSummary.daysWorked > 0 ? fmtPct(Math.round((periodSummary.ontimeDays / periodSummary.daysWorked) * 100)) : '\u2014'}</div><div className="text-[9px] text-sky-500 mt-0.5">نسبة الالتزام</div></div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <div className="bg-emerald-50 rounded-lg p-2.5 text-center shadow-sm border border-emerald-100 cursor-pointer hover:brightness-95 transition-all" onClick={() => handleKpiClick('sales')}><div className="text-lg font-bold text-emerald-700">{fmtMoney(member?.kpis.sales.actual ?? periodSummary.totalSales)}</div><div className="text-[10px] text-emerald-600">إجمالي المبيعات</div></div>
+                <div className="bg-teal-50 rounded-lg p-2.5 text-center shadow-sm border border-teal-100 cursor-pointer hover:brightness-95 transition-all" onClick={() => handleKpiClick('visits')}><div className="text-lg font-bold text-teal-700">{fmtNum(member?.kpis.visits.actual ?? periodSummary.totalVisits)}</div><div className="text-[10px] text-teal-600">إجمالي الزيارات</div></div>
+                <div className="bg-amber-50 rounded-lg p-2.5 text-center shadow-sm border border-amber-100 cursor-pointer hover:brightness-95 transition-all" onClick={() => handleKpiClick('orders')}><div className="text-lg font-bold text-amber-700">{fmtNum(member?.kpis.orders.actual ?? periodSummary.totalOrders)}</div><div className="text-[10px] text-amber-600">إجمالي الطلبات</div></div>
+                <div className="bg-purple-50 rounded-lg p-2.5 text-center shadow-sm border border-purple-100 cursor-pointer hover:brightness-95 transition-all" onClick={() => handleKpiClick('collections')}><div className="text-lg font-bold text-purple-700">{fmtMoney(member?.kpis.collections.actual ?? periodSummary.totalCollectionAmount)}</div><div className="text-[10px] text-purple-600">إجمالي التحصيلات</div></div>
+                <div className="bg-cyan-50 rounded-lg p-2.5 text-center shadow-sm border border-cyan-100 cursor-pointer hover:brightness-95 transition-all" onClick={() => handleKpiClick('customers')}><div className="text-lg font-bold text-cyan-700">{fmtNum(member?.kpis.new_customers.actual ?? periodSummary.totalNewCustomers)}</div><div className="text-[10px] text-cyan-600">إجمالي العملاء الجدد</div></div>
+                <div className="bg-blue-50/80 rounded-lg p-2.5 text-center shadow-sm border border-blue-100"><div className="text-lg font-bold text-blue-700">{fmtNum(periodSummary.daysWorked)}</div><div className="text-[10px] text-blue-600">أيام العمل</div></div>
+                <div className="bg-slate-100 rounded-lg p-2.5 text-center shadow-sm border border-slate-200 cursor-pointer hover:brightness-95 transition-all" onClick={() => openTrackingExplorer()}><div className="text-lg font-bold text-slate-700">{fmtNum(detail.tracking_points)}</div><div className="text-[10px] text-slate-600">نقاط التتبع</div></div>
+                <div className="bg-slate-100 rounded-lg p-2.5 text-center shadow-sm border border-slate-200 cursor-pointer hover:brightness-95 transition-all" onClick={() => openTrackingExplorer()}><div className="text-lg font-bold text-slate-700">{fmtDist(detail.distance_meters)}</div><div className="text-[10px] text-slate-600">المسافة المقطوعة</div></div>
               </div>
             </div>
           ) : (
