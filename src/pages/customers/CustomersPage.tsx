@@ -5,6 +5,7 @@ import { useAuthStore } from '../../store/auth'
 import { useCapability } from '../../hooks/useCapability'
 import { locationService } from '../../services/location'
 import { LocationDisplay } from '../../components/shared/LocationDisplay'
+import SmartFilterBar, { type FilterValues } from '../../components/SmartFilterBar'
 
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
@@ -17,30 +18,72 @@ export function CustomersPage() {
   const [customers, setCustomers] = useState<any[]>([])
   const [contacts, setContacts] = useState<any[]>([])
   const [locations, setLocations] = useState<Map<string, any>>(new Map())
-  const [searchQuery, setSearchQuery] = useState('')
   const [loading, setLoading] = useState(true)
   const [myOnly, setMyOnly] = useState(false)
+  const [filters, setFilters] = useState<FilterValues>({
+    datePreset: 'all', dateFrom: '', dateTo: '', search: '', employeeId: ''
+  })
 
-  useEffect(() => {
+  const resolveDateRange = (f: FilterValues): { from: string | null; to: string | null } => {
+    if (f.datePreset === 'all') return { from: null, to: null }
+    const now = new Date()
+    const startOfDay = (d: Date) => { d.setHours(0, 0, 0, 0); return d.toISOString() }
+    const endOfDay = (d: Date) => { d.setHours(23, 59, 59, 999); return d.toISOString() }
+    switch (f.datePreset) {
+      case 'today': return { from: startOfDay(new Date()), to: endOfDay(new Date()) }
+      case 'yesterday': {
+        const y = new Date(); y.setDate(y.getDate() - 1)
+        return { from: startOfDay(y), to: endOfDay(y) }
+      }
+      case 'week': {
+        const wk = new Date(); wk.setDate(wk.getDate() - wk.getDay())
+        return { from: startOfDay(wk), to: endOfDay(new Date()) }
+      }
+      case 'month': return { from: startOfDay(new Date(now.getFullYear(), now.getMonth(), 1)), to: endOfDay(new Date()) }
+      case 'prev_month': {
+        const pm = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+        const pe = new Date(now.getFullYear(), now.getMonth(), 0)
+        return { from: startOfDay(pm), to: endOfDay(pe) }
+      }
+      case 'custom': return { from: f.dateFrom ? startOfDay(new Date(f.dateFrom)) : null, to: f.dateTo ? endOfDay(new Date(f.dateTo)) : null }
+      default: return { from: null, to: null }
+    }
+  }
+
+  const fetchData = async () => {
     const token = getToken()
     if (!token) { setLoading(false); return }
-    Promise.all([
-      supabase.rpc('get_governed_customers', { p_token: token }),
+    setLoading(true)
+    const range = resolveDateRange(filters)
+    const params: any = {
+      p_token: token.trim(),
+      p_search: filters.search || null,
+      p_employee_id: filters.employeeId || null,
+      p_date_from: range.from,
+      p_date_to: range.to,
+    }
+    if (myOnly && currentEmpId) {
+      params.p_employee_id = currentEmpId
+    }
+
+    const [custRes, contRes] = await Promise.all([
+      supabase.rpc('get_governed_customers', params),
       supabase.rpc('get_governed_customer_contacts', { p_token: token }),
-    ]).then(async ([custRes, contRes]) => {
-      if (custRes.data) {
-        const list = Array.isArray(custRes.data) ? custRes.data : []
-        setCustomers(list)
-        const locIds = list.map((c: any) => c.location_id).filter(Boolean)
-        if (locIds.length > 0) {
-          const locMap = await locationService.fetchLocations(locIds)
-          setLocations(locMap)
-        }
+    ])
+    if (custRes.data) {
+      const list = Array.isArray(custRes.data) ? custRes.data : []
+      setCustomers(list)
+      const locIds = list.map((c: any) => c.location_id).filter(Boolean)
+      if (locIds.length > 0) {
+        const locMap = await locationService.fetchLocations(locIds)
+        setLocations(locMap)
       }
-      if (contRes.data) setContacts(Array.isArray(contRes.data) ? contRes.data : [])
-      setLoading(false)
-    })
-  }, [])
+    }
+    if (contRes.data) setContacts(Array.isArray(contRes.data) ? contRes.data : [])
+    setLoading(false)
+  }
+
+  useEffect(() => { fetchData() }, [filters, myOnly])
 
   const contactMap = useMemo(() => {
     const m = new Map<string, string>()
@@ -57,20 +100,6 @@ export function CustomersPage() {
       address: (c as any).formatted_address || '',
     }))
   }, [customers, contactMap])
-
-  const filtered = useMemo(() => {
-    let list = enriched
-    if (myOnly && currentEmpId) {
-      list = list.filter((c: any) => c.owner_id === currentEmpId || c.created_by === currentEmpId)
-    }
-    const q = searchQuery.trim().toLowerCase()
-    if (!q) return list
-    return list.filter((c: any) =>
-      (c.company_name || '').toLowerCase().includes(q) ||
-      (c.phone || '').toLowerCase().includes(q) ||
-      (c.address || '').toLowerCase().includes(q)
-    )
-  }, [enriched, searchQuery, myOnly, currentEmpId])
 
   return (
     <div className="space-y-4">
@@ -89,23 +118,21 @@ export function CustomersPage() {
         </div>
       )}
 
-      <input
-        type="text"
-        value={searchQuery}
-        onChange={(e) => setSearchQuery(e.target.value)}
-        placeholder="بحث عن عميل..."
-        className="w-full border border-border rounded-lg px-3 py-2.5 text-sm bg-white text-text placeholder:text-text-secondary"
+      <SmartFilterBar
+        searchPlaceholder="بحث باسم العميل أو الكود..."
+        employees={[]}
+        onFilterChange={setFilters}
       />
 
       {loading ? (
         <div className="text-center py-12 text-text-secondary text-sm">جاري التحميل...</div>
-      ) : filtered.length === 0 ? (
+      ) : enriched.length === 0 ? (
         <div className="text-center py-12 text-text-secondary text-sm">
-          {searchQuery ? 'لا توجد نتائج' : (myOnly ? 'لا يوجد عملاء تابعين لك' : 'لا يوجد عملاء')}
+          {myOnly ? 'لا يوجد عملاء تابعين لك' : 'لا يوجد عملاء'}
         </div>
       ) : (
         <div className="space-y-2">
-          {filtered.map((c: any) => {
+          {enriched.map((c: any) => {
             const loc = c.location_id ? locations.get(c.location_id) : null
             return (
               <div key={c.id} onClick={() => navigate(`/customers/${c.id}`)}

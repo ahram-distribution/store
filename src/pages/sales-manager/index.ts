@@ -1,1 +1,8 @@
 export { default as SalesManagerCCPage } from './SalesManagerCCPage'
+export { default as SalesManagerTargets } from './SalesManagerTargets'
+export { default as SalesManagerOperations } from './SalesManagerOperations'
+export { default as SalesManagerField } from './SalesManagerField'
+export { default as SalesManagerPersonal } from './SalesManagerPersonal'
+export { default as SalesManagerVisitsList } from './SalesManagerVisitsList'
+export { default as SalesManagerCustomersList } from './SalesManagerCustomersList'
+export { default as SalesManagerOrdersList } from './SalesManagerOrdersList'
