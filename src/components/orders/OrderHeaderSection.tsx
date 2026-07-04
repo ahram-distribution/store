@@ -12,9 +12,10 @@ interface OrderHeaderSectionProps {
   modificationEntries?: UnifiedModificationEntry[]
   actions?: React.ReactNode
   onBack?: () => void
+  onEditCreator?: () => void
 }
 
-export function OrderHeaderSection({ order, currentOwner, overLimit, lastAction, modificationEntries, actions, onBack }: OrderHeaderSectionProps) {
+export function OrderHeaderSection({ order, currentOwner, overLimit, lastAction, modificationEntries, actions, onBack, onEditCreator }: OrderHeaderSectionProps) {
   const navigate = useNavigate()
   console.log('[DEBUG] OrderHeaderSection lastAction:', JSON.stringify(lastAction))
 
@@ -92,6 +93,11 @@ export function OrderHeaderSection({ order, currentOwner, overLimit, lastAction,
           <div className="flex items-center gap-2">
             <span className="text-text-secondary shrink-0">منشئ الطلب</span>
             <span className="font-medium text-text">{renderCreator(order)}</span>
+            {onEditCreator && (
+              <button onClick={onEditCreator} className="text-accent hover:opacity-70 transition-opacity" title="تغيير المسؤول">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+              </button>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <span className="text-text-secondary shrink-0">التوصيل</span>
