@@ -551,80 +551,70 @@ export default function AttendanceSettingsPage() {
                       <td className="p-3 font-medium text-gray-800">{policy.employee_name}</td>
 
                       {editingId === policy.employee_id ? (
-                        <>
-                          <td className="p-3">
-                            <label className="flex items-center gap-1 text-xs cursor-pointer mb-1">
-                              <input
-                                type="checkbox"
-                                checked={editForm.attendance_enabled ?? true}
-                                onChange={(e) => setEditForm(f => ({ ...f, attendance_enabled: e.target.checked }))}
-                                className="w-3.5 h-3.5"
-                              />
-                              معفي من الحضور
-                            </label>
-                            {editForm.attendance_enabled !== false && (
-                              <select
-                                value={editForm.work_location}
-                                onChange={(e) => setEditForm(f => ({ ...f, work_location: e.target.value }))}
-                                className="w-full p-1.5 border border-gray-200 rounded-lg text-xs"
-                              >
-                                <option value="field">ميداني</option>
-                                <option value="office">مكتبي</option>
-                              </select>
-                            )}
-                          </td>
-                          <td className="p-3">
-                            <select
-                              value={editForm.schedule_type}
-                              onChange={(e) => setEditForm(f => ({ ...f, schedule_type: e.target.value }))}
-                              className="w-full p-1.5 border border-gray-200 rounded-lg text-xs"
-                            >
-                              <option value="fixed_shift">دوام ثابت</option>
-                              <option value="flexible">دوام مرن</option>
-                              <option value="hourly">بالساعة</option>
-                            </select>
-                          </td>
-                          <td className="p-3">
-                            <select
-                              value={editForm.tracking_required ? 'true' : 'false'}
-                              onChange={(e) => setEditForm(f => ({ ...f, tracking_required: e.target.value === 'true' }))}
-                              className={`w-full p-1.5 border border-gray-200 rounded-lg text-xs ${editForm.attendance_enabled === false ? 'opacity-50' : ''}`}
-                              disabled={editForm.attendance_enabled === false}
-                            >
-                              <option value="true">مطلوب</option>
-                              <option value="false">غير مطلوب</option>
-                            </select>
-                          </td>
-                          <td className="p-3">
-                            <input
-                              type="number"
-                              value={editForm.required_daily_hours ?? 8}
-                              onChange={(e) => setEditForm(f => ({ ...f, required_daily_hours: parseFloat(e.target.value) || 0 }))}
-                              className={`w-16 p-1.5 border border-gray-200 rounded-lg text-xs ${editForm.attendance_enabled === false ? 'opacity-50' : ''}`}
-                              min="0"
-                              max="24"
-                              step="0.5"
-                              disabled={editForm.attendance_enabled === false}
-                            />
-                          </td>
-                          <td className="p-3">
-                            <div className="flex items-center gap-1 justify-center">
-                              <button
-                                onClick={() => saveIndividual(policy.employee_id)}
-                                disabled={saveSingleLoading}
-                                className="px-2 py-1 bg-blue-600 text-white rounded-lg text-xs font-bold hover:bg-blue-700 disabled:opacity-50"
-                              >
-                                {saveSingleLoading ? '...' : 'حفظ'}
-                              </button>
-                              <button
-                                onClick={cancelEdit}
-                                className="px-2 py-1 bg-gray-200 text-gray-700 rounded-lg text-xs font-bold hover:bg-gray-300"
-                              >
-                                إلغاء
-                              </button>
+                        <td colSpan={5} className="p-4">
+                          <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
+                            <div className="flex items-center justify-between mb-3">
+                              <h4 className="font-bold text-blue-800">اختيار قالب دور الموظف</h4>
+                              <button onClick={cancelEdit} className="p-1 hover:bg-blue-100 rounded-lg"><X className="w-4 h-4 text-blue-500" /></button>
                             </div>
-                          </td>
-                        </>
+                            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                              {[
+                                { id: 'exempt', label: 'الإدارة العليا', sub: 'معفي من الحضور', icon: '🛡️',
+                                  vals: { attendance_enabled: false, work_location: 'office', schedule_type: 'flexible', tracking_required: false, required_daily_hours: null } },
+                                { id: 'office', label: 'موظف مكتبي', sub: 'مواعيد ثابتة', icon: '🏢',
+                                  vals: { attendance_enabled: true, work_location: 'office', schedule_type: 'fixed_shift', tracking_required: false, required_daily_hours: 8 } },
+                                { id: 'field', label: 'مندوب مبيعات', sub: 'مواعيد مرنة + تتبع', icon: '📍',
+                                  vals: { attendance_enabled: true, work_location: 'field', schedule_type: 'flexible', tracking_required: true, required_daily_hours: 8 } },
+                                { id: 'manager', label: 'مدير بيع', sub: 'مواعيد مرنة بدون تتبع', icon: '📋',
+                                  vals: { attendance_enabled: true, work_location: 'office', schedule_type: 'flexible', tracking_required: false, required_daily_hours: 8 } },
+                              ].map(tpl => {
+                                const isSelected =
+                                  (editForm.attendance_enabled === false && tpl.id === 'exempt') ||
+                                  (editForm.attendance_enabled !== false &&
+                                    editForm.work_location === tpl.vals.work_location &&
+                                    editForm.schedule_type === tpl.vals.schedule_type &&
+                                    editForm.tracking_required === tpl.vals.tracking_required)
+                                return (
+                                  <button
+                                    key={tpl.id}
+                                    onClick={async () => {
+                                      setEditForm(f => ({ ...f, ...tpl.vals }))
+                                      if (!token) return
+                                      setSaveSingleLoading(true)
+                                      const { error } = await supabase.rpc('upsert_employee_work_policy', {
+                                        p_token: token,
+                                        p_employee_id: policy.employee_id,
+                                        p_work_location: tpl.vals.work_location,
+                                        p_schedule_type: tpl.vals.schedule_type,
+                                        p_tracking_required: tpl.vals.tracking_required,
+                                        p_attendance_enabled: tpl.vals.attendance_enabled,
+                                        p_required_daily_hours: tpl.vals.required_daily_hours,
+                                        p_shift_start_time: null,
+                                        p_shift_end_time: null,
+                                        p_late_threshold_minutes: null,
+                                        p_early_departure_threshold_minutes: null,
+                                      })
+                                      setSaveSingleLoading(false)
+                                      if (error) { toast.error(error.message); return }
+                                      toast.success('تم حفظ سياسة العمل')
+                                      setEditingId(null)
+                                      setEditForm({})
+                                      await fetchPolicies()
+                                    }}
+                                    className={`relative flex flex-col items-center p-4 rounded-xl border-2 text-center transition-all ${
+                                      isSelected ? 'border-blue-500 bg-white shadow-md' : 'border-gray-200 bg-white hover:border-blue-300'
+                                    }`}
+                                  >
+                                    <span className="text-2xl mb-1">{tpl.icon}</span>
+                                    <div className="font-bold text-sm text-gray-800">{tpl.label}</div>
+                                    <div className="text-xs text-gray-500">{tpl.sub}</div>
+                                  </button>
+                                )
+                              })}
+                            </div>
+                            {saveSingleLoading && <p className="text-xs text-blue-600 mt-2 text-center">جاري الحفظ...</p>}
+                          </div>
+                        </td>
                       ) : (
                         <>
                           <td className="p-3">
