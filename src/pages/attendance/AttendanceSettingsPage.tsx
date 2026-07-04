@@ -65,6 +65,12 @@ export default function AttendanceSettingsPage() {
 
   const token = getToken()
 
+  const fetchSettings = useCallback(async () => {
+    if (!token) return
+    const { data } = await supabase.rpc('get_workday_settings', { p_token: token })
+    if (data) setSettings(data as SettingsData)
+  }, [token])
+
   useEffect(() => {
     if (!token) return
     fetchSettings().then(() => setLoading(false))
@@ -127,12 +133,6 @@ export default function AttendanceSettingsPage() {
   useEffect(() => {
     if (activeTab === 'work_policies') fetchPolicies()
   }, [activeTab, fetchPolicies])
-
-  const fetchSettings = useCallback(async () => {
-    if (!token) return
-    const { data } = await supabase.rpc('get_workday_settings', { p_token: token })
-    if (data) setSettings(data as SettingsData)
-  }, [token])
 
   const handleSave = async () => {
     if (!settings) return
