@@ -20,10 +20,9 @@ interface OrderDetailViewProps {
   data: UnifiedOrder
   actions?: React.ReactNode
   onBack?: () => void
-  onEditCreator?: () => void
 }
 
-export function OrderDetailView({ data, actions, onBack, onEditCreator }: OrderDetailViewProps) {
+export function OrderDetailView({ data, actions, onBack }: OrderDetailViewProps) {
   const { order, customer, items, collections, current_delivery, modification_history } = data
   const [overLimit, setOverLimit] = useState<boolean | null>(null)
 
@@ -84,7 +83,6 @@ export function OrderDetailView({ data, actions, onBack, onEditCreator }: OrderD
         modificationEntries={modification_history}
         actions={actions}
         onBack={onBack}
-        onEditCreator={onEditCreator}
       />
       <OrderCustomerSection customer={customer} order={order} />
       <OrderExecutiveStatusPanel

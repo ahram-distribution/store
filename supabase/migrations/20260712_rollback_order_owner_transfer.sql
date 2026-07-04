@@ -1,8 +1,10 @@
 -- ============================================================================
--- Fix get_unified_order to return owner employee name from owner_id
--- Needed by OrderHeaderSection to display "المسؤول عن الطلب" after
--- governed_update_order_owner changes the owner.
+-- Rollback: Remove order owner transfer feature per PO decision
+-- 1. DROP governed_update_order_owner function
+-- 2. Restore get_unified_order without owner_emp join / order_owner_name
 -- ============================================================================
+
+DROP FUNCTION IF EXISTS public.governed_update_order_owner(text, uuid, uuid);
 
 CREATE OR REPLACE FUNCTION public.get_unified_order(p_token text, p_id uuid)
  RETURNS jsonb
@@ -105,9 +107,7 @@ BEGIN
           WHEN oc_i.identity_type = 'customer' THEN oc_cust.id
           ELSE NULL
         END,
-        'order_creator_type', oc_i.identity_type,
-        'order_owner_name', COALESCE(owner_emp.full_name, ''),
-        'order_owner_role', COALESCE((SELECT r.name FROM public.employee_roles er2 JOIN public.roles r ON r.id = er2.role_id WHERE er2.employee_id = o.owner_id LIMIT 1), '')
+        'order_creator_type', oc_i.identity_type
       ),
       'customer', (
         SELECT jsonb_build_object(
@@ -292,10 +292,9 @@ BEGIN
     LEFT JOIN public.identities oc_i ON oc_i.id = o.created_by
     LEFT JOIN public.employees oc_emp ON oc_emp.identity_id = oc_i.id AND oc_i.identity_type = 'employee'
     LEFT JOIN public.customers oc_cust ON oc_cust.identity_id = oc_i.id AND oc_i.identity_type = 'customer'
-    LEFT JOIN public.employees owner_emp ON owner_emp.id = o.owner_id
     WHERE o.id = p_id
   );
 END;
 $function$;
 
-COMMENT ON FUNCTION public.get_unified_order IS 'مصدر الحقيقة الموحد للطلب — مع order_owner_name لدعم تغيير المسؤول';
+COMMENT ON FUNCTION public.get_unified_order IS 'مصدر الحقيقة الموحد للطلب';

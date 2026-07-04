@@ -86,8 +86,6 @@ export interface UnifiedOrderHeader {
   order_creator_role: string | null
   order_creator_id: string | null
   order_creator_type: string | null
-  order_owner_name: string
-  order_owner_role: string | null
 }
 
 export interface UnifiedCustomerSummary {
