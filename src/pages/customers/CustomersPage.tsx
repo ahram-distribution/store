@@ -18,6 +18,7 @@ export function CustomersPage() {
   const [customers, setCustomers] = useState<any[]>([])
   const [contacts, setContacts] = useState<any[]>([])
   const [locations, setLocations] = useState<Map<string, any>>(new Map())
+  const [employees, setEmployees] = useState<{ id: string; name: string }[]>([])
   const [loading, setLoading] = useState(true)
   const [myOnly, setMyOnly] = useState(false)
   const [filters, setFilters] = useState<FilterValues>({
@@ -66,10 +67,15 @@ export function CustomersPage() {
       params.p_employee_id = currentEmpId
     }
 
-    const [custRes, contRes] = await Promise.all([
+    const [custRes, contRes, empRes] = await Promise.all([
       supabase.rpc('get_governed_customers', params),
       supabase.rpc('get_governed_customer_contacts', { p_token: token }),
+      supabase.rpc('get_governed_employees', { p_token: token }),
     ])
+    if (empRes.data) {
+      const list = Array.isArray(empRes.data) ? empRes.data : []
+      setEmployees(list.map((e: any) => ({ id: e.identity_id || e.id, name: e.full_name })))
+    }
     if (custRes.data) {
       const list = Array.isArray(custRes.data) ? custRes.data : []
       setCustomers(list)
@@ -120,7 +126,8 @@ export function CustomersPage() {
 
       <SmartFilterBar
         searchPlaceholder="بحث باسم العميل أو الكود..."
-        employees={[]}
+        employees={employees}
+        employeeLabel="المسؤول عن العميل"
         onFilterChange={setFilters}
       />
 

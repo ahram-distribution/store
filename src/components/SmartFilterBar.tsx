@@ -12,6 +12,7 @@ interface SmartFilterBarProps {
   searchPlaceholder?: string
   employees: { id: string; name: string }[]
   customerSearch?: boolean
+  employeeLabel?: string
   onFilterChange: (filters: FilterValues) => void
 }
 
@@ -25,7 +26,7 @@ const DATE_PRESETS = [
   { key: 'custom', label: 'فترة' },
 ]
 
-export default function SmartFilterBar({ searchPlaceholder, employees, onFilterChange }: SmartFilterBarProps) {
+export default function SmartFilterBar({ searchPlaceholder, employees, employeeLabel, onFilterChange }: SmartFilterBarProps) {
   const [datePreset, setDatePreset] = useState('month')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
@@ -79,7 +80,7 @@ export default function SmartFilterBar({ searchPlaceholder, employees, onFilterC
           className="flex-1 text-xs px-3 py-2 rounded-lg border border-border bg-surface focus:outline-none focus:border-primary transition-colors" />
         <select value={employeeId} onChange={e => { setEmployeeId(e.target.value); emit({ employeeId: e.target.value }) }}
           className="shrink-0 text-xs px-2 py-2 rounded-lg border border-border bg-surface focus:outline-none focus:border-primary">
-          <option value="">كل المناديب</option>
+          <option value="">{employeeLabel || 'كل المناديب'}</option>
           {employees.map(emp => (
             <option key={emp.id} value={emp.id}>{emp.name}</option>
           ))}
