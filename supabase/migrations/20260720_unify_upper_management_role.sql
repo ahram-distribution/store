@@ -2199,7 +2199,7 @@ $function$;
 CREATE OR REPLACE FUNCTION public.get_workday_settings(p_token uuid)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, extensions
 AS $function$
-DECLARE v_session app.sessions; v_settings record;
+DECLARE v_session app.sessions; v_settings jsonb;
 BEGIN
     SELECT * INTO v_session FROM app.sessions WHERE token = p_token AND expires_at > now();
     IF NOT FOUND THEN RETURN jsonb_build_object('error', 'INVALID_SESSION'); END IF;
@@ -2215,23 +2215,38 @@ AS $function$
 DECLARE v_session app.sessions; v_setting_id uuid;
     v_sql text := 'UPDATE public.workday_settings SET ';
     v_updates text[] := '{}'; v_key text; v_val text;
+    v_allowed constant text[] := ARRAY['tracking_mode','location_interval_seconds','official_start_time','official_end_time',
+                              'late_threshold_minutes','early_departure_threshold_minutes','retention_days',
+                              'auto_cleanup_enabled','cleanup_frequency'];
 BEGIN
     SELECT * INTO v_session FROM app.sessions WHERE token = p_token AND expires_at > now();
     IF NOT FOUND THEN RETURN jsonb_build_object('error', 'INVALID_SESSION'); END IF;
     IF NOT public.is_upper_management(v_session.employee_id) THEN RETURN jsonb_build_object('error', 'FORBIDDEN'); END IF;
+
     SELECT id INTO v_setting_id FROM public.workday_settings LIMIT 1;
-    IF NOT FOUND THEN INSERT INTO public.workday_settings (updated_by) VALUES (v_session.employee_id) RETURNING id INTO v_setting_id; END IF;
+
     FOR v_key, v_val IN SELECT * FROM jsonb_each_text(p_fields) LOOP
-        IF v_key IN ('tracking_mode', 'location_interval_seconds', 'official_start_time', 'official_end_time',
-                     'late_threshold_minutes', 'early_departure_threshold_minutes', 'retention_days',
-                     'auto_cleanup_enabled', 'cleanup_frequency') THEN
+        IF v_key = ANY(v_allowed) THEN
             v_updates := array_append(v_updates, format('%I = %L', v_key,
-                CASE WHEN v_val ~ '^\d+(\.\d+)?$' THEN v_val WHEN v_val IN ('true', 'false') THEN v_val ELSE quote_literal(v_val) END));
+                CASE WHEN v_val ~ '^\d+(\.\d+)?$' THEN v_val
+                     WHEN v_val IN ('true', 'false') THEN v_val
+                     ELSE quote_literal(v_val) END));
         END IF;
     END LOOP;
-    v_updates := array_append(v_updates, format('updated_by = %L', v_session.employee_id));
-    v_updates := array_append(v_updates, 'updated_at = now()');
-    IF array_length(v_updates, 1) > 2 THEN
+
+    IF v_setting_id IS NOT NULL THEN
+        v_updates := array_append(v_updates, format('updated_by = %L', v_session.employee_id));
+        v_updates := array_append(v_updates, 'updated_at = now()');
+        IF array_length(v_updates, 1) > 2 THEN
+            EXECUTE v_sql || array_to_string(v_updates, ', ') || format(' WHERE id = %L', v_setting_id);
+        END IF;
+        RETURN jsonb_build_object('success', true);
+    END IF;
+
+    INSERT INTO public.workday_settings (updated_by) VALUES (v_session.employee_id) RETURNING id INTO v_setting_id;
+    IF array_length(v_updates, 1) > 0 THEN
+        v_updates := array_append(v_updates, format('updated_by = %L', v_session.employee_id));
+        v_updates := array_append(v_updates, 'updated_at = now()');
         EXECUTE v_sql || array_to_string(v_updates, ', ') || format(' WHERE id = %L', v_setting_id);
     END IF;
     RETURN jsonb_build_object('success', true);
