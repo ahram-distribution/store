@@ -3,7 +3,7 @@ import { sendWhatsAppFromDisplay, copyWhatsAppFromDisplay } from '../../lib/what
 import { buildOrderDisplayData } from '../../types/order-display'
 import { creditService } from '../../services/credit'
 import { buildTimelineEvents, getCurrentOwner, getLastActionLabel } from './order-detail.utils'
-import { renderPdfHtml, printInvoice } from './order-printing'
+import { renderDeliveryPermitHtml, printInvoice } from './order-printing'
 import { OrderHeaderSection } from './OrderHeaderSection'
 import { OrderCustomerSection } from './OrderCustomerSection'
 import { OrderExecutiveStatusPanel } from './OrderExecutiveStatusPanel'
@@ -53,9 +53,10 @@ export function OrderDetailView({ data, actions, onBack }: OrderDetailViewProps)
   }, [order.id, order.payment_method, order.status])
 
   function handlePdf(compact: boolean) {
-    const html = renderPdfHtml(data)
+    const logoUrl = window.location.origin + '/store/branding/ahram-logo.png'
+    const html = renderDeliveryPermitHtml(data, logoUrl)
     if (compact) {
-      const comp = html.replace(/size: A4/, 'size: A5').replace(/1\.5cm/g, '0.7cm').replace(/10pt/g, '8pt').replace(/18pt/g, '11pt').replace(/20pt/g, '14pt')
+      const comp = html.replace(/size: A4/, 'size: A5').replace(/1cm/g, '0.4cm').replace(/10pt/g, '8pt').replace(/18pt/g, '11pt').replace(/20pt/g, '14pt')
       printInvoice(comp)
     } else {
       printInvoice(html)
