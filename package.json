@@ -15,7 +15,8 @@
     "build:mobile": "node ./scripts/build-mobile.cjs",
     "cap:build:android": "node ./node_modules/@capacitor/cli/bin/capacitor build android",
     "cap:build:ios": "node ./node_modules/@capacitor/cli/bin/capacitor build ios",
-    "cap:copy": "node ./node_modules/@capacitor/cli/bin/capacitor copy"
+    "cap:copy": "node ./node_modules/@capacitor/cli/bin/capacitor copy",
+    "deploy": "node ./node_modules/gh-pages/bin/gh-pages.js -d dist"
   },
   "devDependencies": {
     "@playwright/test": "^1.60.0",
