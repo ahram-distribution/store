@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useLocation } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import toast from 'react-hot-toast'
-import { Settings, Users, Save, Search, CheckSquare, X, Edit2, MapPin, Building2, Satellite, Smartphone, ShieldAlert } from 'lucide-react'
+import { Settings, Users, Save, Search, CheckSquare, X, Edit2, MapPin, Building2, Satellite, Smartphone, ShieldAlert, Clock, Gauge, Radio } from 'lucide-react'
 
 interface SettingsData {
   official_start_time: string
@@ -10,6 +10,9 @@ interface SettingsData {
   late_threshold_minutes: number
   early_departure_threshold_minutes: number
   location_interval_seconds: number
+  retention_days: number
+  auto_cleanup_enabled: boolean
+  tracking_mode: string
 }
 
 interface WorkPolicy {
@@ -64,11 +67,8 @@ export default function AttendanceSettingsPage() {
 
   useEffect(() => {
     if (!token) return
-    supabase.rpc('get_workday_settings', { p_token: token }).then(({ data }) => {
-      setSettings(data as SettingsData | null)
-      setLoading(false)
-    })
-  }, [token])
+    fetchSettings().then(() => setLoading(false))
+  }, [token, fetchSettings])
 
   const fetchPolicies = useCallback(async () => {
     if (!token) return
@@ -128,6 +128,12 @@ export default function AttendanceSettingsPage() {
     if (activeTab === 'work_policies') fetchPolicies()
   }, [activeTab, fetchPolicies])
 
+  const fetchSettings = useCallback(async () => {
+    if (!token) return
+    const { data } = await supabase.rpc('get_workday_settings', { p_token: token })
+    if (data) setSettings(data as SettingsData)
+  }, [token])
+
   const handleSave = async () => {
     if (!settings) return
     setSaving(true)
@@ -136,7 +142,8 @@ export default function AttendanceSettingsPage() {
       p_fields: settings,
     })
     if (error) { toast.error(error.message); setSaving(false); return }
-    toast.success('تم حفظ الإعدادات')
+    toast.success('تم حفظ الإعدادات العامة بنجاح')
+    await fetchSettings()
     setSaving(false)
   }
 
@@ -284,65 +291,96 @@ export default function AttendanceSettingsPage() {
         </div>
 
         {/* Tab: General Settings */}
-        {activeTab === 'general' && (
-          <div className="bg-white rounded-2xl shadow-sm p-6 space-y-5 max-w-lg">
-            <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">وقت بدء العمل الرسمي</label>
-              <input
-                type="time"
-                value={settings?.official_start_time?.slice(0, 5) ?? '09:00'}
-                onChange={(e) => setSettings(s => s ? { ...s, official_start_time: e.target.value + ':00' } : null)}
-                className="w-full p-3 border border-gray-200 rounded-xl text-lg"
-              />
+        {activeTab === 'general' && settings && (
+          <div className="space-y-5 max-w-2xl">
+            {/* Card 1: Official Times */}
+            <div className="bg-white rounded-2xl shadow-sm p-6">
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center"><Clock className="w-5 h-5 text-blue-600" /></div>
+                <div><h3 className="font-bold text-gray-800">المواعيد الرسمية</h3><p className="text-xs text-gray-400">تحديد بداية ونهاية الدوام الرسمي للشركة</p></div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-1.5">وقت بدء العمل</label>
+                  <input type="time" value={settings.official_start_time?.slice(0, 5) ?? '09:00'}
+                    onChange={(e) => setSettings({ ...settings, official_start_time: e.target.value + ':00' })}
+                    className="w-full p-3 border border-gray-200 rounded-xl text-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-1.5">وقت انتهاء العمل</label>
+                  <input type="time" value={settings.official_end_time?.slice(0, 5) ?? '17:00'}
+                    onChange={(e) => setSettings({ ...settings, official_end_time: e.target.value + ':00' })}
+                    className="w-full p-3 border border-gray-200 rounded-xl text-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" />
+                </div>
+              </div>
             </div>
-            <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">وقت انتهاء العمل الرسمي</label>
-              <input
-                type="time"
-                value={settings?.official_end_time?.slice(0, 5) ?? '17:00'}
-                onChange={(e) => setSettings(s => s ? { ...s, official_end_time: e.target.value + ':00' } : null)}
-                className="w-full p-3 border border-gray-200 rounded-xl text-lg"
-              />
+
+            {/* Card 2: Tolerance Rules */}
+            <div className="bg-white rounded-2xl shadow-sm p-6">
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center"><Gauge className="w-5 h-5 text-amber-600" /></div>
+                <div><h3 className="font-bold text-gray-800">قواعد السماحية</h3><p className="text-xs text-gray-400">تطبق فقط على الموظفين بنظام الدوام الثابت (fixed_shift)</p></div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-1.5">سماحية التأخير (بالدقائق)</label>
+                  <input type="number" value={settings.late_threshold_minutes ?? 0}
+                    onChange={(e) => setSettings({ ...settings, late_threshold_minutes: Number(e.target.value) || 0 })}
+                    className="w-full p-3 border border-gray-200 rounded-xl text-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" min="0" />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-1.5">سماحية الانصراف المبكر (بالدقائق)</label>
+                  <input type="number" value={settings.early_departure_threshold_minutes ?? 0}
+                    onChange={(e) => setSettings({ ...settings, early_departure_threshold_minutes: Number(e.target.value) || 0 })}
+                    className="w-full p-3 border border-gray-200 rounded-xl text-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" min="0" />
+                </div>
+              </div>
             </div>
-            <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">سماحية التأخير (بالدقائق)</label>
-              <input
-                type="number"
-                value={settings?.late_threshold_minutes ?? 15}
-                onChange={(e) => setSettings(s => s ? { ...s, late_threshold_minutes: parseInt(e.target.value) || 0 } : null)}
-                className="w-full p-3 border border-gray-200 rounded-xl text-lg"
-                min="0"
-              />
+
+            {/* Card 3: System & Tracking Settings */}
+            <div className="bg-white rounded-2xl shadow-sm p-6">
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center"><Radio className="w-5 h-5 text-purple-600" /></div>
+                <div><h3 className="font-bold text-gray-800">إعدادات النظام والتتبع</h3><p className="text-xs text-gray-400">فترات تسجيل المواقع، الاحتفاظ بالبيانات، والتنظيف التلقائي</p></div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-1.5">فترة تسجيل المواقع (بالثواني)</label>
+                  <input type="number" value={settings.location_interval_seconds ?? 300}
+                    onChange={(e) => setSettings({ ...settings, location_interval_seconds: Number(e.target.value) || 60 })}
+                    className="w-full p-3 border border-gray-200 rounded-xl text-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" min="30" step="30" />
+                  <p className="text-xs text-gray-400 mt-1">زيادة العدد لتوفير البطارية (300 = 5 دقائق)</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-1.5">الاحتفاظ بالبيانات (أيام)</label>
+                  <select value={settings.retention_days ?? 90}
+                    onChange={(e) => setSettings({ ...settings, retention_days: Number(e.target.value) })}
+                    className="w-full p-3 border border-gray-200 rounded-xl text-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none">
+                    <option value={7}>7 أيام</option>
+                    <option value={30}>30 يوماً</option>
+                    <option value={90}>90 يوماً</option>
+                    <option value={180}>180 يوماً</option>
+                    <option value={365}>سنة</option>
+                  </select>
+                </div>
+              </div>
+              <div className="mt-4 flex items-center justify-between p-4 bg-gray-50 rounded-xl">
+                <div>
+                  <div className="font-bold text-sm text-gray-700">التنظيف التلقائي للبيانات القديمة</div>
+                  <div className="text-xs text-gray-400">عند التفعيل، يتم حذف بيانات المواقع الأقدم من فترة الاحتفاظ تلقائياً</div>
+                </div>
+                <button onClick={() => setSettings({ ...settings, auto_cleanup_enabled: !settings.auto_cleanup_enabled })}
+                  className={`relative w-14 h-7 rounded-full transition-all ${settings.auto_cleanup_enabled ? 'bg-blue-600' : 'bg-gray-300'}`}>
+                  <span className={`absolute top-0.5 w-6 h-6 bg-white rounded-full shadow transition-all ${settings.auto_cleanup_enabled ? 'right-0.5' : 'right-7'}`} />
+                </button>
+              </div>
             </div>
-            <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">سماحية الانصراف المبكر (بالدقائق)</label>
-              <input
-                type="number"
-                value={settings?.early_departure_threshold_minutes ?? 15}
-                onChange={(e) => setSettings(s => s ? { ...s, early_departure_threshold_minutes: parseInt(e.target.value) || 0 } : null)}
-                className="w-full p-3 border border-gray-200 rounded-xl text-lg"
-                min="0"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">فترة التتبع (بالثواني)</label>
-              <input
-                type="number"
-                value={settings?.location_interval_seconds ?? 300}
-                onChange={(e) => setSettings(s => s ? { ...s, location_interval_seconds: parseInt(e.target.value) || 60 } : null)}
-                className="w-full p-3 border border-gray-200 rounded-xl text-lg"
-                min="30"
-                step="30"
-              />
-              <p className="text-xs text-gray-400 mt-1">زيادة العدد لتوفير البطارية</p>
-            </div>
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className="w-full py-4 bg-blue-600 text-white rounded-2xl text-lg font-bold shadow-lg hover:bg-blue-700 active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-3"
-            >
-              {saving ? '⏳' : <Save className="w-5 h-5" />}
-              حفظ الإعدادات
+
+            {/* Save Button */}
+            <button onClick={handleSave} disabled={saving}
+              className="w-full py-4 bg-blue-600 text-white rounded-2xl text-lg font-bold shadow-lg hover:bg-blue-700 active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-3">
+              {saving ? <span className="inline-block w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Save className="w-5 h-5" />}
+              حفظ الإعدادات العامة
             </button>
           </div>
         )}
