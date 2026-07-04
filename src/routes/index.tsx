@@ -55,6 +55,7 @@ import { AttendanceRouter } from '../components/attendance/AttendanceRouter'
 import { OperationsCenterPage } from '../pages/operations-center'
 import { SalesManagerCCPage, SalesManagerTargets, SalesManagerOperations, SalesManagerField, SalesManagerPersonal, SalesManagerVisitsList, SalesManagerCustomersList, SalesManagerOrdersList } from '../pages/sales-manager'
 import { SalesEffortPage } from '../pages/sales-effort'
+import { SalesListPage } from '../pages/sales-list'
 
 import { GpsTestPage } from '../pages/diagnostics'
 import CoverageMapPage from '../pages/coverage/CoverageMapPage'
@@ -190,6 +191,7 @@ export function AppRoutes() {
       <Route path="/sales-manager/customers-list" element={<ProtectedRoute employeeOnly><SalesManagerCustomersList /></ProtectedRoute>} />
       <Route path="/sales-manager/orders-list" element={<ProtectedRoute employeeOnly><SalesManagerOrdersList /></ProtectedRoute>} />
       <Route path="/sales-effort" element={<ProtectedRoute employeeOnly><SalesEffortPage /></ProtectedRoute>} />
+      <Route path="/sales-list" element={<ProtectedRoute employeeOnly><SalesListPage /></ProtectedRoute>} />
 
 
       <Route path="/ops/gps-test" element={<ProtectedRoute requireUpperManagement><GpsTestPage /></ProtectedRoute>} />

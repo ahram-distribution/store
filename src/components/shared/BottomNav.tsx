@@ -1,5 +1,8 @@
 import { useLocation, Link } from 'react-router-dom'
 import { useAuthStore } from '../../store/auth'
+import { normalizeEmployeeRole } from '../../utils/roleNormalization'
+
+const SALES_LIST_ROLES = ['الإدارة العليا', 'مدير بيع', 'مندوب مبيعات']
 
 function useNavItems() {
   const { user } = useAuthStore()
@@ -13,12 +16,22 @@ function useNavItems() {
     ]
   }
 
-  return [
+  const userRoles = user?.roles || []
+  const normalizedRoles = userRoles.map(normalizeEmployeeRole)
+  const showSalesList = SALES_LIST_ROLES.some((r) => normalizedRoles.includes(r))
+
+  const items = [
     { label: 'الرئيسية', path: '/dashboard', icon: 'H' },
     { label: 'المتجر', path: '/storefront', icon: 'S' },
     { label: 'الطلبات', path: '/orders', icon: 'O' },
     { label: 'الزيارات', path: '/visits', icon: 'V' },
   ]
+
+  if (showSalesList) {
+    items.push({ label: 'ليست البيع', path: '/sales-list', icon: 'L' })
+  }
+
+  return items
 }
 
 export function BottomNav() {

@@ -1,0 +1,277 @@
+import { useState, useEffect, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { supabase } from '../../lib/supabase'
+import { useAuthStore } from '../../store/auth'
+import { normalizeEmployeeRole, type TargetRole } from '../../utils/roleNormalization'
+import { formatCurrencyShort, formatDateTime } from '../../utils/format'
+
+function getToken(): string | null {
+  try { return localStorage.getItem('session_token') } catch { return null }
+}
+
+const ALLOWED_ROLES: TargetRole[] = ['الإدارة العليا', 'مدير بيع', 'مندوب مبيعات']
+
+interface ProductRow {
+  id: string
+  product_name: string
+  legacy_code: string
+  company_id: string
+  company_name: string
+  is_active: boolean
+  is_out_of_stock: boolean
+  carton_price: number
+  carton_quantity: number
+  product_units: { id: string; unit_type: string; is_active: boolean }[]
+}
+
+const UNIT_LABELS: Record<string, string> = {
+  piece: 'قطعة',
+  dozen: 'دستة',
+  carton: 'كرتونة',
+}
+
+function esc(s: string | null | undefined): string {
+  if (!s) return ''
+  const d = document.createElement('div')
+  d.textContent = s
+  return d.innerHTML
+}
+
+function formatPrice(val: number): string {
+  if (!Number.isFinite(val)) return '0'
+  return new Intl.NumberFormat('en-US', {
+    style: 'decimal',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(val)
+}
+
+function renderSalesListHtml(products: ProductRow[], logoUrl: string): string {
+  const now = new Date()
+
+  function rowsHtml(): string {
+    return products.map((p) => {
+      const activeUnits = (p.product_units || []).filter((u) => u.is_active !== false)
+      const unitDisplay = activeUnits.map((u) => UNIT_LABELS[u.unit_type] || u.unit_type).join(' - ')
+      const unitPrices = activeUnits.map((u) => {
+        if (u.unit_type === 'carton') return `كرتونة: ${formatPrice(Number(p.carton_price) || 0)}`
+        const piecePrice = (Number(p.carton_price) || 0) / (Number(p.carton_quantity) || 1)
+        if (u.unit_type === 'dozen') return `دستة: ${formatPrice(piecePrice * 12)}`
+        return `قطعة: ${formatPrice(piecePrice)}`
+      })
+      const priceDisplay = unitPrices.join(' | ')
+      return `<tr>
+        <td style="font-family:monospace;direction:ltr">${esc(p.legacy_code || '---')}</td>
+        <td>${esc(p.product_name)}</td>
+        <td>${esc(p.company_name || '')}</td>
+        <td>${esc(unitDisplay)}</td>
+        <td>${priceDisplay}</td>
+      </tr>`
+    }).join('')
+  }
+
+  return `<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head><meta charset="UTF-8"><title>ليست البيع</title>
+<style>
+  @page { margin: 0 !important; size: A4 landscape; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Cairo', 'Tajawal', 'Segoe UI', Tahoma, Arial, sans-serif; font-size: 9pt; color: #222; line-height: 1.5; position: relative; padding: 0; }
+  .watermark-wrap { position: fixed; top: 0; bottom: 0; left: 0; right: 0; z-index: -10; display: flex; justify-content: center; align-items: center; pointer-events: none; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .watermark-wrap img { transform: rotate(-45deg) scale(2.5); opacity: 0.05; max-width: 100%; max-height: 100%; }
+  .print-content { position: relative; z-index: 1; }
+  .top-bar { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #003366; padding-bottom: 12px; margin-bottom: 16px; }
+  .header-right { flex: 3; text-align: right; }
+  .header-right .brand { font-size: 14pt; font-weight: 700; color: #003366; white-space: nowrap; }
+  .header-right .contact { font-size: 9pt; color: #333; }
+  .header-center { flex: 4; text-align: center; }
+  .header-center .logo-img { height: auto; max-height: 100px; max-width: 100%; object-fit: contain; margin: 0 auto; }
+  .header-left { flex: 3; text-align: left; }
+  .header-left .doc-title { font-size: 16pt; font-weight: 700; color: #003366; }
+  .header-left .doc-date { font-size: 9pt; color: #555; margin-top: 2px; }
+  .info-bar { background: #f0f5ff; border: 1px solid #cce0ff; border-radius: 4px; padding: 6px 10px; margin-bottom: 12px; font-size: 8pt; color: #555; text-align: center; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
+  thead { display: table-header-group; }
+  tbody { display: table-row-group; }
+  th { background: #003366; color: #fff; padding: 6px 4px !important; text-align: center; vertical-align: middle !important; font-weight: 600; font-size: 8pt; word-wrap: break-word; }
+  td { padding: 5px 4px !important; border-bottom: 1px solid #e5e7eb; text-align: center; vertical-align: middle !important; font-size: 8pt; word-wrap: break-word; }
+  tbody tr { page-break-inside: avoid; }
+  tbody tr:nth-child(even) { background: #f8f9fa; }
+  .footer { text-align: center; margin-top: 16px; font-size: 7pt; color: #9ca3af; border-top: 1px solid #e5e7eb; padding-top: 6px; }
+  .footer .count { font-weight: 700; color: #003366; }
+  @media print { @page { margin: 0 !important; } body { margin: 0.8cm !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+</style></head>
+<body>
+<div class="watermark-wrap"><img src="${esc(logoUrl)}" alt="" /></div>
+<div class="print-content">
+<div class="top-bar">
+  <div class="header-right">
+    <div class="brand">شركة الأهرام للتجارة والتوزيع</div>
+    <div class="contact">كورنيش النيل - الوراق - جيزة</div>
+    <div class="contact">تليفون: 01040880002</div>
+  </div>
+  <div class="header-center">
+    <img src="${esc(logoUrl)}" alt="الأهرام" class="logo-img" />
+  </div>
+  <div class="header-left">
+    <div class="doc-title">ليست البيع</div>
+    <div class="doc-date">تاريخ الطباعة: ${formatDateTime(now)}</div>
+  </div>
+</div>
+<div class="info-bar">إجمالي عدد الأصناف: ${products.length} صنف</div>
+<table>
+  <thead>
+    <tr>
+      <th>كود الصنف</th>
+      <th>اسم الصنف</th>
+      <th>التصنيف</th>
+      <th>وحدة البيع</th>
+      <th>سعر البيع</th>
+    </tr>
+  </thead>
+  <tbody>
+    ${rowsHtml()}
+  </tbody>
+</table>
+<div class="footer">
+  <div>شركة الأهرام للتجارة والتوزيع - جميع الحقوق محفوظة</div>
+  <div class="count">إجمالي الأصناف: ${products.length} | تاريخ الطباعة: ${formatDateTime(now)}</div>
+</div>
+</div>
+</body></html>`
+}
+
+function printIframe(html: string) {
+  const iframe = document.createElement('iframe')
+  iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;border:none'
+  document.body.appendChild(iframe)
+  const win = iframe.contentWindow
+  if (!win) { document.body.removeChild(iframe); return }
+  win.document.write(html)
+  win.document.close()
+  setTimeout(() => { try { win.print() } catch {}; document.body.removeChild(iframe) }, 500)
+}
+
+export default function SalesListPage() {
+  const navigate = useNavigate()
+  const user = useAuthStore((s) => s.user)
+  const [products, setProducts] = useState<ProductRow[]>([])
+  const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState('')
+
+  const userRoles = user?.roles || []
+  const normalizedRoles = userRoles.map(normalizeEmployeeRole)
+  const hasAccess = ALLOWED_ROLES.some((r) => normalizedRoles.includes(r))
+
+  useEffect(() => {
+    if (!hasAccess) return
+    const token = getToken()
+    if (!token) { setLoading(false); return }
+    setLoading(true)
+    supabase.rpc('get_governed_products', { p_token: token, p_active_only: true, p_visible_only: true })
+      .then(({ data }) => {
+        const arr = Array.isArray(data) ? data : []
+        const filtered = arr.filter((p: any) => p.is_out_of_stock !== true)
+        setProducts(filtered)
+      })
+      .finally(() => setLoading(false))
+  }, [hasAccess])
+
+  const filtered = useMemo(() => {
+    if (!search.trim()) return products
+    const q = search.trim().toLowerCase()
+    return products.filter((p) =>
+      p.product_name.toLowerCase().includes(q) ||
+      (p.company_name || '').toLowerCase().includes(q) ||
+      (p.legacy_code || '').toLowerCase().includes(q)
+    )
+  }, [products, search])
+
+  const handlePrint = () => {
+    const logoUrl = window.location.origin + '/store/branding/ahram-logo.png'
+    const html = renderSalesListHtml(filtered, logoUrl)
+    printIframe(html)
+  }
+
+  if (!hasAccess) {
+    return (
+      <div className="text-center py-12 text-text-secondary text-sm">
+        ليس لديك صلاحية الوصول لهذه الشاشة
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-3">
+        <button onClick={() => navigate(-1)} className="text-text-secondary text-lg">&larr;</button>
+        <h1 className="text-lg font-bold text-text">ليست البيع</h1>
+        <button onClick={handlePrint} className="mr-auto bg-primary text-white text-xs px-3 py-1.5 rounded-lg font-semibold">
+          طباعة ليست البيع
+        </button>
+      </div>
+
+      <div className="relative">
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="بحث باسم الصنف أو التصنيف..."
+          className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-white pr-8"
+        />
+        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary text-sm">&#x1F50D;</span>
+      </div>
+
+      {loading ? (
+        <div className="text-center py-12 text-text-secondary text-sm">جاري التحميل...</div>
+      ) : filtered.length === 0 ? (
+        <div className="text-center py-12 text-text-secondary text-sm">
+          {search ? 'لا توجد نتائج للبحث' : 'لا توجد منتجات متاحة'}
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {filtered.map((p) => {
+            const activeUnits = (p.product_units || []).filter((u) => u.is_active !== false)
+            const unitDisplay = activeUnits.map((u) => UNIT_LABELS[u.unit_type] || u.unit_type).join(' - ')
+            return (
+              <div key={p.id} className="bg-white rounded-lg border border-border p-3 space-y-1">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="font-semibold text-sm text-text">{p.product_name}</div>
+                    <div className="text-[10px] text-text-secondary font-mono" dir="ltr">{p.legacy_code || '---'}</div>
+                  </div>
+                  <span className="shrink-0 bg-surface text-text-secondary text-[10px] px-2 py-0.5 rounded-full">
+                    {p.company_name || 'غير مصنف'}
+                  </span>
+                </div>
+                <div className="flex items-center gap-3 text-xs text-text-secondary">
+                  <span>{unitDisplay}</span>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {activeUnits.map((u) => {
+                    const unitLabel = UNIT_LABELS[u.unit_type] || u.unit_type
+                    let price: number
+                    if (u.unit_type === 'carton') {
+                      price = Number(p.carton_price) || 0
+                    } else {
+                      const piecePrice = (Number(p.carton_price) || 0) / (Number(p.carton_quantity) || 1)
+                      price = u.unit_type === 'dozen' ? piecePrice * 12 : piecePrice
+                    }
+                    return (
+                      <span key={u.id} className="bg-primary/5 text-primary text-[10px] px-2 py-0.5 rounded-full">
+                        {unitLabel}: {formatCurrencyShort(price)}
+                      </span>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+          })}
+          <div className="text-center text-[10px] text-text-secondary pb-4">
+            إجمالي الأصناف: {filtered.length}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
