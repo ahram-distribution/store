@@ -76,8 +76,7 @@ export default defineConfig({
             registerType: 'autoUpdate',
             includeAssets: ['pwa/**/*'],
             manifest: pwaManifest,
-            workbox: {
-              globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
+            injectManifest: {
               maximumFileSizeToCacheInBytes: 5_000_000,
             },
           }),
