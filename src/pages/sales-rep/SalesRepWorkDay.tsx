@@ -34,7 +34,7 @@ function isDelivered(o: any): boolean {
 
 function fmt(n: number | null | undefined): string {
   if (n == null) return '\u2014'
-  return n.toLocaleString('ar-EG-u-nu-latn')
+  return Math.round(n).toLocaleString('ar-EG-u-nu-latn')
 }
 
 function fmtShort(n: number): string {

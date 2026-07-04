@@ -8,7 +8,7 @@ function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
 }
 
-const fmt = (n: number) => Number.isFinite(n) ? n.toLocaleString('ar-EG-u-nu-latn') : '0'
+const fmt = (n: number) => Number.isFinite(n) ? Math.round(n).toLocaleString('ar-EG-u-nu-latn') : '0'
 
 const STATUS_LABELS: Record<string, string> = {
   pending: 'قيد الانتظار', approved: 'معتمد', submitted: 'مرسل',

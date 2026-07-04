@@ -12,7 +12,7 @@ function normalizeWhatsAppNumber(raw: string): string {
 
 function toEnUS(n: number | null | undefined): string {
   if (n == null) return '0'
-  return Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).replace(/\.00$/, '')
+  return Math.round(n).toLocaleString('en-US')
 }
 
 function formatDateTime(iso: string): string {

@@ -224,7 +224,7 @@ export default function TeamMapPage() {
                             <div className="flex justify-between"><span className="text-gray-400">مدة اليوم:</span><span className="font-bold">{fmtMin(m.duration_minutes)}</span></div>
                             <div className="flex justify-between"><span className="text-gray-400">الزيارات:</span><span className="font-bold">{m.visit_count ?? 0}</span></div>
                             <div className="flex justify-between"><span className="text-gray-400">الطلبات:</span><span className="font-bold">{m.order_count ?? 0}</span></div>
-                            <div className="flex justify-between"><span className="text-gray-400">المبيعات:</span><span className="font-bold">{(m.sales_value ?? 0).toLocaleString('en-EG')} ج.م</span></div>
+                            <div className="flex justify-between"><span className="text-gray-400">المبيعات:</span><span className="font-bold">{Math.round(m.sales_value ?? 0).toLocaleString('en-EG')} ج.م</span></div>
                             <div className="flex justify-between"><span className="text-gray-400">التحصيلات:</span><span className="font-bold">{m.collection_count ?? 0}</span></div>
                             <div className="flex justify-between"><span className="text-gray-400">عملاء جدد:</span><span className="font-bold">{m.new_customer_count ?? 0}</span></div>
                           </div>
@@ -292,7 +292,7 @@ export default function TeamMapPage() {
                   <div className="flex gap-1 mt-1.5 text-[9px] flex-wrap">
                     <span className="text-green-600 bg-green-50 px-1.5 py-0.5 rounded">{STATUS_LABELS[m.status] ?? m.status}</span>
                     <span className="text-orange-600 bg-orange-50 px-1.5 py-0.5 rounded">طلبات {m.order_count ?? 0}</span>
-                    <span className="text-orange-700 bg-orange-100 px-1.5 py-0.5 rounded">مبيعات {(m.sales_value ?? 0).toLocaleString('en-EG')} ج.م</span>
+                    <span className="text-orange-700 bg-orange-100 px-1.5 py-0.5 rounded">مبيعات {Math.round(m.sales_value ?? 0).toLocaleString('en-EG')} ج.م</span>
                     <span className="text-cyan-600 bg-cyan-50 px-1.5 py-0.5 rounded">تحصيل {m.collection_count ?? 0}</span>
                     <span className="text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded">جدد {m.new_customer_count ?? 0}</span>
                     <span className="text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded">زيارات {m.visit_count ?? 0}</span>

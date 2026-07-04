@@ -489,7 +489,7 @@ export function EmployeeProfilePage() {
                   <div key={kpi.label} className="flex items-center justify-between py-1">
                     <span className="text-[11px] text-text-secondary font-semibold">{kpi.label}</span>
                     <span className="text-[11px] text-text-secondary">
-                      {kpi.value > 0 ? `${(kpi.actual || 0).toLocaleString('ar-EG-u-nu-latn')} / ${kpi.value.toLocaleString('ar-EG-u-nu-latn')}` : 'غير متوفر'}
+                      {kpi.value > 0 ? `${Math.round(kpi.actual || 0).toLocaleString('ar-EG-u-nu-latn')} / ${Math.round(kpi.value).toLocaleString('ar-EG-u-nu-latn')}` : 'غير متوفر'}
                     </span>
                     <span className={`text-[11px] font-bold ${kpi.pct >= 100 ? 'text-success' : kpi.pct >= 50 ? 'text-warning' : 'text-red-500'}`}>
                       {kpi.pct != null ? kpi.pct.toFixed(1) + '%' : 'غير متوفر'}
@@ -564,7 +564,7 @@ export function EmployeeProfilePage() {
                             <td className="py-1.5 px-1 text-center text-gray-600 tabular-nums">{fmtMin(brk)}</td>
                             <td className="py-1.5 px-1 text-center font-bold text-blue-600 tabular-nums">{fmtMin(net)}</td>
                             <td className="py-1.5 px-1 text-center text-gray-700">{s.order_count ?? 0}</td>
-                            <td className="py-1.5 px-1 text-center text-gray-700">{(s.sales_value ?? 0).toLocaleString('en-EG')}</td>
+                            <td className="py-1.5 px-1 text-center text-gray-700">{Math.round(s.sales_value ?? 0).toLocaleString('en-EG')}</td>
                             <td className="py-1.5 px-1 text-center text-gray-700">{s.visit_count ?? 0}</td>
                             <td className="py-1.5 px-1 text-center"><BadgeAtt status={s.attendance_status} /></td>
                           </tr>
@@ -585,7 +585,7 @@ export function EmployeeProfilePage() {
                       <SummaryCard label="متوسط اليومي" value={fmtMin(attSummaryExtended.avg_net_minutes ?? 0)} color="text-indigo-600" />
                       <SummaryCard label="أطول يوم" value={fmtMin(attSummaryExtended.max_net_day ?? 0)} color="text-green-700" />
                       <SummaryCard label="أقصر يوم" value={fmtMin(attSummaryExtended.min_net_day ?? 0)} color="text-red-500" />
-                      <SummaryCard label="المبيعات" value={(attSummaryExtended.total_sales_value ?? 0).toLocaleString('en-EG')} color="text-orange-600" />
+                      <SummaryCard label="المبيعات" value={Math.round(attSummaryExtended.total_sales_value ?? 0).toLocaleString('en-EG')} color="text-orange-600" />
                       <SummaryCard label="الطلبات" value={String(attSummaryExtended.total_orders ?? 0)} color="text-purple-600" />
                     </div>
                     <div className="grid grid-cols-3 gap-2">

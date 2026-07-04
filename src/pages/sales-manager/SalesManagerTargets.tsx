@@ -7,7 +7,7 @@ function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
 }
 
-const fmt = (n: number) => Number.isFinite(n) ? n.toLocaleString('ar-EG-u-nu-latn') : '0'
+const fmt = (n: number) => Number.isFinite(n) ? Math.round(n).toLocaleString('ar-EG-u-nu-latn') : '0'
 const fmtPct = (n: number) => Number.isFinite(n) ? n.toFixed(1) + '%' : '0.0%'
 const pctColor = (pct: number) => pct >= 100 ? 'text-success' : pct >= 50 ? 'text-warning' : 'text-red-500'
 

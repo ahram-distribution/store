@@ -7,8 +7,7 @@ type Period = 'day' | 'yesterday' | 'week' | 'month' | 'custom'
 
 function fmt(n: number | null | undefined): string {
   if (n == null) return '\u2014'
-  if (Number.isInteger(n)) return n.toLocaleString('ar-EG-u-nu-latn')
-  return n.toLocaleString('ar-EG-u-nu-latn', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  return Math.round(n).toLocaleString('ar-EG-u-nu-latn')
 }
 
 export function SalesRepActivity() {
