@@ -155,7 +155,6 @@ function renderSalesListHtml(groups: CompanyGroup[], logoUrl: string): string {
     <div class="doc-date">تاريخ الطباعة: ${formatDateTime(now)}</div>
   </div>
 </div>
-<div class="info-bar">إجمالي عدد الأصناف: ${totalCount} صنف — عدد التصنيفات: ${groups.length}</div>
 <table>
   <thead>
     <tr>
@@ -172,7 +171,7 @@ function renderSalesListHtml(groups: CompanyGroup[], logoUrl: string): string {
 </table>
 <div class="footer">
   <div>شركة الأهرام للتجارة والتوزيع - جميع الحقوق محفوظة</div>
-  <div class="count">إجمالي الأصناف: ${totalCount} | عدد التصنيفات: ${groups.length} | تاريخ الطباعة: ${formatDateTime(now)}</div>
+  <div>تاريخ الطباعة: ${formatDateTime(now)}</div>
 </div>
 </div>
 </body></html>`
@@ -340,7 +339,7 @@ export default function SalesListPage() {
               </div>
             </div>
           ))}
-          <div className="text-center text-[10px] text-text-secondary pb-4">
+          <div className="text-center text-[10px] text-text-secondary pb-4 print:hidden">
             إجمالي الأصناف: {smartFiltered.length} | التصنيفات: {groupedProducts.length}
           </div>
         </div>
