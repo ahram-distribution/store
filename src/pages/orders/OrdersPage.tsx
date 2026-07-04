@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../store/auth'
 import { OrderCard } from '../../components/orders/OrderCard'
+import SmartFilterBar, { type FilterValues } from '../../components/SmartFilterBar'
 
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
@@ -37,65 +38,78 @@ export function OrdersPage() {
   const [loading, setLoading] = useState(true)
   const params = new URLSearchParams(window.location.search)
   const [tab, setTab] = useState<Tab>(params.get('my') === '1' ? 'my_orders' : 'all')
-
-  const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [customerFilter, setCustomerFilter] = useState('')
-  const [employeeFilter, setEmployeeFilter] = useState('')
-  const [dateFrom, setDateFrom] = useState('')
-  const [dateTo, setDateTo] = useState('')
+  const [filters, setFilters] = useState<FilterValues>({
+    datePreset: 'all', dateFrom: '', dateTo: '', search: '', employeeId: ''
+  })
+
+  const resolveDateRange = (f: FilterValues): { from: string | null; to: string | null } => {
+    if (f.datePreset === 'all') return { from: null, to: null }
+    const now = new Date()
+    const startOfDay = (d: Date) => { d.setHours(0, 0, 0, 0); return d.toISOString() }
+    const endOfDay = (d: Date) => { d.setHours(23, 59, 59, 999); return d.toISOString() }
+    switch (f.datePreset) {
+      case 'today': return { from: startOfDay(new Date()), to: endOfDay(new Date()) }
+      case 'yesterday': {
+        const y = new Date(); y.setDate(y.getDate() - 1)
+        return { from: startOfDay(y), to: endOfDay(y) }
+      }
+      case 'week': {
+        const wk = new Date(); wk.setDate(wk.getDate() - wk.getDay())
+        return { from: startOfDay(wk), to: endOfDay(new Date()) }
+      }
+      case 'month': return { from: startOfDay(new Date(now.getFullYear(), now.getMonth(), 1)), to: endOfDay(new Date()) }
+      case 'prev_month': {
+        const pm = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+        const pe = new Date(now.getFullYear(), now.getMonth(), 0)
+        return { from: startOfDay(pm), to: endOfDay(pe) }
+      }
+      case 'custom': return { from: f.dateFrom ? startOfDay(new Date(f.dateFrom)) : null, to: f.dateTo ? endOfDay(new Date(f.dateTo)) : null }
+      default: return { from: null, to: null }
+    }
+  }
+
+  const fetchOrders = async () => {
+    const token = getToken()
+    if (!token) { setLoading(false); return }
+    setLoading(true)
+    const range = resolveDateRange(filters)
+    const rpcParams: any = { p_token: token.trim() }
+    if (filters.search) rpcParams.p_search = filters.search
+    if (filters.employeeId) rpcParams.p_created_by = filters.employeeId
+    if (range.from) rpcParams.p_date_from = range.from
+    if (range.to) rpcParams.p_date_to = range.to
+    if (statusFilter) rpcParams.p_status = statusFilter
+    if (customerFilter) rpcParams.p_customer_id = customerFilter
+    if (tab === 'my_orders' && currentUserId) rpcParams.p_created_by = currentUserId
+
+    const { data } = await supabase.rpc('get_unified_orders', rpcParams)
+    if (data) setOrders(Array.isArray(data) ? data : [])
+    setLoading(false)
+  }
+
+  useEffect(() => { fetchOrders() }, [filters, statusFilter, customerFilter, tab])
 
   useEffect(() => {
     const token = getToken()
-    if (!token) { setLoading(false); return }
+    if (!token) return
     Promise.all([
-      supabase.rpc('get_unified_orders', { p_token: token }),
       supabase.rpc('get_governed_customers', { p_token: token }),
       supabase.rpc('get_governed_employees', { p_token: token }),
-    ]).then(([ordRes, custRes, empRes]) => {
-      const ordData = (ordRes.data as any[]) || []
-      setOrders(Array.isArray(ordData) ? ordData : [])
-      const custData = (custRes.data as any[]) || []
-      setCustomers(Array.isArray(custData) ? custData : [])
-      const empData = (empRes.data as any[]) || []
-      setEmployees(Array.isArray(empData) ? empData : [])
-      setLoading(false)
+    ]).then(([custRes, empRes]) => {
+      if (custRes.data) setCustomers(Array.isArray(custRes.data) ? custRes.data : [])
+      if (empRes.data) setEmployees(Array.isArray(empRes.data) ? empRes.data : [])
     })
   }, [])
 
   const sorted = useMemo(() => {
-    return [...orders].sort((a: any, b: any) => ((b.created_at || '') > (a.created_at || '') ? 1 : -1))
-  }, [orders])
-
-  const filtered = useMemo(() => {
-    let list = sorted
-
-    if (tab === 'my_orders' && currentUserId) {
-      list = list.filter((o: any) => o.created_by === currentUserId)
-    }
+    let list = orders
     if (tab === 'my_invoices' && currentUserId) {
       list = list.filter((o: any) => o.owner_id === currentUserId)
     }
-
-    const q = searchQuery.trim().toLowerCase()
-    if (q) {
-      list = list.filter((o: any) =>
-        (o.order_number || '').toLowerCase().includes(q) ||
-        (o.customer_name || '').toLowerCase().includes(q)
-      )
-    }
-    if (statusFilter) list = list.filter((o: any) => o.status === statusFilter)
-    if (customerFilter) list = list.filter((o: any) => o.customer_id === customerFilter)
-    if (employeeFilter) {
-      const emp = employees.find((e: any) => e.id === employeeFilter)
-      const filterIdentityId = emp?.identity_id || employeeFilter
-      list = list.filter((o: any) => o.created_by === filterIdentityId)
-    }
-    if (dateFrom) list = list.filter((o: any) => o.created_at >= dateFrom)
-    if (dateTo) list = list.filter((o: any) => o.created_at <= dateTo + 'T23:59:59')
-
-    return list
-  }, [sorted, tab, currentEmpId, searchQuery, statusFilter, customerFilter, employeeFilter, dateFrom, dateTo])
+    return [...list].sort((a: any, b: any) => ((b.created_at || '') > (a.created_at || '') ? 1 : -1))
+  }, [orders, tab, currentUserId])
 
   const tabLabel = tab === 'all' ? 'الطلبات' : tab === 'my_orders' ? 'طلباتي' : 'فواتيري'
 
@@ -115,41 +129,33 @@ export function OrdersPage() {
         </div>
       )}
 
-      <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
-        placeholder="بحث برقم الطلب أو اسم العميل..." className="w-full border border-border rounded-lg px-3 py-2.5 text-sm bg-white" />
+      <SmartFilterBar
+        searchPlaceholder="بحث برقم الطلب أو اسم العميل..."
+        employees={employees.map(e => ({ id: e.identity_id || e.id, name: e.full_name }))}
+        onFilterChange={setFilters}
+      />
 
-      <div className="grid grid-cols-2 gap-2">
+      <div className="flex gap-2">
         <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
-          className="border border-border rounded-lg px-2 py-1.5 text-xs bg-white">
+          className="flex-1 border border-border rounded-lg px-2 py-1.5 text-xs bg-white">
           {STATUS_OPTIONS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
         </select>
         <select value={customerFilter} onChange={(e) => setCustomerFilter(e.target.value)}
-          className="border border-border rounded-lg px-2 py-1.5 text-xs bg-white">
+          className="flex-1 border border-border rounded-lg px-2 py-1.5 text-xs bg-white">
           <option value="">كل العملاء</option>
           {customers.map((c: any) => <option key={c.id} value={c.id}>{c.company_name}</option>)}
         </select>
-        <select value={employeeFilter} onChange={(e) => setEmployeeFilter(e.target.value)}
-          className="border border-border rounded-lg px-2 py-1.5 text-xs bg-white">
-          <option value="">كل الموظفين</option>
-          {employees.map((e: any) => <option key={e.id} value={e.id}>{e.full_name}</option>)}
-        </select>
-        <div className="flex gap-1">
-          <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
-            className="flex-1 border border-border rounded-lg px-2 py-1.5 text-xs bg-white" />
-          <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
-            className="flex-1 border border-border rounded-lg px-2 py-1.5 text-xs bg-white" />
-        </div>
       </div>
 
       {loading ? (
         <div className="text-center py-12 text-text-secondary text-sm">جاري التحميل...</div>
-      ) : filtered.length === 0 ? (
+      ) : sorted.length === 0 ? (
         <div className="text-center py-12 text-text-secondary text-sm">
           {tab === 'my_orders' ? 'لا توجد طلبات لك' : tab === 'my_invoices' ? 'لا توجد فواتير لك' : 'لا توجد طلبات'}
         </div>
       ) : (
         <div className="space-y-2">
-          {filtered.map((order: any) => (
+          {sorted.map((order: any) => (
             <OrderCard key={order.id} order={order} onClick={() => navigate(`/orders/${order.id}`)} />
           ))}
         </div>

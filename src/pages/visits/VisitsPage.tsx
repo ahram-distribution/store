@@ -7,6 +7,7 @@ import { VisitCard } from '../../components/visits/VisitCard'
 import { locationService } from '../../services/location'
 import { getCurrentLocation } from '../../services/gpsService'
 import { lifeSignalService } from '../../services/lifeSignalService'
+import SmartFilterBar, { type FilterValues } from '../../components/SmartFilterBar'
 import toast from 'react-hot-toast'
 
 function getToken(): string | null {
@@ -33,41 +34,71 @@ export function VisitsPage() {
   const [customers, setCustomers] = useState<any[]>([])
   const [employees, setEmployees] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [searchQuery, setSearchQuery] = useState('')
-  const [statusFilter, setStatusFilter] = useState('')
+  const [statusFilter, setStatusFilter] = useState(filter === 'active' ? 'active' : '')
   const [customerFilter, setCustomerFilter] = useState('')
-  const [employeeFilter, setEmployeeFilter] = useState('')
-  const [dateFrom, setDateFrom] = useState('')
-  const [dateTo, setDateTo] = useState('')
+  const [filters, setFilters] = useState<FilterValues>({
+    datePreset: filter === 'today' ? 'today' : 'all',
+    dateFrom: '', dateTo: '', search: '', employeeId: ''
+  })
 
   const [showCheckin, setShowCheckin] = useState(false)
   const [checkinCustomerId, setCheckinCustomerId] = useState('')
 
-  useEffect(() => {
+  const resolveDateRange = (f: FilterValues): { from: string | null; to: string | null } => {
+    if (f.datePreset === 'all') return { from: null, to: null }
+    const now = new Date()
+    const startOfDay = (d: Date) => { d.setHours(0, 0, 0, 0); return d.toISOString() }
+    const endOfDay = (d: Date) => { d.setHours(23, 59, 59, 999); return d.toISOString() }
+    switch (f.datePreset) {
+      case 'today': return { from: startOfDay(new Date()), to: endOfDay(new Date()) }
+      case 'yesterday': {
+        const y = new Date(); y.setDate(y.getDate() - 1)
+        return { from: startOfDay(y), to: endOfDay(y) }
+      }
+      case 'week': {
+        const wk = new Date(); wk.setDate(wk.getDate() - wk.getDay())
+        return { from: startOfDay(wk), to: endOfDay(new Date()) }
+      }
+      case 'month': return { from: startOfDay(new Date(now.getFullYear(), now.getMonth(), 1)), to: endOfDay(new Date()) }
+      case 'prev_month': {
+        const pm = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+        const pe = new Date(now.getFullYear(), now.getMonth(), 0)
+        return { from: startOfDay(pm), to: endOfDay(pe) }
+      }
+      case 'custom': return { from: f.dateFrom ? startOfDay(new Date(f.dateFrom)) : null, to: f.dateTo ? endOfDay(new Date(f.dateTo)) : null }
+      default: return { from: null, to: null }
+    }
+  }
+
+  const fetchVisits = async () => {
     const token = getToken()
     if (!token) { setLoading(false); return }
+    setLoading(true)
+    const range = resolveDateRange(filters)
+    const rpcParams: any = { p_token: token.trim() }
+    if (filters.search) rpcParams.p_search = filters.search
+    if (filters.employeeId) rpcParams.p_employee_id = filters.employeeId
+    if (range.from) rpcParams.p_date_from = range.from
+    if (range.to) rpcParams.p_date_to = range.to
+
+    const { data } = await supabase.rpc('get_governed_visits', rpcParams)
+    if (data) setVisits(Array.isArray(data) ? data : [])
+    setLoading(false)
+  }
+
+  useEffect(() => { fetchVisits() }, [filters])
+
+  useEffect(() => {
+    const token = getToken()
+    if (!token) return
     Promise.all([
-      supabase.rpc('get_governed_visits', { p_token: token }),
       supabase.rpc('get_governed_customers', { p_token: token }),
       supabase.rpc('get_governed_employees', { p_token: token }),
-    ]).then(([visRes, custRes, empRes]) => {
-      let result = (visRes.data as any[]) || []
-      if (filter === 'today') {
-        result = result.filter((v: any) => {
-          const dt = v.check_in_at || v.created_at
-          if (!dt) return false
-          const d = new Date(dt); const n = new Date()
-          return !isNaN(d.getTime()) && d.getFullYear() === n.getFullYear() && d.getMonth() === n.getMonth() && d.getDate() === n.getDate()
-        })
-      } else if (filter === 'active') {
-        result = result.filter((v: any) => v.status === 'active')
-      }
-      setVisits(result)
+    ]).then(([custRes, empRes]) => {
       if (custRes.data) setCustomers(Array.isArray(custRes.data) ? custRes.data : [])
-      if (empRes.data) setEmployees(empRes.data)
-      setLoading(false)
+      if (empRes.data) setEmployees(Array.isArray(empRes.data) ? empRes.data : [])
     })
-  }, [filter])
+  }, [])
 
   const customerMap = useMemo(() => {
     const m = new Map<string, string>()
@@ -83,21 +114,10 @@ export function VisitsPage() {
 
   const filtered = useMemo(() => {
     let list = visits
-    const q = searchQuery.trim().toLowerCase()
-    if (q) {
-      list = list.filter((v: any) =>
-        (v.customer_name || customerMap.get(v.customer_id) || '').toLowerCase().includes(q) ||
-        (v.code || '').toLowerCase().includes(q) ||
-        (v.notes || '').toLowerCase().includes(q)
-      )
-    }
     if (statusFilter) list = list.filter((v: any) => v.status === statusFilter)
     if (customerFilter) list = list.filter((v: any) => v.customer_id === customerFilter)
-    if (employeeFilter) list = list.filter((v: any) => v.employee_id === employeeFilter)
-    if (dateFrom) list = list.filter((v: any) => v.created_at >= dateFrom)
-    if (dateTo) list = list.filter((v: any) => v.created_at <= dateTo + 'T23:59:59')
     return list
-  }, [visits, searchQuery, statusFilter, customerFilter, employeeFilter, dateFrom, dateTo, customerMap])
+  }, [visits, statusFilter, customerFilter])
 
   async function handleCheckin() {
     if (!checkinCustomerId) { toast.error('اختر العميل'); return }
@@ -177,30 +197,22 @@ export function VisitsPage() {
         </div>
       )}
 
-      <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
-        placeholder="بحث باسم العميل أو كود الزيارة..." className="w-full border border-border rounded-lg px-3 py-2.5 text-sm bg-white" />
+      <SmartFilterBar
+        searchPlaceholder="بحث باسم العميل أو كود الزيارة..."
+        employees={employees.map(e => ({ id: e.id, name: e.full_name }))}
+        onFilterChange={setFilters}
+      />
 
-      <div className="grid grid-cols-2 gap-2">
+      <div className="flex gap-2">
         <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
-          className="border border-border rounded-lg px-2 py-1.5 text-xs bg-white">
+          className="flex-1 border border-border rounded-lg px-2 py-1.5 text-xs bg-white">
           {STATUS_OPTIONS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
         </select>
         <select value={customerFilter} onChange={(e) => setCustomerFilter(e.target.value)}
-          className="border border-border rounded-lg px-2 py-1.5 text-xs bg-white">
+          className="flex-1 border border-border rounded-lg px-2 py-1.5 text-xs bg-white">
           <option value="">كل العملاء</option>
           {customers.map((c: any) => <option key={c.id} value={c.id}>{c.company_name}</option>)}
         </select>
-        <select value={employeeFilter} onChange={(e) => setEmployeeFilter(e.target.value)}
-          className="border border-border rounded-lg px-2 py-1.5 text-xs bg-white">
-          <option value="">كل الموظفين</option>
-          {employees.map((e: any) => <option key={e.id} value={e.id}>{e.full_name}</option>)}
-        </select>
-        <div className="flex gap-1">
-          <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
-            className="flex-1 border border-border rounded-lg px-2 py-1.5 text-xs bg-white" />
-          <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
-            className="flex-1 border border-border rounded-lg px-2 py-1.5 text-xs bg-white" />
-        </div>
       </div>
 
       {loading ? (
