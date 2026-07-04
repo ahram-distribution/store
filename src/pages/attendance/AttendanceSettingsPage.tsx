@@ -67,13 +67,14 @@ export default function AttendanceSettingsPage() {
 
   const fetchSettings = useCallback(async () => {
     if (!token) return
-    const { data } = await supabase.rpc('get_workday_settings', { p_token: token })
+    const { data, error } = await supabase.rpc('get_workday_settings', { p_token: token })
+    if (error) { console.warn('get_workday_settings error:', error); return }
     if (data) setSettings(data as SettingsData)
   }, [token])
 
   useEffect(() => {
     if (!token) return
-    fetchSettings().then(() => setLoading(false))
+    fetchSettings().finally(() => setLoading(false))
   }, [token, fetchSettings])
 
   const fetchPolicies = useCallback(async () => {
@@ -291,6 +292,15 @@ export default function AttendanceSettingsPage() {
         </div>
 
         {/* Tab: General Settings */}
+        {activeTab === 'general' && !loading && !settings && (
+          <div className="max-w-2xl p-6 bg-white rounded-2xl shadow-sm text-center">
+            <p className="text-gray-500 mb-3">تعذر تحميل الإعدادات العامة. قد تكون صلاحية الجلسة منتهية.</p>
+            <button onClick={() => { setLoading(true); fetchSettings().finally(() => setLoading(false)) }}
+              className="px-5 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-all">
+              إعادة المحاولة
+            </button>
+          </div>
+        )}
         {activeTab === 'general' && settings && (
           <div className="space-y-5 max-w-2xl">
             {/* Card 1: Official Times */}
