@@ -74,7 +74,7 @@ export function CustomersPage() {
     ])
     if (empRes.data) {
       const list = Array.isArray(empRes.data) ? empRes.data : []
-      setEmployees(list.map((e: any) => ({ id: e.identity_id || e.id, name: e.full_name })))
+      setEmployees(list.map((e: any) => ({ id: e.id, name: e.full_name })))
     }
     if (custRes.data) {
       const list = Array.isArray(custRes.data) ? custRes.data : []
