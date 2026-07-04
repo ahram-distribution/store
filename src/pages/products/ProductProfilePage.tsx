@@ -40,8 +40,19 @@ export function ProductProfilePage() {
       <div className="flex items-center gap-3">
         <button onClick={() => navigate('/products/manage')} className="text-text-secondary text-lg">&larr;</button>
         <h1 className="text-lg font-bold text-text">{product.product_name}</h1>
-        {!product.is_active && <span className="text-[10px] bg-danger/10 text-danger px-2 py-0.5 rounded">غير نشط</span>}
+        {!product.is_active && !product.carton_price && (
+          <span className="text-[10px] bg-danger/10 text-danger px-2 py-0.5 rounded">موقوف</span>
+        )}
+        {!product.is_active && product.carton_price > 0 && (
+          <span className="text-[10px] bg-danger/10 text-danger px-2 py-0.5 rounded">غير نشط</span>
+        )}
       </div>
+
+      {!product.is_active && (!product.carton_price || product.carton_price <= 0) && (
+        <div className="bg-warning/10 border border-warning/30 text-warning text-xs px-4 py-3 rounded-lg font-semibold">
+          هذا الصنف موقوف ومخفي عن العملاء لعدم تحديد سعر البيع
+        </div>
+      )}
 
       <div className="bg-white rounded-xl border border-border p-4 space-y-3">
         <div className="flex justify-between">
