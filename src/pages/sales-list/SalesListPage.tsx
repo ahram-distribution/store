@@ -11,6 +11,11 @@ function getToken(): string | null {
 
 const ALLOWED_ROLES: TargetRole[] = ['الإدارة العليا', 'مدير بيع', 'مندوب مبيعات']
 
+interface CompanyGroup {
+  companyName: string
+  products: ProductRow[]
+}
+
 interface ProductRow {
   id: string
   product_name: string
@@ -46,27 +51,33 @@ function formatPrice(val: number): string {
   }).format(val)
 }
 
-function renderSalesListHtml(products: ProductRow[], logoUrl: string): string {
+function renderSalesListHtml(groups: CompanyGroup[], logoUrl: string): string {
   const now = new Date()
+  const totalCount = groups.reduce((s, g) => s + g.products.length, 0)
+
+  function productRow(p: ProductRow): string {
+    const activeUnits = (p.product_units || []).filter((u) => u.is_active !== false)
+    const unitDisplay = activeUnits.map((u) => UNIT_LABELS[u.unit_type] || u.unit_type).join(' - ')
+    const unitPrices = activeUnits.map((u) => {
+      if (u.unit_type === 'carton') return `كرتونة: ${formatPrice(Number(p.carton_price) || 0)}`
+      const piecePrice = (Number(p.carton_price) || 0) / (Number(p.carton_quantity) || 1)
+      if (u.unit_type === 'dozen') return `دستة: ${formatPrice(piecePrice * 12)}`
+      return `قطعة: ${formatPrice(piecePrice)}`
+    })
+    const priceDisplay = unitPrices.join(' | ')
+    return `<tr>
+      <td style="font-family:monospace;direction:ltr">${esc(p.legacy_code || '---')}</td>
+      <td>${esc(p.product_name)}</td>
+      <td>${esc(p.company_name || '')}</td>
+      <td>${esc(unitDisplay)}</td>
+      <td>${priceDisplay}</td>
+    </tr>`
+  }
 
   function rowsHtml(): string {
-    return products.map((p) => {
-      const activeUnits = (p.product_units || []).filter((u) => u.is_active !== false)
-      const unitDisplay = activeUnits.map((u) => UNIT_LABELS[u.unit_type] || u.unit_type).join(' - ')
-      const unitPrices = activeUnits.map((u) => {
-        if (u.unit_type === 'carton') return `كرتونة: ${formatPrice(Number(p.carton_price) || 0)}`
-        const piecePrice = (Number(p.carton_price) || 0) / (Number(p.carton_quantity) || 1)
-        if (u.unit_type === 'dozen') return `دستة: ${formatPrice(piecePrice * 12)}`
-        return `قطعة: ${formatPrice(piecePrice)}`
-      })
-      const priceDisplay = unitPrices.join(' | ')
-      return `<tr>
-        <td style="font-family:monospace;direction:ltr">${esc(p.legacy_code || '---')}</td>
-        <td>${esc(p.product_name)}</td>
-        <td>${esc(p.company_name || '')}</td>
-        <td>${esc(unitDisplay)}</td>
-        <td>${priceDisplay}</td>
-      </tr>`
+    return groups.map((g) => {
+      const body = g.products.map(productRow).join('')
+      return `<tr class="group-header"><td colspan="5">${esc(g.companyName)} (${g.products.length})</td></tr>${body}`
     }).join('')
   }
 
@@ -97,6 +108,7 @@ function renderSalesListHtml(products: ProductRow[], logoUrl: string): string {
   td { padding: 5px 4px !important; border-bottom: 1px solid #e5e7eb; text-align: center; vertical-align: middle !important; font-size: 8pt; word-wrap: break-word; }
   tbody tr { page-break-inside: avoid; }
   tbody tr:nth-child(even) { background: #f8f9fa; }
+  .group-header td { background: #e8f0fe; font-weight: 700; color: #0d2b6b; font-size: 9pt; text-align: right; padding: 6px 10px !important; border-bottom: 2px solid #0052cc; }
   .footer { text-align: center; margin-top: 16px; font-size: 7pt; color: #9ca3af; border-top: 1px solid #e5e7eb; padding-top: 6px; }
   .footer .count { font-weight: 700; color: #003366; }
   @media print { @page { margin: 0 !important; } body { margin: 0.8cm !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
@@ -118,7 +130,7 @@ function renderSalesListHtml(products: ProductRow[], logoUrl: string): string {
     <div class="doc-date">تاريخ الطباعة: ${formatDateTime(now)}</div>
   </div>
 </div>
-<div class="info-bar">إجمالي عدد الأصناف: ${products.length} صنف</div>
+<div class="info-bar">إجمالي عدد الأصناف: ${totalCount} صنف — عدد التصنيفات: ${groups.length}</div>
 <table>
   <thead>
     <tr>
@@ -135,7 +147,7 @@ function renderSalesListHtml(products: ProductRow[], logoUrl: string): string {
 </table>
 <div class="footer">
   <div>شركة الأهرام للتجارة والتوزيع - جميع الحقوق محفوظة</div>
-  <div class="count">إجمالي الأصناف: ${products.length} | تاريخ الطباعة: ${formatDateTime(now)}</div>
+  <div class="count">إجمالي الأصناف: ${totalCount} | عدد التصنيفات: ${groups.length} | تاريخ الطباعة: ${formatDateTime(now)}</div>
 </div>
 </div>
 </body></html>`
@@ -187,9 +199,24 @@ export default function SalesListPage() {
     )
   }, [products, search])
 
+  const groupedProducts = useMemo((): CompanyGroup[] => {
+    const map: Record<string, ProductRow[]> = {}
+    for (const p of filtered) {
+      const key = p.company_name || 'غير مصنف'
+      if (!map[key]) map[key] = []
+      map[key].push(p)
+    }
+    for (const key of Object.keys(map)) {
+      map[key].sort((a, b) => a.product_name.localeCompare(b.product_name))
+    }
+    return Object.entries(map)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([companyName, prods]) => ({ companyName, products: prods }))
+  }, [filtered])
+
   const handlePrint = () => {
     const logoUrl = window.location.origin + '/store/branding/ahram-logo.png'
-    const html = renderSalesListHtml(filtered, logoUrl)
+    const html = renderSalesListHtml(groupedProducts, logoUrl)
     printIframe(html)
   }
 
@@ -229,46 +256,53 @@ export default function SalesListPage() {
           {search ? 'لا توجد نتائج للبحث' : 'لا توجد منتجات متاحة'}
         </div>
       ) : (
-        <div className="space-y-2">
-          {filtered.map((p) => {
-            const activeUnits = (p.product_units || []).filter((u) => u.is_active !== false)
-            const unitDisplay = activeUnits.map((u) => UNIT_LABELS[u.unit_type] || u.unit_type).join(' - ')
-            return (
-              <div key={p.id} className="bg-white rounded-lg border border-border p-3 space-y-1">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <div className="font-semibold text-sm text-text">{p.product_name}</div>
-                    <div className="text-[10px] text-text-secondary font-mono" dir="ltr">{p.legacy_code || '---'}</div>
-                  </div>
-                  <span className="shrink-0 bg-surface text-text-secondary text-[10px] px-2 py-0.5 rounded-full">
-                    {p.company_name || 'غير مصنف'}
-                  </span>
-                </div>
-                <div className="flex items-center gap-3 text-xs text-text-secondary">
-                  <span>{unitDisplay}</span>
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {activeUnits.map((u) => {
-                    const unitLabel = UNIT_LABELS[u.unit_type] || u.unit_type
-                    let price: number
-                    if (u.unit_type === 'carton') {
-                      price = Number(p.carton_price) || 0
-                    } else {
-                      const piecePrice = (Number(p.carton_price) || 0) / (Number(p.carton_quantity) || 1)
-                      price = u.unit_type === 'dozen' ? piecePrice * 12 : piecePrice
-                    }
-                    return (
-                      <span key={u.id} className="bg-primary/5 text-primary text-[10px] px-2 py-0.5 rounded-full">
-                        {unitLabel}: {formatCurrencyShort(price)}
-                      </span>
-                    )
-                  })}
-                </div>
+        <div className="space-y-4">
+          {groupedProducts.map((group) => (
+            <div key={group.companyName} className="space-y-1">
+              <div className="bg-primary/5 text-primary font-bold text-sm px-3 py-2 rounded-lg sticky top-0 border border-primary/10">
+                {group.companyName}
+                <span className="text-text-secondary text-[10px] font-normal mr-2">({group.products.length})</span>
               </div>
-            )
-          })}
+              <div className="space-y-1">
+                {group.products.map((p) => {
+                  const activeUnits = (p.product_units || []).filter((u) => u.is_active !== false)
+                  const unitDisplay = activeUnits.map((u) => UNIT_LABELS[u.unit_type] || u.unit_type).join(' - ')
+                  return (
+                    <div key={p.id} className="bg-white rounded-lg border border-border p-3 space-y-1">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="font-semibold text-sm text-text">{p.product_name}</div>
+                          <div className="text-[10px] text-text-secondary font-mono" dir="ltr">{p.legacy_code || '---'}</div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3 text-xs text-text-secondary">
+                        <span>{unitDisplay}</span>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {activeUnits.map((u) => {
+                          const unitLabel = UNIT_LABELS[u.unit_type] || u.unit_type
+                          let price: number
+                          if (u.unit_type === 'carton') {
+                            price = Number(p.carton_price) || 0
+                          } else {
+                            const piecePrice = (Number(p.carton_price) || 0) / (Number(p.carton_quantity) || 1)
+                            price = u.unit_type === 'dozen' ? piecePrice * 12 : piecePrice
+                          }
+                          return (
+                            <span key={u.id} className="bg-primary/5 text-primary text-[10px] px-2 py-0.5 rounded-full">
+                              {unitLabel}: {formatCurrencyShort(price)}
+                            </span>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          ))}
           <div className="text-center text-[10px] text-text-secondary pb-4">
-            إجمالي الأصناف: {filtered.length}
+            إجمالي الأصناف: {filtered.length} | التصنيفات: {groupedProducts.length}
           </div>
         </div>
       )}
