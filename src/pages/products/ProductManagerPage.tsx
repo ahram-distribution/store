@@ -35,7 +35,7 @@ export function ProductManagerPage() {
   // ── Filters ──
   const [searchQuery, setSearchQuery] = useState('')
   const [companyFilter, setCompanyFilter] = useState('')
-  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'out_of_stock' | 'inactive'>('all')
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'out_of_stock' | 'inactive' | 'no_price'>('all')
   const [showFilters, setShowFilters] = useState(false)
 
   // Derived company names (from products list)
@@ -48,7 +48,8 @@ export function ProductManagerPage() {
     let list = products
     if (statusFilter === 'active') list = list.filter((p: any) => p.is_active && !(p.is_out_of_stock === true))
     if (statusFilter === 'out_of_stock') list = list.filter((p: any) => p.is_out_of_stock === true && p.is_active !== false)
-    if (statusFilter === 'inactive') list = list.filter((p: any) => !p.is_active)
+    if (statusFilter === 'inactive') list = list.filter((p: any) => (!p.is_active || !p.is_visible) && (p.carton_price && Number(p.carton_price) > 0))
+    if (statusFilter === 'no_price') list = list.filter((p: any) => !p.carton_price || Number(p.carton_price) <= 0)
     if (companyFilter) list = list.filter((p: any) => p.company_name === companyFilter)
     const q = searchQuery.trim().toLowerCase()
     if (q) {
@@ -407,7 +408,8 @@ export function ProductManagerPage() {
                 <option value="all">كل الحالات</option>
                 <option value="active">نشط</option>
                 <option value="out_of_stock">نفذت الكمية</option>
-                <option value="inactive">غير نشط/مخفي</option>
+                <option value="inactive">مخفي</option>
+                <option value="no_price">موقوف - السعر غير محدد</option>
               </select>
               <select
                 value={companyFilter}

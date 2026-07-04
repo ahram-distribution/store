@@ -48,6 +48,10 @@ export function ProductCard({ product, onEdit, onToggleActive, onDelete, onViewD
           <div className="absolute top-2 right-2 bg-warning/90 text-white text-[9px] px-2 py-0.5 rounded-full font-semibold">
             نفذت الكمية
           </div>
+        ) : (!product.is_active || !product.is_visible) && (!product.carton_price || Number(product.carton_price) <= 0) ? (
+          <div className="absolute top-2 right-2 bg-accent/90 text-white text-[9px] px-2 py-0.5 rounded-full font-semibold">
+            موقوف - السعر غير محدد
+          </div>
         ) : !product.is_active ? (
           <div className="absolute top-2 right-2 bg-danger/90 text-white text-[9px] px-2 py-0.5 rounded-full font-semibold">
             موقوف
