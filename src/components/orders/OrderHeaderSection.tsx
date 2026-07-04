@@ -17,23 +17,18 @@ interface OrderHeaderSectionProps {
 
 export function OrderHeaderSection({ order, currentOwner, overLimit, lastAction, modificationEntries, actions, onBack, onEditCreator }: OrderHeaderSectionProps) {
   const navigate = useNavigate()
-  console.log('[DEBUG] OrderHeaderSection lastAction:', JSON.stringify(lastAction))
 
   const revisionCount = order.revision_number
   const totalEditCount = modificationEntries?.filter(e => e.field_name === 'REVISION_SNAPSHOT').length || 0
 
-  function renderCreator(creator: UnifiedOrder['order']) {
-    const name = creator.order_creator_name
-    const role = creator.order_creator_role || 'عميل'
+  function renderOwner(ord: UnifiedOrder['order']) {
+    const name = ord.order_owner_name
+    const role = ord.order_owner_role
     if (!name) return <span className="text-text-secondary">—</span>
-    const target = creator.order_creator_type === 'customer'
-      ? `/customers/${creator.order_creator_id}`
-      : `/employees/${creator.order_creator_id}`
-    if (!creator.order_creator_id) return <span>{name}<span className="text-text-secondary"> — {role}</span></span>
     return (
-      <span className="cursor-pointer hover:opacity-70 transition-opacity" onClick={() => navigate(target)}>
+      <span className="cursor-pointer hover:opacity-70 transition-opacity" onClick={() => navigate(`/employees/${ord.owner_id}`)}>
         {name}
-        <span className="text-text-secondary"> — {role}</span>
+        {role && <span className="text-text-secondary"> — {role}</span>}
         <svg className="w-3 h-3 inline-block mr-0.5 -mt-0.5 text-text-secondary/40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
       </span>
     )
@@ -91,8 +86,8 @@ export function OrderHeaderSection({ order, currentOwner, overLimit, lastAction,
             <span className="font-medium text-text">{currentOwner}</span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-text-secondary shrink-0">منشئ الطلب</span>
-            <span className="font-medium text-text">{renderCreator(order)}</span>
+            <span className="text-text-secondary shrink-0">المسؤول عن الطلب</span>
+            <span className="font-medium text-text">{renderOwner(order)}</span>
             {onEditCreator && (
               <button onClick={onEditCreator} className="text-accent hover:opacity-70 transition-opacity" title="تغيير المسؤول">
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
