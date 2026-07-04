@@ -31,6 +31,7 @@ interface WorkPolicy {
   shift_end_time: string | null
   late_threshold_minutes: number | null
   early_departure_threshold_minutes: number | null
+  job_title?: string
 }
 
 function getToken(): string | null {
@@ -49,6 +50,7 @@ export default function AttendanceSettingsPage() {
   const [policies, setPolicies] = useState<WorkPolicy[]>([])
   const [policiesLoading, setPoliciesLoading] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  const [roleFilter, setRoleFilter] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editForm, setEditForm] = useState<Partial<WorkPolicy>>({})
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -103,6 +105,7 @@ export default function AttendanceSettingsPage() {
           shift_end_time: p.shift_end_time,
           late_threshold_minutes: p.late_threshold_minutes,
           early_departure_threshold_minutes: p.early_departure_threshold_minutes,
+          job_title: p.job_title,
         })
       }
     }
@@ -123,6 +126,7 @@ export default function AttendanceSettingsPage() {
           shift_end_time: null,
           late_threshold_minutes: null,
           early_departure_threshold_minutes: null,
+          job_title: e.job_title,
         })
       }
     }
@@ -243,10 +247,13 @@ export default function AttendanceSettingsPage() {
     needs_review: policies.filter(p => !p.has_policy).length,
   }
 
-  const filteredPolicies = policies.filter(p =>
-    p.employee_name.includes(searchQuery) ||
-    p.employee_code.includes(searchQuery)
-  )
+  const roles = [...new Set(policies.filter(p => p.job_title && !p.job_title.includes('الإدارة العليا')).map(p => p.job_title!))].sort()
+
+  const filteredPolicies = policies.filter(p => {
+    if (p.job_title?.includes('الإدارة العليا')) return false
+    if (roleFilter && p.job_title !== roleFilter) return false
+    return p.employee_name.includes(searchQuery) || p.employee_code.includes(searchQuery)
+  })
 
   const scheduleTypeLabel = (s: string) =>
     s === 'fixed_shift' ? 'دوام ثابت' : s === 'flexible' ? 'دوام مرن' : 'بالساعة'
@@ -442,7 +449,7 @@ export default function AttendanceSettingsPage() {
               </div>
             </div>
 
-            {/* Search + Bulk bar */}
+            {/* Search + Role Filter + Bulk bar */}
             <div className="flex items-center gap-3 flex-wrap">
               <div className="relative flex-1 min-w-[200px]">
                 <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -454,6 +461,14 @@ export default function AttendanceSettingsPage() {
                   className="w-full pr-10 p-3 border border-gray-200 rounded-xl text-lg"
                 />
               </div>
+              <select
+                value={roleFilter}
+                onChange={(e) => setRoleFilter(e.target.value)}
+                className="p-3 border border-gray-200 rounded-xl text-lg min-w-[160px] bg-white"
+              >
+                <option value="">كل الرتب</option>
+                {roles.map(r => <option key={r} value={r}>{r}</option>)}
+              </select>
               <button
                 onClick={() => { setShowBulkPanel(!showBulkPanel); if (!showBulkPanel && selectedIds.size === 0) setSelectedIds(new Set(filteredPolicies.map(p => p.employee_id))) }}
                 className="flex items-center gap-2 px-4 py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 transition-all"
@@ -596,7 +611,10 @@ export default function AttendanceSettingsPage() {
                         />
                       </td>
                       <td className="p-3 text-gray-600 font-mono">{policy.employee_code}</td>
-                      <td className="p-3 font-medium text-gray-800">{policy.employee_name}</td>
+                      <td className="p-3">
+                        <div className="font-medium text-gray-800">{policy.employee_name}</div>
+                        {policy.job_title && <div className="text-xs text-gray-400 mt-0.5">{policy.job_title}</div>}
+                      </td>
 
                       {editingId === policy.employee_id ? (
                         <td colSpan={5} className="p-4">

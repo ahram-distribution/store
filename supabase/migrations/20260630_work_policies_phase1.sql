@@ -300,18 +300,12 @@ $function$;
 
 -- 3e. list_work_policies (admin: list all policies with employee info)
 CREATE OR REPLACE FUNCTION public.list_work_policies(p_token uuid)
-RETURNS jsonb
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path TO 'public', 'extensions'
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public', 'extensions'
 AS $function$
-DECLARE
-    v_session app.sessions;
-    v_result jsonb;
+DECLARE v_session app.sessions; v_result jsonb;
 BEGIN
     SELECT * INTO v_session FROM app.sessions WHERE token = p_token AND expires_at > now();
     IF NOT FOUND THEN RETURN jsonb_build_object('error', 'INVALID_SESSION'); END IF;
-
     SELECT jsonb_agg(
         jsonb_build_object(
             'policy_id', ewp.id,
@@ -328,41 +322,35 @@ BEGIN
             'shift_end_time', ewp.shift_end_time,
             'late_threshold_minutes', ewp.late_threshold_minutes,
             'early_departure_threshold_minutes', ewp.early_departure_threshold_minutes,
-            'updated_at', ewp.updated_at
+            'updated_at', ewp.updated_at,
+            'job_title', COALESCE((SELECT STRING_AGG(r.name, '، ' ORDER BY r.name) FROM employee_roles er2 JOIN roles r ON r.id = er2.role_id WHERE er2.employee_id = e.id), '')
         ) ORDER BY e.full_name
     ) INTO v_result
     FROM public.employee_work_policies ewp
     JOIN public.employees e ON e.id = ewp.employee_id;
-
     RETURN jsonb_build_object('policies', COALESCE(v_result, '[]'::jsonb));
 END;
 $function$;
 
 -- 3f. list_employees_without_policies (admin: for unassigned employee management)
 CREATE OR REPLACE FUNCTION public.list_employees_without_policies(p_token uuid)
-RETURNS jsonb
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path TO 'public', 'extensions'
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public', 'extensions'
 AS $function$
-DECLARE
-    v_session app.sessions;
-    v_result jsonb;
+DECLARE v_session app.sessions; v_result jsonb;
 BEGIN
     SELECT * INTO v_session FROM app.sessions WHERE token = p_token AND expires_at > now();
     IF NOT FOUND THEN RETURN jsonb_build_object('error', 'INVALID_SESSION'); END IF;
-
     SELECT jsonb_agg(
         jsonb_build_object(
             'employee_id', e.id,
             'employee_code', e.code,
             'employee_name', e.full_name,
-            'is_active', e.is_active
+            'is_active', e.is_active,
+            'job_title', COALESCE((SELECT STRING_AGG(r.name, '، ' ORDER BY r.name) FROM employee_roles er2 JOIN roles r ON r.id = er2.role_id WHERE er2.employee_id = e.id), '')
         ) ORDER BY e.full_name
     ) INTO v_result
     FROM public.employees e
     WHERE NOT EXISTS (SELECT 1 FROM public.employee_work_policies ewp WHERE ewp.employee_id = e.id);
-
     RETURN jsonb_build_object('employees', COALESCE(v_result, '[]'::jsonb));
 END;
 $function$;
