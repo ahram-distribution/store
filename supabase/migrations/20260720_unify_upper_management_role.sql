@@ -2227,10 +2227,7 @@ BEGIN
 
     FOR v_key, v_val IN SELECT * FROM jsonb_each_text(p_fields) LOOP
         IF v_key = ANY(v_allowed) THEN
-            v_updates := array_append(v_updates, format('%I = %L', v_key,
-                CASE WHEN v_val ~ '^\d+(\.\d+)?$' THEN v_val
-                     WHEN v_val IN ('true', 'false') THEN v_val
-                     ELSE quote_literal(v_val) END));
+            v_updates := array_append(v_updates, format('%I = %L', v_key, v_val));
         END IF;
     END LOOP;
 
