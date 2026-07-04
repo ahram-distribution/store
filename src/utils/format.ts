@@ -2,8 +2,7 @@ export function formatCurrency(amount: number): string {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'EGP',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
+    minimumFractionDigits: 2,
   }).format(amount)
 }
 
@@ -11,10 +10,10 @@ export function formatCurrencyShort(amount: number): string {
   if (!Number.isFinite(amount)) return '0 ج.م'
   const formatted = new Intl.NumberFormat('en-US', {
     style: 'decimal',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   }).format(amount)
-  return formatted + ' ج.م'
+  return formatted.replace(/\.00$/, '') + ' ج.م'
 }
 
 export function toEnglishDigits(str: string): string {

@@ -27,7 +27,7 @@ interface EffortSummary {
   worst_performer: { employee_id: string; name: string; score: number } | null
 }
 
-const fmt = (n: number) => Math.round(n).toLocaleString('en-EG')
+const fmt = (n: number) => n.toLocaleString('en-EG')
 const fmtPct = (n: number) => n.toFixed(1)
 
 const safeVal = (v: unknown, fallback = 0): number =>

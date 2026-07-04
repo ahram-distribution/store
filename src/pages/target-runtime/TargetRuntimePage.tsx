@@ -156,7 +156,7 @@ function computeStatus(emp: EmployeePerfRow): StatusType {
 
 function fmt(n: number | null | undefined): string {
   if (n == null) return '\u2014'
-  return Math.round(n).toLocaleString('ar-EG-u-nu-latn')
+  return n.toLocaleString('ar-EG-u-nu-latn')
 }
 
 function fmtPct(n: number | null | undefined): string {

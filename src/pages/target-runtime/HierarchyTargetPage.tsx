@@ -61,8 +61,8 @@ export default function HierarchyTargetPage({ month: propMonth, year: propYear, 
         <div className="bg-white rounded-lg shadow p-6 border">
           <h2 className="text-lg font-bold text-gray-900 mb-4">الشركة</h2>
           <div className="grid grid-cols-4 gap-4 text-sm">
-            <div><span className="text-gray-500">الهدف:</span> <span className="font-medium">{Math.round(company.sales_target).toLocaleString()}</span></div>
-            <div><span className="text-gray-500">المنفذ:</span> <span className="font-medium">{Math.round(company.sales_actual).toLocaleString()}</span></div>
+            <div><span className="text-gray-500">الهدف:</span> <span className="font-medium">{company.sales_target.toLocaleString()}</span></div>
+            <div><span className="text-gray-500">المنفذ:</span> <span className="font-medium">{company.sales_actual.toLocaleString()}</span></div>
             <div><span className="text-gray-500">نسبة الإنجاز:</span> <span className="font-medium">{pct.toFixed(2)}%</span></div>
             <div><span className="text-gray-500">عدد المديرين:</span> <span className="font-medium">{hierarchy.manager_count}</span></div>
           </div>
@@ -151,8 +151,8 @@ export default function HierarchyTargetPage({ month: propMonth, year: propYear, 
                   return (
                     <tr key={mgr.manager_id} className="border-b hover:bg-gray-50 cursor-pointer" onClick={() => { setSelectedManager(mgr); setView('manager') }}>
                       <td className="px-4 py-3 font-medium">{mgr.manager_name}</td>
-                      <td className="px-4 py-3">{Math.round(teamTarget).toLocaleString()}</td>
-                      <td className="px-4 py-3">{Math.round(teamActual).toLocaleString()}</td>
+                      <td className="px-4 py-3">{teamTarget.toLocaleString()}</td>
+                      <td className="px-4 py-3">{teamActual.toLocaleString()}</td>
                       <td className="px-4 py-3">{teamPct.toFixed(2)}%</td>
                       <td className="px-4 py-3 w-40">
                         <div className="w-full bg-gray-200 rounded-full h-2.5">
@@ -191,8 +191,8 @@ export default function HierarchyTargetPage({ month: propMonth, year: propYear, 
         <div className="bg-white rounded-lg shadow p-6 border">
           <h2 className="text-lg font-bold text-gray-900 mb-4">فريق {mgr.manager_name}</h2>
           <div className="grid grid-cols-4 gap-4 text-sm">
-            <div><span className="text-gray-500">هدف الفريق:</span> <span className="font-medium">{Math.round(ts.team_target?.sales || 0).toLocaleString()}</span></div>
-            <div><span className="text-gray-500">منجز الفريق:</span> <span className="font-medium">{Math.round(ts.team_actual?.sales || 0).toLocaleString()}</span></div>
+            <div><span className="text-gray-500">هدف الفريق:</span> <span className="font-medium">{(ts.team_target?.sales || 0).toLocaleString()}</span></div>
+            <div><span className="text-gray-500">منجز الفريق:</span> <span className="font-medium">{(ts.team_actual?.sales || 0).toLocaleString()}</span></div>
             <div><span className="text-gray-500">نسبة الإنجاز:</span> <span className="font-medium">{ts.team_overall_pct.toFixed(2)}%</span></div>
             <div><span className="text-gray-500">عدد الأفراد:</span> <span className="font-medium">{ts.team_member_count}</span></div>
           </div>
@@ -228,8 +228,8 @@ export default function HierarchyTargetPage({ month: propMonth, year: propYear, 
                     onClick={() => { setSelectedMember(m); setView('member') }}>
                   <td className="px-4 py-3 font-medium">{m.employee_name}</td>
                   <td className="px-4 py-3">{m.is_manager ? '✅' : ''}</td>
-                  <td className="px-4 py-3">{Math.round(m.kpis.sales.target || 0).toLocaleString()}</td>
-                  <td className="px-4 py-3">{Math.round(m.kpis.sales.actual || 0).toLocaleString()}</td>
+                  <td className="px-4 py-3">{(m.kpis.sales.target || 0).toLocaleString()}</td>
+                  <td className="px-4 py-3">{(m.kpis.sales.actual || 0).toLocaleString()}</td>
                   <td className="px-4 py-3">{m.overall_achievement_score?.toFixed(2) ?? '—'}%</td>
                   <td className="px-4 py-3 w-40">
                     <div className="w-full bg-gray-200 rounded-full h-2.5">
@@ -299,8 +299,8 @@ function KpiCards({ kpis, score }: { kpis: HierarchyKpis; score: number | null }
               </span>
             </div>
             <div className="flex justify-between text-xs text-gray-500 mb-1">
-              <span>الهدف: {Math.round(k.target).toLocaleString()}</span>
-              <span>المنفذ: {Math.round(k.actual).toLocaleString()}</span>
+              <span>الهدف: {k.target.toLocaleString()}</span>
+              <span>المنفذ: {k.actual.toLocaleString()}</span>
             </div>
             <div className="w-full bg-gray-200 rounded-full h-2.5">
               <div className={`${color} h-2.5 rounded-full`} style={{ width: `${barWidth}%` }} />

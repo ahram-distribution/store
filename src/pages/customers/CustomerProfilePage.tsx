@@ -26,7 +26,7 @@ function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
 }
 
-const fmt = (n: number) => Number.isFinite(n) ? Math.round(n).toLocaleString('en-EG') : '0'
+const fmt = (n: number) => Number.isFinite(n) ? n.toLocaleString('en-EG') : '0'
 const fmtPct = (n: number) => Number.isFinite(n) ? n.toFixed(1) + '%' : '0.0%'
 
 function safeNum(v: unknown, fallback = 0): number {

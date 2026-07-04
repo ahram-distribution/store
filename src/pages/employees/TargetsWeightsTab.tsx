@@ -36,7 +36,7 @@ function getToken(): string | null {
 }
 
 function fmt(n: number): string {
-  return Math.round(n).toLocaleString('ar-EG-u-nu-latn')
+  return n.toLocaleString('ar-EG-u-nu-latn')
 }
 
 function fmtPct(n: number | null): string {
