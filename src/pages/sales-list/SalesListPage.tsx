@@ -11,11 +11,6 @@ function getToken(): string | null {
 
 const ALLOWED_ROLES: TargetRole[] = ['الإدارة العليا', 'مدير بيع', 'مندوب مبيعات']
 
-interface CompanyGroup {
-  companyName: string
-  products: ProductRow[]
-}
-
 interface ProductRow {
   id: string
   product_name: string
@@ -27,6 +22,16 @@ interface ProductRow {
   carton_price: number
   carton_quantity: number
   product_units: { id: string; unit_type: string; is_active: boolean }[]
+}
+
+interface CompanyGroup {
+  companyName: string
+  products: ProductRow[]
+}
+
+interface UnitPriceInfo {
+  unitType: string
+  price: number
 }
 
 const UNIT_LABELS: Record<string, string> = {
@@ -51,23 +56,43 @@ function formatPrice(val: number): string {
   }).format(val)
 }
 
+function computeUnitPrices(p: ProductRow): UnitPriceInfo[] {
+  const cartonPrice = Number(p.carton_price) || 0
+  const cartonQuantity = Number(p.carton_quantity) || 0
+  const activeUnitTypes = (p.product_units || []).filter((u) => u.is_active !== false).map((u) => u.unit_type)
+  const hasCarton = activeUnitTypes.includes('carton')
+  const rawPrices: UnitPriceInfo[] = []
+
+  if (hasCarton) {
+    if (cartonPrice > 0) {
+      if (cartonQuantity >= 24) {
+        rawPrices.push({ unitType: 'dozen', price: (cartonPrice / cartonQuantity) * 12 })
+      }
+      rawPrices.push({ unitType: 'carton', price: cartonPrice })
+    }
+  } else {
+    const piecePrice = cartonPrice > 0 && cartonQuantity > 0 ? cartonPrice / cartonQuantity : 0
+    if (piecePrice > 0) {
+      rawPrices.push({ unitType: 'piece', price: piecePrice })
+      rawPrices.push({ unitType: 'dozen', price: piecePrice * 12 })
+    }
+  }
+
+  return rawPrices.filter((up) => activeUnitTypes.includes(up.unitType))
+}
+
 function renderSalesListHtml(groups: CompanyGroup[], logoUrl: string): string {
   const now = new Date()
   const totalCount = groups.reduce((s, g) => s + g.products.length, 0)
 
   function productRow(p: ProductRow): string {
-    const activeUnits = (p.product_units || []).filter((u) => u.is_active !== false)
-    const unitDisplay = activeUnits.map((u) => UNIT_LABELS[u.unit_type] || u.unit_type).join(' - ')
-    const unitPrices = activeUnits.map((u) => {
-      if (u.unit_type === 'carton') return `كرتونة: ${formatPrice(Number(p.carton_price) || 0)}`
-      const piecePrice = (Number(p.carton_price) || 0) / (Number(p.carton_quantity) || 1)
-      if (u.unit_type === 'dozen') return `دستة: ${formatPrice(piecePrice * 12)}`
-      return `قطعة: ${formatPrice(piecePrice)}`
-    })
-    const priceDisplay = unitPrices.join(' | ')
+    const unitPrices = computeUnitPrices(p)
+    const unitDisplay = unitPrices.map((up) => UNIT_LABELS[up.unitType] || up.unitType).join(' - ')
+    const priceDisplay = unitPrices.map((up) => `${UNIT_LABELS[up.unitType] || up.unitType}: ${formatPrice(up.price)}`).join(' | ')
+    const displayName = p.legacy_code ? `${p.legacy_code} - ${p.product_name}` : p.product_name
     return `<tr>
       <td style="font-family:monospace;direction:ltr">${esc(p.legacy_code || '---')}</td>
-      <td>${esc(p.product_name)}</td>
+      <td>${esc(displayName)}</td>
       <td>${esc(p.company_name || '')}</td>
       <td>${esc(unitDisplay)}</td>
       <td>${priceDisplay}</td>
@@ -166,10 +191,11 @@ function printIframe(html: string) {
 
 export default function SalesListPage() {
   const navigate = useNavigate()
-  const user = useAuthStore((s) => s.user)
+  const { token: authToken, user } = useAuthStore()
   const [products, setProducts] = useState<ProductRow[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const [companyFilter, setCompanyFilter] = useState('')
 
   const userRoles = user?.roles || []
   const normalizedRoles = userRoles.map(normalizeEmployeeRole)
@@ -177,31 +203,44 @@ export default function SalesListPage() {
 
   useEffect(() => {
     if (!hasAccess) return
-    const token = getToken()
-    if (!token) { setLoading(false); return }
+    if (!authToken) { setLoading(false); return }
     setLoading(true)
-    supabase.rpc('get_governed_products', { p_token: token, p_active_only: true, p_visible_only: true })
+    supabase.rpc('get_governed_products', { p_token: authToken })
       .then(({ data }) => {
         const arr = Array.isArray(data) ? data : []
-        const filtered = arr.filter((p: any) => p.is_out_of_stock !== true)
-        setProducts(filtered)
+        setProducts(arr)
       })
       .finally(() => setLoading(false))
-  }, [hasAccess])
+  }, [hasAccess, authToken])
 
-  const filtered = useMemo(() => {
-    if (!search.trim()) return products
-    const q = search.trim().toLowerCase()
-    return products.filter((p) =>
-      p.product_name.toLowerCase().includes(q) ||
-      (p.company_name || '').toLowerCase().includes(q) ||
-      (p.legacy_code || '').toLowerCase().includes(q)
-    )
-  }, [products, search])
+  const companyNames = useMemo(() => {
+    const names = new Set<string>()
+    for (const p of products) {
+      if (p.company_name) names.add(p.company_name)
+    }
+    return Array.from(names).sort((a, b) => a.localeCompare(b))
+  }, [products])
+
+  const smartFiltered = useMemo(() => {
+    let list = products
+    if (companyFilter) {
+      list = list.filter((p) => p.company_name === companyFilter)
+    }
+    if (search.trim()) {
+      const terms = search.trim().toLowerCase().split(/\s+/).filter(Boolean)
+      list = list.filter((p) => {
+        const name = p.product_name.toLowerCase()
+        const code = (p.legacy_code || '').toLowerCase()
+        const company = (p.company_name || '').toLowerCase()
+        return terms.every((t) => name.includes(t) || code.includes(t) || company.includes(t))
+      })
+    }
+    return list
+  }, [products, search, companyFilter])
 
   const groupedProducts = useMemo((): CompanyGroup[] => {
     const map: Record<string, ProductRow[]> = {}
-    for (const p of filtered) {
+    for (const p of smartFiltered) {
       const key = p.company_name || 'غير مصنف'
       if (!map[key]) map[key] = []
       map[key].push(p)
@@ -212,7 +251,7 @@ export default function SalesListPage() {
     return Object.entries(map)
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([companyName, prods]) => ({ companyName, products: prods }))
-  }, [filtered])
+  }, [smartFiltered])
 
   const handlePrint = () => {
     const logoUrl = window.location.origin + '/store/branding/ahram-logo.png'
@@ -238,22 +277,36 @@ export default function SalesListPage() {
         </button>
       </div>
 
-      <div className="relative">
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="بحث باسم الصنف أو التصنيف..."
-          className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-white pr-8"
-        />
-        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary text-sm">&#x1F50D;</span>
+      <div className="flex gap-2">
+        <div className="relative flex-1">
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="بحث باسم الصنف، الكود، أو الحجم..."
+            className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-white pr-8"
+          />
+          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary text-sm">&#x1F50D;</span>
+        </div>
+        {companyNames.length > 1 && (
+          <select
+            value={companyFilter}
+            onChange={(e) => setCompanyFilter(e.target.value)}
+            className="border border-border rounded-lg px-2 py-2 text-sm bg-white shrink-0 max-w-[130px]"
+          >
+            <option value="">الكل</option>
+            {companyNames.map((name) => (
+              <option key={name} value={name}>{name}</option>
+            ))}
+          </select>
+        )}
       </div>
 
       {loading ? (
         <div className="text-center py-12 text-text-secondary text-sm">جاري التحميل...</div>
-      ) : filtered.length === 0 ? (
+      ) : smartFiltered.length === 0 ? (
         <div className="text-center py-12 text-text-secondary text-sm">
-          {search ? 'لا توجد نتائج للبحث' : 'لا توجد منتجات متاحة'}
+          {search || companyFilter ? 'لا توجد نتائج للبحث' : 'لا توجد منتجات متاحة'}
         </div>
       ) : (
         <div className="space-y-4">
@@ -265,35 +318,21 @@ export default function SalesListPage() {
               </div>
               <div className="space-y-1">
                 {group.products.map((p) => {
-                  const activeUnits = (p.product_units || []).filter((u) => u.is_active !== false)
-                  const unitDisplay = activeUnits.map((u) => UNIT_LABELS[u.unit_type] || u.unit_type).join(' - ')
+                  const unitPrices = computeUnitPrices(p)
+                  const unitDisplay = unitPrices.map((up) => UNIT_LABELS[up.unitType] || up.unitType).join(' - ')
+                  const displayName = p.legacy_code ? `${p.legacy_code} - ${p.product_name}` : p.product_name
                   return (
                     <div key={p.id} className="bg-white rounded-lg border border-border p-3 space-y-1">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <div className="font-semibold text-sm text-text">{p.product_name}</div>
-                          <div className="text-[10px] text-text-secondary font-mono" dir="ltr">{p.legacy_code || '---'}</div>
-                        </div>
-                      </div>
+                      <div className="font-semibold text-sm text-text">{displayName}</div>
                       <div className="flex items-center gap-3 text-xs text-text-secondary">
                         <span>{unitDisplay}</span>
                       </div>
                       <div className="flex flex-wrap gap-1.5">
-                        {activeUnits.map((u) => {
-                          const unitLabel = UNIT_LABELS[u.unit_type] || u.unit_type
-                          let price: number
-                          if (u.unit_type === 'carton') {
-                            price = Number(p.carton_price) || 0
-                          } else {
-                            const piecePrice = (Number(p.carton_price) || 0) / (Number(p.carton_quantity) || 1)
-                            price = u.unit_type === 'dozen' ? piecePrice * 12 : piecePrice
-                          }
-                          return (
-                            <span key={u.id} className="bg-primary/5 text-primary text-[10px] px-2 py-0.5 rounded-full">
-                              {unitLabel}: {formatCurrencyShort(price)}
-                            </span>
-                          )
-                        })}
+                        {unitPrices.map((up) => (
+                          <span key={up.unitType} className="bg-primary/5 text-primary text-[10px] px-2 py-0.5 rounded-full">
+                            {UNIT_LABELS[up.unitType] || up.unitType}: {formatCurrencyShort(up.price)}
+                          </span>
+                        ))}
                       </div>
                     </div>
                   )
@@ -302,7 +341,7 @@ export default function SalesListPage() {
             </div>
           ))}
           <div className="text-center text-[10px] text-text-secondary pb-4">
-            إجمالي الأصناف: {filtered.length} | التصنيفات: {groupedProducts.length}
+            إجمالي الأصناف: {smartFiltered.length} | التصنيفات: {groupedProducts.length}
           </div>
         </div>
       )}
