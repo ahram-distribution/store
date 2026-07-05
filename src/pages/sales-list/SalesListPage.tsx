@@ -76,7 +76,7 @@ function computeUnitPrices(p: ProductRow): UnitPriceInfo[] {
 }
 
 function renderPriceLines(unitPrices: UnitPriceInfo[]): string {
-  return unitPrices.map((up) => `${formatPrice(up.price)} : ${UNIT_LABELS[up.unitType] || up.unitType}`).join('<br/>')
+  return unitPrices.map((up) => `${formatPrice(up.price)} : ${UNIT_LABELS[up.unitType] || up.unitType}`).join(' <span style="font-weight:700;margin:0 4px">|</span> ')
 }
 
 function renderSalesListHtml(groups: CompanyGroup[], logoUrl: string): string {
@@ -156,8 +156,9 @@ function renderSalesListHtml(groups: CompanyGroup[], logoUrl: string): string {
 async function downloadPdf(html: string) {
   const container = document.createElement('div')
   container.innerHTML = html
-  container.style.cssText = 'position:absolute;top:0;left:0;width:210mm;z-index:-1;opacity:0;pointer-events:none'
+  container.style.cssText = 'position:absolute;top:0;left:0;width:210mm;z-index:-9999;visibility:visible;opacity:1;background:#fff'
   document.body.appendChild(container)
+  window.scrollTo(0, 0)
 
   try {
     await document.fonts.ready
