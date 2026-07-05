@@ -5,7 +5,7 @@ import { useAuthStore } from '../../store/auth'
 import { normalizeEmployeeRole, type TargetRole } from '../../utils/roleNormalization'
 import { formatDateTime } from '../../utils/format'
 import jsPDF from 'jspdf'
-import 'jspdf-autotable'
+import autoTable from 'jspdf-autotable'
 
 const ALLOWED_ROLES: TargetRole[] = ['الإدارة العليا', 'مدير بيع', 'مندوب مبيعات']
 
@@ -90,16 +90,29 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
 }
 
 async function downloadPdf(groups: CompanyGroup[], logoUrl: string) {
-  const [fontResp, logoImg] = await Promise.all([
-    fetch('/store/fonts/Tajawal-Regular.ttf'),
-    loadImage(logoUrl).catch(() => null),
-  ])
-  const fontArrayBuffer = await fontResp.arrayBuffer()
-  const fontBase64 = arrayBufferToBase64(fontArrayBuffer)
+  console.log('[downloadPdf] start', { groupCount: groups.length })
+  const fontUrl = window.location.origin + '/store/fonts/Tajawal-Regular.ttf'
+
+  let fontBase64: string | null = null
+  try {
+    const fontResp = await fetch(fontUrl)
+    if (fontResp.ok) {
+      const buf = await fontResp.arrayBuffer()
+      fontBase64 = arrayBufferToBase64(buf)
+    } else {
+      console.warn('[downloadPdf] font fetch status:', fontResp.status)
+    }
+  } catch (e) {
+    console.warn('[downloadPdf] font load failed, will use Helvetica:', e)
+  }
 
   const pdf = new jsPDF('p', 'mm', 'a4')
-  pdf.addFileToVFS('Tajawal-Regular.ttf', fontBase64)
-  pdf.addFont('Tajawal-Regular.ttf', 'Tajawal', 'normal')
+  const fontName: string = fontBase64 ? 'Tajawal' : 'Helvetica'
+
+  if (fontBase64) {
+    pdf.addFileToVFS('Tajawal-Regular.ttf', fontBase64)
+    pdf.addFont('Tajawal-Regular.ttf', 'Tajawal', 'normal')
+  }
 
   const pw = pdf.internal.pageSize.getWidth()
   const ph = pdf.internal.pageSize.getHeight()
@@ -107,32 +120,31 @@ async function downloadPdf(groups: CompanyGroup[], logoUrl: string) {
   const innerW = pw - 2 * margin
 
   let startY = margin
+  const logoImg = await loadImage(logoUrl).catch(() => null)
 
-  // --- Header ---
   if (logoImg) {
-    pdf.addImage(logoImg, 'PNG', pw / 2 - 12.5, margin, 25, 18)
+    try { pdf.addImage(logoImg, 'PNG', pw / 2 - 12.5, margin, 25, 18) } catch {}
     startY = margin + 22
   }
 
-  pdf.setFont('Tajawal', 'bold')
+  pdf.setFont(fontName, 'normal')
   pdf.setFontSize(16)
   pdf.text('شركة الأهرام للتجارة والتوزيع', pw - margin, startY, { align: 'right' })
-  pdf.setFont('Tajawal', 'normal')
+  pdf.setFont(fontName, 'normal')
   pdf.setFontSize(8)
   pdf.text('كورنيش النيل - الوراق - جيزة', pw - margin, startY + 5, { align: 'right' })
   pdf.text('تليفون: 01040880002', pw - margin, startY + 10, { align: 'right' })
 
-  pdf.setFont('Tajawal', 'bold')
+  pdf.setFont(fontName, 'normal')
   pdf.setFontSize(18)
   pdf.text('sales-list', margin, startY, { align: 'left' })
-  pdf.setFont('Tajawal', 'normal')
+  pdf.setFont(fontName, 'normal')
   pdf.setFontSize(9)
   const now = new Date()
   pdf.text(`تاريخ الطباعة: ${formatDateTime(now)}`, margin, startY + 10, { align: 'left' })
 
   const headerBottom = startY + 15
 
-  // --- Build autotable body ---
   const body: any[][] = []
 
   for (const group of groups) {
@@ -143,7 +155,7 @@ async function downloadPdf(groups: CompanyGroup[], logoUrl: string) {
         styles: {
           fillColor: [232, 240, 254],
           textColor: [13, 43, 107],
-          fontStyle: 'bold',
+          fontStyle: 'normal',
           fontSize: 9,
           halign: 'right',
           cellPadding: { top: 2, bottom: 2, left: 4, right: 4 },
@@ -163,19 +175,17 @@ async function downloadPdf(groups: CompanyGroup[], logoUrl: string) {
     }
   }
 
-  // --- Draw separator line below header ---
   pdf.setDrawColor(0, 51, 102)
   pdf.setLineWidth(0.5)
   pdf.line(margin, headerBottom + 1, pw - margin, headerBottom + 1)
 
-  // --- Table ---
-  pdf.autoTable({
+  autoTable(pdf, {
     startY: headerBottom + 4,
     head: [
       [
-        { content: 'كود الصنف', styles: { halign: 'center', fillColor: [0, 51, 102], textColor: 255, fontSize: 8, fontStyle: 'bold' } },
-        { content: 'اسم الصنف', styles: { halign: 'center', fillColor: [0, 51, 102], textColor: 255, fontSize: 8, fontStyle: 'bold' } },
-        { content: 'سعر البيع للوحدات المتاحة', styles: { halign: 'center', fillColor: [0, 51, 102], textColor: 255, fontSize: 8, fontStyle: 'bold' } },
+        { content: 'كود الصنف', styles: { halign: 'center', fillColor: [0, 51, 102], textColor: 255, fontSize: 8, fontStyle: 'normal' } },
+        { content: 'اسم الصنف', styles: { halign: 'center', fillColor: [0, 51, 102], textColor: 255, fontSize: 8, fontStyle: 'normal' } },
+        { content: 'سعر البيع للوحدات المتاحة', styles: { halign: 'center', fillColor: [0, 51, 102], textColor: 255, fontSize: 8, fontStyle: 'normal' } },
       ],
     ],
     body,
@@ -187,7 +197,7 @@ async function downloadPdf(groups: CompanyGroup[], logoUrl: string) {
       2: { cellWidth: innerW * 0.40 },
     },
     styles: {
-      font: 'Tajawal',
+      font: fontName,
       lineColor: [0, 0, 0],
       lineWidth: 0.1,
       cellPadding: { top: 1.5, bottom: 1.5, left: 2, right: 2 },
@@ -196,9 +206,8 @@ async function downloadPdf(groups: CompanyGroup[], logoUrl: string) {
     didDrawPage: () => {
       pdf.setFontSize(6)
       pdf.setTextColor(156, 163, 175)
-      pdf.setFont('Tajawal', 'normal')
-      const footerText = 'شركة الأهرام للتجارة والتوزيع - جميع الحقوق محفوظة'
-      pdf.text(footerText, pw / 2, ph - 5, { align: 'center' })
+      pdf.setFont(fontName, 'normal')
+      pdf.text('شركة الأهرام للتجارة والتوزيع - جميع الحقوق محفوظة', pw / 2, ph - 5, { align: 'center' })
     },
   })
 
