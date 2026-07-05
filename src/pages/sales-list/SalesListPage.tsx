@@ -88,9 +88,9 @@ function renderSalesListHtml(groups: CompanyGroup[], logoUrl: string): string {
     const name = esc(p.product_name)
     const prices = renderPriceLines(unitPrices)
     return `<tr>
-      <td style="width:5%;border:1px solid #000;padding:6px 4px;text-align:center;vertical-align:middle;font-family:monospace;direction:ltr;font-size:9pt">${code}</td>
-      <td style="width:65%;border:1px solid #000;padding:6px 4px;text-align:right;vertical-align:middle;font-size:9pt">${name}</td>
-      <td style="width:30%;border:1px solid #000;padding:6px 4px;text-align:center;vertical-align:middle;font-size:8pt;line-height:1.6">${prices}</td>
+      <td style="width:5%;border:1px solid #000;padding:8px 6px;text-align:center;vertical-align:middle;font-family:monospace;direction:ltr;font-size:14px">${code}</td>
+      <td style="width:65%;border:1px solid #000;padding:8px 6px;text-align:right;vertical-align:middle;font-size:16px;line-height:1.5;white-space:normal !important;word-wrap:break-word;word-break:break-word">${name}</td>
+      <td style="width:30%;border:1px solid #000;padding:8px 6px;text-align:center;vertical-align:middle;font-size:14px;line-height:1.5">${prices}</td>
     </tr>`
   }
 
@@ -115,11 +115,12 @@ function renderSalesListHtml(groups: CompanyGroup[], logoUrl: string): string {
   .header-center { flex: 4; text-align: center; }
   .header-center .logo-img { height: 60px; object-fit: contain; }
   .header-left { flex: 3; text-align: left; }
-  .header-left .doc-title { font-size: 16pt; font-weight: 700; color: #003366; }
-  .header-left .doc-date { font-size: 8pt; color: #555; margin-top: 2px; }
-  table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
-  th { background: #003366; color: #fff; padding: 7px 4px; text-align: center; vertical-align: middle; font-weight: 600; font-size: 8pt; border: 1px solid #003366; }
-  td { padding: 5px 4px; text-align: center; vertical-align: middle; font-size: 8pt; border: 1px solid #000; }
+  .header-left .doc-title { font-size: 20pt; font-weight: 700; color: #003366; }
+  .header-left .doc-date { font-size: 11pt; color: #555; margin-top: 2px; }
+  table { width: 100%; table-layout: fixed; border-collapse: collapse; margin-bottom: 10px; }
+  th { background: #003366; color: #fff; padding: 8px 6px; text-align: center; vertical-align: middle; font-weight: 600; font-size: 14px; border: 1px solid #003366; }
+  td { padding: 8px 6px; text-align: center; vertical-align: middle; font-size: 14px; line-height: 1.5; border: 1px solid #000; }
+  .cell-name { white-space: normal !important; word-wrap: break-word; word-break: break-word; }
   .footer { text-align: center; margin-top: 14px; font-size: 7pt; color: #9ca3af; border-top: 1px solid #e5e7eb; padding-top: 6px; }
 </style></head>
 <body>
@@ -163,8 +164,9 @@ async function downloadPdf(html: string) {
   document.body.appendChild(container)
 
   try {
+    await document.fonts.ready
     const canvas = await html2canvas(container, {
-      scale: 2,
+      scale: 3,
       useCORS: true,
       logging: false,
       backgroundColor: '#ffffff',
