@@ -45,6 +45,7 @@
     "@hookform/resolvers": "^5.4.0",
     "@supabase/supabase-js": "^2.106.2",
     "date-fns": "^4.4.0",
+    "html-to-image": "^1.11.13",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.8",
     "leaflet": "^1.9.4",

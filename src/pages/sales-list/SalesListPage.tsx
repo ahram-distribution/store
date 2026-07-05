@@ -5,7 +5,7 @@ import { useAuthStore } from '../../store/auth'
 import { normalizeEmployeeRole, type TargetRole } from '../../utils/roleNormalization'
 import { formatDateTime } from '../../utils/format'
 import jsPDF from 'jspdf'
-import html2canvas from 'html2canvas'
+import { toCanvas } from 'html-to-image'
 
 const ALLOWED_ROLES: TargetRole[] = ['الإدارة العليا', 'مدير بيع', 'مندوب مبيعات']
 
@@ -76,7 +76,7 @@ function computeUnitPrices(p: ProductRow): UnitPriceInfo[] {
 }
 
 function renderPriceLines(unitPrices: UnitPriceInfo[]): string {
-  return unitPrices.map((up) => `${formatPrice(up.price)} : ${UNIT_LABELS[up.unitType] || up.unitType}`).join(' <span style="font-weight:700;margin:0 4px">|</span> ')
+  return unitPrices.map((up) => `${formatPrice(up.price)} : ${UNIT_LABELS[up.unitType] || up.unitType}`).join(' | ')
 }
 
 function renderSalesListHtml(groups: CompanyGroup[], logoUrl: string): string {
@@ -88,9 +88,9 @@ function renderSalesListHtml(groups: CompanyGroup[], logoUrl: string): string {
     const name = esc(p.product_name)
     const prices = renderPriceLines(unitPrices)
     return `<tr>
-      <td style="width:5%;border:1px solid #000;padding:8px 6px;text-align:center;vertical-align:middle;font-family:monospace;direction:ltr;font-size:14px">${code}</td>
-      <td style="width:65%;border:1px solid #000;padding:8px 6px;text-align:right;vertical-align:middle;font-size:16px;line-height:1.5;white-space:normal !important;word-wrap:break-word;word-break:break-word">${name}</td>
-      <td style="width:30%;border:1px solid #000;padding:8px 6px;text-align:center;vertical-align:middle;font-size:14px;line-height:1.5">${prices}</td>
+      <td style="width:5%;border:1px solid #000;padding:6px 4px;text-align:center;vertical-align:middle;font-family:monospace;direction:ltr;font-size:14px">${code}</td>
+      <td style="width:55%;border:1px solid #000;padding:6px 6px;text-align:right;vertical-align:middle;font-size:14px;line-height:1.5;white-space:normal !important;word-wrap:break-word;word-break:break-word">${name}</td>
+      <td style="width:40%;border:1px solid #000;padding:6px 4px;text-align:center;vertical-align:middle;font-size:12px;line-height:1.4;white-space:nowrap">${prices}</td>
     </tr>`
   }
 
@@ -115,9 +115,10 @@ function renderSalesListHtml(groups: CompanyGroup[], logoUrl: string): string {
   #pdf-container .header-left .doc-title { font-size:20pt; font-weight:700; color:#003366; }
   #pdf-container .header-left .doc-date { font-size:11pt; color:#555; margin-top:2px; }
   #pdf-container table { width:100%; table-layout:fixed; border-collapse:collapse; margin-bottom:10px; }
-  #pdf-container th { background:#003366; color:#fff; padding:8px 6px; text-align:center; vertical-align:middle; font-weight:600; font-size:14px; border:1px solid #003366; }
-  #pdf-container td { padding:8px 6px; text-align:center; vertical-align:middle; font-size:14px; line-height:1.5; border:1px solid #000; }
+  #pdf-container th { background:#003366; color:#fff; padding:6px 4px; text-align:center; vertical-align:middle; font-weight:600; font-size:13px; border:1px solid #003366; }
+  #pdf-container td { padding:6px 4px; text-align:center; vertical-align:middle; font-size:13px; line-height:1.5; border:1px solid #000; }
   #pdf-container .cell-name { white-space:normal !important; word-wrap:break-word; word-break:break-word; }
+  #pdf-container .price-cell { white-space:nowrap; font-size:12px; }
   #pdf-container .footer { text-align:center; margin-top:14px; font-size:7pt; color:#9ca3af; border-top:1px solid #e5e7eb; padding-top:6px; }
 </style>
 <div class="top-bar">
@@ -162,12 +163,12 @@ async function downloadPdf(html: string) {
 
   try {
     await document.fonts.ready
-    const canvas = await html2canvas(container, {
-      scale: 2,
-      useCORS: true,
-      logging: false,
-      backgroundColor: '#ffffff',
+    const canvas = await toCanvas(container, {
       width: 794,
+      height: container.scrollHeight,
+      style: { transform: 'scale(2)', transformOrigin: 'top left' },
+      pixelRatio: 2,
+      cacheBust: true,
     })
     const imgData = canvas.toDataURL('image/jpeg', 0.95)
     const pdf = new jsPDF('p', 'mm', 'a4')
@@ -319,8 +320,8 @@ export default function SalesListPage() {
             <thead>
               <tr className="bg-[#003366] text-white">
                 <th className="w-[5%] border border-[#003366] px-1 py-2 text-center text-[10px] font-semibold">كود الصنف</th>
-                <th className="w-[65%] border border-[#003366] px-2 py-2 text-center text-[10px] font-semibold">اسم الصنف</th>
-                <th className="w-[30%] border border-[#003366] px-2 py-2 text-center text-[10px] font-semibold">سعر البيع للوحدات المتاحة</th>
+                <th className="w-[55%] border border-[#003366] px-2 py-2 text-center text-[10px] font-semibold">اسم الصنف</th>
+                <th className="w-[40%] border border-[#003366] px-2 py-2 text-center text-[10px] font-semibold">سعر البيع للوحدات المتاحة</th>
               </tr>
             </thead>
             <tbody>
@@ -341,11 +342,9 @@ export default function SalesListPage() {
                         <td className="border border-black px-2 py-1.5 text-right text-xs align-middle">
                           {p.product_name}
                         </td>
-                        <td className="border border-black px-2 py-1.5 text-center text-[10px] align-middle leading-relaxed">
+                        <td className="border border-black px-2 py-1.5 text-center text-[10px] align-middle whitespace-nowrap">
                           {unitPrices.map((up, i) => (
-                            <span key={up.unitType} className={i > 0 ? 'block' : ''}>
-                              {formatPrice(up.price)} : {UNIT_LABELS[up.unitType] || up.unitType}
-                            </span>
+                            <span key={up.unitType}>{i > 0 ? ' | ' : ''}{formatPrice(up.price)} : {UNIT_LABELS[up.unitType] || up.unitType}</span>
                           ))}
                         </td>
                       </tr>
