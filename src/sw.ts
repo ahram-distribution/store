@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ahram-v1'
+const CACHE_NAME = 'ahram-v2'
 const SUPABASE_URL = self.__VITE_SUPABASE_URL__ || ''
 const SUPABASE_ANON_KEY = self.__VITE_SUPABASE_ANON_KEY__ || ''
 
@@ -237,6 +237,9 @@ self.addEventListener('install', (event) => {
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(clients.claim())
+  event.waitUntil(
+    caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k))))
+  )
   event.waitUntil(flushQueue())
 })
 

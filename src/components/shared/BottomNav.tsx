@@ -28,7 +28,7 @@ function useNavItems() {
   ]
 
   if (showSalesList) {
-    items.push({ label: 'ليست البيع', path: '/sales-list', icon: 'L' })
+    items.push({ label: 'sales-list', path: '/sales-list', icon: 'L' })
   }
 
   return items

@@ -1,13 +1,11 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef, Fragment } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../store/auth'
 import { normalizeEmployeeRole, type TargetRole } from '../../utils/roleNormalization'
-import { formatCurrencyShort, formatDateTime } from '../../utils/format'
-
-function getToken(): string | null {
-  try { return localStorage.getItem('session_token') } catch { return null }
-}
+import { formatDateTime } from '../../utils/format'
+import jsPDF from 'jspdf'
+import html2canvas from 'html2canvas'
 
 const ALLOWED_ROLES: TargetRole[] = ['الإدارة العليا', 'مدير بيع', 'مندوب مبيعات']
 
@@ -49,11 +47,7 @@ function esc(s: string | null | undefined): string {
 
 function formatPrice(val: number): string {
   if (!Number.isFinite(val)) return '0'
-  return new Intl.NumberFormat('en-US', {
-    style: 'decimal',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(val)
+  return new Intl.NumberFormat('en-US', { style: 'decimal', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(val)
 }
 
 function computeUnitPrices(p: ProductRow): UnitPriceInfo[] {
@@ -81,66 +75,54 @@ function computeUnitPrices(p: ProductRow): UnitPriceInfo[] {
   return rawPrices.filter((up) => activeUnitTypes.includes(up.unitType))
 }
 
+function renderPriceLines(unitPrices: UnitPriceInfo[]): string {
+  return unitPrices.map((up) => `${formatPrice(up.price)} : ${UNIT_LABELS[up.unitType] || up.unitType}`).join('<br/>')
+}
+
 function renderSalesListHtml(groups: CompanyGroup[], logoUrl: string): string {
   const now = new Date()
-  const totalCount = groups.reduce((s, g) => s + g.products.length, 0)
 
   function productRow(p: ProductRow): string {
     const unitPrices = computeUnitPrices(p)
-    const unitDisplay = unitPrices.map((up) => UNIT_LABELS[up.unitType] || up.unitType).join(' - ')
-    const priceDisplay = unitPrices.map((up) => `${UNIT_LABELS[up.unitType] || up.unitType}: ${formatPrice(up.price)}`).join(' | ')
-    const displayName = p.legacy_code ? `${p.legacy_code} - ${p.product_name}` : p.product_name
+    const code = esc(p.legacy_code || '---')
+    const name = esc(p.product_name)
+    const prices = renderPriceLines(unitPrices)
     return `<tr>
-      <td style="font-family:monospace;direction:ltr">${esc(p.legacy_code || '---')}</td>
-      <td>${esc(displayName)}</td>
-      <td>${esc(p.company_name || '')}</td>
-      <td>${esc(unitDisplay)}</td>
-      <td>${priceDisplay}</td>
+      <td style="width:5%;border:1px solid #000;padding:6px 4px;text-align:center;vertical-align:middle;font-family:monospace;direction:ltr;font-size:9pt">${code}</td>
+      <td style="width:65%;border:1px solid #000;padding:6px 4px;text-align:right;vertical-align:middle;font-size:9pt">${name}</td>
+      <td style="width:30%;border:1px solid #000;padding:6px 4px;text-align:center;vertical-align:middle;font-size:8pt;line-height:1.6">${prices}</td>
     </tr>`
   }
 
-  function rowsHtml(): string {
+  function groupRows(): string {
     return groups.map((g) => {
       const body = g.products.map(productRow).join('')
-      return `<tr class="group-header"><td colspan="5">${esc(g.companyName)} (${g.products.length})</td></tr>${body}`
+      const header = `<tr><td colspan="3" style="background:#e8f0fe;font-weight:700;color:#0d2b6b;font-size:10pt;text-align:right;padding:6px 10px;border:1px solid #000;border-bottom:2px solid #0052cc">${esc(g.companyName)} (${g.products.length})</td></tr>`
+      return header + body
     }).join('')
   }
 
   return `<!DOCTYPE html>
 <html dir="rtl" lang="ar">
-<head><meta charset="UTF-8"><title>ليست البيع</title>
+<head><meta charset="UTF-8"><title>sales-list</title>
 <style>
-  @page { margin: 0 !important; size: A4 landscape; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Cairo', 'Tajawal', 'Segoe UI', Tahoma, Arial, sans-serif; font-size: 9pt; color: #222; line-height: 1.5; position: relative; padding: 0; }
-  .watermark-wrap { position: fixed; top: 0; bottom: 0; left: 0; right: 0; z-index: -10; display: flex; justify-content: center; align-items: center; pointer-events: none; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  .watermark-wrap img { transform: rotate(-45deg) scale(2.5); opacity: 0.05; max-width: 100%; max-height: 100%; }
-  .print-content { position: relative; z-index: 1; }
-  .top-bar { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #003366; padding-bottom: 12px; margin-bottom: 16px; }
+  body { font-family: 'Cairo', 'Tajawal', 'Segoe UI', Tahoma, Arial, sans-serif; font-size: 9pt; color: #222; line-height: 1.5; padding: 10mm; }
+  .top-bar { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #003366; padding-bottom: 10px; margin-bottom: 14px; }
   .header-right { flex: 3; text-align: right; }
-  .header-right .brand { font-size: 14pt; font-weight: 700; color: #003366; white-space: nowrap; }
-  .header-right .contact { font-size: 9pt; color: #333; }
+  .header-right .brand { font-size: 14pt; font-weight: 700; color: #003366; }
+  .header-right .contact { font-size: 8pt; color: #333; }
   .header-center { flex: 4; text-align: center; }
-  .header-center .logo-img { height: auto; max-height: 100px; max-width: 100%; object-fit: contain; margin: 0 auto; }
+  .header-center .logo-img { height: 60px; object-fit: contain; }
   .header-left { flex: 3; text-align: left; }
   .header-left .doc-title { font-size: 16pt; font-weight: 700; color: #003366; }
-  .header-left .doc-date { font-size: 9pt; color: #555; margin-top: 2px; }
-  .info-bar { background: #f0f5ff; border: 1px solid #cce0ff; border-radius: 4px; padding: 6px 10px; margin-bottom: 12px; font-size: 8pt; color: #555; text-align: center; }
-  table { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
-  thead { display: table-header-group; }
-  tbody { display: table-row-group; }
-  th { background: #003366; color: #fff; padding: 6px 4px !important; text-align: center; vertical-align: middle !important; font-weight: 600; font-size: 8pt; word-wrap: break-word; }
-  td { padding: 5px 4px !important; border-bottom: 1px solid #e5e7eb; text-align: center; vertical-align: middle !important; font-size: 8pt; word-wrap: break-word; }
-  tbody tr { page-break-inside: avoid; }
-  tbody tr:nth-child(even) { background: #f8f9fa; }
-  .group-header td { background: #e8f0fe; font-weight: 700; color: #0d2b6b; font-size: 9pt; text-align: right; padding: 6px 10px !important; border-bottom: 2px solid #0052cc; }
-  .footer { text-align: center; margin-top: 16px; font-size: 7pt; color: #9ca3af; border-top: 1px solid #e5e7eb; padding-top: 6px; }
-  .footer .count { font-weight: 700; color: #003366; }
-  @media print { @page { margin: 0 !important; } body { margin: 0.8cm !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+  .header-left .doc-date { font-size: 8pt; color: #555; margin-top: 2px; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
+  th { background: #003366; color: #fff; padding: 7px 4px; text-align: center; vertical-align: middle; font-weight: 600; font-size: 8pt; border: 1px solid #003366; }
+  td { padding: 5px 4px; text-align: center; vertical-align: middle; font-size: 8pt; border: 1px solid #000; }
+  .footer { text-align: center; margin-top: 14px; font-size: 7pt; color: #9ca3af; border-top: 1px solid #e5e7eb; padding-top: 6px; }
 </style></head>
 <body>
-<div class="watermark-wrap"><img src="${esc(logoUrl)}" alt="" /></div>
-<div class="print-content">
 <div class="top-bar">
   <div class="header-right">
     <div class="brand">شركة الأهرام للتجارة والتوزيع</div>
@@ -151,50 +133,74 @@ function renderSalesListHtml(groups: CompanyGroup[], logoUrl: string): string {
     <img src="${esc(logoUrl)}" alt="الأهرام" class="logo-img" />
   </div>
   <div class="header-left">
-    <div class="doc-title">ليست البيع</div>
+    <div class="doc-title">sales-list</div>
     <div class="doc-date">تاريخ الطباعة: ${formatDateTime(now)}</div>
   </div>
 </div>
 <table>
   <thead>
     <tr>
-      <th>كود الصنف</th>
-      <th>اسم الصنف</th>
-      <th>التصنيف</th>
-      <th>وحدة البيع</th>
-      <th>سعر البيع</th>
+      <th style="width:5%">كود الصنف</th>
+      <th style="width:65%">اسم الصنف</th>
+      <th style="width:30%">سعر البيع للوحدات المتاحة</th>
     </tr>
   </thead>
   <tbody>
-    ${rowsHtml()}
+    ${groupRows()}
   </tbody>
 </table>
 <div class="footer">
   <div>شركة الأهرام للتجارة والتوزيع - جميع الحقوق محفوظة</div>
   <div>تاريخ الطباعة: ${formatDateTime(now)}</div>
 </div>
-</div>
 </body></html>`
 }
 
-function printIframe(html: string) {
-  const iframe = document.createElement('iframe')
-  iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;border:none'
-  document.body.appendChild(iframe)
-  const win = iframe.contentWindow
-  if (!win) { document.body.removeChild(iframe); return }
-  win.document.write(html)
-  win.document.close()
-  setTimeout(() => { try { win.print() } catch {}; document.body.removeChild(iframe) }, 500)
+async function downloadPdf(html: string) {
+  const container = document.createElement('div')
+  container.innerHTML = html
+  container.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:210mm;background:#fff;z-index:10000'
+  document.body.appendChild(container)
+
+  try {
+    const canvas = await html2canvas(container, {
+      scale: 2,
+      useCORS: true,
+      logging: false,
+      backgroundColor: '#ffffff',
+      width: 794,
+    })
+    const imgData = canvas.toDataURL('image/jpeg', 0.95)
+    const pdf = new jsPDF('p', 'mm', 'a4')
+    const pdfW = pdf.internal.pageSize.getWidth()
+    const pdfH = (canvas.height * pdfW) / canvas.width
+    const pageH = pdf.internal.pageSize.getHeight()
+
+    let remaining = pdfH
+    let y = 0
+    pdf.addImage(imgData, 'JPEG', 0, y, pdfW, pdfH)
+    remaining -= pageH
+    while (remaining > 0) {
+      y -= pageH
+      pdf.addPage()
+      pdf.addImage(imgData, 'JPEG', 0, y, pdfW, pdfH)
+      remaining -= pageH
+    }
+    pdf.save('sales-list.pdf')
+  } finally {
+    document.body.removeChild(container)
+  }
 }
 
 export default function SalesListPage() {
   const navigate = useNavigate()
+  const pdfRef = useRef<HTMLDivElement>(null)
   const { token: authToken, user } = useAuthStore()
   const [products, setProducts] = useState<ProductRow[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [companyFilter, setCompanyFilter] = useState('')
+  const [pdfLoading, setPdfLoading] = useState(false)
 
   const userRoles = user?.roles || []
   const normalizedRoles = userRoles.map(normalizeEmployeeRole)
@@ -252,10 +258,15 @@ export default function SalesListPage() {
       .map(([companyName, prods]) => ({ companyName, products: prods }))
   }, [smartFiltered])
 
-  const handlePrint = () => {
+  async function handleDownloadPdf() {
     const logoUrl = window.location.origin + '/store/branding/ahram-logo.png'
     const html = renderSalesListHtml(groupedProducts, logoUrl)
-    printIframe(html)
+    setPdfLoading(true)
+    try {
+      await downloadPdf(html)
+    } finally {
+      setPdfLoading(false)
+    }
   }
 
   if (!hasAccess) {
@@ -270,9 +281,10 @@ export default function SalesListPage() {
     <div className="space-y-4">
       <div className="flex items-center gap-3">
         <button onClick={() => navigate(-1)} className="text-text-secondary text-lg">&larr;</button>
-        <h1 className="text-lg font-bold text-text">ليست البيع</h1>
-        <button onClick={handlePrint} className="mr-auto bg-primary text-white text-xs px-3 py-1.5 rounded-lg font-semibold">
-          طباعة ليست البيع
+        <h1 className="text-lg font-bold text-text">sales-list</h1>
+        <button onClick={handleDownloadPdf} disabled={pdfLoading || smartFiltered.length === 0}
+          className="mr-auto bg-primary text-white text-xs px-3 py-1.5 rounded-lg font-semibold disabled:opacity-50">
+          {pdfLoading ? 'جاري التحميل...' : 'تحميل PDF'}
         </button>
       </div>
 
@@ -282,7 +294,7 @@ export default function SalesListPage() {
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="بحث باسم الصنف، الكود، أو الحجم..."
+            placeholder="بحث باسم الصنف، الكود..."
             className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-white pr-8"
           />
           <span className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary text-sm">&#x1F50D;</span>
@@ -308,38 +320,48 @@ export default function SalesListPage() {
           {search || companyFilter ? 'لا توجد نتائج للبحث' : 'لا توجد منتجات متاحة'}
         </div>
       ) : (
-        <div className="space-y-4">
-          {groupedProducts.map((group) => (
-            <div key={group.companyName} className="space-y-1">
-              <div className="bg-primary/5 text-primary font-bold text-sm px-3 py-2 rounded-lg sticky top-0 border border-primary/10">
-                {group.companyName}
-                <span className="text-text-secondary text-[10px] font-normal mr-2">({group.products.length})</span>
-              </div>
-              <div className="space-y-1">
-                {group.products.map((p) => {
-                  const unitPrices = computeUnitPrices(p)
-                  const unitDisplay = unitPrices.map((up) => UNIT_LABELS[up.unitType] || up.unitType).join(' - ')
-                  const displayName = p.legacy_code ? `${p.legacy_code} - ${p.product_name}` : p.product_name
-                  return (
-                    <div key={p.id} className="bg-white rounded-lg border border-border p-3 space-y-1">
-                      <div className="font-semibold text-sm text-text">{displayName}</div>
-                      <div className="flex items-center gap-3 text-xs text-text-secondary">
-                        <span>{unitDisplay}</span>
-                      </div>
-                      <div className="flex flex-wrap gap-1.5">
-                        {unitPrices.map((up) => (
-                          <span key={up.unitType} className="bg-primary/5 text-primary text-[10px] px-2 py-0.5 rounded-full">
-                            {UNIT_LABELS[up.unitType] || up.unitType}: {formatCurrencyShort(up.price)}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          ))}
-          <div className="text-center text-[10px] text-text-secondary pb-4 print:hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse text-sm" ref={pdfRef}>
+            <thead>
+              <tr className="bg-[#003366] text-white">
+                <th className="w-[5%] border border-[#003366] px-1 py-2 text-center text-[10px] font-semibold">كود الصنف</th>
+                <th className="w-[65%] border border-[#003366] px-2 py-2 text-center text-[10px] font-semibold">اسم الصنف</th>
+                <th className="w-[30%] border border-[#003366] px-2 py-2 text-center text-[10px] font-semibold">سعر البيع للوحدات المتاحة</th>
+              </tr>
+            </thead>
+            <tbody>
+              {groupedProducts.map((group) => (
+                <Fragment key={group.companyName}>
+                  <tr>
+                    <td colSpan={3} className="bg-[#e8f0fe] font-bold text-[#0d2b6b] text-xs text-right px-3 py-2 border border-black border-b-2 border-b-[#0052cc]">
+                      {group.companyName} <span className="text-gray-500 font-normal text-[10px]">({group.products.length})</span>
+                    </td>
+                  </tr>
+                  {group.products.map((p) => {
+                    const unitPrices = computeUnitPrices(p)
+                    return (
+                      <tr key={p.id} className="even:bg-gray-50">
+                        <td className="border border-black px-1 py-1.5 text-center font-mono text-[10px] ltr align-middle">
+                          {p.legacy_code || '---'}
+                        </td>
+                        <td className="border border-black px-2 py-1.5 text-right text-xs align-middle">
+                          {p.product_name}
+                        </td>
+                        <td className="border border-black px-2 py-1.5 text-center text-[10px] align-middle leading-relaxed">
+                          {unitPrices.map((up, i) => (
+                            <span key={up.unitType} className={i > 0 ? 'block' : ''}>
+                              {formatPrice(up.price)} : {UNIT_LABELS[up.unitType] || up.unitType}
+                            </span>
+                          ))}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </Fragment>
+              ))}
+            </tbody>
+          </table>
+          <div className="text-center text-[10px] text-text-secondary pt-3 pb-4">
             إجمالي الأصناف: {smartFiltered.length} | التصنيفات: {groupedProducts.length}
           </div>
         </div>
