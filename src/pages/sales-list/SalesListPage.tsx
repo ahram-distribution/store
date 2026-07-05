@@ -156,7 +156,7 @@ function renderSalesListHtml(groups: CompanyGroup[], logoUrl: string): string {
 async function downloadPdf(html: string) {
   const container = document.createElement('div')
   container.innerHTML = html
-  container.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:210mm;background:#fff;z-index:10000'
+  container.style.cssText = 'position:absolute;top:0;left:0;width:210mm;z-index:-1;opacity:0;pointer-events:none'
   document.body.appendChild(container)
 
   try {
