@@ -102,28 +102,24 @@ function renderSalesListHtml(groups: CompanyGroup[], logoUrl: string): string {
     }).join('')
   }
 
-  return `<!DOCTYPE html>
-<html dir="rtl" lang="ar">
-<head><meta charset="UTF-8"><title>sales-list</title>
+  return `<div id="pdf-container">
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Cairo', 'Tajawal', 'Segoe UI', Tahoma, Arial, sans-serif; font-size: 9pt; color: #222; line-height: 1.5; padding: 10mm; }
-  .top-bar { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #003366; padding-bottom: 10px; margin-bottom: 14px; }
-  .header-right { flex: 3; text-align: right; }
-  .header-right .brand { font-size: 14pt; font-weight: 700; color: #003366; }
-  .header-right .contact { font-size: 8pt; color: #333; }
-  .header-center { flex: 4; text-align: center; }
-  .header-center .logo-img { height: 60px; object-fit: contain; }
-  .header-left { flex: 3; text-align: left; }
-  .header-left .doc-title { font-size: 20pt; font-weight: 700; color: #003366; }
-  .header-left .doc-date { font-size: 11pt; color: #555; margin-top: 2px; }
-  table { width: 100%; table-layout: fixed; border-collapse: collapse; margin-bottom: 10px; }
-  th { background: #003366; color: #fff; padding: 8px 6px; text-align: center; vertical-align: middle; font-weight: 600; font-size: 14px; border: 1px solid #003366; }
-  td { padding: 8px 6px; text-align: center; vertical-align: middle; font-size: 14px; line-height: 1.5; border: 1px solid #000; }
-  .cell-name { white-space: normal !important; word-wrap: break-word; word-break: break-word; }
-  .footer { text-align: center; margin-top: 14px; font-size: 7pt; color: #9ca3af; border-top: 1px solid #e5e7eb; padding-top: 6px; }
-</style></head>
-<body>
+  #pdf-container { direction:rtl; font-family:'Cairo','Tajawal','Segoe UI',Tahoma,Arial,sans-serif; font-size:9pt; color:#222; line-height:1.5; padding:10mm; background:#fff; }
+  #pdf-container .top-bar { display:flex; justify-content:space-between; align-items:center; border-bottom:2px solid #003366; padding-bottom:10px; margin-bottom:14px; }
+  #pdf-container .header-right { flex:3; text-align:right; }
+  #pdf-container .header-right .brand { font-size:14pt; font-weight:700; color:#003366; }
+  #pdf-container .header-right .contact { font-size:8pt; color:#333; }
+  #pdf-container .header-center { flex:4; text-align:center; }
+  #pdf-container .header-center .logo-img { height:60px; object-fit:contain; }
+  #pdf-container .header-left { flex:3; text-align:left; }
+  #pdf-container .header-left .doc-title { font-size:20pt; font-weight:700; color:#003366; }
+  #pdf-container .header-left .doc-date { font-size:11pt; color:#555; margin-top:2px; }
+  #pdf-container table { width:100%; table-layout:fixed; border-collapse:collapse; margin-bottom:10px; }
+  #pdf-container th { background:#003366; color:#fff; padding:8px 6px; text-align:center; vertical-align:middle; font-weight:600; font-size:14px; border:1px solid #003366; }
+  #pdf-container td { padding:8px 6px; text-align:center; vertical-align:middle; font-size:14px; line-height:1.5; border:1px solid #000; }
+  #pdf-container .cell-name { white-space:normal !important; word-wrap:break-word; word-break:break-word; }
+  #pdf-container .footer { text-align:center; margin-top:14px; font-size:7pt; color:#9ca3af; border-top:1px solid #e5e7eb; padding-top:6px; }
+</style>
 <div class="top-bar">
   <div class="header-right">
     <div class="brand">شركة الأهرام للتجارة والتوزيع</div>
@@ -154,7 +150,7 @@ function renderSalesListHtml(groups: CompanyGroup[], logoUrl: string): string {
   <div>شركة الأهرام للتجارة والتوزيع - جميع الحقوق محفوظة</div>
   <div>تاريخ الطباعة: ${formatDateTime(now)}</div>
 </div>
-</body></html>`
+</div>`
 }
 
 async function downloadPdf(html: string) {
@@ -166,7 +162,7 @@ async function downloadPdf(html: string) {
   try {
     await document.fonts.ready
     const canvas = await html2canvas(container, {
-      scale: 3,
+      scale: 2,
       useCORS: true,
       logging: false,
       backgroundColor: '#ffffff',
@@ -174,19 +170,14 @@ async function downloadPdf(html: string) {
     })
     const imgData = canvas.toDataURL('image/jpeg', 0.95)
     const pdf = new jsPDF('p', 'mm', 'a4')
-    const pdfW = pdf.internal.pageSize.getWidth()
-    const pdfH = (canvas.height * pdfW) / canvas.width
-    const pageH = pdf.internal.pageSize.getHeight()
+    const pw = pdf.internal.pageSize.getWidth()
+    const ph = pdf.internal.pageSize.getHeight()
+    const totalH = (canvas.height * pw) / canvas.width
 
-    let remaining = pdfH
-    let y = 0
-    pdf.addImage(imgData, 'JPEG', 0, y, pdfW, pdfH)
-    remaining -= pageH
-    while (remaining > 0) {
-      y -= pageH
-      pdf.addPage()
-      pdf.addImage(imgData, 'JPEG', 0, y, pdfW, pdfH)
-      remaining -= pageH
+    const pages = Math.ceil(totalH / ph)
+    for (let i = 0; i < pages; i++) {
+      if (i > 0) pdf.addPage()
+      pdf.addImage(imgData, 'JPEG', 0, -i * ph, pw, totalH)
     }
     pdf.save('sales-list.pdf')
   } finally {
