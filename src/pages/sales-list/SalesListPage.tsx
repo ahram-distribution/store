@@ -5,7 +5,7 @@ import { useAuthStore } from '../../store/auth'
 import { normalizeEmployeeRole, type TargetRole } from '../../utils/roleNormalization'
 import { formatDateTime } from '../../utils/format'
 import jsPDF from 'jspdf'
-import { toCanvas } from 'html-to-image'
+import 'jspdf-autotable'
 
 const ALLOWED_ROLES: TargetRole[] = ['الإدارة العليا', 'مدير بيع', 'مندوب مبيعات']
 
@@ -36,13 +36,6 @@ const UNIT_LABELS: Record<string, string> = {
   piece: 'قطعة',
   dozen: 'دستة',
   carton: 'كرتونة',
-}
-
-function esc(s: string | null | undefined): string {
-  if (!s) return ''
-  const d = document.createElement('div')
-  d.textContent = s
-  return d.innerHTML
 }
 
 function formatPrice(val: number): string {
@@ -79,112 +72,137 @@ function renderPriceLines(unitPrices: UnitPriceInfo[]): string {
   return unitPrices.map((up) => `${formatPrice(up.price)} : ${UNIT_LABELS[up.unitType] || up.unitType}`).join(' | ')
 }
 
-function renderSalesListHtml(groups: CompanyGroup[], logoUrl: string): string {
-  const now = new Date()
-
-  function productRow(p: ProductRow): string {
-    const unitPrices = computeUnitPrices(p)
-    const code = esc(p.legacy_code || '---')
-    const name = esc(p.product_name)
-    const prices = renderPriceLines(unitPrices)
-    return `<tr>
-      <td style="width:5%;border:1px solid #000;padding:6px 4px;text-align:center;vertical-align:middle;font-family:monospace;direction:ltr;font-size:14px">${code}</td>
-      <td style="width:55%;border:1px solid #000;padding:6px 6px;text-align:right;vertical-align:middle;font-size:14px;line-height:1.5;white-space:normal !important;word-wrap:break-word;word-break:break-word">${name}</td>
-      <td style="width:40%;border:1px solid #000;padding:6px 4px;text-align:center;vertical-align:middle;font-size:12px;line-height:1.4;white-space:nowrap">${prices}</td>
-    </tr>`
-  }
-
-  function groupRows(): string {
-    return groups.map((g) => {
-      const body = g.products.map(productRow).join('')
-      const header = `<tr><td colspan="3" style="background:#e8f0fe;font-weight:700;color:#0d2b6b;font-size:10pt;text-align:right;padding:6px 10px;border:1px solid #000;border-bottom:2px solid #0052cc">${esc(g.companyName)} (${g.products.length})</td></tr>`
-      return header + body
-    }).join('')
-  }
-
-  return `<div id="pdf-container">
-<style>
-  #pdf-container { direction:rtl; font-family:'Cairo','Tajawal','Segoe UI',Tahoma,Arial,sans-serif; font-size:9pt; color:#222; line-height:1.5; padding:10mm; background:#fff; }
-  #pdf-container .top-bar { display:flex; justify-content:space-between; align-items:center; border-bottom:2px solid #003366; padding-bottom:10px; margin-bottom:14px; }
-  #pdf-container .header-right { flex:3; text-align:right; }
-  #pdf-container .header-right .brand { font-size:14pt; font-weight:700; color:#003366; }
-  #pdf-container .header-right .contact { font-size:8pt; color:#333; }
-  #pdf-container .header-center { flex:4; text-align:center; }
-  #pdf-container .header-center .logo-img { height:60px; object-fit:contain; }
-  #pdf-container .header-left { flex:3; text-align:left; }
-  #pdf-container .header-left .doc-title { font-size:20pt; font-weight:700; color:#003366; }
-  #pdf-container .header-left .doc-date { font-size:11pt; color:#555; margin-top:2px; }
-  #pdf-container table { width:100%; table-layout:fixed; border-collapse:collapse; margin-bottom:10px; }
-  #pdf-container th { background:#003366; color:#fff; padding:6px 4px; text-align:center; vertical-align:middle; font-weight:600; font-size:13px; border:1px solid #003366; }
-  #pdf-container td { padding:6px 4px; text-align:center; vertical-align:middle; font-size:13px; line-height:1.5; border:1px solid #000; }
-  #pdf-container .cell-name { white-space:normal !important; word-wrap:break-word; word-break:break-word; }
-  #pdf-container .price-cell { white-space:nowrap; font-size:12px; }
-  #pdf-container .footer { text-align:center; margin-top:14px; font-size:7pt; color:#9ca3af; border-top:1px solid #e5e7eb; padding-top:6px; }
-</style>
-<div class="top-bar">
-  <div class="header-right">
-    <div class="brand">شركة الأهرام للتجارة والتوزيع</div>
-    <div class="contact">كورنيش النيل - الوراق - جيزة</div>
-    <div class="contact">تليفون: 01040880002</div>
-  </div>
-  <div class="header-center">
-    <img src="${esc(logoUrl)}" alt="الأهرام" class="logo-img" />
-  </div>
-  <div class="header-left">
-    <div class="doc-title">sales-list</div>
-    <div class="doc-date">تاريخ الطباعة: ${formatDateTime(now)}</div>
-  </div>
-</div>
-<table>
-  <thead>
-    <tr>
-      <th style="width:5%">كود الصنف</th>
-      <th style="width:65%">اسم الصنف</th>
-      <th style="width:30%">سعر البيع للوحدات المتاحة</th>
-    </tr>
-  </thead>
-  <tbody>
-    ${groupRows()}
-  </tbody>
-</table>
-<div class="footer">
-  <div>شركة الأهرام للتجارة والتوزيع - جميع الحقوق محفوظة</div>
-  <div>تاريخ الطباعة: ${formatDateTime(now)}</div>
-</div>
-</div>`
+async function loadImage(url: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    img.onload = () => resolve(img)
+    img.onerror = reject
+    img.crossOrigin = 'anonymous'
+    img.src = url
+  })
 }
 
-async function downloadPdf(html: string) {
-  const container = document.createElement('div')
-  container.innerHTML = html
-  container.style.cssText = 'position:absolute;top:0;left:0;width:210mm;z-index:-9999;visibility:visible;opacity:1;background:#fff'
-  document.body.appendChild(container)
-  window.scrollTo(0, 0)
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  let binary = ''
+  const bytes = new Uint8Array(buffer)
+  for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i])
+  return btoa(binary)
+}
 
-  try {
-    await document.fonts.ready
-    const canvas = await toCanvas(container, {
-      width: 794,
-      height: container.scrollHeight,
-      style: { transform: 'scale(2)', transformOrigin: 'top left' },
-      pixelRatio: 2,
-      cacheBust: true,
-    })
-    const imgData = canvas.toDataURL('image/jpeg', 0.95)
-    const pdf = new jsPDF('p', 'mm', 'a4')
-    const pw = pdf.internal.pageSize.getWidth()
-    const ph = pdf.internal.pageSize.getHeight()
-    const totalH = (canvas.height * pw) / canvas.width
+async function downloadPdf(groups: CompanyGroup[], logoUrl: string) {
+  const [fontResp, logoImg] = await Promise.all([
+    fetch('/store/fonts/Tajawal-Regular.ttf'),
+    loadImage(logoUrl).catch(() => null),
+  ])
+  const fontArrayBuffer = await fontResp.arrayBuffer()
+  const fontBase64 = arrayBufferToBase64(fontArrayBuffer)
 
-    const pages = Math.ceil(totalH / ph)
-    for (let i = 0; i < pages; i++) {
-      if (i > 0) pdf.addPage()
-      pdf.addImage(imgData, 'JPEG', 0, -i * ph, pw, totalH)
-    }
-    pdf.save('sales-list.pdf')
-  } finally {
-    document.body.removeChild(container)
+  const pdf = new jsPDF('p', 'mm', 'a4')
+  pdf.addFileToVFS('Tajawal-Regular.ttf', fontBase64)
+  pdf.addFont('Tajawal-Regular.ttf', 'Tajawal', 'normal')
+
+  const pw = pdf.internal.pageSize.getWidth()
+  const ph = pdf.internal.pageSize.getHeight()
+  const margin = 10
+  const innerW = pw - 2 * margin
+
+  let startY = margin
+
+  // --- Header ---
+  if (logoImg) {
+    pdf.addImage(logoImg, 'PNG', pw / 2 - 12.5, margin, 25, 18)
+    startY = margin + 22
   }
+
+  pdf.setFont('Tajawal', 'bold')
+  pdf.setFontSize(16)
+  pdf.text('شركة الأهرام للتجارة والتوزيع', pw - margin, startY, { align: 'right' })
+  pdf.setFont('Tajawal', 'normal')
+  pdf.setFontSize(8)
+  pdf.text('كورنيش النيل - الوراق - جيزة', pw - margin, startY + 5, { align: 'right' })
+  pdf.text('تليفون: 01040880002', pw - margin, startY + 10, { align: 'right' })
+
+  pdf.setFont('Tajawal', 'bold')
+  pdf.setFontSize(18)
+  pdf.text('sales-list', margin, startY, { align: 'left' })
+  pdf.setFont('Tajawal', 'normal')
+  pdf.setFontSize(9)
+  const now = new Date()
+  pdf.text(`تاريخ الطباعة: ${formatDateTime(now)}`, margin, startY + 10, { align: 'left' })
+
+  const headerBottom = startY + 15
+
+  // --- Build autotable body ---
+  const body: any[][] = []
+
+  for (const group of groups) {
+    body.push([
+      {
+        content: `${group.companyName} (${group.products.length})`,
+        colSpan: 3,
+        styles: {
+          fillColor: [232, 240, 254],
+          textColor: [13, 43, 107],
+          fontStyle: 'bold',
+          fontSize: 9,
+          halign: 'right',
+          cellPadding: { top: 2, bottom: 2, left: 4, right: 4 },
+        },
+      },
+    ])
+    for (const product of group.products) {
+      const unitPrices = computeUnitPrices(product)
+      const prices = unitPrices
+        .map((up) => `${formatPrice(up.price)} : ${UNIT_LABELS[up.unitType] || up.unitType}`)
+        .join(' | ')
+      body.push([
+        { content: product.legacy_code || '---', styles: { font: 'Courier', halign: 'center', fontSize: 7 } },
+        { content: product.product_name, styles: { halign: 'right', fontSize: 9 } },
+        { content: prices, styles: { halign: 'center', fontSize: 8 } },
+      ])
+    }
+  }
+
+  // --- Draw separator line below header ---
+  pdf.setDrawColor(0, 51, 102)
+  pdf.setLineWidth(0.5)
+  pdf.line(margin, headerBottom + 1, pw - margin, headerBottom + 1)
+
+  // --- Table ---
+  pdf.autoTable({
+    startY: headerBottom + 4,
+    head: [
+      [
+        { content: 'كود الصنف', styles: { halign: 'center', fillColor: [0, 51, 102], textColor: 255, fontSize: 8, fontStyle: 'bold' } },
+        { content: 'اسم الصنف', styles: { halign: 'center', fillColor: [0, 51, 102], textColor: 255, fontSize: 8, fontStyle: 'bold' } },
+        { content: 'سعر البيع للوحدات المتاحة', styles: { halign: 'center', fillColor: [0, 51, 102], textColor: 255, fontSize: 8, fontStyle: 'bold' } },
+      ],
+    ],
+    body,
+    theme: 'grid',
+    tableWidth: innerW,
+    columnStyles: {
+      0: { cellWidth: innerW * 0.05 },
+      1: { cellWidth: innerW * 0.55 },
+      2: { cellWidth: innerW * 0.40 },
+    },
+    styles: {
+      font: 'Tajawal',
+      lineColor: [0, 0, 0],
+      lineWidth: 0.1,
+      cellPadding: { top: 1.5, bottom: 1.5, left: 2, right: 2 },
+    },
+    margin: { left: margin, right: margin },
+    didDrawPage: () => {
+      pdf.setFontSize(6)
+      pdf.setTextColor(156, 163, 175)
+      pdf.setFont('Tajawal', 'normal')
+      const footerText = 'شركة الأهرام للتجارة والتوزيع - جميع الحقوق محفوظة'
+      pdf.text(footerText, pw / 2, ph - 5, { align: 'center' })
+    },
+  })
+
+  pdf.save('sales-list.pdf')
 }
 
 export default function SalesListPage() {
@@ -255,10 +273,9 @@ export default function SalesListPage() {
 
   async function handleDownloadPdf() {
     const logoUrl = window.location.origin + '/store/branding/ahram-logo.png'
-    const html = renderSalesListHtml(groupedProducts, logoUrl)
     setPdfLoading(true)
     try {
-      await downloadPdf(html)
+      await downloadPdf(groupedProducts, logoUrl)
     } finally {
       setPdfLoading(false)
     }
