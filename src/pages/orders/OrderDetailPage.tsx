@@ -19,7 +19,7 @@ function isSupremeManagementUser(): boolean {
   if (!user?.roles) return false
   return user.roles.some((r: any) => {
     const name = typeof r === 'string' ? r : r?.name
-    return name === 'الإدارة العليا' || name === 'Super Admin' || name === 'SUPER_ADMIN' || name === 'سوبر أدمن'
+    return name === 'الإدارة العليا'
   })
 }
 
