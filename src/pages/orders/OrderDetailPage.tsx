@@ -18,7 +18,10 @@ function isSupremeManagementUser(): boolean {
   const user = useAuthStore.getState().user
   if (!user?.roles) return false
   const supremeRoles = ['سوبر أدمن', 'SUPER_ADMIN', 'رئيس مجلس الإدارة', 'أدمن', 'ADMIN', 'CHAIRMAN']
-  return user.roles.some((r: string) => supremeRoles.includes(r))
+  return user.roles.some((r: any) => {
+    const name = typeof r === 'string' ? r : r?.name
+    return supremeRoles.includes(name)
+  })
 }
 
 export function OrderDetailPage() {
