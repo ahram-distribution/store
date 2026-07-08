@@ -84,11 +84,6 @@ export default function SalesManagerOperations() {
   const [customerList, setCustomerList] = useState<any[]>([])
   const [custSearchQuery, setCustSearchQuery] = useState('')
 
-  /* Visit Checkout */
-  const [activeVisitId, setActiveVisitId] = useState<string | null>(null)
-  const [visitResult, setVisitResult] = useState('')
-  const [visitNotes, setVisitNotes] = useState('')
-
   /* Visits List */
   const [visitsList, setVisitsList] = useState<any[]>([])
   const [visitsLoading, setVisitsLoading] = useState(false)
@@ -228,19 +223,6 @@ export default function SalesManagerOperations() {
     if (!t) return
     if (showCustomerPicker === 'order') {
       nav(`/orders/new?customer=${customer.id}`)
-    } else if (showCustomerPicker === 'visit') {
-      const { data, error } = await supabase.rpc('governed_checkin_visit', {
-        p_token: t, p_customer_id: customer.id,
-      })
-      if (error) { toast.error(error.message); setShowCustomerPicker(null); return }
-      const res = data as any
-      if (res?.error) { toast.error(res.error); setShowCustomerPicker(null); return }
-      lifeSignalService.notifyBusiness('visit_checkin')
-      setActiveVisitId(res.id as string)
-      setShowCustomerPicker(null)
-      setVisitResult('')
-      setVisitNotes('')
-      toast.success(`بدء زيارة لـ ${customer.company_name}`)
     }
   }
 
@@ -294,22 +276,6 @@ export default function SalesManagerOperations() {
     setSelectedVisitLoading(false)
   }
 
-  const handleCheckoutVisit = async () => {
-    if (!activeVisitId) return
-    const t = getToken()
-    if (!t) return
-    setSubmitting(true)
-    const { error } = await supabase.rpc('governed_checkout_visit', {
-      p_token: t, p_visit_id: activeVisitId,
-      p_visit_result: visitResult || null, p_notes: visitNotes || null,
-    })
-    setSubmitting(false)
-    if (error) { toast.error(error.message); return }
-    lifeSignalService.notifyBusiness('visit_checkout')
-    setActiveVisitId(null); setVisitResult(''); setVisitNotes('')
-    toast.success('تم إنهاء الزيارة')
-  }
-
   if (loading) return <div className="text-center py-12 text-text-secondary text-sm">جاري التحميل...</div>
 
   return (
@@ -328,7 +294,7 @@ export default function SalesManagerOperations() {
           className="bg-primary/10 text-primary border border-primary/20 py-3 rounded-xl font-bold text-sm active:scale-[0.98] transition-all flex items-center justify-center gap-1.5">
           🛒 إنشاء طلب
         </button>
-        <button onClick={() => { setShowCustomerPicker('visit'); fetchCustomers() }}
+        <button onClick={() => nav('/visits/screen')}
           className="bg-accent/10 text-accent border border-accent/20 py-3 rounded-xl font-bold text-sm active:scale-[0.98] transition-all flex items-center justify-center gap-1.5">
           📍 بدء زيارة
         </button>
@@ -368,7 +334,7 @@ export default function SalesManagerOperations() {
         </div>
         <div className="flex gap-2 mt-3 flex-wrap">
           <ActionBtn label="كل الزيارات" onClick={() => nav('/sales-manager/visits-list')} />
-          <ActionBtn label="زيارة جديدة" onClick={() => { setShowCustomerPicker('visit'); fetchCustomers() }} />
+          <ActionBtn label="زيارة جديدة" onClick={() => nav('/visits/screen')} />
         </div>
       </div>
 
@@ -664,34 +630,6 @@ export default function SalesManagerOperations() {
             </button>
           ))}
         </div>
-      </MobileDialog>
-
-      {/* Visit Checkout Modal */}
-      <MobileDialog
-        open={!!activeVisitId}
-        onClose={() => { setActiveVisitId(null); setVisitResult(''); setVisitNotes('') }}
-        title="إنهاء الزيارة"
-        footer={
-          <button onClick={handleCheckoutVisit} disabled={submitting}
-            className="w-full bg-primary text-white text-xs py-2.5 rounded-lg font-semibold disabled:opacity-40">
-            {submitting ? 'جاري الإنهاء...' : 'إنهاء الزيارة'}
-          </button>
-        }
-      >
-        <select value={visitResult} onChange={e => setVisitResult(e.target.value)}
-          className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-white">
-          <option value="">نتيجة الزيارة</option>
-          <option value="order_taken">تم أخذ طلب</option>
-          <option value="follow_up">متابعة لاحقة</option>
-          <option value="customer_closed">العميل مغلق</option>
-          <option value="no_responsible_person">المسؤول غير موجود</option>
-          <option value="order_rejected">تم رفض الطلب</option>
-          <option value="collection_taken">تم التحصيل</option>
-          <option value="new_customer">عميل جديد</option>
-        </select>
-        <textarea value={visitNotes} onChange={e => setVisitNotes(e.target.value)}
-          placeholder="ملاحظات..." rows={3}
-          className="w-full border border-border rounded-lg px-3 py-2 text-sm resize-none" />
       </MobileDialog>
 
       <div className="text-center text-[10px] text-text-secondary pb-4">

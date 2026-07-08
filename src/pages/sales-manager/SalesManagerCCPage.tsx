@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { formatCurrencyShort } from '../../utils/format'
-import { lifeSignalService } from '../../services/lifeSignalService'
 import { MobileDialog } from '../../components/shared/MobileDialog'
 import toast from 'react-hot-toast'
 
@@ -72,16 +71,6 @@ export default function SalesManagerCCPage() {
     if (!t) return
     if (showCustomerPicker === 'order') {
       nav(`/orders/new?customer=${customer.id}`)
-    } else if (showCustomerPicker === 'visit') {
-      const { data, error } = await supabase.rpc('governed_checkin_visit', {
-        p_token: t, p_customer_id: customer.id,
-      })
-      if (error) { toast.error(error.message); setShowCustomerPicker(null); return }
-      const res = data as any
-      if (res?.error) { toast.error(res.error); setShowCustomerPicker(null); return }
-      lifeSignalService.notifyBusiness('visit_checkin')
-      setShowCustomerPicker(null)
-      toast.success(`بدء زيارة لـ ${customer.company_name}`)
     }
   }
 
@@ -103,7 +92,7 @@ export default function SalesManagerCCPage() {
           className="flex-1 bg-primary/10 text-primary border border-primary/20 py-3 rounded-xl font-bold text-sm active:scale-[0.98] transition-all flex items-center justify-center gap-1.5">
           🛒 إنشاء طلب
         </button>
-        <button onClick={() => { setShowCustomerPicker('visit'); fetchCustomers() }}
+        <button onClick={() => nav('/visits/screen')}
           className="flex-1 bg-accent/10 text-accent border border-accent/20 py-3 rounded-xl font-bold text-sm active:scale-[0.98] transition-all flex items-center justify-center gap-1.5">
           📍 بدء زيارة
         </button>
