@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useCompaniesStore } from '../../store/companies'
 import { StorefrontFooter } from '../../components/storefront/CompanyInfoSection'
@@ -14,6 +14,8 @@ interface CompanyItem {
 
 export function CompaniesPage() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const customerParam = searchParams.get('customer')
   const refreshKey = useCompaniesStore((s) => s.refreshKey)
   const [companies, setCompanies] = useState<CompanyItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -65,7 +67,7 @@ export function CompaniesPage() {
           {companies.map((company) => (
             <button
               key={company.id}
-              onClick={() => navigate(`/storefront/products?companyId=${company.id}`)}
+              onClick={() => navigate(`/storefront/products?companyId=${company.id}${customerParam ? `&customer=${customerParam}` : ''}`)}
               style={{
                 background: 'var(--theme-bg-card)',
                 border: '1px solid #E5E7EB',

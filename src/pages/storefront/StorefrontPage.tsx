@@ -160,6 +160,15 @@ export function StorefrontPage() {
     })
   }, [customerParam, authToken])
 
+  useEffect(() => {
+    if (!companyId) {
+      const params = new URLSearchParams()
+      if (customerParam) params.set('customer', customerParam)
+      const qs = params.toString()
+      navigate('/storefront' + (qs ? '?' + qs : ''), { replace: true })
+    }
+  }, [companyId, customerParam, navigate])
+
   const isEmployee = user?.identity_type === 'employee'
   const needsCustomer = isEmployee && !selectedCustomer
 
@@ -200,7 +209,7 @@ export function StorefrontPage() {
     removeItem(productId, unitType)
   }
 
-  const selectedCompanyName = companyId ? products[0]?.companyName : null
+  const selectedCompanyName = companyId ? filteredProducts[0]?.companyName : null
 
   return (
     <div className="space-y-4">
@@ -346,14 +355,14 @@ export function StorefrontPage() {
         <div className="flex items-center gap-2">
           {companyId && (
             <button
-              onClick={() => navigate('/storefront')}
+              onClick={() => navigate(customerParam ? `/storefront?customer=${customerParam}` : '/storefront')}
               className="text-sm text-primary"
             >
               ← الشركات
             </button>
           )}
           <h1 className="text-lg font-bold text-text">
-            {selectedCompanyName || 'جميع المنتجات'}
+            {selectedCompanyName || 'المنتجات'}
           </h1>
         </div>
         <button

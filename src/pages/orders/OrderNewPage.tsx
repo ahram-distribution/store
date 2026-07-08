@@ -17,7 +17,7 @@ export function OrderNewPage() {
       const params = new URLSearchParams()
       params.set('customer', customerParam)
       if (visitParam) params.set('visit', visitParam)
-      navigate('/storefront/products?' + params.toString(), { replace: true })
+      navigate('/storefront?' + params.toString(), { replace: true })
     }
   }, [])
 
@@ -57,7 +57,7 @@ export function OrderNewPage() {
         {filteredCustomers.map((c: any) => (
           <button
             key={c.id}
-            onClick={() => navigate(`/storefront/products?customer=${c.id}${visitParam ? `&visit=${visitParam}` : ''}`)}
+            onClick={() => navigate(`/storefront?customer=${c.id}${visitParam ? `&visit=${visitParam}` : ''}`)}
             className="w-full bg-white rounded-xl border border-border p-3 text-right active:bg-surface transition-colors"
           >
             <p className="text-sm font-semibold text-text">{c.company_name}</p>
