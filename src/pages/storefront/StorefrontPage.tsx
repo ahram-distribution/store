@@ -16,6 +16,7 @@ export function StorefrontPage() {
   const companyId = searchParams.get('companyId')
   const editOrderId = searchParams.get('editOrder')
   const customerParam = searchParams.get('customer')
+  const highlightId = searchParams.get('highlight')
   const { token: authToken, user } = useAuthStore()
 
   const {
@@ -169,6 +170,16 @@ export function StorefrontPage() {
     }
   }, [companyId, customerParam, navigate])
 
+  useEffect(() => {
+    if (!highlightId || loadingProducts) return
+    const el = document.getElementById('product-' + highlightId)
+    if (!el) return
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    el.classList.add('highlight-flash')
+    const timer = setTimeout(() => el.classList.remove('highlight-flash'), 2000)
+    return () => clearTimeout(timer)
+  }, [highlightId, loadingProducts])
+
   const isEmployee = user?.identity_type === 'employee'
   const needsCustomer = isEmployee && !selectedCustomer
 
@@ -213,6 +224,7 @@ export function StorefrontPage() {
 
   return (
     <div className="space-y-4">
+      <style>{`.highlight-flash { animation: flashPulse 1.5s ease-out; } @keyframes flashPulse { 0% { box-shadow: 0 0 0 0 rgba(59,130,246,.5); } 70% { box-shadow: 0 0 0 12px rgba(59,130,246,0); } 100% { box-shadow: 0 0 0 0 rgba(59,130,246,0); } }`}</style>
       {/* Public Auth Actions */}
       {!authToken && (
         <div className="flex gap-2">
@@ -411,16 +423,17 @@ export function StorefrontPage() {
       {!loadingProducts && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {filteredProducts.map((product) => (
-            <ProductCard
-              key={product.id}
-              product={product}
-              prices={computeProductPrices(product, selectedTier)}
-              hasTier={selectedTier !== null}
-              tierName={selectedTier?.name ?? null}
-              onAddToCart={handleAddToCart}
-              onRemoveFromCart={handleRemoveFromCart}
-              cartItemKeys={cartItemKeys}
-            />
+            <div key={product.id} id={'product-' + product.id} className="rounded-xl transition-all duration-500">
+              <ProductCard
+                product={product}
+                prices={computeProductPrices(product, selectedTier)}
+                hasTier={selectedTier !== null}
+                tierName={selectedTier?.name ?? null}
+                onAddToCart={handleAddToCart}
+                onRemoveFromCart={handleRemoveFromCart}
+                cartItemKeys={cartItemKeys}
+              />
+            </div>
           ))}
         </div>
       )}

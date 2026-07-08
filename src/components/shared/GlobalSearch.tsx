@@ -13,6 +13,7 @@ interface SearchResult {
   label: string
   sublabel: string
   meta: string
+  companyId?: string
 }
 
 const typeColors: Record<string, string> = {
@@ -41,6 +42,7 @@ async function searchProducts(token: string, query: string): Promise<SearchResul
     label: p.product_name || '',
     sublabel: p.company_name || '',
     meta: p.is_out_of_stock ? 'نفذ من المخزون' : (p.carton_price ? formatCurrencyShort(p.carton_price) : ''),
+    companyId: p.company_id,
   }))
 }
 
@@ -99,7 +101,6 @@ async function searchEmployees(token: string, query: string): Promise<SearchResu
 }
 
 const navPaths: Record<string, string> = {
-  product: '/products/manage',
   customer: '/customers/',
   order: '/orders/',
   employee: '/employees/',
@@ -147,8 +148,12 @@ export function GlobalSearch() {
     setQuery('')
     setResults([])
     setOpen(false)
-    const base = navPaths[r.type]
-    navigate(base + (r.type !== 'product' ? r.id : ''))
+    if (r.type === 'product' && r.companyId) {
+      navigate(`/storefront/products?companyId=${r.companyId}&highlight=${r.id}`)
+    } else {
+      const base = navPaths[r.type]
+      if (base) navigate(base + r.id)
+    }
   }
 
   const isEmpty = results.length === 0 && !searching && query.trim().length > 0
