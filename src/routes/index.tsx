@@ -113,10 +113,10 @@ export function AppRoutes() {
       <Route path="/orders/:id/edit" element={<ProtectedRoute><OrderEditPage /></ProtectedRoute>} />
       <Route path="/orders/approval-queue" element={<ProtectedRoute requireCapability="orders.approve"><ApprovalQueuePage /></ProtectedRoute>} />
       <Route path="/account" element={<ProtectedRoute><AccountPage /></ProtectedRoute>} />
-      <Route path="/visits" element={<ProtectedRoute requireCapability="visits.create"><VisitsPage /></ProtectedRoute>} />
-      <Route path="/visits/screen" element={<ProtectedRoute requireCapability="visits.create"><VisitScreen /></ProtectedRoute>} />
-      <Route path="/visits/new" element={<ProtectedRoute requireCapability="visits.create"><NewVisitPage /></ProtectedRoute>} />
-      <Route path="/visits/:id" element={<ProtectedRoute requireCapability="visits.create"><VisitDetailPage /></ProtectedRoute>} />
+      <Route path="/visits" element={<ProtectedRoute employeeOnly><VisitsPage /></ProtectedRoute>} />
+      <Route path="/visits/screen" element={<ProtectedRoute employeeOnly><VisitScreen /></ProtectedRoute>} />
+      <Route path="/visits/new" element={<ProtectedRoute employeeOnly><NewVisitPage /></ProtectedRoute>} />
+      <Route path="/visits/:id" element={<ProtectedRoute employeeOnly><VisitDetailPage /></ProtectedRoute>} />
       <Route path="/customers" element={<ProtectedRoute><CustomersPage /></ProtectedRoute>} />
       <Route path="/customers/new" element={<ProtectedRoute requireCapability="customers.create"><NewCustomerPage /></ProtectedRoute>} />
       <Route path="/customers/:id" element={<ProtectedRoute><CustomerProfilePage /></ProtectedRoute>} />
