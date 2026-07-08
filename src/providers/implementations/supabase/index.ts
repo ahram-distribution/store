@@ -1,0 +1,6 @@
+export { SupabaseSalesOrderProvider } from './SupabaseSalesOrderProvider'
+export { SupabaseCustomerProvider } from './SupabaseCustomerProvider'
+export { SupabaseProductCatalogProvider } from './SupabaseProductCatalogProvider'
+export { SupabaseInventoryProvider } from './SupabaseInventoryProvider'
+export { SupabaseAttendanceProvider } from './SupabaseAttendanceProvider'
+export { SupabaseCollectionProvider } from './SupabaseCollectionProvider'

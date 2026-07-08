@@ -1,0 +1,40 @@
+appId: com.ahram.desktop
+productName: Ahram ERP
+copyright: Copyright © 2026 Ahram Trading & Distribution
+
+directories:
+  output: release
+  buildResources: assets
+
+files:
+  - build/**/*
+  - assets/**/*
+
+extraResources:
+  - from: ../dist
+    to: dist
+    filter:
+      - "**/*"
+
+win:
+  target:
+    - nsis
+    - portable
+  icon: assets/icon.ico
+  sign: false
+  signAndEditExecutable: false
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Ahram ERP
+  uninstallDisplayName: Ahram ERP
+  license: null
+  artifactName: "Ahram ERP Setup ${version}.${ext}"
+
+portable:
+  artifactName: "Ahram ERP ${version}.${ext}"
+
+asar: true

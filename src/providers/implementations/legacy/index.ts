@@ -1,0 +1,6 @@
+export { LegacySalesOrderProvider } from './LegacySalesOrderProvider'
+export { LegacyCustomerProvider } from './LegacyCustomerProvider'
+export { LegacyProductCatalogProvider } from './LegacyProductCatalogProvider'
+export { LegacyInventoryProvider } from './LegacyInventoryProvider'
+export { LegacyAttendanceProvider } from './LegacyAttendanceProvider'
+export { LegacyCollectionProvider } from './LegacyCollectionProvider'

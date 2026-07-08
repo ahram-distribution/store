@@ -117,7 +117,7 @@ export function OrderDetailPage() {
       actions={
         <div className="flex flex-col gap-1">
           {canEdit && (
-            <button onClick={() => navigate(`/orders/${id}/edit`)}
+            <button onClick={() => navigate(`/storefront/products?editOrder=${id}`)}
               className="w-full bg-accent text-white text-xs py-2.5 rounded-lg active:opacity-90 flex items-center justify-center gap-1">
               تعديل الطلب
             </button>

@@ -173,7 +173,15 @@ export default function SalesManagerOperations() {
       p_accuracy_meters: custLocation.accuracyMeters, p_credit_limit: custCreditLimit ? Number(custCreditLimit) : null,
       p_credit_days: custCreditDays ? Number(custCreditDays) : null,
     })
-    if (error) { setSubmitting(false); toast.error(error.message); return }
+    if (error) {
+      setSubmitting(false)
+      if (error.message?.includes('duplicate') || error.message?.includes('already exists')) {
+        toast.error('رقم الهاتف موجود مسبقاً')
+      } else {
+        toast.error(error.message)
+      }
+      return
+    }
     const res = data as any
     if (res?.error) { setSubmitting(false); toast.error(res.error); return }
     lifeSignalService.notifyBusiness('customer_created')

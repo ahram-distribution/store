@@ -65,7 +65,10 @@ apply_enum_fix.py
 debug_*.py
 runtime_test*.py
 t3.py*
-h origin main --force-with-lease
+# Desktop app build artifacts
+desktop/release/
+desktop/build/
+desktop/screenshots/
 # Generated audit/review files (not source)
 docs/analysis_report.txt
 docs/execute_update.sql

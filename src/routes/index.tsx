@@ -110,7 +110,7 @@ export function AppRoutes() {
       <Route path="/orders" element={<ProtectedRoute><OrdersPage /></ProtectedRoute>} />
       <Route path="/orders/new" element={<ProtectedRoute employeeOnly><OrderNewPage /></ProtectedRoute>} />
       <Route path="/orders/:id" element={<ProtectedRoute><OrderDetailPage /></ProtectedRoute>} />
-      <Route path="/orders/:id/edit" element={<ProtectedRoute requireCapability="orders.update"><OrderEditPage /></ProtectedRoute>} />
+      <Route path="/orders/:id/edit" element={<ProtectedRoute><OrderEditPage /></ProtectedRoute>} />
       <Route path="/orders/approval-queue" element={<ProtectedRoute requireCapability="orders.approve"><ApprovalQueuePage /></ProtectedRoute>} />
       <Route path="/account" element={<ProtectedRoute><AccountPage /></ProtectedRoute>} />
       <Route path="/visits" element={<ProtectedRoute requireCapability="visits.create"><VisitsPage /></ProtectedRoute>} />

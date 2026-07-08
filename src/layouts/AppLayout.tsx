@@ -68,9 +68,10 @@ export function AppLayout({ children }: AppLayoutProps) {
       <main className="px-4 pb-24 pt-4 min-h-screen">
         <ErrorBoundary>{children}</ErrorBoundary>
       </main>
-      {cartCount > 0 && !location.pathname.startsWith('/orders/new') && (
+      {cartCount > 0 && !location.pathname.startsWith('/orders/new') && !location.pathname.startsWith('/storefront') && (
         <button
           onClick={() => {
+            if (activeVisit) { navigate(`/visits/screen`); return }
             if (cartMeta) navigate(`/orders/new?customer=${cartMeta.customerId}`)
           }}
           className="fixed bottom-28 right-4 z-50 flex items-center justify-center active:opacity-90 transition-opacity shadow-xl bg-primary text-white"

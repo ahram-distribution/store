@@ -20,6 +20,7 @@ interface CartState {
   tiers: TierConfig[]
   products: ProductWithPrice[]
   selectedCustomer: CartCustomer | null
+  editingOrderId: string | null
 
   setTiers: (tiers: TierConfig[]) => void
   setProducts: (products: ProductWithPrice[]) => void
@@ -39,6 +40,8 @@ interface CartState {
   getEffectivePrice: (product: ProductWithPrice, unitType: UnitType) => number
   recalculateAll: () => void
   setSelectedCustomer: (customer: CartCustomer | null) => void
+  setEditingOrder: (orderId: string | null) => void
+  restoreCart: (items: CartItem[], editingOrderId: string) => void
 }
 
 export const useCartStore = create(
@@ -51,6 +54,7 @@ export const useCartStore = create(
       tiers: [],
       products: [],
       selectedCustomer: null,
+      editingOrderId: null,
 
       setTiers: (tiers) => set({ tiers }),
 
@@ -238,6 +242,23 @@ export const useCartStore = create(
       },
 
       setSelectedCustomer: (customer) => set({ selectedCustomer: customer }),
+
+      setEditingOrder: (orderId) => set({ editingOrderId: orderId }),
+
+      restoreCart: (orderItems, editingOrderId) => {
+        const items: CartItem[] = orderItems.map((i: any) => ({
+          productId: i.product_id,
+          productName: i.product_name || '',
+          unitType: i.unit_type,
+          unitQuantity: i.unit_quantity,
+          pieceQuantity: i.piece_quantity,
+          unitPrice: i.unit_price,
+          totalPrice: i.total_price,
+          imageUrl: i.image_url || undefined,
+          note: i.note || undefined,
+        }))
+        set({ items, editingOrderId })
+      },
 
       getDealItems: () => get().dealItems,
       getFlashOfferItems: () => get().flashOfferItems,

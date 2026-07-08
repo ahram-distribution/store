@@ -1,0 +1,22 @@
+# OpenCode Session Log — Ahram Distribution
+
+## In Progress
+<!-- All items here are completed. See Progress section below. -->
+
+## Progress
+
+### Fixed - Desktop Runtime - RPC Parameter Mismatches (All 3 Workspaces)
+Root cause: All three Legacy providers silently failed because they passed parameters (`p_limit`, `p_offset`, `p_company_id`, `p_status`, `p_category_id`) that DON'T EXIST in the actual RPC signatures on the server. PostgreSQL rejected the calls, errors were silently caught, DataGrid rendered empty `[]`.
+
+Changes made:
+1. **`LegacySalesOrderProvider.searchOrders()`** (`src/providers/implementations/legacy/LegacySalesOrderProvider.ts:104`): Removed `p_company_id`, `p_limit`, `p_offset` (not supported by `get_unified_orders`). Fixed param names: `p_from_date`→`p_date_from`, `p_to_date`→`p_date_to`, `p_owner_id`→`p_created_by` to match RPC signature.
+2. **`LegacyCustomerProvider.searchCustomers()`** (`src/providers/implementations/legacy/LegacyCustomerProvider.ts:62`): Removed `p_company_id`, `p_status`, `p_limit`, `p_offset` (not supported by `get_governed_customers`).
+3. **`LegacyProductCatalogProvider.searchProducts()`** (`src/providers/implementations/legacy/LegacyProductCatalogProvider.ts:29`): Removed `p_category_id`, `p_limit`, `p_offset` (not supported by `get_governed_products`).
+4. **`ProductsWorkspace.tsx`** (`src/desktop/workspace/registry/ProductsWorkspace.tsx:27`): Fixed pipeline query params — `searchTerm:''`→`searchQuery:''`, removed `categoryId`, `page`, `pageSize` (handler only reads `companyId`, `searchQuery`).
+5. **Tests updated**: Two test expectations fixed to match new params — removed `p_company_id`, `p_limit` from assertions in `legacy-adapters.test.ts`.
+
+Current status after fixes:
+- **SalesWorkspace**: Pipeline path (`GetOrderQuery` with `orderId:''`) still fails, but **fallback `searchOrders({})` now passes only `{p_token}`** to `get_unified_orders` → RPC succeeds → **real data shown**.
+- **CustomersWorkspace**: Pipeline path (`GetCustomersQuery` handler not found) still fails, but **fallback `searchCustomers({})` now passes only `{p_token}`** to `get_governed_customers` → RPC succeeds → **real data shown**.
+- **ProductsWorkspace**: Pipeline path already worked (handler passes `{p_token, p_active_only:false}` — valid params). Now `searchQuery` from workspace maps correctly to handler.
+- **All 260 tests pass, 0 desktop tsc errors**.

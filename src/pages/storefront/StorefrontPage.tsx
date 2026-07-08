@@ -62,6 +62,7 @@ export function StorefrontPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const companyId = searchParams.get('companyId')
+  const editOrderId = searchParams.get('editOrder')
   const { token: authToken, user } = useAuthStore()
 
   const {
@@ -77,6 +78,8 @@ export function StorefrontPage() {
     getTotals,
     selectedCustomer,
     setSelectedCustomer,
+    setEditingOrder,
+    restoreCart,
   } = useCartStore()
 
   const [searchQuery, setSearchQuery] = useState(searchParams.get('q') || '')
@@ -164,6 +167,19 @@ export function StorefrontPage() {
     fetchTiers()
     fetchCustomers()
   }, [fetchProducts, fetchTiers, fetchCustomers])
+
+  useEffect(() => {
+    if (!editOrderId || !authToken) return
+    supabase.rpc('get_unified_order', { p_token: authToken, p_id: editOrderId }).then(({ data }) => {
+      if (!data || data.error) return
+      const order = data.order
+      const items = data.items || []
+      if (order.customer_id) {
+        setSelectedCustomer({ id: order.customer_id, name: order.customer_name || '', phone: order.customer_phone || '', code: order.customer_code || '' })
+      }
+      restoreCart(items, editOrderId)
+    })
+  }, [editOrderId, authToken])
 
   const isEmployee = user?.identity_type === 'employee'
   const needsCustomer = isEmployee && !selectedCustomer

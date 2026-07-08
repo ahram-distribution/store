@@ -1,0 +1,84 @@
+:root {
+  --dt-bg: #F5F7FA;
+  --dt-bg-surface: #FFFFFF;
+  --dt-bg-sidebar: #0B3D91;
+  --dt-bg-sidebar-hover: rgba(255, 255, 255, 0.08);
+  --dt-bg-sidebar-active: rgba(255, 255, 255, 0.14);
+  --dt-bg-toolbar: #FFFFFF;
+  --dt-bg-statusbar: #1E293B;
+  --dt-bg-header: #F8FAFC;
+  --dt-bg-row-hover: #F1F5F9;
+  --dt-bg-row-selected: #E0F2FE;
+  --dt-bg-row-alt: #FAFBFC;
+  --dt-bg-menu: #FFFFFF;
+
+  --dt-text-primary: #0F172A;
+  --dt-text-secondary: #475569;
+  --dt-text-muted: #94A3B8;
+  --dt-text-sidebar: rgba(255, 255, 255, 0.75);
+  --dt-text-sidebar-active: #FFFFFF;
+  --dt-text-sidebar-heading: rgba(255, 255, 255, 0.4);
+  --dt-text-statusbar: #CBD5E1;
+  --dt-text-on-primary: #FFFFFF;
+
+  --dt-border: #E2E8F0;
+  --dt-border-light: #F1F5F9;
+  --dt-border-focus: #0B3D91;
+  --dt-border-sidebar: rgba(255, 255, 255, 0.06);
+
+  --dt-primary: #0B3D91;
+  --dt-primary-hover: #0A357E;
+  --dt-accent: #C9A227;
+  --dt-accent-hover: #B89122;
+  --dt-success: #059669;
+  --dt-warning: #D97706;
+  --dt-danger: #DC2626;
+  --dt-info: #0284C7;
+
+  --dt-sidebar-width: 240px;
+  --dt-toolbar-height: 48px;
+  --dt-statusbar-height: 28px;
+  --dt-breadcrumb-height: 36px;
+
+  --dt-radius-sm: 4px;
+  --dt-radius-md: 6px;
+  --dt-radius-lg: 8px;
+
+  --dt-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --dt-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.08);
+  --dt-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  --dt-shadow-menu: 0 4px 16px rgba(0, 0, 0, 0.15);
+
+  --dt-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --dt-font-mono: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+  --dt-font-size-xs: 11px;
+  --dt-font-size-sm: 12px;
+  --dt-font-size-base: 13px;
+  --dt-font-size-md: 14px;
+  --dt-font-size-lg: 16px;
+  --dt-font-size-xl: 20px;
+  --dt-font-size-2xl: 24px;
+  --dt-font-size-3xl: 30px;
+
+  --dt-transition: 150ms ease;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #CBD5E1 transparent;
+}
+
+.desktop-shell {
+  font-family: var(--dt-font);
+  font-size: var(--dt-font-size-base);
+  color: var(--dt-text-primary);
+  background: var(--dt-bg);
+  line-height: 1.5;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+.desktop-shell ::selection {
+  background: var(--dt-primary);
+  color: white;
+}

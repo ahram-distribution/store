@@ -1,0 +1,13 @@
+import './design/variables.css'
+
+export { DesktopShell } from './DesktopApp'
+export { DesktopLayout } from './layout/DesktopLayout'
+export { DataGrid } from './components/DataGrid'
+export type { Column, SortDirection } from './components/DataGrid'
+export { KpiWidget } from './dashboard/KpiWidget'
+export { ContextMenu } from './components/ContextMenu'
+export { KeyboardShortcuts } from './components/KeyboardShortcuts'
+export { useDesktopStore } from './store/desktopStore'
+export type { ContextMenuItem } from './store/desktopStore'
+export { WorkspaceManager, SplitView, DockPanel } from './workspace'
+export { createDefaultState } from './workspace/WorkspaceRegistry'

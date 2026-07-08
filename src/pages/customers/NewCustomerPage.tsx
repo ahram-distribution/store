@@ -96,7 +96,14 @@ export function NewCustomerPage() {
 
     const { data, error } = await supabase.rpc('governed_create_customer', args)
     setSaving(false)
-    if (error) { toast.error('فشل إنشاء العميل: ' + error.message); return }
+    if (error) {
+      if (error.message?.includes('duplicate') || error.message?.includes('already exists')) {
+        toast.error('رقم الهاتف موجود مسبقاً')
+      } else {
+        toast.error('فشل إنشاء العميل: ' + error.message)
+      }
+      return
+    }
     const res = data as any
     if (res?.error) { toast.error(res.error); return }
     lifeSignalService.notifyBusiness('customer_created')

@@ -66,6 +66,16 @@ function mapProduct(row: any): ProductWithPrice {
 export function OrderNewPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
+
+  const customerParam = searchParams.get('customer')
+  const visitParam = searchParams.get('visit')
+  useEffect(() => {
+    const params = new URLSearchParams()
+    if (customerParam) params.set('customer', customerParam)
+    if (visitParam) params.set('visit', visitParam)
+    const qs = params.toString()
+    navigate('/storefront/products' + (qs ? `?${qs}` : ''), { replace: true })
+  }, [])
   const preselectedCustomerId = searchParams.get('customer')
   const preselectedVisitId = searchParams.get('visit')
   const [customerId, setCustomerId] = useState<string | null>(preselectedCustomerId)

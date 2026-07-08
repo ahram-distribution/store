@@ -16,7 +16,7 @@ function getToken(): string | null {
 
 export function OrderReviewPage() {
   const navigate = useNavigate()
-  const { items, dealItems, flashOfferItems, products, getSelectedTier, getTotals, clearCart, selectedCustomer } = useCartStore()
+  const { items, dealItems, flashOfferItems, products, getSelectedTier, getTotals, clearCart, selectedCustomer, editingOrderId, setEditingOrder } = useCartStore()
   const user = useAuthStore((s) => s.user)
   const [submitting, setSubmitting] = useState(false)
 
@@ -73,47 +73,67 @@ export function OrderReviewPage() {
         unit_price: Math.round(item.unitPrice * 100) / 100,
         total_price: Math.round(item.totalPrice * 100) / 100,
       }))
-      const { data: created, error: createError } = await supabase.rpc('governed_create_order', {
-        p_token: token,
-        p_customer_id: customerId,
-        p_tier_id: selectedTier?.id || null,
-        p_notes: null,
-        p_items: orderItems,
-        p_execution_location_id: null,
-        p_execution_latitude: null,
-        p_execution_longitude: null,
-        p_execution_accuracy_meters: null,
-        p_execution_captured_at: null,
-      })
-      if (createError) { toast.error('فشل إنشاء الطلب: ' + createError.message); setSubmitting(false); return }
-      if (!created) { toast.error('فشل إنشاء الطلب'); setSubmitting(false); return }
-      order = created
-      lifeSignalService.notifyBusiness('order_created')
 
-      // flash offers (best-effort)
-      if (flashOfferItems.length > 0) {
-        const offerPayload = flashOfferItems.map((d) => ({ offer_id: d.dealId, quantity: d.quantity }))
-        await supabase.rpc('governed_add_order_flash_offers', { p_token: token, p_order_id: order.id, p_offers: offerPayload }).then(() => {})
-          .catch(() => {})
-      }
+      if (editingOrderId) {
+        const { error: replaceError } = await supabase.rpc('governed_replace_order_contents', {
+          p_token: token,
+          p_id: editingOrderId,
+          p_items: orderItems,
+        })
+        if (replaceError) { toast.error('فشل تحديث الطلب: ' + replaceError.message); setSubmitting(false); return }
+        order = { id: editingOrderId }
+        lifeSignalService.notifyBusiness('order_created')
 
-      // daily deals (best-effort)
-      if (dealItems.length > 0) {
-        const dealPayload = dealItems.map((d) => ({ deal_id: d.dealId, quantity: d.quantity }))
-        await supabase.rpc('governed_add_order_daily_deals', { p_token: token, p_order_id: order.id, p_deals: dealPayload }).then(() => {})
-          .catch(() => {})
-      }
+        const { error: submitError } = await supabase.rpc('governed_submit_order', {
+          p_token: token,
+          p_id: editingOrderId,
+        })
+        if (submitError) {
+          toast.error('تم تحديث الطلب ولكن فشل الإرسال: ' + submitError.message)
+          setSubmitting(false); return
+        }
+        toast.success('تم تحديث الطلب وإرساله بنجاح!')
+      } else {
+        const { data: created, error: createError } = await supabase.rpc('governed_create_order', {
+          p_token: token,
+          p_customer_id: customerId,
+          p_tier_id: selectedTier?.id || null,
+          p_notes: null,
+          p_items: orderItems,
+          p_execution_location_id: null,
+          p_execution_latitude: null,
+          p_execution_longitude: null,
+          p_execution_accuracy_meters: null,
+          p_execution_captured_at: null,
+        })
+        if (createError) { toast.error('فشل إنشاء الطلب: ' + createError.message); setSubmitting(false); return }
+        if (!created) { toast.error('فشل إنشاء الطلب'); setSubmitting(false); return }
+        order = created
+        lifeSignalService.notifyBusiness('order_created')
 
-      const { error: submitError } = await supabase.rpc('governed_submit_order', {
-        p_token: token,
-        p_id: order.id,
-      })
-      if (submitError) {
-        toast.error('تم إنشاء الطلب كمسودة ولكن فشل الإرسال: ' + submitError.message)
-        setSubmitting(false)
-        return
+        // flash offers (best-effort)
+        if (flashOfferItems.length > 0) {
+          const offerPayload = flashOfferItems.map((d) => ({ offer_id: d.dealId, quantity: d.quantity }))
+          await supabase.rpc('governed_add_order_flash_offers', { p_token: token, p_order_id: order.id, p_offers: offerPayload }).then(() => {}).catch(() => {})
+        }
+
+        // daily deals (best-effort)
+        if (dealItems.length > 0) {
+          const dealPayload = dealItems.map((d) => ({ deal_id: d.dealId, quantity: d.quantity }))
+          await supabase.rpc('governed_add_order_daily_deals', { p_token: token, p_order_id: order.id, p_deals: dealPayload }).then(() => {}).catch(() => {})
+        }
+
+        const { error: submitError } = await supabase.rpc('governed_submit_order', {
+          p_token: token,
+          p_id: order.id,
+        })
+        if (submitError) {
+          toast.error('تم إنشاء الطلب كمسودة ولكن فشل الإرسال: ' + submitError.message)
+          setSubmitting(false)
+          return
+        }
+        toast.success('تم إرسال الطلب بنجاح!')
       }
-      toast.success('تم إرسال الطلب بنجاح!')
 
       // ── CREDIT RESERVE — best-effort, only for customers with active credit ──
       const creditResult = await creditService.reserveCreditForOrder(order.id).catch(() => null)
@@ -139,6 +159,7 @@ export function OrderReviewPage() {
 
     setSubmitting(false)
     clearCart()
+    setEditingOrder(null)
     navigate('/orders')
   }
 
