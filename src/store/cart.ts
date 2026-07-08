@@ -66,11 +66,8 @@ export const useCartStore = create(
       },
 
       addItem: (product, unitType, unitQuantity) => {
-        if (product.salesBlocked === true) {
-          const msg = product.unitPrices.length === 0
-            ? 'هذا المنتج غير متوفر حالياً'
-            : 'هذا المنتج نفذت الكمية ولا يمكن إضافته إلى السلة'
-          toast.error(msg)
+        if (!product.isActive || product.isOutOfStock) {
+          toast.error('هذا المنتج غير متوفر حالياً')
           return
         }
 
@@ -112,13 +109,17 @@ export const useCartStore = create(
             unitPrice: Math.round(unitPrice * 100) / 100,
             totalPrice: Math.round(unitPrice * unitQuantity * 100) / 100,
             imageUrl: product.imageUrl,
+            companyId: product.companyId,
+            companyName: product.companyName,
           }
           set({ items: [...state.items, newItem] })
         }
+        toast.success('تمت الإضافة إلى السلة')
       },
 
       removeItem: (productId, unitType) => {
         set({ items: get().items.filter((i) => !(i.productId === productId && i.unitType === unitType)) })
+        toast.success('تمت الإزالة من السلة')
       },
 
       updateQuantity: (productId, unitType, unitQuantity) => {
@@ -246,17 +247,23 @@ export const useCartStore = create(
       setEditingOrder: (orderId) => set({ editingOrderId: orderId }),
 
       restoreCart: (orderItems, editingOrderId) => {
-        const items: CartItem[] = orderItems.map((i: any) => ({
-          productId: i.product_id,
-          productName: i.product_name || '',
-          unitType: i.unit_type,
-          unitQuantity: i.unit_quantity,
-          pieceQuantity: i.piece_quantity,
-          unitPrice: i.unit_price,
-          totalPrice: i.total_price,
-          imageUrl: i.image_url || undefined,
-          note: i.note || undefined,
-        }))
+        const state = get()
+        const items: CartItem[] = orderItems.map((i: any) => {
+          const product = state.products.find(p => p.id === i.product_id)
+          return {
+            productId: i.product_id,
+            productName: i.product_name || '',
+            unitType: i.unit_type,
+            unitQuantity: i.unit_quantity,
+            pieceQuantity: i.piece_quantity,
+            unitPrice: i.unit_price,
+            totalPrice: i.total_price,
+            imageUrl: i.image_url || undefined,
+            note: i.note || undefined,
+            companyId: product?.companyId,
+            companyName: product?.companyName,
+          }
+        })
         set({ items, editingOrderId })
       },
 

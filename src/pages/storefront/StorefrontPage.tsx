@@ -10,54 +10,6 @@ import { computeProductPrices } from '../../engine/pricing'
 import { formatCurrencyShort } from '../../utils/format'
 import type { ProductWithPrice, ProductUnitPrice, TierConfig, UnitType } from '../../types/storefront'
 
-function mapProduct(row: any): ProductWithPrice {
-  const cartonPrice = Number(row.carton_price) || 0
-  const cartonQuantity = Number(row.carton_quantity) || 0
-
-  const activeUnits = (row.product_units ?? []).filter((u: any) => u.is_active !== false)
-  const activeUnitTypes = activeUnits.map((u: any) => u.unit_type)
-  const hasCarton = activeUnitTypes.includes('carton')
-
-  const rawPrices: ProductUnitPrice[] = []
-
-  if (hasCarton) {
-    if (cartonPrice > 0) {
-      if (cartonQuantity >= 24) {
-        rawPrices.push({ unitType: 'dozen', price: (cartonPrice / cartonQuantity) * 12 })
-      }
-      rawPrices.push({ unitType: 'carton', price: cartonPrice })
-    }
-  } else {
-    const piecePrice = cartonPrice > 0 && cartonQuantity > 0 ? cartonPrice / cartonQuantity : 0
-    if (piecePrice > 0) {
-      rawPrices.push({ unitType: 'piece', price: piecePrice })
-      rawPrices.push({ unitType: 'dozen', price: piecePrice * 12 })
-    }
-  }
-
-  const unitPrices = rawPrices.filter(up => activeUnitTypes.includes(up.unitType))
-  const salesBlocked = unitPrices.length === 0
-
-  const inventoryQty = row.inventory ? Number(row.inventory.quantity) : null
-  const dbOutOfStock = row.is_out_of_stock === true && row.is_active !== false
-  const outOfStock = dbOutOfStock || (inventoryQty !== null && inventoryQty <= 0)
-
-  return {
-    id: row.id,
-    productName: row.product_name,
-    legacyCode: row.legacy_code,
-    cartonPrice,
-    cartonQuantity,
-    isActive: row.is_active ?? true,
-    salesBlocked,
-    outOfStock,
-    imageUrl: row.image_url || undefined,
-    companyId: row.company_id,
-    companyName: row.company_name ?? '',
-    unitPrices,
-  }
-}
-
 export function StorefrontPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
@@ -74,6 +26,7 @@ export function StorefrontPage() {
     selectedTierId,
     selectTier,
     addItem,
+    removeItem,
     getSelectedTier,
     getTotals,
     selectedCustomer,
@@ -91,27 +44,7 @@ export function StorefrontPage() {
   const fetchProducts = useCallback(async () => {
     setLoadingProducts(true)
     if (!authToken) {
-      let q = supabase
-        .from('products')
-        .select(`
-          id, product_name, legacy_code, carton_price, carton_quantity,
-          is_active, is_visible, image_url, company_id,
-          companies!inner(company_name),
-          product_units(id, unit_type, is_active)
-        `)
-        .eq('is_active', true)
-        .eq('is_visible', true)
-      if (companyId) q = q.eq('company_id', companyId)
-      const { data, error } = await q.order('product_name')
-      if (!error && data) {
-        const normalized = data.map((row: any) => ({
-          ...row,
-          company_name: row.companies?.company_name ?? '',
-          companies: undefined,
-        }))
-        const mapped = normalized.map(mapProduct)
-        setProducts(mapped)
-      }
+      setProducts([])
       setLoadingProducts(false)
       return
     }
@@ -120,7 +53,43 @@ export function StorefrontPage() {
     })
     if (!error && data) {
       const arr = Array.isArray(data) ? data : []
-      const mapped = arr.map(mapProduct)
+      const mapped: ProductWithPrice[] = arr.map((row: any) => {
+        const cartonPrice = Number(row.carton_price) || 0
+        const cartonQuantity = Number(row.carton_quantity) || 0
+        const activeUnits = (row.product_units ?? []).filter((u: any) => u.is_active !== false)
+        const activeUnitTypes = activeUnits.map((u: any) => u.unit_type)
+        const hasCarton = activeUnitTypes.includes('carton')
+        const rawPrices: ProductUnitPrice[] = []
+        if (hasCarton) {
+          if (cartonPrice > 0) {
+            if (cartonQuantity >= 24) {
+              rawPrices.push({ unitType: 'dozen', price: (cartonPrice / cartonQuantity) * 12 })
+            }
+            rawPrices.push({ unitType: 'carton', price: cartonPrice })
+          }
+        } else {
+          const piecePrice = cartonPrice > 0 && cartonQuantity > 0 ? cartonPrice / cartonQuantity : 0
+          if (piecePrice > 0) {
+            rawPrices.push({ unitType: 'piece', price: piecePrice })
+            rawPrices.push({ unitType: 'dozen', price: piecePrice * 12 })
+          }
+        }
+        const unitPrices = rawPrices.filter(up => activeUnitTypes.includes(up.unitType))
+        return {
+          id: row.id,
+          productName: row.product_name,
+          legacyCode: row.legacy_code || '',
+          cartonPrice,
+          cartonQuantity,
+          isActive: row.is_active ?? true,
+          isOutOfStock: row.is_out_of_stock === true,
+          isVisible: row.is_visible ?? true,
+          imageUrl: row.image_url || undefined,
+          companyId: row.company_id,
+          companyName: row.companies?.company_name ?? '',
+          unitPrices,
+        }
+      })
       setProducts(mapped)
     }
     setLoadingProducts(false)
@@ -188,18 +157,22 @@ export function StorefrontPage() {
   const totals = getTotals()
   const cartItemCount = items.length
 
-  // Filter visible products: active, with prices, and in stock
-  const filteredProducts = useMemo(() => {
-    let list = products.filter((p) => p.isActive)
+  const cartItemKeys = useMemo(() => {
+    const keys = new Set<string>()
+    for (const item of items) {
+      keys.add(`${item.productId}:${item.unitType}`)
+    }
+    return keys
+  }, [items])
 
+  const filteredProducts = useMemo(() => {
+    let list = products.filter((p) => p.isActive && p.isVisible)
     if (companyId) {
       list = list.filter((p) => p.companyId === companyId)
     }
-
     if (searchQuery.trim()) {
       list = list.filter((p) => p.productName.includes(searchQuery))
     }
-
     return [...list].sort((a, b) =>
       a.productName.localeCompare(b.productName, 'ar')
     )
@@ -211,6 +184,10 @@ export function StorefrontPage() {
       return
     }
     addItem(product, unitType, quantity)
+  }
+
+  const handleRemoveFromCart = (productId: string, unitType: UnitType) => {
+    removeItem(productId, unitType)
   }
 
   const selectedCompanyName = companyId ? products[0]?.companyName : null
@@ -422,6 +399,8 @@ export function StorefrontPage() {
               hasTier={selectedTier !== null}
               tierName={selectedTier?.name ?? null}
               onAddToCart={handleAddToCart}
+              onRemoveFromCart={handleRemoveFromCart}
+              cartItemKeys={cartItemKeys}
             />
           ))}
         </div>

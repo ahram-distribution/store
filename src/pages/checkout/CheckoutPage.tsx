@@ -32,7 +32,7 @@ export function CheckoutPage() {
   const handleSubmit = async () => {
     const blockedItem = items.find((item) => {
       const product = products.find((p) => p.id === item.productId)
-      if (!product || product.salesBlocked) return true
+      if (!product || !product.isActive || product.isOutOfStock) return true
       if (!product.unitPrices.some((u) => u.unitType === item.unitType)) return true
       return false
     })

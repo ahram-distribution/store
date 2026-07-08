@@ -57,16 +57,12 @@ export function CartPage() {
     const blockedItem = items.find((item) => {
       const product = products.find((p) => p.id === item.productId)
       if (!product) return false
-      if (product.salesBlocked) return true
+      if (!product.isActive || product.isOutOfStock) return true
       if (!product.unitPrices.some((u) => u.unitType === item.unitType)) return true
       return false
     })
     if (blockedItem) {
-      const product = products.find((p) => p.id === blockedItem.productId)
-      const msg = product && product.unitPrices.length === 0
-        ? 'السلة تحتوي على منتجات غير متوفرة حالياً. يرجى إزالتها للمتابعة.'
-        : 'السلة تحتوي على منتجات نفذت الكمية. يرجى إزالتها للمتابعة.'
-      toast.error(msg)
+      toast.error('السلة تحتوي على منتجات غير متوفرة حالياً. يرجى إزالتها للمتابعة.')
       return
     }
 

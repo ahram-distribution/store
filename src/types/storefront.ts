@@ -13,6 +13,8 @@ export interface CartItem {
   unitPrice: number
   totalPrice: number
   imageUrl?: string
+  companyId?: string
+  companyName?: string
 }
 
 export interface CartDealItem {
@@ -52,8 +54,8 @@ export interface ProductWithPrice {
   cartonPrice: number
   cartonQuantity: number
   isActive: boolean
-  salesBlocked: boolean
-  outOfStock: boolean
+  isOutOfStock: boolean
+  isVisible: boolean
   imageUrl?: string
   companyId: string
   companyName: string

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useCartStore } from '../../store/cart'
 import { useAuthStore } from '../../store/auth'
@@ -9,6 +9,7 @@ import { buildOrderDisplayData, UNIT_LABELS } from '../../types/order-display'
 import toast from 'react-hot-toast'
 import { creditService } from '../../services/credit'
 import { lifeSignalService } from '../../services/lifeSignalService'
+import type { CartItem } from '../../types/storefront'
 
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
@@ -31,7 +32,7 @@ export function OrderReviewPage() {
   const handleSubmit = async () => {
     const blockedItem = items.find((item) => {
       const product = products.find((p) => p.id === item.productId)
-      return product?.salesBlocked === true
+      return product && (!product.isActive || product.isOutOfStock)
     })
     if (blockedItem) {
       toast.error('الطلب يحتوي على منتجات نفذت الكمية. يرجى العودة إلى السلة وإزالتها.')
@@ -189,25 +190,51 @@ export function OrderReviewPage() {
         </div>
       )}
 
-      <div className="bg-white rounded-lg border border-border">
-        <div className="px-3 py-2 border-b border-border">
-          <h3 className="text-sm font-semibold text-text">المنتجات ({items.length})</h3>
-        </div>
-        <div className="divide-y divide-border">
-          {items.map((item) => (
-            <div key={`${item.productId}-${item.unitType}`} className="flex items-center justify-between px-3 py-2.5">
-              <div className="flex-1 min-w-0">
-                <span className="text-sm text-text truncate block">{item.productName}</span>
-                <span className="text-xs text-text-secondary">
-                  {item.unitQuantity} {UNIT_LABELS[item.unitType]} &middot;
-                  {formatCurrencyShort(item.unitPrice)} للوحدة
-                </span>
+      {(() => {
+        const productCompanyMap = new Map<string, { id: string; name: string }>()
+        for (const p of products) {
+          productCompanyMap.set(p.id, { id: p.companyId, name: p.companyName })
+        }
+        const groups = new Map<string, { companyName: string; items: CartItem[] }>()
+        for (const item of items) {
+          const company = productCompanyMap.get(item.productId)
+          const companyId = company?.id || item.companyId || 'unknown'
+          const companyName = company?.name || item.companyName || 'غير مصنف'
+          if (!groups.has(companyId)) {
+            groups.set(companyId, { companyName, items: [] })
+          }
+          groups.get(companyId)!.items.push(item)
+        }
+        const groupEntries = Array.from(groups.entries())
+        return groupEntries.map(([companyId, group]) => {
+          const companySubtotal = group.items.reduce((s, item) => s + item.totalPrice, 0)
+          return (
+            <div key={companyId} className="bg-white rounded-lg border border-border mb-3">
+              <div className="px-3 py-2 border-b border-border bg-surface/50">
+                <h3 className="text-sm font-bold text-text">{group.companyName}</h3>
               </div>
-              <span className="text-sm font-semibold text-text">{formatCurrencyShort(item.totalPrice)}</span>
+              <div className="divide-y divide-border">
+                {group.items.map((item) => (
+                  <div key={`${item.productId}-${item.unitType}`} className="flex items-center justify-between px-3 py-2.5">
+                    <div className="flex-1 min-w-0">
+                      <span className="text-sm text-text truncate block">{item.productName}</span>
+                      <span className="text-xs text-text-secondary">
+                        {item.unitQuantity} {UNIT_LABELS[item.unitType]} &middot;
+                        {formatCurrencyShort(item.unitPrice)} للوحدة
+                      </span>
+                    </div>
+                    <span className="text-sm font-semibold text-text">{formatCurrencyShort(item.totalPrice)}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="px-3 py-2 border-t border-border bg-surface/30 flex items-center justify-between">
+                <span className="text-xs font-semibold text-text-secondary">إجمالي {group.companyName}</span>
+                <span className="text-sm font-bold text-text">{formatCurrencyShort(companySubtotal)}</span>
+              </div>
             </div>
-          ))}
-        </div>
-      </div>
+          )
+        })
+      })()}
 
       {flashOfferItems.length > 0 && (
         <div className="bg-white rounded-lg border border-amber-200">

@@ -38,7 +38,7 @@ export function ProductCard({ product, prices, hasTier, tierName, onAddToCart, o
 
   const basePrice = currentUnitPrice?.price ?? 0
   const hasDiscount = hasTier && prices.discountPercent > 0
-  const isBlocked = product.salesBlocked === true || product.outOfStock === true || !product.isActive
+  const isBlocked = !product.isActive || product.isOutOfStock
 
   const itemKey = `${product.id}:${selectedUnit}`
   const isInCart = cartItemKeys?.has(itemKey) ?? false
@@ -76,9 +76,9 @@ export function ProductCard({ product, prices, hasTier, tierName, onAddToCart, o
         <h3 className="font-medium text-sm text-text flex-1">{product.productName}</h3>
         {isBlocked && (
           <span className={`text-xs px-2 py-0.5 rounded shrink-0 ${
-            product.outOfStock ? 'bg-warning/10 text-warning' : 'bg-red-50 text-danger'
+            product.isOutOfStock ? 'bg-warning/10 text-warning' : 'bg-red-50 text-danger'
           }`}>
-            {!product.isActive ? 'غير متوفر' : product.outOfStock ? 'نفذت الكمية' : 'غير متاح حالياً'}
+            {!product.isActive ? 'غير متوفر' : 'نفذت الكمية'}
           </span>
         )}
       </div>
@@ -86,9 +86,9 @@ export function ProductCard({ product, prices, hasTier, tierName, onAddToCart, o
       {/* Prices */}
       {isBlocked ? (
         <div className={`text-xs rounded px-2 py-1.5 ${
-          product.outOfStock ? 'bg-warning/10 text-warning' : 'bg-red-50 text-danger'
+          product.isOutOfStock ? 'bg-warning/10 text-warning' : 'bg-red-50 text-danger'
         }`}>
-          {!product.isActive ? 'غير متوفر حالياً' : product.outOfStock ? 'نفذت الكمية' : 'غير متاح حالياً'}
+          {!product.isActive ? 'غير متوفر حالياً' : 'نفذت الكمية'}
         </div>
       ) : (
         <div className="text-xs text-text-secondary">
