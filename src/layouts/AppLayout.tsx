@@ -67,7 +67,7 @@ export function AppLayout({ children }: AppLayoutProps) {
       {/* Active Visit FAB */}
       {activeVisit && !location.pathname.startsWith('/visits') && (
         <button
-          onClick={() => navigate(`/visits/${activeVisit.id}`)}
+          onClick={() => navigate('/visits/screen')}
           className="fixed bottom-28 left-4 z-50 flex items-center justify-center active:opacity-90 transition-opacity shadow-xl bg-success text-white"
           style={{
             width: '56px',
