@@ -104,3 +104,7 @@ DROP FUNCTION IF EXISTS public.cleanup_tracking_data(uuid, integer) CASCADE;
 
 -- Step 19: Customer Code Snapshot
 DROP FUNCTION IF EXISTS public.get_governed_orders(uuid, integer, integer, text) CASCADE;
+
+-- Step 20: Governed Search Enhancements
+DROP FUNCTION IF EXISTS public.get_governed_customers(p_token text) CASCADE;
+DROP FUNCTION IF EXISTS public.unified_search(uuid, text, text, jsonb, int, int, text) CASCADE;

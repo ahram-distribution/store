@@ -47,18 +47,21 @@ async function searchProducts(token: string, query: string): Promise<SearchResul
 }
 
 async function searchCustomers(token: string, query: string): Promise<SearchResult[]> {
-  const { data, error } = await supabase.rpc('get_governed_customers', {
+  const { data, error } = await supabase.rpc('unified_search', {
     p_token: token,
-    p_search: query,
+    p_entity: 'customers',
+    p_query: query,
+    p_filters: {},
+    p_page: 1,
+    p_per_page: 5,
   })
-  if (error) return []
-  const arr = Array.isArray(data) ? data : []
-  return arr.slice(0, 5).map((c: any) => ({
+  if (error || !data?.data) return []
+  return (data.data as any[]).map((c: any) => ({
     type: 'customer' as const,
     id: c.id,
     label: c.company_name || '',
     sublabel: c.code || '',
-    meta: c.phone || '',
+    meta: [c.phone, c.city, c.governorate].filter(Boolean).join(' | '),
   }))
 }
 
