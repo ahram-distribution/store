@@ -9,7 +9,27 @@ import { buildOrderDisplayData, UNIT_LABELS } from '../../types/order-display'
 import toast from 'react-hot-toast'
 import { creditService } from '../../services/credit'
 import { lifeSignalService } from '../../services/lifeSignalService'
-import type { CartItem } from '../../types/storefront'
+import type { CartItem as CartItemType } from '../../types/storefront'
+
+const COMPANY_COLORS = [
+  { bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-800', header: 'bg-blue-500' },
+  { bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-800', header: 'bg-emerald-500' },
+  { bg: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-800', header: 'bg-amber-500' },
+  { bg: 'bg-rose-50', border: 'border-rose-200', text: 'text-rose-800', header: 'bg-rose-500' },
+  { bg: 'bg-violet-50', border: 'border-violet-200', text: 'text-violet-800', header: 'bg-violet-500' },
+  { bg: 'bg-cyan-50', border: 'border-cyan-200', text: 'text-cyan-800', header: 'bg-cyan-500' },
+  { bg: 'bg-orange-50', border: 'border-orange-200', text: 'text-orange-800', header: 'bg-orange-500' },
+  { bg: 'bg-pink-50', border: 'border-pink-200', text: 'text-pink-800', header: 'bg-pink-500' },
+]
+
+function hashId(id: string): number {
+  let h = 0
+  for (let i = 0; i < id.length; i++) {
+    h = ((h << 5) - h) + id.charCodeAt(i)
+    h |= 0
+  }
+  return Math.abs(h)
+}
 
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
@@ -23,6 +43,30 @@ export function OrderReviewPage() {
 
   const selectedTier = getSelectedTier()
   const totals = getTotals()
+
+  const productCompanyMap = useMemo(() => {
+    const map = new Map<string, { id: string; name: string }>()
+    for (const p of products) {
+      map.set(p.id, { id: p.companyId, name: p.companyName })
+    }
+    return map
+  }, [products])
+
+  const groups = useMemo(() => {
+    const grouped = new Map<string, { companyName: string; items: CartItemType[]; subtotal: number }>()
+    for (const item of items) {
+      const company = productCompanyMap.get(item.productId)
+      const companyId = company?.id || item.companyId || 'unknown'
+      const companyName = company?.name || item.companyName || 'غير معروف'
+      if (!grouped.has(companyId)) {
+        grouped.set(companyId, { companyName, items: [], subtotal: 0 })
+      }
+      const g = grouped.get(companyId)!
+      g.items.push(item)
+      g.subtotal += item.totalPrice
+    }
+    return Array.from(grouped.entries()).map(([id, g]) => ({ id, ...g }))
+  }, [items, productCompanyMap])
 
   if (items.length === 0 && dealItems.length === 0 && flashOfferItems.length === 0) {
     navigate('/cart')
@@ -112,13 +156,11 @@ export function OrderReviewPage() {
         order = created
         lifeSignalService.notifyBusiness('order_created')
 
-        // flash offers (best-effort)
         if (flashOfferItems.length > 0) {
           const offerPayload = flashOfferItems.map((d) => ({ offer_id: d.dealId, quantity: d.quantity }))
           await supabase.rpc('governed_add_order_flash_offers', { p_token: token, p_order_id: order.id, p_offers: offerPayload }).then(() => {}).catch(() => {})
         }
 
-        // daily deals (best-effort)
         if (dealItems.length > 0) {
           const dealPayload = dealItems.map((d) => ({ deal_id: d.dealId, quantity: d.quantity }))
           await supabase.rpc('governed_add_order_daily_deals', { p_token: token, p_order_id: order.id, p_deals: dealPayload }).then(() => {}).catch(() => {})
@@ -136,7 +178,6 @@ export function OrderReviewPage() {
         toast.success('تم إرسال الطلب بنجاح!')
       }
 
-      // ── CREDIT RESERVE — best-effort, only for customers with active credit ──
       const creditResult = await creditService.reserveCreditForOrder(order.id).catch(() => null)
       if (creditResult?.over_limit) {
         toast('الطلب يتجاوز الحد الائتماني وسيتم مراجعته من الإدارة العليا', { icon: '⚠️', duration: 5000 })
@@ -147,12 +188,10 @@ export function OrderReviewPage() {
       return
     }
 
-    // ── OPEN WHATSAPP — Source of Truth = get_unified_order (same as order detail page) ──
     try {
       const orderRes = await supabase.rpc('get_unified_order', { p_token: token, p_id: order.id })
       if (orderRes.error || !orderRes.data || orderRes.data?.error) throw orderRes.error || new Error('no order')
       const fullOrder = orderRes.data
-
       const display = buildOrderDisplayData({ order: fullOrder.order, items: fullOrder.items })
       console.log('ORDER_REVIEW_DISPLAY_DATA', display)
       sendWhatsAppFromDisplay(display)
@@ -190,60 +229,63 @@ export function OrderReviewPage() {
         </div>
       )}
 
-      {(() => {
-        const productCompanyMap = new Map<string, { id: string; name: string }>()
-        for (const p of products) {
-          productCompanyMap.set(p.id, { id: p.companyId, name: p.companyName })
-        }
-        const groups = new Map<string, { companyName: string; items: CartItem[] }>()
-        for (const item of items) {
-          const company = productCompanyMap.get(item.productId)
-          const companyId = company?.id || item.companyId || 'unknown'
-          const companyName = company?.name || item.companyName || 'غير مصنف'
-          if (!groups.has(companyId)) {
-            groups.set(companyId, { companyName, items: [] })
-          }
-          groups.get(companyId)!.items.push(item)
-        }
-        const groupEntries = Array.from(groups.entries())
-        return groupEntries.map(([companyId, group]) => {
-          const companySubtotal = group.items.reduce((s, item) => s + item.totalPrice, 0)
-          return (
-            <div key={companyId} className="bg-white rounded-lg border border-border mb-3">
-              <div className="px-3 py-2 border-b border-border bg-surface/50">
-                <h3 className="text-sm font-bold text-text">{group.companyName}</h3>
-              </div>
-              <div className="divide-y divide-border">
-                {group.items.map((item) => (
-                  <div key={`${item.productId}-${item.unitType}`} className="flex items-center justify-between px-3 py-2.5">
-                    <div className="flex-1 min-w-0">
-                      <span className="text-sm text-text truncate block">{item.productName}</span>
-                      <span className="text-xs text-text-secondary">
-                        {item.unitQuantity} {UNIT_LABELS[item.unitType]} &middot;
-                        {formatCurrencyShort(item.unitPrice)} للوحدة
-                      </span>
-                    </div>
-                    <span className="text-sm font-semibold text-text">{formatCurrencyShort(item.totalPrice)}</span>
-                  </div>
-                ))}
-              </div>
-              <div className="px-3 py-2 border-t border-border bg-surface/30 flex items-center justify-between">
-                <span className="text-xs font-semibold text-text-secondary">إجمالي {group.companyName}</span>
-                <span className="text-sm font-bold text-text">{formatCurrencyShort(companySubtotal)}</span>
-              </div>
+      {/* Company-grouped Items (same visual as Cart page) */}
+      {groups.map((group) => {
+        const colorIdx = hashId(group.id) % COMPANY_COLORS.length
+        const colors = COMPANY_COLORS[colorIdx]
+        return (
+          <div key={group.id} className={`${colors.bg} border ${colors.border} rounded-xl overflow-hidden`}>
+            <div className={`${colors.header} px-4 py-3 flex items-center justify-between`}>
+              <h2 className="text-sm font-bold text-white">{group.companyName}</h2>
+              <span className="text-xs text-white/80">{group.items.length} منتج</span>
             </div>
-          )
-        })
-      })()}
+            <div className="divide-y divide-white/60">
+              {group.items.map((item) => (
+                <div key={`${item.productId}-${item.unitType}`} className="px-4 py-3">
+                  <div className="flex gap-3">
+                    <div className="w-16 h-16 rounded-lg bg-white border border-border shrink-0 overflow-hidden">
+                      {item.imageUrl ? (
+                        <img src={item.imageUrl} alt={item.productName} className="w-full h-full object-contain" />
+                      ) : (
+                        <div className="w-full h-full bg-surface flex items-center justify-center">
+                          <span className="text-xs text-text-secondary">صورة</span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0 space-y-1">
+                      <h4 className="text-sm font-semibold text-text leading-tight truncate">{item.productName}</h4>
+                      <div className="text-xs text-text-secondary">
+                        <span>{item.unitQuantity} {UNIT_LABELS[item.unitType]}</span>
+                        <span className="mx-1">&middot;</span>
+                        <span>{formatCurrencyShort(item.unitPrice)} للوحدة</span>
+                      </div>
+                      <div className="text-xs text-text-secondary">
+                        {item.pieceQuantity.toLocaleString('ar-EG-u-nu-latn')} قطعة
+                      </div>
+                    </div>
+                    <div className="flex items-center">
+                      <span className="text-sm font-bold text-text">{formatCurrencyShort(item.totalPrice)}</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className={`px-4 py-2.5 border-t ${colors.border} ${colors.text} flex items-center justify-between`}>
+              <span className="text-xs font-semibold">إجمالي {group.companyName}</span>
+              <span className="text-sm font-bold">{formatCurrencyShort(group.subtotal)}</span>
+            </div>
+          </div>
+        )
+      })}
 
       {flashOfferItems.length > 0 && (
-        <div className="bg-white rounded-lg border border-amber-200">
-          <div className="px-3 py-2 border-b border-amber-200 bg-amber-50">
-            <h3 className="text-sm font-semibold text-amber-800">عروض الساعة ({flashOfferItems.length})</h3>
+        <div className="bg-amber-50 border border-amber-200 rounded-xl overflow-hidden">
+          <div className="px-4 py-2.5 bg-amber-500 text-white">
+            <h3 className="text-sm font-bold">عروض الساعة ({flashOfferItems.length})</h3>
           </div>
           <div className="divide-y divide-amber-100">
             {flashOfferItems.map((offer) => (
-              <div key={offer.dealId} className="flex items-center justify-between px-3 py-2.5">
+              <div key={offer.dealId} className="flex items-center justify-between px-4 py-3">
                 <div className="flex-1 min-w-0">
                   <span className="text-sm text-text truncate block">{offer.dealTitle}</span>
                   <span className="text-xs text-text-secondary">الكمية: {offer.quantity}</span>
@@ -256,13 +298,13 @@ export function OrderReviewPage() {
       )}
 
       {dealItems.length > 0 && (
-        <div className="bg-white rounded-lg border border-amber-200">
-          <div className="px-3 py-2 border-b border-amber-200 bg-amber-50">
-            <h3 className="text-sm font-semibold text-amber-800">العروض اليومية ({dealItems.length})</h3>
+        <div className="bg-amber-50 border border-amber-200 rounded-xl overflow-hidden">
+          <div className="px-4 py-2.5 bg-amber-500 text-white">
+            <h3 className="text-sm font-bold">العروض اليومية ({dealItems.length})</h3>
           </div>
           <div className="divide-y divide-amber-100">
             {dealItems.map((deal) => (
-              <div key={deal.dealId} className="flex items-center justify-between px-3 py-2.5">
+              <div key={deal.dealId} className="flex items-center justify-between px-4 py-3">
                 <div className="flex-1 min-w-0">
                   <span className="text-sm text-text truncate block">{deal.dealTitle}</span>
                   <span className="text-xs text-text-secondary">الكمية: {deal.quantity}</span>
@@ -274,7 +316,7 @@ export function OrderReviewPage() {
         </div>
       )}
 
-      <div className="bg-white rounded-lg border border-border p-4 space-y-2">
+      <div className="bg-white rounded-xl border border-border p-4 space-y-2">
         <div className="flex justify-between text-sm text-text-secondary">
           <span>إجمالي المنتجات</span>
           <span>{formatCurrencyShort(totals.productSubtotal)}</span>

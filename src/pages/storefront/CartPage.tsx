@@ -1,13 +1,33 @@
 import { useNavigate } from 'react-router-dom'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useCartStore } from '../../store/cart'
-import { CartItem } from '../../components/storefront/CartItem'
-import { CartSummary } from '../../components/storefront/CartSummary'
 import { TierSelector } from '../../components/storefront/TierSelector'
 import { TierMinimumNotice } from '../../components/storefront/TierMinimumNotice'
 import { EmptyCart } from '../../components/storefront/EmptyCart'
 import { formatCurrencyShort } from '../../utils/format'
+import { UNIT_LABELS } from '../../types/order-display'
 import toast from 'react-hot-toast'
+import type { CartItem as CartItemType } from '../../types/storefront'
+
+const COMPANY_COLORS = [
+  { bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-800', header: 'bg-blue-500' },
+  { bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-800', header: 'bg-emerald-500' },
+  { bg: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-800', header: 'bg-amber-500' },
+  { bg: 'bg-rose-50', border: 'border-rose-200', text: 'text-rose-800', header: 'bg-rose-500' },
+  { bg: 'bg-violet-50', border: 'border-violet-200', text: 'text-violet-800', header: 'bg-violet-500' },
+  { bg: 'bg-cyan-50', border: 'border-cyan-200', text: 'text-cyan-800', header: 'bg-cyan-500' },
+  { bg: 'bg-orange-50', border: 'border-orange-200', text: 'text-orange-800', header: 'bg-orange-500' },
+  { bg: 'bg-pink-50', border: 'border-pink-200', text: 'text-pink-800', header: 'bg-pink-500' },
+]
+
+function hashId(id: string): number {
+  let h = 0
+  for (let i = 0; i < id.length; i++) {
+    h = ((h << 5) - h) + id.charCodeAt(i)
+    h |= 0
+  }
+  return Math.abs(h)
+}
 
 export function CartPage() {
   const navigate = useNavigate()
@@ -41,6 +61,30 @@ export function CartPage() {
 
   const selectedTier = getSelectedTier()
   const totals = getTotals()
+
+  const productCompanyMap = useMemo(() => {
+    const map = new Map<string, { id: string; name: string }>()
+    for (const p of products) {
+      map.set(p.id, { id: p.companyId, name: p.companyName })
+    }
+    return map
+  }, [products])
+
+  const groups = useMemo(() => {
+    const grouped = new Map<string, { companyName: string; items: CartItemType[]; subtotal: number }>()
+    for (const item of items) {
+      const company = productCompanyMap.get(item.productId)
+      const companyId = company?.id || item.companyId || 'unknown'
+      const companyName = company?.name || item.companyName || 'غير معروف'
+      if (!grouped.has(companyId)) {
+        grouped.set(companyId, { companyName, items: [], subtotal: 0 })
+      }
+      const g = grouped.get(companyId)!
+      g.items.push(item)
+      g.subtotal += item.totalPrice
+    }
+    return Array.from(grouped.entries()).map(([id, g]) => ({ id, ...g }))
+  }, [items, productCompanyMap])
 
   if (!hydrated) return null
 
@@ -97,7 +141,6 @@ export function CartPage() {
         cartTotal={totals.netTotal}
       />
 
-      {/* Tier Minimum Notice */}
       {selectedTier && (
         <TierMinimumNotice
           remainingForMinimum={totals.remainingForMinimum}
@@ -108,26 +151,23 @@ export function CartPage() {
 
       {/* Flash Offer Items */}
       {flashOfferItems.length > 0 && (
-        <div>
-          <h3 className="text-sm font-semibold text-text mb-2">عروض الساعة</h3>
-          <div className="space-y-2">
+        <div className="bg-amber-50 border border-amber-200 rounded-xl overflow-hidden">
+          <div className="px-4 py-2.5 bg-amber-500 text-white">
+            <h3 className="text-sm font-bold">عروض الساعة</h3>
+          </div>
+          <div className="divide-y divide-amber-100">
             {flashOfferItems.map((offer) => (
-              <div key={offer.dealId} className="bg-amber-50 border border-amber-200 rounded-lg p-3">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1 min-w-0">
-                    <span className="text-sm font-semibold text-text block truncate">{offer.dealTitle}</span>
-                    <span className="text-xs text-text-secondary">الكمية: {offer.quantity}</span>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-sm font-bold text-danger">{formatCurrencyShort(offer.totalPrice)}</span>
-                  </div>
+              <div key={offer.dealId} className="flex items-center justify-between px-4 py-3">
+                <div className="flex-1 min-w-0">
+                  <span className="text-sm font-semibold text-text block truncate">{offer.dealTitle}</span>
+                  <span className="text-xs text-text-secondary">الكمية: {offer.quantity}</span>
                 </div>
-                <button
-                  onClick={() => removeFlashOffer(offer.dealId)}
-                  className="text-xs text-danger mt-1"
-                >
-                  إزالة
-                </button>
+                <div className="flex items-center gap-3">
+                  <span className="text-sm font-bold text-danger">{formatCurrencyShort(offer.totalPrice)}</span>
+                  <button onClick={() => removeFlashOffer(offer.dealId)} className="text-xs text-danger font-semibold">
+                    حذف
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -136,46 +176,140 @@ export function CartPage() {
 
       {/* Deal Items */}
       {dealItems.length > 0 && (
-        <div>
-          <h3 className="text-sm font-semibold text-text mb-2">العروض اليومية</h3>
-          <div className="space-y-2">
+        <div className="bg-amber-50 border border-amber-200 rounded-xl overflow-hidden">
+          <div className="px-4 py-2.5 bg-amber-500 text-white">
+            <h3 className="text-sm font-bold">العروض اليومية</h3>
+          </div>
+          <div className="divide-y divide-amber-100">
             {dealItems.map((deal) => (
-              <div key={deal.dealId} className="bg-amber-50 border border-amber-200 rounded-lg p-3">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1 min-w-0">
-                    <span className="text-sm font-semibold text-text block truncate">{deal.dealTitle}</span>
-                    <span className="text-xs text-text-secondary">الكمية: {deal.quantity}</span>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-sm font-bold text-danger">{formatCurrencyShort(deal.totalPrice)}</span>
-                  </div>
+              <div key={deal.dealId} className="flex items-center justify-between px-4 py-3">
+                <div className="flex-1 min-w-0">
+                  <span className="text-sm font-semibold text-text block truncate">{deal.dealTitle}</span>
+                  <span className="text-xs text-text-secondary">الكمية: {deal.quantity}</span>
                 </div>
-                <button
-                  onClick={() => removeDeal(deal.dealId)}
-                  className="text-xs text-danger mt-1"
-                >
-                  إزالة
-                </button>
+                <div className="flex items-center gap-3">
+                  <span className="text-sm font-bold text-danger">{formatCurrencyShort(deal.totalPrice)}</span>
+                  <button onClick={() => removeDeal(deal.dealId)} className="text-xs text-danger font-semibold">
+                    حذف
+                  </button>
+                </div>
               </div>
             ))}
           </div>
         </div>
       )}
 
-      {/* Cart Items */}
-      <div className="space-y-2">
-        {items.map((item) => (
-          <CartItem
-            key={`${item.productId}-${item.unitType}`}
-            item={item}
-            onUpdateQuantity={updateQuantity}
-            onRemove={removeItem}
-          />
-        ))}
-      </div>
+      {/* Company-grouped Cart Items */}
+      {groups.map((group) => {
+        const colorIdx = hashId(group.id) % COMPANY_COLORS.length
+        const colors = COMPANY_COLORS[colorIdx]
+        return (
+          <div key={group.id} className={`${colors.bg} border ${colors.border} rounded-xl overflow-hidden`}>
+            {/* Company Header */}
+            <div className={`${colors.header} px-4 py-3 flex items-center justify-between`}>
+              <h2 className="text-sm font-bold text-white">{group.companyName}</h2>
+              <span className="text-xs text-white/80">{group.items.length} منتج</span>
+            </div>
 
-      {/* Summary */}
-      <CartSummary totals={totals} selectedTier={selectedTier} />
+            {/* Product Items */}
+            <div className="divide-y divide-white/60">
+              {group.items.map((item) => {
+                const product = products.find((p) => p.id === item.productId)
+                return (
+                  <div key={`${item.productId}-${item.unitType}`} className="px-4 py-3">
+                    <div className="flex gap-3">
+                      {/* Product Image */}
+                      <div className="w-16 h-16 rounded-lg bg-white border border-border shrink-0 overflow-hidden">
+                        {item.imageUrl ? (
+                          <img src={item.imageUrl} alt={item.productName} className="w-full h-full object-contain" />
+                        ) : (
+                          <div className="w-full h-full bg-surface flex items-center justify-center">
+                            <span className="text-xs text-text-secondary">صورة</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Info + Controls */}
+                      <div className="flex-1 min-w-0 space-y-1.5">
+                        <h4 className="text-sm font-semibold text-text leading-tight truncate">{item.productName}</h4>
+                        <div className="text-xs text-text-secondary">
+                          {UNIT_LABELS[item.unitType]} &middot; {formatCurrencyShort(item.unitPrice)} للوحدة
+                        </div>
+                        <div className="text-xs text-text-secondary">
+                          {item.pieceQuantity.toLocaleString('ar-EG-u-nu-latn')} قطعة
+                        </div>
+                      </div>
+
+                      {/* Total + Controls Column */}
+                      <div className="flex flex-col items-end justify-between">
+                        <span className="text-sm font-bold text-text">{formatCurrencyShort(item.totalPrice)}</span>
+                        <div className="flex items-center gap-2 mt-1">
+                          <button
+                            onClick={() => updateQuantity(item.productId, item.unitType, Math.max(0, item.unitQuantity - 1))}
+                            className="w-7 h-7 flex items-center justify-center rounded-lg bg-white border border-border text-text-secondary text-sm active:bg-surface transition-colors"
+                          >
+                            −
+                          </button>
+                          <span className="text-sm font-semibold text-text w-6 text-center">{item.unitQuantity}</span>
+                          <button
+                            onClick={() => updateQuantity(item.productId, item.unitType, item.unitQuantity + 1)}
+                            className="w-7 h-7 flex items-center justify-center rounded-lg bg-white border border-border text-text-secondary text-sm active:bg-surface transition-colors"
+                          >
+                            +
+                          </button>
+                        </div>
+                        <button
+                          onClick={() => removeItem(item.productId, item.unitType)}
+                          className="text-xs text-danger font-semibold mt-1"
+                        >
+                          حذف
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Company Subtotal */}
+            <div className={`px-4 py-2.5 border-t ${colors.border} ${colors.text} flex items-center justify-between`}>
+              <span className="text-xs font-semibold">إجمالي {group.companyName}</span>
+              <span className="text-sm font-bold">{formatCurrencyShort(group.subtotal)}</span>
+            </div>
+          </div>
+        )
+      })}
+
+      {/* Grand Total */}
+      <div className="bg-white rounded-xl border border-border p-4 space-y-2">
+        <div className="flex justify-between text-sm text-text-secondary">
+          <span>إجمالي المنتجات</span>
+          <span>{formatCurrencyShort(totals.productSubtotal)}</span>
+        </div>
+        {flashOfferItems.length > 0 && (
+          <div className="flex justify-between text-sm text-amber-600">
+            <span>عروض الساعة</span>
+            <span>{formatCurrencyShort(flashOfferItems.reduce((s, o) => s + o.totalPrice, 0))}</span>
+          </div>
+        )}
+        {totals.dealTotal > 0 && (
+          <div className="flex justify-between text-sm text-amber-600">
+            <span>العروض اليومية</span>
+            <span>{formatCurrencyShort(totals.dealTotal)}</span>
+          </div>
+        )}
+        {totals.tierDiscount > 0 && (
+          <div className="flex justify-between text-sm text-success">
+            <span>خصم الشريحة ({selectedTier?.name})</span>
+            <span>-{formatCurrencyShort(totals.tierDiscount)}</span>
+          </div>
+        )}
+        <hr className="border-border" />
+        <div className="flex justify-between text-base font-bold text-text">
+          <span>الإجمالي النهائي</span>
+          <span>{formatCurrencyShort(totals.netTotal)}</span>
+        </div>
+      </div>
 
       {/* Actions */}
       <div className="space-y-2">
