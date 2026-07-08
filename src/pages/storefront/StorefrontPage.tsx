@@ -15,6 +15,7 @@ export function StorefrontPage() {
   const [searchParams] = useSearchParams()
   const companyId = searchParams.get('companyId')
   const editOrderId = searchParams.get('editOrder')
+  const customerParam = searchParams.get('customer')
   const { token: authToken, user } = useAuthStore()
 
   const {
@@ -149,6 +150,15 @@ export function StorefrontPage() {
       restoreCart(items, editOrderId)
     })
   }, [editOrderId, authToken])
+
+  useEffect(() => {
+    if (!customerParam || !authToken) return
+    supabase.rpc('get_governed_customer', { p_token: authToken, p_id: customerParam }).then(({ data }) => {
+      if (!data) return
+      const c = Array.isArray(data) ? data[0] : data
+      setSelectedCustomer({ id: c.id, name: c.company_name || '', phone: c.phone || '', code: c.code || '' })
+    })
+  }, [customerParam, authToken])
 
   const isEmployee = user?.identity_type === 'employee'
   const needsCustomer = isEmployee && !selectedCustomer
