@@ -8,7 +8,7 @@ export function ThemeSelector({ onClose }: ThemeSelectorProps) {
   const { theme, themes, setTheme } = useTheme()
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col justify-end bg-black/40" onClick={onClose}>
+    <div className="fixed inset-0 z-[60] flex flex-col justify-end bg-black/40" onClick={onClose}>
       <div className="rounded-t-2xl p-5 pb-8 animate-slide-up" onClick={(e) => e.stopPropagation()} style={{ background: 'var(--theme-primary)' }}>
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-base font-bold" style={{ color: 'var(--theme-accent)' }}>🎨 اختر الثيم</h3>

@@ -33,10 +33,10 @@ export default function RuntimeDailySummaryModal({
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end" onClick={onClose}>
+    <div className="fixed inset-0 z-[60] flex items-end" onClick={onClose}>
       <div className="absolute inset-0 bg-black/30" />
       <div
-        className="relative w-full bg-white rounded-t-3xl shadow-2xl max-h-[85vh] overflow-y-auto animate-slide-up"
+        className="relative w-full bg-white rounded-t-3xl shadow-2xl max-h-[calc(100dvh-6rem)] overflow-y-auto animate-slide-up"
         onClick={(e) => e.stopPropagation()}
         style={{ animation: 'slideUp 0.25s ease-out' }}
       >

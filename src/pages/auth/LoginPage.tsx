@@ -249,7 +249,7 @@ export function LoginPage() {
 
       {/* ── CONTACT BOTTOM SHEET ── */}
       {showContactSheet && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
           <div onClick={() => setShowContactSheet(false)} style={{ flex: 1 }} />
           <div style={{
             background: '#0F2B5B',
@@ -257,7 +257,7 @@ export function LoginPage() {
             borderTopRightRadius: 20,
             border: '1px solid #C9A227',
             borderBottom: 'none',
-            maxHeight: '75vh',
+            maxHeight: 'calc(100dvh - 6rem)',
             overflowY: 'auto',
           }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', borderBottom: '1px solid #1a3a6e' }}>
@@ -311,7 +311,7 @@ export function LoginPage() {
 
       {/* ── INSTALL DIALOG ── */}
       {showInstallDialog && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div onClick={() => setShowInstallDialog(false)} style={{ position: 'fixed', inset: 0, background: '#000' }} />
           <div style={{
             position: 'relative',

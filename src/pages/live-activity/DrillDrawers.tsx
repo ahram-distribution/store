@@ -53,7 +53,7 @@ function Drawer({ open, onClose, title, children }: DrawerProps) {
   if (!open) return null
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/30" onClick={onClose}>
-      <div className="w-full sm:max-w-lg bg-white rounded-2xl p-4 max-h-[85vh] overflow-y-auto mx-3" onClick={(e) => e.stopPropagation()} dir="rtl">
+      <div className="w-full sm:max-w-lg bg-white rounded-2xl p-4 max-h-[calc(100dvh-6rem)] overflow-y-auto mx-3" onClick={(e) => e.stopPropagation()} dir="rtl">
         <div className="flex items-center justify-between mb-3 sticky top-0 bg-white pb-2 border-b border-border">
           <h3 className="text-sm font-bold text-text">{title}</h3>
           <button type="button" onClick={onClose} className="text-xs text-text-secondary hover:text-text transition-colors">إغلاق</button>

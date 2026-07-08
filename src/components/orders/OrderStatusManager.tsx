@@ -173,8 +173,8 @@ export function OrderStatusManager({ orderId, currentStatus, canReview, canCompl
             </button>
           )}
           {showDropdown && (
-            <div className="fixed inset-0 z-50 flex flex-col justify-end bg-black/40" onClick={() => setShowDropdown(false)}>
-              <div className="bg-white rounded-t-2xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="fixed inset-0 z-[60] flex flex-col justify-end bg-black/40" onClick={() => setShowDropdown(false)}>
+              <div className="bg-white rounded-t-2xl max-h-[calc(100dvh-6rem)] flex flex-col" onClick={e => e.stopPropagation()}>
                 <div className="flex items-center justify-between px-5 pt-4 pb-2 border-b border-border">
                   <span className="text-sm font-bold text-text">تغيير الحالة</span>
                   <button onClick={() => setShowDropdown(false)} className="text-text-secondary text-lg leading-none">&times;</button>
@@ -212,7 +212,7 @@ export function OrderStatusManager({ orderId, currentStatus, canReview, canCompl
       )}
 
       {showReasonModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 px-4">
           <div className="bg-white rounded-xl w-full max-w-sm p-5 space-y-4">
             <h3 className="text-sm font-bold text-text">تغيير استثنائي</h3>
             <p className="text-xs text-text-secondary">
@@ -231,7 +231,7 @@ export function OrderStatusManager({ orderId, currentStatus, canReview, canCompl
       )}
 
       {showReturnModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 px-4">
           <div className="bg-white rounded-xl w-full max-w-sm p-5 space-y-4">
             <h3 className="text-sm font-bold text-text">إعادة الطلب للتعديل</h3>
             <p className="text-xs text-text-secondary">

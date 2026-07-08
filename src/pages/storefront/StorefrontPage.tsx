@@ -268,8 +268,8 @@ export function StorefrontPage() {
 
       {/* Customer Picker Modal */}
       {customerPickerOpen && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex items-end sm:items-center justify-center">
-          <div className="bg-white w-full max-h-[80vh] rounded-t-2xl sm:rounded-2xl overflow-hidden flex flex-col">
+        <div className="fixed inset-0 z-[60] bg-black/40 flex items-center justify-center">
+          <div className="bg-white w-full max-h-[calc(100dvh-6rem)] rounded-2xl overflow-hidden flex flex-col">
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-border">
               <h3 className="text-base font-bold text-text">اختر العميل أولاً</h3>

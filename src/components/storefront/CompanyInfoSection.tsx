@@ -119,7 +119,7 @@ export function StorefrontFooter() {
       </div>
 
       {phoneSheet && (
-        <div className="fixed inset-0 z-50 flex flex-col justify-end bg-black/40" onClick={() => setPhoneSheet(false)}>
+        <div className="fixed inset-0 z-[60] flex flex-col justify-end bg-black/40" onClick={() => setPhoneSheet(false)}>
           <div className="rounded-t-2xl p-5 pb-8 animate-slide-up" onClick={(e) => e.stopPropagation()} style={{ background: 'var(--theme-bg-card)' }}>
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-base font-bold" style={{ color: 'var(--theme-text-card-heading)' }}>اتصل بالمبيعات</h3>
@@ -144,7 +144,7 @@ export function StorefrontFooter() {
       )}
 
       {whatsappSheet && (
-        <div className="fixed inset-0 z-50 flex flex-col justify-end bg-black/40" onClick={() => setWhatsappSheet(false)}>
+        <div className="fixed inset-0 z-[60] flex flex-col justify-end bg-black/40" onClick={() => setWhatsappSheet(false)}>
           <div className="rounded-t-2xl p-5 pb-8 animate-slide-up" onClick={(e) => e.stopPropagation()} style={{ background: 'var(--theme-bg-card)' }}>
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-base font-bold" style={{ color: 'var(--theme-text-card-heading)' }}>واتساب المبيعات</h3>

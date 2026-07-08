@@ -334,9 +334,9 @@ export function TargetsWeightsTab() {
       </div>
 
       {editForm && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40"
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40"
           onClick={() => { if (!savingEdit) setEditForm(null) }}>
-          <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full sm:max-w-lg max-h-[90vh] overflow-y-auto p-5 pb-8 space-y-4"
+          <div className="bg-white rounded-2xl w-full sm:max-w-lg max-h-[calc(100dvh-6rem)] overflow-y-auto p-5 pb-8 space-y-4"
             onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-center mb-2">
               <div className="w-10 h-1 bg-border rounded-full sm:hidden" />
@@ -395,9 +395,9 @@ export function TargetsWeightsTab() {
       )}
 
       {weightForm && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40"
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40"
           onClick={() => { if (!savingWeight) setWeightForm(null) }}>
-          <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full sm:max-w-lg max-h-[90vh] overflow-y-auto p-5 pb-8 space-y-4"
+          <div className="bg-white rounded-2xl w-full sm:max-w-lg max-h-[calc(100dvh-6rem)] overflow-y-auto p-5 pb-8 space-y-4"
             onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-center mb-2">
               <div className="w-10 h-1 bg-border rounded-full sm:hidden" />

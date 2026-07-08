@@ -6,6 +6,7 @@ import { locationService } from '../../services/location'
 import { getCurrentLocation } from '../../services/gpsService'
 import { VisitCard } from '../../components/visits/VisitCard'
 import { lifeSignalService } from '../../services/lifeSignalService'
+import { MobileDialog } from '../../components/shared/MobileDialog'
 import toast from 'react-hot-toast'
 
 const BUSINESS_TYPES = [
@@ -531,175 +532,167 @@ export default function SalesManagerOperations() {
       </div>
 
       {/* Add Employee Modal */}
-      {showAddEmployee && (
-        <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/30">
-          <form onSubmit={handleAddEmployee}
-            className="w-full sm:max-w-sm bg-white rounded-2xl p-4 max-h-[85vh] overflow-y-auto space-y-3">
-            <div className="flex items-center justify-between gap-2">
-              <h3 className="text-sm font-bold text-text">إضافة مندوب للفريق</h3>
-              <div className="flex items-center gap-2">
-                <button type="submit" disabled={submitting}
-                  className="bg-primary text-white text-xs px-3 py-1.5 rounded-lg font-semibold disabled:opacity-40">
-                  {submitting ? 'جاري الحفظ...' : 'حفظ'}
-                </button>
-                <button type="button" onClick={() => setShowAddEmployee(false)} className="text-xs text-text-secondary">إلغاء</button>
-              </div>
-            </div>
-            <input type="text" value={empName} onChange={e => setEmpName(e.target.value)}
-              placeholder="الاسم الكامل *" required
-              className="w-full border border-border rounded-lg px-3 py-2 text-sm" />
-            <input type="tel" dir="ltr" value={empPhone} onChange={e => setEmpPhone(toEnglishDigits(e.target.value))}
-              placeholder="رقم الهاتف *" required maxLength={11}
-              className="w-full border border-border rounded-lg px-3 py-2 text-sm" />
-            <input type="password" dir="ltr" value={empPassword} onChange={e => setEmpPassword(e.target.value)}
-              placeholder="كلمة المرور (افتراضي: رقم الهاتف)"
-              className="w-full border border-border rounded-lg px-3 py-2 text-sm" />
-            <input type="email" dir="ltr" value={empEmail} onChange={e => setEmpEmail(e.target.value)}
-              placeholder="البريد الإلكتروني"
-              className="w-full border border-border rounded-lg px-3 py-2 text-sm" />
-            <textarea value={empAddress} onChange={e => setEmpAddress(e.target.value)}
-              placeholder="العنوان" rows={2}
-              className="w-full border border-border rounded-lg px-3 py-2 text-sm resize-none" />
-          </form>
-        </div>
-      )}
-
-      {/* Add Customer Modal */}
-      {showAddCustomer && (
-        <div className="fixed inset-0 z-20 flex items-end sm:items-center justify-center bg-black/30">
-          <form onSubmit={handleAddCustomer}
-            className="w-full sm:max-w-sm bg-white rounded-t-2xl sm:rounded-2xl p-4 max-h-[85vh] overflow-y-auto space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold text-text">إضافة عميل جديد</h3>
-              <button type="button" onClick={() => setShowAddCustomer(false)} className="text-xs text-text-secondary">إلغاء</button>
-            </div>
-            <input type="text" value={custName} onChange={e => setCustName(e.target.value)}
-              placeholder="اسم النشاط التجاري *" required
-              className="w-full border border-border rounded-lg px-3 py-2 text-sm" />
-            <input type="tel" dir="ltr" value={custPhone} onChange={e => setCustPhone(toEnglishDigits(e.target.value))}
-              placeholder="رقم الهاتف *" required maxLength={11}
-              className="w-full border border-border rounded-lg px-3 py-2 text-sm" />
-            <input type="text" value={custResponsible} onChange={e => setCustResponsible(e.target.value)}
-              placeholder="اسم المسؤول"
-              className="w-full border border-border rounded-lg px-3 py-2 text-sm" />
-            <select value={custBusinessType} onChange={e => setCustBusinessType(e.target.value)}
-              className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-white">
-              <option value="">نوع النشاط</option>
-              {BUSINESS_TYPES.map(bt => <option key={bt.value} value={bt.value}>{bt.label}</option>)}
-            </select>
-            <input type="password" dir="ltr" value={custPassword} onChange={e => setCustPassword(e.target.value)}
-              placeholder="كلمة المرور" maxLength={6}
-              className="w-full border border-border rounded-lg px-3 py-2 text-sm" />
-            <textarea value={custAddress} onChange={e => setCustAddress(e.target.value)}
-              placeholder="العنوان" rows={1}
-              className="w-full border border-border rounded-lg px-3 py-2 text-sm resize-none" />
-            <div className="flex items-center gap-2">
-              <input type="number" dir="ltr" value={custCreditLimit} onChange={e => setCustCreditLimit(toEnglishDigits(e.target.value))}
-                placeholder="حد الائتمان"
-                className="flex-1 border border-border rounded-lg px-3 py-2 text-sm" />
-              <input type="number" dir="ltr" value={custCreditDays} onChange={e => setCustCreditDays(toEnglishDigits(e.target.value))}
-                placeholder="أيام الائتمان"
-                className="flex-1 border border-border rounded-lg px-3 py-2 text-sm" />
-            </div>
-            <div>
-              {custLocation.latitude ? (
-                <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-2 flex items-center justify-between">
-                  <span className="text-xs text-green-700">✓ تم تحديد الموقع</span>
-                  <button type="button" onClick={() => setCustLocation({ latitude: null, longitude: null, accuracyMeters: null })}
-                    className="text-xs text-primary font-semibold">تغيير</button>
-                </div>
-              ) : (
-                <button type="button" onClick={handleCaptureLocation} disabled={custLocating}
-                  className="w-full py-2 rounded-lg border-2 border-dashed border-primary/40 text-primary text-xs font-semibold disabled:opacity-50">
-                  {custLocating ? 'جاري التحديد...' : '📍 الموقع الجغرافي'}
-                </button>
-              )}
-            </div>
-            <div>
-              <label className="block text-[10px] font-semibold text-text-secondary mb-1">ربط العميل بـ</label>
-              <select value={custOwnerId} onChange={e => setCustOwnerId(e.target.value)}
-                className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-white">
-                <option value="">نفسي (المدير)</option>
-                {teamMembers.map((m: any) => (
-                  <option key={m.employee_id} value={m.employee_id}>{m.employee_name}</option>
-                ))}
-              </select>
-            </div>
-            <button type="submit" disabled={submitting || !custName.trim()}
-              className="w-full bg-primary text-white text-xs py-2.5 rounded-lg font-semibold disabled:opacity-40">
+      <MobileDialog
+        open={showAddEmployee}
+        onClose={() => setShowAddEmployee(false)}
+        title="إضافة مندوب للفريق"
+        footer={
+          <div className="flex items-center gap-2">
+            <button type="submit" form="addEmployeeForm" disabled={submitting}
+              className="flex-1 bg-primary text-white text-xs py-2.5 rounded-lg font-semibold disabled:opacity-40">
               {submitting ? 'جاري الحفظ...' : 'حفظ'}
             </button>
-          </form>
-        </div>
-      )}
+          </div>
+        }
+      >
+        <form id="addEmployeeForm" onSubmit={handleAddEmployee} className="space-y-3">
+          <input type="text" value={empName} onChange={e => setEmpName(e.target.value)}
+            placeholder="الاسم الكامل *" required
+            className="w-full border border-border rounded-lg px-3 py-2 text-sm" />
+          <input type="tel" dir="ltr" value={empPhone} onChange={e => setEmpPhone(toEnglishDigits(e.target.value))}
+            placeholder="رقم الهاتف *" required maxLength={11}
+            className="w-full border border-border rounded-lg px-3 py-2 text-sm" />
+          <input type="password" dir="ltr" value={empPassword} onChange={e => setEmpPassword(e.target.value)}
+            placeholder="كلمة المرور (افتراضي: رقم الهاتف)"
+            className="w-full border border-border rounded-lg px-3 py-2 text-sm" />
+          <input type="email" dir="ltr" value={empEmail} onChange={e => setEmpEmail(e.target.value)}
+            placeholder="البريد الإلكتروني"
+            className="w-full border border-border rounded-lg px-3 py-2 text-sm" />
+          <textarea value={empAddress} onChange={e => setEmpAddress(e.target.value)}
+            placeholder="العنوان" rows={2}
+            className="w-full border border-border rounded-lg px-3 py-2 text-sm resize-none" />
+        </form>
+      </MobileDialog>
+
+      {/* Add Customer Modal */}
+      <MobileDialog
+        open={showAddCustomer}
+        onClose={() => setShowAddCustomer(false)}
+        title="إضافة عميل جديد"
+        footer={
+          <button type="submit" form="addCustomerForm" disabled={submitting || !custName.trim()}
+            className="w-full bg-primary text-white text-xs py-2.5 rounded-lg font-semibold disabled:opacity-40">
+            {submitting ? 'جاري الحفظ...' : 'حفظ'}
+          </button>
+        }
+      >
+        <form id="addCustomerForm" onSubmit={handleAddCustomer} className="space-y-3">
+          <input type="text" value={custName} onChange={e => setCustName(e.target.value)}
+            placeholder="اسم النشاط التجاري *" required
+            className="w-full border border-border rounded-lg px-3 py-2 text-sm" />
+          <input type="tel" dir="ltr" value={custPhone} onChange={e => setCustPhone(toEnglishDigits(e.target.value))}
+            placeholder="رقم الهاتف *" required maxLength={11}
+            className="w-full border border-border rounded-lg px-3 py-2 text-sm" />
+          <input type="text" value={custResponsible} onChange={e => setCustResponsible(e.target.value)}
+            placeholder="اسم المسؤول"
+            className="w-full border border-border rounded-lg px-3 py-2 text-sm" />
+          <select value={custBusinessType} onChange={e => setCustBusinessType(e.target.value)}
+            className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-white">
+            <option value="">نوع النشاط</option>
+            {BUSINESS_TYPES.map(bt => <option key={bt.value} value={bt.value}>{bt.label}</option>)}
+          </select>
+          <input type="password" dir="ltr" value={custPassword} onChange={e => setCustPassword(e.target.value)}
+            placeholder="كلمة المرور" maxLength={6}
+            className="w-full border border-border rounded-lg px-3 py-2 text-sm" />
+          <textarea value={custAddress} onChange={e => setCustAddress(e.target.value)}
+            placeholder="العنوان" rows={1}
+            className="w-full border border-border rounded-lg px-3 py-2 text-sm resize-none" />
+          <div className="flex items-center gap-2">
+            <input type="number" dir="ltr" value={custCreditLimit} onChange={e => setCustCreditLimit(toEnglishDigits(e.target.value))}
+              placeholder="حد الائتمان"
+              className="flex-1 border border-border rounded-lg px-3 py-2 text-sm" />
+            <input type="number" dir="ltr" value={custCreditDays} onChange={e => setCustCreditDays(toEnglishDigits(e.target.value))}
+              placeholder="أيام الائتمان"
+              className="flex-1 border border-border rounded-lg px-3 py-2 text-sm" />
+          </div>
+          <div>
+            {custLocation.latitude ? (
+              <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-2 flex items-center justify-between">
+                <span className="text-xs text-green-700">✓ تم تحديد الموقع</span>
+                <button type="button" onClick={() => setCustLocation({ latitude: null, longitude: null, accuracyMeters: null })}
+                  className="text-xs text-primary font-semibold">تغيير</button>
+              </div>
+            ) : (
+              <button type="button" onClick={handleCaptureLocation} disabled={custLocating}
+                className="w-full py-2 rounded-lg border-2 border-dashed border-primary/40 text-primary text-xs font-semibold disabled:opacity-50">
+                {custLocating ? 'جاري التحديد...' : '📍 الموقع الجغرافي'}
+              </button>
+            )}
+          </div>
+          <div>
+            <label className="block text-[10px] font-semibold text-text-secondary mb-1">ربط العميل بـ</label>
+            <select value={custOwnerId} onChange={e => setCustOwnerId(e.target.value)}
+              className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-white">
+              <option value="">نفسي (المدير)</option>
+              {teamMembers.map((m: any) => (
+                <option key={m.employee_id} value={m.employee_id}>{m.employee_name}</option>
+              ))}
+            </select>
+          </div>
+        </form>
+      </MobileDialog>
 
       {/* Customer Picker Modal */}
-      {showCustomerPicker && (
-        <div className="fixed inset-0 z-20 flex items-end sm:items-center justify-center bg-black/30">
-          <div className="w-full sm:max-w-sm bg-white rounded-t-2xl sm:rounded-2xl p-4 max-h-[85vh] overflow-y-auto space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold text-text">{showCustomerPicker === 'order' ? 'اختيار عميل للطلب' : 'اختيار عميل للزيارة'}</h3>
-              <button type="button" onClick={() => { setShowCustomerPicker(null); setCustSearchQuery('') }} className="text-xs text-text-secondary">إلغاء</button>
-            </div>
-            <input type="text" value={custSearchQuery} onChange={e => setCustSearchQuery(e.target.value)}
-              placeholder="بحث بالاسم أو الكود..."
-              className="w-full border border-border rounded-lg px-3 py-2 text-sm" />
-            <div className="space-y-1 max-h-60 overflow-y-auto">
-              {customerList.filter((c: any) => {
-                if (!custSearchQuery) return true
-                const q = custSearchQuery.toLowerCase()
-                return c.company_name?.toLowerCase().includes(q) || c.code?.toLowerCase().includes(q)
-              }).length === 0 && (
-                <p className="text-center text-xs text-text-secondary py-4">لا يوجد عملاء</p>
-              )}
-              {customerList.filter((c: any) => {
-                if (!custSearchQuery) return true
-                const q = custSearchQuery.toLowerCase()
-                return c.company_name?.toLowerCase().includes(q) || c.code?.toLowerCase().includes(q)
-              }).map((c: any) => (
-                <button key={c.id} type="button" onClick={() => { handlePickCustomer(c); setCustSearchQuery('') }}
-                  className="w-full text-right px-3 py-2 rounded-lg hover:bg-surface transition-colors border border-border/50 flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-semibold text-text">{c.company_name}</p>
-                    <p className="text-[10px] text-text-secondary">{c.code} {c.responsible_name ? `| ${c.responsible_name}` : ''}</p>
-                  </div>
-                  <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded">{c.owner_name || ''}</span>
-                </button>
-              ))}
-            </div>
-          </div>
+      <MobileDialog
+        open={!!showCustomerPicker}
+        onClose={() => { setShowCustomerPicker(null); setCustSearchQuery('') }}
+        title={showCustomerPicker === 'order' ? 'اختيار عميل للطلب' : 'اختيار عميل للزيارة'}
+      >
+        <input type="text" value={custSearchQuery} onChange={e => setCustSearchQuery(e.target.value)}
+          placeholder="بحث بالاسم أو الكود..."
+          className="w-full border border-border rounded-lg px-3 py-2 text-sm" />
+        <div className="space-y-1">
+          {customerList.filter((c: any) => {
+            if (!custSearchQuery) return true
+            const q = custSearchQuery.toLowerCase()
+            return c.company_name?.toLowerCase().includes(q) || c.code?.toLowerCase().includes(q)
+          }).length === 0 && (
+            <p className="text-center text-xs text-text-secondary py-4">لا يوجد عملاء</p>
+          )}
+          {customerList.filter((c: any) => {
+            if (!custSearchQuery) return true
+            const q = custSearchQuery.toLowerCase()
+            return c.company_name?.toLowerCase().includes(q) || c.code?.toLowerCase().includes(q)
+          }).map((c: any) => (
+            <button key={c.id} type="button" onClick={() => { handlePickCustomer(c); setCustSearchQuery('') }}
+              className="w-full text-right px-3 py-2 rounded-lg hover:bg-surface transition-colors border border-border/50 flex items-center justify-between">
+              <div>
+                <p className="text-sm font-semibold text-text">{c.company_name}</p>
+                <p className="text-[10px] text-text-secondary">{c.code} {c.responsible_name ? `| ${c.responsible_name}` : ''}</p>
+              </div>
+              <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded">{c.owner_name || ''}</span>
+            </button>
+          ))}
         </div>
-      )}
+      </MobileDialog>
 
       {/* Visit Checkout Modal */}
-      {activeVisitId && (
-        <div className="fixed inset-0 z-20 flex items-end sm:items-center justify-center bg-black/30">
-          <div className="w-full sm:max-w-sm bg-white rounded-t-2xl sm:rounded-2xl p-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold text-text">إنهاء الزيارة</h3>
-              <button type="button" onClick={() => { setActiveVisitId(null); setVisitResult(''); setVisitNotes('') }} className="text-xs text-text-secondary">إلغاء</button>
-            </div>
-            <select value={visitResult} onChange={e => setVisitResult(e.target.value)}
-              className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-white">
-              <option value="">نتيجة الزيارة</option>
-              <option value="order_taken">تم أخذ طلب</option>
-              <option value="follow_up">متابعة لاحقة</option>
-              <option value="customer_closed">العميل مغلق</option>
-              <option value="no_responsible_person">المسؤول غير موجود</option>
-              <option value="order_rejected">تم رفض الطلب</option>
-              <option value="collection_taken">تم التحصيل</option>
-              <option value="new_customer">عميل جديد</option>
-            </select>
-            <textarea value={visitNotes} onChange={e => setVisitNotes(e.target.value)}
-              placeholder="ملاحظات..." rows={3}
-              className="w-full border border-border rounded-lg px-3 py-2 text-sm resize-none" />
-            <button onClick={handleCheckoutVisit} disabled={submitting}
-              className="w-full bg-primary text-white text-xs py-2.5 rounded-lg font-semibold disabled:opacity-40">
-              {submitting ? 'جاري الإنهاء...' : 'إنهاء الزيارة'}
-            </button>
-          </div>
-        </div>
-      )}
+      <MobileDialog
+        open={!!activeVisitId}
+        onClose={() => { setActiveVisitId(null); setVisitResult(''); setVisitNotes('') }}
+        title="إنهاء الزيارة"
+        footer={
+          <button onClick={handleCheckoutVisit} disabled={submitting}
+            className="w-full bg-primary text-white text-xs py-2.5 rounded-lg font-semibold disabled:opacity-40">
+            {submitting ? 'جاري الإنهاء...' : 'إنهاء الزيارة'}
+          </button>
+        }
+      >
+        <select value={visitResult} onChange={e => setVisitResult(e.target.value)}
+          className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-white">
+          <option value="">نتيجة الزيارة</option>
+          <option value="order_taken">تم أخذ طلب</option>
+          <option value="follow_up">متابعة لاحقة</option>
+          <option value="customer_closed">العميل مغلق</option>
+          <option value="no_responsible_person">المسؤول غير موجود</option>
+          <option value="order_rejected">تم رفض الطلب</option>
+          <option value="collection_taken">تم التحصيل</option>
+          <option value="new_customer">عميل جديد</option>
+        </select>
+        <textarea value={visitNotes} onChange={e => setVisitNotes(e.target.value)}
+          placeholder="ملاحظات..." rows={3}
+          className="w-full border border-border rounded-lg px-3 py-2 text-sm resize-none" />
+      </MobileDialog>
 
       <div className="text-center text-[10px] text-text-secondary pb-4">
         يتم التحديث تلقائياً

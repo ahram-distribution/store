@@ -9,19 +9,19 @@
 -- 0. GIN Trigram Indexes for new search columns
 -- =============================================================================
 
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_identities_phone_trgm
+CREATE INDEX IF NOT EXISTS idx_identities_phone_trgm
   ON identities USING GIN (phone gin_trgm_ops);
 
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_customer_addresses_line1_trgm
+CREATE INDEX IF NOT EXISTS idx_customer_addresses_line1_trgm
   ON customer_addresses USING GIN (address_line1 gin_trgm_ops);
 
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_customer_addresses_city_trgm
+CREATE INDEX IF NOT EXISTS idx_customer_addresses_city_trgm
   ON customer_addresses USING GIN (city gin_trgm_ops);
 
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_customer_addresses_gov_trgm
+CREATE INDEX IF NOT EXISTS idx_customer_addresses_gov_trgm
   ON customer_addresses USING GIN (governorate gin_trgm_ops);
 
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_companies_name_trgm
+CREATE INDEX IF NOT EXISTS idx_companies_name_trgm
   ON companies USING GIN (company_name gin_trgm_ops);
 
 -- =============================================================================

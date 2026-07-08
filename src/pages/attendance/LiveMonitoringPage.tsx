@@ -345,7 +345,7 @@ export default function LiveMonitoringPage({ embedded }: { embedded?: boolean })
       )}
 
       {locationPopup && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-5" onClick={() => setLocationPopup(null)}>
+        <div className="fixed inset-0 z-[60] bg-black/40 flex items-center justify-center p-5" onClick={() => setLocationPopup(null)}>
           <div className="bg-white rounded-3xl p-5 max-w-sm w-full shadow-xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">

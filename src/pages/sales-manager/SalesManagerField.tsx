@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { attendanceService } from '../../services/attendance'
+import { MobileDialog } from '../../components/shared/MobileDialog'
 
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
@@ -137,36 +138,32 @@ export default function SalesManagerField() {
       </div>
 
       {/* Auto-Closed Modal */}
-      {showAutoClosedModal && (
-        <div className="fixed inset-0 z-20 flex items-end sm:items-center justify-center bg-black/30">
-          <div className="w-full sm:max-w-sm bg-white rounded-t-2xl sm:rounded-2xl p-4 max-h-[70vh] overflow-y-auto space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold text-text">جلسات الإنهاء التلقائي اليوم</h3>
-              <button type="button" onClick={() => setShowAutoClosedModal(false)} className="text-xs text-text-secondary">إغلاق</button>
-            </div>
-            {autoClosedTodayDetails.length === 0 ? (
-              <p className="text-center text-xs text-text-secondary py-6">لا توجد جلسات</p>
-            ) : (
-              <div className="space-y-2">
-                {autoClosedTodayDetails.map((s: any, i: number) => (
-                  <div key={i} className="bg-surface rounded-lg p-3 border border-border/50">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-semibold text-text">{s.employee_name}</span>
-                      <span className="text-[10px] text-text-secondary">{s.employee_code}</span>
-                    </div>
-                    <div className="text-[11px] text-text-secondary mt-1">
-                      السبب: {s.close_reason === 'no_activity_timeout' ? 'انتهت المهلة' : s.close_reason === 'day_rollover' ? 'تجاوز منتصف الليل' : s.close_reason}
-                    </div>
-                    <div className="text-[10px] text-text-secondary">
-                      {s.start_time ? 'البداية: ' + s.start_time : ''}
-                    </div>
-                  </div>
-                ))}
+      <MobileDialog
+        open={showAutoClosedModal}
+        onClose={() => setShowAutoClosedModal(false)}
+        title="جلسات الإنهاء التلقائي اليوم"
+      >
+        {autoClosedTodayDetails.length === 0 ? (
+          <p className="text-center text-xs text-text-secondary py-6">لا توجد جلسات</p>
+        ) : (
+          <div className="space-y-2">
+            {autoClosedTodayDetails.map((s: any, i: number) => (
+              <div key={i} className="bg-surface rounded-lg p-3 border border-border/50">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-semibold text-text">{s.employee_name}</span>
+                  <span className="text-[10px] text-text-secondary">{s.employee_code}</span>
+                </div>
+                <div className="text-[11px] text-text-secondary mt-1">
+                  السبب: {s.close_reason === 'no_activity_timeout' ? 'انتهت المهلة' : s.close_reason === 'day_rollover' ? 'تجاوز منتصف الليل' : s.close_reason}
+                </div>
+                <div className="text-[10px] text-text-secondary">
+                  {s.start_time ? 'البداية: ' + s.start_time : ''}
+                </div>
               </div>
-            )}
+            ))}
           </div>
-        </div>
-      )}
+        )}
+      </MobileDialog>
 
       <div className="text-center text-[10px] text-text-secondary pb-4">
         يتم التحديث تلقائياً كل 30 ثانية

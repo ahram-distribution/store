@@ -605,12 +605,12 @@ export function ExecutiveOperationsWorkspace() {
         {/* Dispatch Modal */}
         {showDispatchModal && (
           <div className="fixed inset-0 z-[60] bg-black/40 flex items-center justify-center px-4">
-            <div className="bg-white rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-xl" onClick={e => e.stopPropagation()}>
-              <div className="sticky top-0 bg-white border-b border-border px-5 py-3 flex items-center justify-between">
+            <div className="bg-white rounded-xl w-full max-w-lg max-h-[calc(100dvh-6rem)] flex flex-col shadow-xl" onClick={e => e.stopPropagation()}>
+              <div className="shrink-0 bg-white border-b border-border px-5 py-3 flex items-center justify-between">
                 <h3 className="font-bold text-text">شحن الطلب</h3>
                 <button onClick={() => setShowDispatchModal(false)} className="text-text-secondary text-2xl leading-none">&times;</button>
               </div>
-              <div className="p-5 space-y-4">
+              <div className="flex-1 overflow-y-auto p-5 space-y-4">
                 <div className="flex gap-2">
                   <button onClick={() => setDeliveryMode('internal')}
                     className={`flex-1 py-2.5 rounded-lg text-sm font-semibold border ${

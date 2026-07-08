@@ -34,16 +34,17 @@ export function KpiDrillDownModal({ open, title, recordType, records, loading, o
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40" onClick={onClose}>
       <div
-        className="bg-white rounded-xl border border-border shadow-xl w-full max-w-lg mx-4 max-h-[80vh] overflow-auto p-4"
+        className="bg-white rounded-xl border border-border shadow-xl w-full max-w-lg mx-4 max-h-[calc(100dvh-6rem)] flex flex-col"
         dir="rtl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between mb-3">
+        <div className="shrink-0 flex items-center justify-between p-4 pb-3">
           <h2 className="text-sm font-bold">{title} — تفاصيل</h2>
           <button onClick={onClose} className="text-text-secondary text-lg">&times;</button>
         </div>
+        <div className="flex-1 overflow-y-auto px-4 pb-4">
 
         {loading ? (
           <div className="text-center py-4 text-xs text-text-secondary">جاري التحميل...</div>
@@ -156,6 +157,7 @@ export function KpiDrillDownModal({ open, title, recordType, records, loading, o
             </tbody>
           </table>
         ) : null}
+        </div>
       </div>
     </div>
   )

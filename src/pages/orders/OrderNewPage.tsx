@@ -41,35 +41,37 @@ export function OrderNewPage() {
     : allCustomers
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-3">
-        <button onClick={() => navigate('/dashboard')} className="text-text-secondary text-lg">&larr;</button>
-        <h1 className="text-lg font-bold text-text">طلب جديد</h1>
-      </div>
-      <input
-        type="text"
-        value={customerSearchQuery}
-        onChange={(e) => setCustomerSearchQuery(e.target.value)}
-        placeholder="ابحث عن عميل..."
-        className="w-full border border-border rounded-lg px-3 py-2.5 text-sm bg-white text-text placeholder:text-text-secondary"
-      />
-      <div className="space-y-2">
-        {filteredCustomers.map((c: any) => (
-          <button
-            key={c.id}
-            onClick={() => navigate(`/storefront?customer=${c.id}${visitParam ? `&visit=${visitParam}` : ''}`)}
-            className="w-full bg-white rounded-xl border border-border p-3 text-right active:bg-surface transition-colors"
-          >
-            <p className="text-sm font-semibold text-text">{c.company_name}</p>
-            <p className="text-[10px] text-text-secondary">{c.code}</p>
-          </button>
-        ))}
-        {filteredCustomers.length === 0 && !loading && (
-          <p className="text-center text-sm text-text-secondary py-8">لا يوجد عملاء</p>
-        )}
-        {loading && (
-          <p className="text-center text-sm text-text-secondary py-8">جاري التحميل...</p>
-        )}
+    <div className="min-h-[calc(100vh-8rem)] flex flex-col items-center justify-center">
+      <div className="w-full max-w-md space-y-4">
+        <div className="flex items-center gap-3">
+          <button onClick={() => navigate('/dashboard')} className="text-text-secondary text-lg">&larr;</button>
+          <h1 className="text-lg font-bold text-text">طلب جديد</h1>
+        </div>
+        <input
+          type="text"
+          value={customerSearchQuery}
+          onChange={(e) => setCustomerSearchQuery(e.target.value)}
+          placeholder="ابحث عن عميل..."
+          className="w-full border border-border rounded-lg px-3 py-2.5 text-sm bg-white text-text placeholder:text-text-secondary"
+        />
+        <div className="space-y-2">
+          {filteredCustomers.map((c: any) => (
+            <button
+              key={c.id}
+              onClick={() => navigate(`/storefront?customer=${c.id}${visitParam ? `&visit=${visitParam}` : ''}`)}
+              className="w-full bg-white rounded-xl border border-border p-3 text-right active:bg-surface transition-colors"
+            >
+              <p className="text-sm font-semibold text-text">{c.company_name}</p>
+              <p className="text-[10px] text-text-secondary">{c.code}</p>
+            </button>
+          ))}
+          {filteredCustomers.length === 0 && !loading && (
+            <p className="text-center text-sm text-text-secondary py-8">لا يوجد عملاء</p>
+          )}
+          {loading && (
+            <p className="text-center text-sm text-text-secondary py-8">جاري التحميل...</p>
+          )}
+        </div>
       </div>
     </div>
   )

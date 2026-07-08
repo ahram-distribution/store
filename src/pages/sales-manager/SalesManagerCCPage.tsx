@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { formatCurrencyShort } from '../../utils/format'
 import { lifeSignalService } from '../../services/lifeSignalService'
+import { MobileDialog } from '../../components/shared/MobileDialog'
 import toast from 'react-hot-toast'
 
 const POLLING_INTERVAL = 30000
@@ -177,42 +178,38 @@ export default function SalesManagerCCPage() {
       </div>
 
       {/* Customer Picker Modal */}
-      {showCustomerPicker && (
-        <div className="fixed inset-0 z-20 flex items-end sm:items-center justify-center bg-black/30">
-          <div className="w-full sm:max-w-sm bg-white rounded-t-2xl sm:rounded-2xl p-4 max-h-[85vh] overflow-y-auto space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold text-text">{showCustomerPicker === 'order' ? 'اختيار عميل للطلب' : 'اختيار عميل للزيارة'}</h3>
-              <button type="button" onClick={() => { setShowCustomerPicker(null); setCustSearchQuery('') }} className="text-xs text-text-secondary">إلغاء</button>
-            </div>
-            <input type="text" value={custSearchQuery} onChange={e => setCustSearchQuery(e.target.value)}
-              placeholder="بحث بالاسم أو الكود..."
-              className="w-full border border-border rounded-lg px-3 py-2 text-sm" />
-            <div className="space-y-1 max-h-60 overflow-y-auto">
-              {customerList.filter((c: any) => {
-                if (!custSearchQuery) return true
-                const q = custSearchQuery.toLowerCase()
-                return c.company_name?.toLowerCase().includes(q) || c.code?.toLowerCase().includes(q)
-              }).length === 0 && (
-                <p className="text-center text-xs text-text-secondary py-4">لا يوجد عملاء</p>
-              )}
-              {customerList.filter((c: any) => {
-                if (!custSearchQuery) return true
-                const q = custSearchQuery.toLowerCase()
-                return c.company_name?.toLowerCase().includes(q) || c.code?.toLowerCase().includes(q)
-              }).map((c: any) => (
-                <button key={c.id} type="button" onClick={() => { handlePickCustomer(c); setCustSearchQuery('') }}
-                  className="w-full text-right px-3 py-2 rounded-lg hover:bg-surface transition-colors border border-border/50 flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-semibold text-text">{c.company_name}</p>
-                    <p className="text-[10px] text-text-secondary">{c.code} {c.responsible_name ? `| ${c.responsible_name}` : ''}</p>
-                  </div>
-                  <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded">{c.owner_name || ''}</span>
-                </button>
-              ))}
-            </div>
-          </div>
+      <MobileDialog
+        open={!!showCustomerPicker}
+        onClose={() => { setShowCustomerPicker(null); setCustSearchQuery('') }}
+        title={showCustomerPicker === 'order' ? 'اختيار عميل للطلب' : 'اختيار عميل للزيارة'}
+      >
+        <input type="text" value={custSearchQuery} onChange={e => setCustSearchQuery(e.target.value)}
+          placeholder="بحث بالاسم أو الكود..."
+          className="w-full border border-border rounded-lg px-3 py-2 text-sm" />
+        <div className="space-y-1">
+          {customerList.filter((c: any) => {
+            if (!custSearchQuery) return true
+            const q = custSearchQuery.toLowerCase()
+            return c.company_name?.toLowerCase().includes(q) || c.code?.toLowerCase().includes(q)
+          }).length === 0 && (
+            <p className="text-center text-xs text-text-secondary py-4">لا يوجد عملاء</p>
+          )}
+          {customerList.filter((c: any) => {
+            if (!custSearchQuery) return true
+            const q = custSearchQuery.toLowerCase()
+            return c.company_name?.toLowerCase().includes(q) || c.code?.toLowerCase().includes(q)
+          }).map((c: any) => (
+            <button key={c.id} type="button" onClick={() => { handlePickCustomer(c); setCustSearchQuery('') }}
+              className="w-full text-right px-3 py-2 rounded-lg hover:bg-surface transition-colors border border-border/50 flex items-center justify-between">
+              <div>
+                <p className="text-sm font-semibold text-text">{c.company_name}</p>
+                <p className="text-[10px] text-text-secondary">{c.code} {c.responsible_name ? `| ${c.responsible_name}` : ''}</p>
+              </div>
+              <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded">{c.owner_name || ''}</span>
+            </button>
+          ))}
         </div>
-      )}
+      </MobileDialog>
 
       <div className="text-center text-[10px] text-text-secondary pb-4">
         يتم التحديث تلقائياً كل 30 ثانية

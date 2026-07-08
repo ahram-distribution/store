@@ -112,13 +112,14 @@ export function NewCustomerPage() {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-3">
-        <button onClick={() => navigate('/customers')} className="text-text-secondary text-lg">&larr;</button>
-        <h1 className="text-lg font-bold text-text">إضافة عميل جديد</h1>
-      </div>
+    <div className="min-h-[calc(100vh-8rem)] flex flex-col items-center justify-center">
+      <div className="w-full max-w-md space-y-4">
+        <div className="flex items-center gap-3">
+          <button onClick={() => navigate('/customers')} className="text-text-secondary text-lg">&larr;</button>
+          <h1 className="text-lg font-bold text-text">إضافة عميل جديد</h1>
+        </div>
 
-      <form onSubmit={handleSubmit} className="bg-white rounded-xl border border-border p-4 space-y-4">
+        <form onSubmit={handleSubmit} className="bg-white rounded-xl border border-border p-4 space-y-4">
         <div>
           <label className="block text-xs font-semibold text-text mb-1">اسم النشاط التجاري *</label>
           <input type="text" value={companyName} onChange={(e) => setCompanyName(e.target.value)}
@@ -208,6 +209,7 @@ export function NewCustomerPage() {
           {saving ? 'جاري الحفظ...' : 'حفظ'}
         </button>
       </form>
+      </div>
     </div>
   )
 }
