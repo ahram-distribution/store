@@ -1,6 +1,5 @@
 import { formatCurrencyShort, formatDate } from '../../utils/format'
 import { StatusBadge } from '../shared/StatusBadge'
-import type { CustomerActivityLevel } from '../../types/unified-order'
 
 interface OrderCardProps {
   order: {
@@ -23,13 +22,11 @@ interface OrderCardProps {
     revision_number?: number
     governorate?: string
     customer_display_address?: string | null
-    customer_order_count?: number | null
-    customer_lifetime_total?: number | null
-    customer_average_order_value?: number | null
-    customer_last_order_date?: string | null
-    customer_last_order_number?: string | null
-    customer_last_order_total?: number | null
-    customer_activity_level?: CustomerActivityLevel | null
+    previous_order_count?: number | null
+    previous_orders_total?: number | null
+    previous_order_number?: string | null
+    previous_order_date?: string | null
+    previous_order_total?: number | null
     collection_badge?: { label: string; className: string }
   }
   onClick?: () => void
@@ -51,12 +48,7 @@ const cardAccent: Record<string, string> = {
   delivered: 'border-r-emerald-500',
 }
 
-const activityLevelStyle: Record<CustomerActivityLevel, { label: string; className: string }> = {
-  NEW: { label: 'جديد', className: 'bg-blue-100 text-blue-700' },
-  LOW: { label: 'منخفض', className: 'bg-amber-100 text-amber-700' },
-  ACTIVE: { label: 'نشط', className: 'bg-emerald-100 text-emerald-700' },
-  VIP: { label: 'VIP', className: 'bg-purple-100 text-purple-700' },
-}
+
 
 export function OrderCard({ order, onClick }: OrderCardProps) {
   const dt = order.created_at ? new Date(order.created_at) : null
@@ -66,9 +58,6 @@ export function OrderCard({ order, onClick }: OrderCardProps) {
   const accent = isSubmitted
     ? 'border-r-[#2563EB] shadow-[0_2px_8px_-2px_rgba(37,99,235,0.12),0_0_0_1px_rgba(37,99,235,0.06)] bg-[rgba(37,99,235,0.04)]'
     : (cardAccent[order.status] || 'border-r-gray-300')
-
-  const actLvl = order.customer_activity_level
-  const actStyle = actLvl ? activityLevelStyle[actLvl] : null
 
   return (
     <div
@@ -113,59 +102,48 @@ export function OrderCard({ order, onClick }: OrderCardProps) {
         </p>
       )}
 
-      {(order.customer_order_count != null || order.customer_lifetime_total != null || order.customer_average_order_value != null || order.customer_last_order_number != null) && (
-        <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
-          {order.customer_order_count != null && (
+      {order.previous_order_count != null && order.previous_order_count > 0 ? (
+        <>
+          <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
             <span className="text-[10px] text-text-secondary">
-              <span className="text-text-muted">الطلبات: </span>
-              <span className="font-medium">{order.customer_order_count}</span>
+              <span className="text-text-muted">🧾 الطلبات السابقة: </span>
+              <span className="font-medium">{order.previous_order_count}</span>
             </span>
-          )}
-          {order.customer_lifetime_total != null && (
-            <span className="text-[10px] text-text-secondary">
-              <span className="text-text-muted">المشتريات: </span>
-              <span className="font-medium">{formatCurrencyShort(Number(order.customer_lifetime_total))}</span>
-            </span>
-          )}
-          {order.customer_average_order_value != null && (
-            <span className="text-[10px] text-text-secondary">
-              <span className="text-text-muted">المتوسط: </span>
-              <span className="font-medium">{formatCurrencyShort(Number(order.customer_average_order_value))}</span>
-            </span>
-          )}
-        </div>
-      )}
-
-      {(order.customer_last_order_number != null) && (
-        <div className="mt-2 pt-1.5 border-t border-dashed border-border/50">
-          <p className="text-[9px] font-bold text-text-secondary uppercase mb-1">آخر طلب للعميل</p>
-          <div className="space-y-0.5">
-            <p className="text-[11px] text-text-secondary">
-              <span className="text-text-muted">🧾 رقم الطلب: </span>
-              <span className="font-medium font-mono text-text">{order.customer_last_order_number}</span>
-            </p>
-            {order.customer_last_order_date && (
-              <p className="text-[11px] text-text-secondary">
-                <span className="text-text-muted">📅 تاريخ الطلب: </span>
-                <span className="font-medium">{formatDate(new Date(order.customer_last_order_date))}</span>
-              </p>
-            )}
-            {order.customer_last_order_total != null && (
-              <p className="text-[11px] text-text-secondary">
-                <span className="text-text-muted">💰 قيمة الطلب: </span>
-                <span className="font-medium">{formatCurrencyShort(Number(order.customer_last_order_total))}</span>
-              </p>
+            {order.previous_orders_total != null && (
+              <span className="text-[10px] text-text-secondary">
+                <span className="text-text-muted">💰 المشتريات السابقة: </span>
+                <span className="font-medium">{formatCurrencyShort(Number(order.previous_orders_total))}</span>
+              </span>
             )}
           </div>
-        </div>
-      )}
-
-      {actStyle && (
-        <div className="mt-1">
-          <span className={'text-[10px] px-1.5 py-0.5 rounded font-medium ' + actStyle.className}>
-            {actStyle.label}
-          </span>
-        </div>
+          {order.previous_order_number != null && (
+            <div className="mt-2 pt-1.5 border-t border-dashed border-border/50">
+              <p className="text-[9px] font-bold text-text-secondary uppercase mb-1">📦 آخر طلب سابق</p>
+              <div className="space-y-0.5">
+                <p className="text-[11px] text-text-secondary">
+                  <span className="text-text-muted">🧾 رقم الطلب: </span>
+                  <span className="font-medium font-mono text-text">{order.previous_order_number}</span>
+                </p>
+                {order.previous_order_date && (
+                  <p className="text-[11px] text-text-secondary">
+                    <span className="text-text-muted">📅 تاريخ الطلب: </span>
+                    <span className="font-medium">{formatDate(new Date(order.previous_order_date))}</span>
+                  </p>
+                )}
+                {order.previous_order_total != null && (
+                  <p className="text-[11px] text-text-secondary">
+                    <span className="text-text-muted">💰 قيمة الطلب: </span>
+                    <span className="font-medium">{formatCurrencyShort(Number(order.previous_order_total))}</span>
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+        </>
+      ) : order.previous_order_count != null && (
+        <p className="text-[10px] text-text-secondary mt-2 pt-1.5 border-t border-dashed border-border/50">
+          هذا أول طلب للعميل
+        </p>
       )}
 
       <div className="flex-1" />

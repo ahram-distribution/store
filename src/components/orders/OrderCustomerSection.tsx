@@ -3,14 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { MapButton } from '../shared/MapButton'
 import { getFullAddress } from './order-detail.utils'
 import { formatCurrencyShort, formatDate } from '../../utils/format'
-import type { UnifiedCustomerSummary, UnifiedOrderHeader, CustomerActivityLevel } from '../../types/unified-order'
-
-const activityLevelStyle: Record<CustomerActivityLevel, { label: string; className: string }> = {
-  NEW: { label: 'جديد', className: 'bg-blue-100 text-blue-700' },
-  LOW: { label: 'منخفض', className: 'bg-amber-100 text-amber-700' },
-  ACTIVE: { label: 'نشط', className: 'bg-emerald-100 text-emerald-700' },
-  VIP: { label: 'VIP', className: 'bg-purple-100 text-purple-700' },
-}
+import type { UnifiedCustomerSummary, UnifiedOrderHeader } from '../../types/unified-order'
 
 interface OrderCustomerSectionProps {
   customer: UnifiedCustomerSummary | null
@@ -40,7 +33,7 @@ export function OrderCustomerSection({ customer, order }: OrderCustomerSectionPr
   const navigate = useNavigate()
   const displayName = customer?.company_name || order.snapshot_customer_name || 'غير متوفر'
   const displayPhone = customer?.phone || order.snapshot_customer_phone || 'غير متوفر'
-  const fullAddress = useMemo(() => customer?.display_address || customer?.customer_display_address || getFullAddress(customer, order), [customer, order])
+  const fullAddress = useMemo(() => customer?.display_address || getFullAddress(customer, order), [customer, order])
   const hasAddressCoords = customer?.address_latitude != null && customer?.address_longitude != null
 
   return (
@@ -68,59 +61,46 @@ export function OrderCustomerSection({ customer, order }: OrderCustomerSectionPr
         </div>
       )}
 
-      {(customer?.order_count != null || customer?.lifetime_total != null || customer?.average_order_value != null || customer?.last_order_date != null) && (
+      {(customer?.previous_order_count != null && customer.previous_order_count > 0) ? (
         <div className="mt-2 pt-2 border-t border-border">
-          <p className="text-[10px] font-bold text-text-secondary uppercase mb-1.5">سجل العميل</p>
+          <p className="text-[10px] font-bold text-text-secondary uppercase mb-1.5">🧾 الطلبات السابقة</p>
           <div className="flex flex-wrap gap-x-4 gap-y-1">
-            {customer?.order_count != null && (
+            <p className="text-xs text-text-secondary">
+              <span className="text-text-muted">عدد الطلبات: </span>
+              <span className="font-medium">{customer.previous_order_count}</span>
+            </p>
+            {customer.previous_orders_total != null && (
               <p className="text-xs text-text-secondary">
-                <span className="text-text-muted">عدد الطلبات: </span>
-                <span className="font-medium">{customer.order_count}</span>
+                <span className="text-text-muted">💰 المشتريات السابقة: </span>
+                <span className="font-medium">{formatCurrencyShort(Number(customer.previous_orders_total))}</span>
               </p>
             )}
-            {customer?.lifetime_total != null && (
-              <p className="text-xs text-text-secondary">
-                <span className="text-text-muted">إجمالي المشتريات: </span>
-                <span className="font-medium">{formatCurrencyShort(Number(customer.lifetime_total))}</span>
-              </p>
-            )}
-            {customer?.average_order_value != null && (
-              <p className="text-xs text-text-secondary">
-                <span className="text-text-muted">متوسط قيمة الطلب: </span>
-                <span className="font-medium">{formatCurrencyShort(Number(customer.average_order_value))}</span>
-              </p>
-            )}
-            {customer?.activity_level && (() => {
-              const s = activityLevelStyle[customer.activity_level!]
-              return s ? (
-                <p className="text-xs">
-                  <span className="text-text-muted">النشاط: </span>
-                  <span className={'font-medium px-1.5 py-0.5 rounded ' + s.className}>{s.label}</span>
-                </p>
-              ) : null
-            })()}
           </div>
+        </div>
+      ) : customer?.previous_order_count != null && (
+        <div className="mt-2 pt-2 border-t border-border">
+          <p className="text-xs text-text-secondary">هذا أول طلب للعميل</p>
         </div>
       )}
 
-      {customer?.last_order_number && (
+      {customer?.previous_order_number && (
         <div className="mt-2 pt-2 border-t border-dashed border-border/50">
-          <p className="text-[10px] font-bold text-text-secondary uppercase mb-1.5">آخر طلب للعميل</p>
+          <p className="text-[10px] font-bold text-text-secondary uppercase mb-1.5">📦 آخر طلب سابق</p>
           <div className="flex flex-wrap gap-x-4 gap-y-1">
             <p className="text-xs text-text-secondary">
               <span className="text-text-muted">🧾 رقم الطلب: </span>
-              <span className="font-medium font-mono">{customer.last_order_number}</span>
+              <span className="font-medium font-mono">{customer.previous_order_number}</span>
             </p>
-            {customer.last_order_date && (
+            {customer.previous_order_date && (
               <p className="text-xs text-text-secondary">
                 <span className="text-text-muted">📅 تاريخ الطلب: </span>
-                <span className="font-medium">{formatDate(new Date(customer.last_order_date))}</span>
+                <span className="font-medium">{formatDate(new Date(customer.previous_order_date))}</span>
               </p>
             )}
-            {customer.last_order_total != null && (
+            {customer.previous_order_total != null && (
               <p className="text-xs text-text-secondary">
                 <span className="text-text-muted">💰 قيمة الطلب: </span>
-                <span className="font-medium">{formatCurrencyShort(Number(customer.last_order_total))}</span>
+                <span className="font-medium">{formatCurrencyShort(Number(customer.previous_order_total))}</span>
               </p>
             )}
           </div>

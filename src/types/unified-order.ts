@@ -102,13 +102,11 @@ export interface UnifiedCustomerSummary {
   address_latitude: number | null
   address_longitude: number | null
   display_address: string | null
-  order_count: number | null
-  lifetime_total: number | null
-  average_order_value: number | null
-  last_order_date: string | null
-  last_order_number: string | null
-  last_order_total: number | null
-  activity_level: CustomerActivityLevel | null
+  previous_order_count: number | null
+  previous_orders_total: number | null
+  previous_order_number: string | null
+  previous_order_date: string | null
+  previous_order_total: number | null
 }
 
 export interface UnifiedOrderItem {
@@ -223,13 +221,11 @@ export interface UnifiedOrderListItem {
   customer_code: string | null
   customer_phone: string | null
   customer_display_address: string | null
-  customer_order_count: number | null
-  customer_lifetime_total: number | null
-  customer_average_order_value: number | null
-  customer_last_order_date: string | null
-  customer_last_order_number: string | null
-  customer_last_order_total: number | null
-  customer_activity_level: CustomerActivityLevel | null
+  previous_order_count: number | null
+  previous_orders_total: number | null
+  previous_order_number: string | null
+  previous_order_date: string | null
+  previous_order_total: number | null
   owner_name: string | null
   created_by: string | null
   created_by_name: string | null
