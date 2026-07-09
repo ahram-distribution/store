@@ -45,19 +45,19 @@ const STATUS_OPTIONS = [
 ]
 
 const STATUS_KPI_GROUPS: Record<string, { dot: string; chip: string; active: string }> = {
-  draft: { dot: 'bg-gray-400', chip: 'bg-gray-50 border-gray-200 text-gray-600', active: 'bg-gray-100 border-gray-400 text-gray-800 ring-1 ring-gray-300' },
-  submitted: { dot: 'bg-blue-400', chip: 'bg-blue-50 border-blue-200 text-blue-700', active: 'bg-blue-100 border-blue-400 text-blue-800 ring-1 ring-blue-300' },
-  reviewing: { dot: 'bg-blue-500', chip: 'bg-blue-50 border-blue-200 text-blue-700', active: 'bg-blue-100 border-blue-400 text-blue-800 ring-1 ring-blue-300' },
-  returned_for_revision: { dot: 'bg-blue-300', chip: 'bg-blue-50 border-blue-200 text-blue-600', active: 'bg-blue-100 border-blue-400 text-blue-800 ring-1 ring-blue-300' },
-  approved: { dot: 'bg-emerald-400', chip: 'bg-emerald-50 border-emerald-200 text-emerald-700', active: 'bg-emerald-100 border-emerald-400 text-emerald-800 ring-1 ring-emerald-300' },
-  preparing: { dot: 'bg-emerald-500', chip: 'bg-emerald-50 border-emerald-200 text-emerald-700', active: 'bg-emerald-100 border-emerald-400 text-emerald-800 ring-1 ring-emerald-300' },
-  prepared: { dot: 'bg-emerald-500', chip: 'bg-emerald-50 border-emerald-200 text-emerald-700', active: 'bg-emerald-100 border-emerald-400 text-emerald-800 ring-1 ring-emerald-300' },
-  ready_for_dispatch: { dot: 'bg-emerald-400', chip: 'bg-emerald-50 border-emerald-200 text-emerald-700', active: 'bg-emerald-100 border-emerald-400 text-emerald-800 ring-1 ring-emerald-300' },
-  sent_to_delivery: { dot: 'bg-emerald-500', chip: 'bg-emerald-50 border-emerald-200 text-emerald-700', active: 'bg-emerald-100 border-emerald-400 text-emerald-800 ring-1 ring-emerald-300' },
-  dispatched: { dot: 'bg-emerald-600', chip: 'bg-emerald-50 border-emerald-200 text-emerald-700', active: 'bg-emerald-100 border-emerald-400 text-emerald-800 ring-1 ring-emerald-300' },
-  deferred: { dot: 'bg-gray-400', chip: 'bg-gray-50 border-gray-200 text-gray-600', active: 'bg-gray-100 border-gray-400 text-gray-800 ring-1 ring-gray-300' },
-  cancelled: { dot: 'bg-red-400', chip: 'bg-red-50 border-red-200 text-red-700', active: 'bg-red-100 border-red-400 text-red-800 ring-1 ring-red-300' },
-  delivered: { dot: 'bg-emerald-600', chip: 'bg-emerald-50 border-emerald-200 text-emerald-700', active: 'bg-emerald-100 border-emerald-400 text-emerald-800 ring-1 ring-emerald-300' },
+  draft: { dot: 'bg-gray-300', chip: 'bg-gray-50 border-gray-150 text-gray-500', active: 'bg-gray-100 border-gray-300 text-gray-700 ring-1 ring-gray-200' },
+  submitted: { dot: 'bg-blue-300', chip: 'bg-blue-50 border-blue-100 text-blue-600', active: 'bg-blue-100 border-blue-300 text-blue-700 ring-1 ring-blue-200' },
+  reviewing: { dot: 'bg-blue-300', chip: 'bg-blue-50 border-blue-100 text-blue-600', active: 'bg-blue-100 border-blue-300 text-blue-700 ring-1 ring-blue-200' },
+  returned_for_revision: { dot: 'bg-blue-300', chip: 'bg-blue-50 border-blue-100 text-blue-600', active: 'bg-blue-100 border-blue-300 text-blue-700 ring-1 ring-blue-200' },
+  approved: { dot: 'bg-emerald-300', chip: 'bg-emerald-50 border-emerald-100 text-emerald-600', active: 'bg-emerald-100 border-emerald-300 text-emerald-700 ring-1 ring-emerald-200' },
+  preparing: { dot: 'bg-emerald-300', chip: 'bg-emerald-50 border-emerald-100 text-emerald-600', active: 'bg-emerald-100 border-emerald-300 text-emerald-700 ring-1 ring-emerald-200' },
+  prepared: { dot: 'bg-emerald-300', chip: 'bg-emerald-50 border-emerald-100 text-emerald-600', active: 'bg-emerald-100 border-emerald-300 text-emerald-700 ring-1 ring-emerald-200' },
+  ready_for_dispatch: { dot: 'bg-emerald-300', chip: 'bg-emerald-50 border-emerald-100 text-emerald-600', active: 'bg-emerald-100 border-emerald-300 text-emerald-700 ring-1 ring-emerald-200' },
+  sent_to_delivery: { dot: 'bg-emerald-300', chip: 'bg-emerald-50 border-emerald-100 text-emerald-600', active: 'bg-emerald-100 border-emerald-300 text-emerald-700 ring-1 ring-emerald-200' },
+  dispatched: { dot: 'bg-emerald-300', chip: 'bg-emerald-50 border-emerald-100 text-emerald-600', active: 'bg-emerald-100 border-emerald-300 text-emerald-700 ring-1 ring-emerald-200' },
+  deferred: { dot: 'bg-gray-300', chip: 'bg-gray-50 border-gray-150 text-gray-500', active: 'bg-gray-100 border-gray-300 text-gray-700 ring-1 ring-gray-200' },
+  cancelled: { dot: 'bg-red-300', chip: 'bg-red-50 border-red-100 text-red-600', active: 'bg-red-100 border-red-300 text-red-700 ring-1 ring-red-200' },
+  delivered: { dot: 'bg-emerald-300', chip: 'bg-emerald-50 border-emerald-100 text-emerald-600', active: 'bg-emerald-100 border-emerald-300 text-emerald-700 ring-1 ring-emerald-200' },
 }
 
 export function OrdersPage() {

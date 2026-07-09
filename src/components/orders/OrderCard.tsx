@@ -34,19 +34,19 @@ interface OrderCardProps {
 }
 
 const cardAccent: Record<string, string> = {
-  draft: 'border-r-gray-300',
-  submitted: 'border-r-blue-400',
-  reviewing: 'border-r-blue-500',
+  draft: 'border-r-gray-200',
+  submitted: 'border-r-blue-300',
+  reviewing: 'border-r-blue-400',
   returned_for_revision: 'border-r-blue-300',
-  approved: 'border-r-emerald-400',
-  preparing: 'border-r-emerald-500',
-  prepared: 'border-r-emerald-500',
-  ready_for_dispatch: 'border-r-emerald-400',
-  sent_to_delivery: 'border-r-emerald-500',
-  dispatched: 'border-r-emerald-600',
-  deferred: 'border-r-gray-400',
-  cancelled: 'border-r-red-400',
-  delivered: 'border-r-emerald-600',
+  approved: 'border-r-emerald-300',
+  preparing: 'border-r-emerald-400',
+  prepared: 'border-r-emerald-400',
+  ready_for_dispatch: 'border-r-emerald-300',
+  sent_to_delivery: 'border-r-emerald-400',
+  dispatched: 'border-r-emerald-500',
+  deferred: 'border-r-gray-300',
+  cancelled: 'border-r-red-300',
+  delivered: 'border-r-emerald-500',
 }
 
 const activityLevelStyle: Record<CustomerActivityLevel, { label: string; className: string }> = {
