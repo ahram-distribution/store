@@ -119,6 +119,13 @@ export function CustomersPage() {
         onFilterChange={setFilters}
       />
 
+      {/* Results count */}
+      {!loading && (
+        <div className="text-[11px] text-text-muted font-medium">
+          إجمالي العملاء المعروضين: <span className="text-text font-semibold">{customers.length}</span> عميل
+        </div>
+      )}
+
       {/* Quick filters */}
       <div className="flex gap-2 flex-wrap">
         <button
