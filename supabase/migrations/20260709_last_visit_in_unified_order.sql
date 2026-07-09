@@ -306,22 +306,22 @@ BEGIN
       'last_visit', (
         SELECT jsonb_build_object(
           'id', v.id,
-          'started_at', v.started_at,
-          'completed_at', v.completed_at,
-          'status', v.status,
-          'start_latitude', v.start_latitude,
-          'start_longitude', v.start_longitude,
+          'started_at', v.check_in_at,
+          'completed_at', v.check_out_at,
+          'status', COALESCE(v.status, ''),
+          'start_latitude', v.check_in_latitude,
+          'start_longitude', v.check_in_longitude,
           'employee_name', emp.full_name,
-          'maps_url', 'https://www.google.com/maps?q=' || v.start_latitude || ',' || v.start_longitude
+          'maps_url', COALESCE(v.google_maps_link, '')
         )
         FROM public.visits v
-        LEFT JOIN public.employees emp ON emp.id = v.assigned_to
+        LEFT JOIN public.employees emp ON emp.id = v.employee_id
         WHERE v.customer_id = v_customer_id
-          AND v.started_at IS NOT NULL
-          AND v.start_latitude IS NOT NULL
-          AND v.start_longitude IS NOT NULL
-          AND v.status != 'cancelled'
-        ORDER BY v.started_at DESC
+          AND v.check_in_at IS NOT NULL
+          AND v.check_in_latitude IS NOT NULL
+          AND v.check_in_longitude IS NOT NULL
+          AND (v.status IS NULL OR v.status != 'cancelled')
+        ORDER BY v.check_in_at DESC
         LIMIT 1
       )
     )

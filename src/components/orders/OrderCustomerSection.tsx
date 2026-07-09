@@ -145,8 +145,10 @@ export function OrderCustomerSection({ customer, order, lastVisit }: OrderCustom
         <p className="text-xs text-text-secondary mt-1 leading-relaxed">{fullAddress}</p>
       )}
 
-      {hasAddressCoords && customerMapsUrl && (
+      {hasAddressCoords && customerMapsUrl ? (
         <LocationActionButtons url={customerMapsUrl} lat={customer!.address_latitude!} lng={customer!.address_longitude!} />
+      ) : (
+        <p className="text-xs text-text-secondary mt-1">📍 لم يتم رصد موقع للعميل.</p>
       )}
 
       {(customer?.previous_order_count != null && customer.previous_order_count > 0) ? (
@@ -195,7 +197,7 @@ export function OrderCustomerSection({ customer, order, lastVisit }: OrderCustom
         </div>
       )}
 
-      {lastVisit && (
+      {lastVisit && lastVisit.start_latitude != null && lastVisit.start_longitude != null ? (
         <div className="mt-2 pt-2 border-t border-border">
           <p className="text-[10px] font-bold text-text-secondary uppercase mb-2">آخر زيارة للعميل</p>
           <div className="space-y-1 text-[11px]">
@@ -220,7 +222,12 @@ export function OrderCustomerSection({ customer, order, lastVisit }: OrderCustom
           </div>
           <LocationActionButtons url={lastVisit.maps_url} lat={lastVisit.start_latitude} lng={lastVisit.start_longitude} />
         </div>
-      )}
+      ) : lastVisit ? (
+        <div className="mt-2 pt-2 border-t border-border">
+          <p className="text-[10px] font-bold text-text-secondary uppercase mb-2">آخر زيارة للعميل</p>
+          <p className="text-xs text-text-secondary">🚫 لم تتم أي زيارة لهذا العميل حتى الآن.</p>
+        </div>
+      ) : null}
 
       <div className="mt-2 pt-2 border-t border-border">
         <p className="text-[10px] font-bold text-text-secondary uppercase mb-1">التابع لـ:</p>
