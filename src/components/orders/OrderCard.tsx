@@ -61,7 +61,10 @@ export function OrderCard({ order, onClick }: OrderCardProps) {
   const dt = order.created_at ? new Date(order.created_at) : null
   const dateStr = dt ? formatDate(dt) : ''
   const timeStr = dt ? dt.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }) : ''
-  const accent = cardAccent[order.status] || 'border-r-gray-300'
+  const isSubmitted = order.status === 'submitted'
+  const accent = isSubmitted
+    ? 'border-r-blue-400 shadow-[0_0_0_1px_rgba(59,130,246,0.08)] bg-[rgba(59,130,246,0.015)]'
+    : (cardAccent[order.status] || 'border-r-gray-300')
 
   const actLvl = order.customer_activity_level
   const actStyle = actLvl ? activityLevelStyle[actLvl] : null
