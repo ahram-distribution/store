@@ -119,10 +119,22 @@ export function CustomersPage() {
         onFilterChange={setFilters}
       />
 
-      {/* Results count */}
-      {!loading && (
-        <div className="text-[11px] text-text-muted font-medium">
-          إجمالي العملاء المعروضين: <span className="text-text font-semibold">{customers.length}</span> عميل
+      {/* Stats bar */}
+      {!loading && customers.length > 0 && (
+        <div className="flex items-center flex-wrap gap-x-3 gap-y-1 text-[11px] bg-white rounded-lg border border-border p-2.5">
+          <span className="text-text font-semibold whitespace-nowrap">👥 <span className="text-text-muted font-medium">المعروض:</span> {customers.length} عميل</span>
+          <span className="text-border">|</span>
+          <span className="text-text font-semibold" dir="ltr">{customers.filter(c => (c.previous_order_count ?? 0) > 0).length}</span>
+          <span className="text-text-muted whitespace-nowrap">📦 لديهم طلبات</span>
+          <span className="text-border">|</span>
+          <span className="text-text font-semibold" dir="ltr">{customers.filter(c => !c.previous_order_count || c.previous_order_count === 0).length}</span>
+          <span className="text-text-muted whitespace-nowrap">🚫 بدون طلبات</span>
+          <span className="text-border">|</span>
+          <span className="text-text font-semibold" dir="ltr">{customers.filter(c => !c.location_id).length}</span>
+          <span className="text-text-muted whitespace-nowrap">📍 بدون لوكيشن</span>
+          <span className="text-border">|</span>
+          <span className="text-text font-semibold" dir="ltr">{customers.filter(c => !c.visit_count || c.visit_count === 0).length}</span>
+          <span className="text-text-muted whitespace-nowrap">🚗 بدون زيارات</span>
         </div>
       )}
 
