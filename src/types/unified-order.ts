@@ -99,6 +99,9 @@ export interface UnifiedCustomerSummary {
   governorate: string | null
   address_latitude: number | null
   address_longitude: number | null
+  order_count: number | null
+  lifetime_total: number | null
+  last_order_date: string | null
 }
 
 export interface UnifiedOrderItem {
@@ -212,6 +215,11 @@ export interface UnifiedOrderListItem {
   customer_name: string
   customer_code: string | null
   customer_phone: string | null
+  customer_area: string | null
+  customer_address: string | null
+  customer_order_count: number | null
+  customer_lifetime_total: number | null
+  customer_last_order_date: string | null
   owner_name: string | null
   created_by: string | null
   created_by_name: string | null

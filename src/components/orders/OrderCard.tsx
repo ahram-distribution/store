@@ -23,6 +23,9 @@ interface OrderCardProps {
     governorate?: string
     customer_area?: string
     customer_address?: string
+    customer_order_count?: number | null
+    customer_lifetime_total?: number | null
+    customer_last_order_date?: string | null
     collection_badge?: { label: string; className: string }
   }
   onClick?: () => void
@@ -95,6 +98,27 @@ export function OrderCard({ order, onClick }: OrderCardProps) {
           <span className="text-text-muted">الدور: </span>
           <span>{order.customer_owner_role}</span>
         </p>
+      )}
+
+      {order.customer_order_count != null && (
+        <div className="flex items-center gap-2 mt-1 flex-wrap">
+          <span className="text-[10px] text-text-secondary">
+            <span className="text-text-muted">عدد الطلبات: </span>
+            <span className="font-medium">{order.customer_order_count}</span>
+          </span>
+          {order.customer_lifetime_total != null && (
+            <span className="text-[10px] text-text-secondary">
+              <span className="text-text-muted">المشتريات: </span>
+              <span className="font-medium">{formatCurrencyShort(Number(order.customer_lifetime_total))}</span>
+            </span>
+          )}
+          {order.customer_last_order_date && (
+            <span className="text-[10px] text-text-secondary">
+              <span className="text-text-muted">آخر طلب: </span>
+              <span className="font-medium">{formatDate(new Date(order.customer_last_order_date))}</span>
+            </span>
+          )}
+        </div>
       )}
 
       <div className="flex-1" />

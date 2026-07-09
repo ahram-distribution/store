@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { MapButton } from '../shared/MapButton'
 import { getFullAddress } from './order-detail.utils'
+import { formatCurrencyShort, formatDate } from '../../utils/format'
 import type { UnifiedCustomerSummary, UnifiedOrderHeader } from '../../types/unified-order'
 
 interface OrderCustomerSectionProps {
@@ -59,6 +60,33 @@ export function OrderCustomerSection({ customer, order }: OrderCustomerSectionPr
           <MapButton latitude={customer!.address_latitude!} longitude={customer!.address_longitude!} size="sm" showCopyLink />
         </div>
       )}
+
+      {(customer?.order_count != null || customer?.lifetime_total != null || customer?.last_order_date != null) && (
+        <div className="mt-2 pt-2 border-t border-border">
+          <p className="text-[10px] font-bold text-text-secondary uppercase mb-1.5">سجل العميل</p>
+          <div className="flex flex-wrap gap-x-4 gap-y-1">
+            {customer?.order_count != null && (
+              <p className="text-xs text-text-secondary">
+                <span className="text-text-muted">عدد الطلبات: </span>
+                <span className="font-medium">{customer.order_count}</span>
+              </p>
+            )}
+            {customer?.lifetime_total != null && (
+              <p className="text-xs text-text-secondary">
+                <span className="text-text-muted">إجمالي المشتريات: </span>
+                <span className="font-medium">{formatCurrencyShort(Number(customer.lifetime_total))}</span>
+              </p>
+            )}
+            {customer?.last_order_date && (
+              <p className="text-xs text-text-secondary">
+                <span className="text-text-muted">آخر طلب: </span>
+                <span className="font-medium">{formatDate(new Date(customer.last_order_date))}</span>
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
       <div className="mt-2 pt-2 border-t border-border">
         <p className="text-[10px] font-bold text-text-secondary uppercase mb-1">التابع لـ:</p>
         <p className="text-sm font-medium text-text cursor-pointer hover:opacity-70 transition-opacity" onClick={() => order.customer_owner_id && navigate(`/employees/${order.customer_owner_id}`)}>
