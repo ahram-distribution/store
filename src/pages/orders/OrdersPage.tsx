@@ -8,7 +8,8 @@ import { ResultsSummary } from '../../components/data-list/ResultsSummary'
 import { ActiveFilters } from '../../components/data-list/ActiveFilters'
 import { CardGrid } from '../../components/data-list/CardGrid'
 import { EmptyState } from '../../components/data-list/EmptyState'
-import type { ActiveFilterItem } from '../../types/data-list'
+import { StatusKpiBar } from '../../components/data-list/StatusKpiBar'
+import type { ActiveFilterItem, KpiChipConfig } from '../../types/data-list'
 
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
@@ -42,6 +43,22 @@ const STATUS_OPTIONS = [
   { value: 'cancelled', label: 'ملغي' },
   { value: 'delivered', label: 'تم التسليم' },
 ]
+
+const STATUS_KPI_GROUPS: Record<string, { dot: string; chip: string; active: string }> = {
+  draft: { dot: 'bg-gray-400', chip: 'bg-gray-50 border-gray-200 text-gray-600', active: 'bg-gray-100 border-gray-400 text-gray-800 ring-1 ring-gray-300' },
+  submitted: { dot: 'bg-blue-400', chip: 'bg-blue-50 border-blue-200 text-blue-700', active: 'bg-blue-100 border-blue-400 text-blue-800 ring-1 ring-blue-300' },
+  reviewing: { dot: 'bg-blue-500', chip: 'bg-blue-50 border-blue-200 text-blue-700', active: 'bg-blue-100 border-blue-400 text-blue-800 ring-1 ring-blue-300' },
+  returned_for_revision: { dot: 'bg-blue-300', chip: 'bg-blue-50 border-blue-200 text-blue-600', active: 'bg-blue-100 border-blue-400 text-blue-800 ring-1 ring-blue-300' },
+  approved: { dot: 'bg-emerald-400', chip: 'bg-emerald-50 border-emerald-200 text-emerald-700', active: 'bg-emerald-100 border-emerald-400 text-emerald-800 ring-1 ring-emerald-300' },
+  preparing: { dot: 'bg-emerald-500', chip: 'bg-emerald-50 border-emerald-200 text-emerald-700', active: 'bg-emerald-100 border-emerald-400 text-emerald-800 ring-1 ring-emerald-300' },
+  prepared: { dot: 'bg-emerald-500', chip: 'bg-emerald-50 border-emerald-200 text-emerald-700', active: 'bg-emerald-100 border-emerald-400 text-emerald-800 ring-1 ring-emerald-300' },
+  ready_for_dispatch: { dot: 'bg-emerald-400', chip: 'bg-emerald-50 border-emerald-200 text-emerald-700', active: 'bg-emerald-100 border-emerald-400 text-emerald-800 ring-1 ring-emerald-300' },
+  sent_to_delivery: { dot: 'bg-emerald-500', chip: 'bg-emerald-50 border-emerald-200 text-emerald-700', active: 'bg-emerald-100 border-emerald-400 text-emerald-800 ring-1 ring-emerald-300' },
+  dispatched: { dot: 'bg-emerald-600', chip: 'bg-emerald-50 border-emerald-200 text-emerald-700', active: 'bg-emerald-100 border-emerald-400 text-emerald-800 ring-1 ring-emerald-300' },
+  deferred: { dot: 'bg-gray-400', chip: 'bg-gray-50 border-gray-200 text-gray-600', active: 'bg-gray-100 border-gray-400 text-gray-800 ring-1 ring-gray-300' },
+  cancelled: { dot: 'bg-red-400', chip: 'bg-red-50 border-red-200 text-red-700', active: 'bg-red-100 border-red-400 text-red-800 ring-1 ring-red-300' },
+  delivered: { dot: 'bg-emerald-600', chip: 'bg-emerald-50 border-emerald-200 text-emerald-700', active: 'bg-emerald-100 border-emerald-400 text-emerald-800 ring-1 ring-emerald-300' },
+}
 
 export function OrdersPage() {
   const navigate = useNavigate()
@@ -132,6 +149,10 @@ export function OrdersPage() {
     fetchOrders()
   }, [])
 
+  const handleStatusToggle = useCallback((status: string) => {
+    setStatusFilter((prev) => (prev === status ? '' : status))
+  }, [])
+
   const activeFilterItems: ActiveFilterItem[] = useMemo(() => {
     const items: ActiveFilterItem[] = []
 
@@ -155,7 +176,7 @@ export function OrdersPage() {
 
     if (statusFilter) {
       const label = STATUS_OPTIONS.find((o) => o.value === statusFilter)?.label || statusFilter
-      items.push({ id: 'status', label: 'الحالة', value: label })
+      items.push({ id: 'status', label: 'الحالة', value: label, onRemove: () => setStatusFilter('') })
     }
 
     if (customerFilter) {
@@ -175,6 +196,27 @@ export function OrdersPage() {
     return counts
   }, [sorted])
 
+  const kpiChips: KpiChipConfig[] = useMemo(() => {
+    return Object.entries(statusCounts)
+      .filter(([, count]) => count > 0)
+      .sort(([a], [b]) => {
+        const order = ['draft', 'submitted', 'reviewing', 'returned_for_revision', 'approved', 'preparing', 'prepared', 'ready_for_dispatch', 'sent_to_delivery', 'dispatched', 'delivered', 'deferred', 'cancelled']
+        return order.indexOf(a) - order.indexOf(b)
+      })
+      .map(([status, count]) => {
+        const label = STATUS_OPTIONS.find((o) => o.value === status)?.label || status
+        const group = STATUS_KPI_GROUPS[status] || STATUS_KPI_GROUPS.draft
+        return {
+          id: status,
+          label,
+          count,
+          dotClass: group.dot,
+          chipClass: group.chip,
+          activeChipClass: group.active,
+        }
+      })
+  }, [statusCounts])
+
   const dateRangeStr = filters.datePreset === 'custom'
     ? (filters.dateFrom || '...') + ' → ' + (filters.dateTo || '...')
     : (filters.datePreset !== 'all' ? datePresetLabels[filters.datePreset] : undefined)
@@ -189,9 +231,9 @@ export function OrdersPage() {
 
       {currentEmpId && (
         <div className="flex gap-1 bg-white rounded-lg border border-border p-1">
-          <button onClick={() => setTab('all')} className={`flex-1 text-xs py-1.5 rounded-md font-semibold transition-colors ${tab === 'all' ? 'bg-primary text-white' : 'text-text-secondary'}`}>الكل</button>
-          <button onClick={() => setTab('my_orders')} className={`flex-1 text-xs py-1.5 rounded-md font-semibold transition-colors ${tab === 'my_orders' ? 'bg-primary text-white' : 'text-text-secondary'}`}>طلباتي</button>
-          <button onClick={() => setTab('my_invoices')} className={`flex-1 text-xs py-1.5 rounded-md font-semibold transition-colors ${tab === 'my_invoices' ? 'bg-primary text-white' : 'text-text-secondary'}`}>فواتيري</button>
+          <button onClick={() => setTab('all')} className={'flex-1 text-xs py-1.5 rounded-md font-semibold transition-colors ' + (tab === 'all' ? 'bg-primary text-white' : 'text-text-secondary')}>الكل</button>
+          <button onClick={() => setTab('my_orders')} className={'flex-1 text-xs py-1.5 rounded-md font-semibold transition-colors ' + (tab === 'my_orders' ? 'bg-primary text-white' : 'text-text-secondary')}>طلباتي</button>
+          <button onClick={() => setTab('my_invoices')} className={'flex-1 text-xs py-1.5 rounded-md font-semibold transition-colors ' + (tab === 'my_invoices' ? 'bg-primary text-white' : 'text-text-secondary')}>فواتيري</button>
         </div>
       )}
 
@@ -202,17 +244,10 @@ export function OrdersPage() {
         onFilterChange={setFilters}
       />
 
-      <div className="flex gap-2">
-        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
-          className="flex-1 border border-border rounded-lg px-2 py-1.5 text-xs bg-white">
-          {STATUS_OPTIONS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-        </select>
-        <select value={customerFilter} onChange={(e) => setCustomerFilter(e.target.value)}
-          className="flex-1 border border-border rounded-lg px-2 py-1.5 text-xs bg-white">
-          <option value="">كل العملاء</option>
-          {customers.map((c: any) => <option key={c.id} value={c.id}>{c.company_name}</option>)}
-        </select>
-      </div>
+      <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
+        className="w-full border border-border rounded-lg px-2 py-1.5 text-xs bg-white">
+        {STATUS_OPTIONS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+      </select>
 
       <ResultsSummary
         total={sorted.length}
@@ -226,17 +261,8 @@ export function OrdersPage() {
 
       <ActiveFilters filters={activeFilterItems} />
 
-      {Object.keys(statusCounts).length > 1 && !loading && sorted.length > 0 && (
-        <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-          {Object.entries(statusCounts).map(([status, count]) => {
-            const label = STATUS_OPTIONS.find((o) => o.value === status)?.label || status
-            return (
-              <span key={status} className="shrink-0 bg-surface border border-border/50 rounded-lg px-2 py-1 text-[10px] text-text-secondary font-medium whitespace-nowrap">
-                {label}: {count}
-              </span>
-            )
-          })}
-        </div>
+      {!loading && kpiChips.length > 0 && (
+        <StatusKpiBar chips={kpiChips} selectedId={statusFilter} onToggle={handleStatusToggle} />
       )}
 
       {loading ? (

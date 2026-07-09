@@ -69,3 +69,19 @@ export interface EmptyStateProps {
   message?: string
   onReset?: () => void
 }
+
+export interface KpiChipConfig {
+  id: string
+  label: string
+  count: number
+  dotClass: string
+  chipClass: string
+  activeChipClass: string
+}
+
+export interface StatusKpiBarProps {
+  chips: KpiChipConfig[]
+  selectedId?: string
+  onToggle: (id: string) => void
+  className?: string
+}
