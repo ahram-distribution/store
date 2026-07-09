@@ -1,94 +1,43 @@
-import { useMemo } from 'react'
-import { formatCurrencyShort, formatDate } from '../../utils/format'
-import type { UnifiedCollectionSummary } from '../../types/unified-order'
+import { formatCurrencyShort, formatDateTime } from '../../utils/format'
+import type { UnifiedOrderCollection } from '../../types/unified-order'
 
 interface OrderCollectionsSectionProps {
-  collections: UnifiedCollectionSummary[]
-  grandTotal: number
+  collections: UnifiedOrderCollection[]
 }
 
-export function OrderCollectionsSection({ collections, grandTotal }: OrderCollectionsSectionProps) {
-  const collectedAmount = useMemo(() => {
-    if (!collections?.length) return 0
-    return collections
-      .filter(c => c.status !== 'pending' && c.amount != null)
-      .reduce((s, c) => s + Number(c.amount), 0)
-  }, [collections])
+export function OrderCollectionsSection({ collections }: OrderCollectionsSectionProps) {
+  if (!collections || collections.length === 0) return null
 
-  const collectionPercentage = grandTotal > 0 ? Math.min(Math.round((collectedAmount / grandTotal) * 100), 100) : 0
-
-  const lastCollection = useMemo(() => {
-    if (!collections?.length) return null
-    const completed = collections.filter(c => c.status !== 'pending' && c.collected_at)
-    if (!completed.length) return null
-    completed.sort((a, b) => new Date(b.collected_at!).getTime() - new Date(a.collected_at!).getTime())
-    return completed[0]
-  }, [collections])
+  const totalCollected = collections.reduce((s, c) => s + Number(c.amount || 0), 0)
 
   return (
-    <div className="bg-white rounded-xl border border-border overflow-hidden">
-      <div className="px-3 py-2 border-b border-border bg-surface/50">
-        <h3 className="text-xs font-semibold text-text">التحصيلات</h3>
+    <div className="bg-white rounded-lg border border-[#E5E7EB] shadow-sm p-5">
+      <p className="text-[14px] font-bold text-[#111827] mb-3">التحصيلات</p>
+      <div className="overflow-x-auto">
+        <table className="w-full text-[12px]">
+          <thead>
+            <tr className="border-b border-[#E5E7EB] text-[#9CA3AF] text-[11px]">
+              <th className="text-right pb-2 font-medium">التاريخ</th>
+              <th className="text-right pb-2 font-medium">الموظف</th>
+              <th className="text-left pb-2 font-medium">المبلغ</th>
+              <th className="text-left pb-2 font-medium">ملاحظات</th>
+            </tr>
+          </thead>
+          <tbody>
+            {collections.map((c, i) => (
+              <tr key={c.id || i} className="border-b border-[#F3F4F6] last:border-0">
+                <td className="py-2 text-[#111827]">{formatDateTime(c.created_at)}</td>
+                <td className="py-2 text-[#6B7280]">{c.collector_name || 'غير متوفر'}</td>
+                <td className="py-2 text-left font-semibold text-[#111827]">{formatCurrencyShort(Number(c.amount || 0))}</td>
+                <td className="py-2 text-left text-[#6B7280]">{c.notes || '—'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
-      <div className="p-3 space-y-2">
-        <div className="bg-surface/40 rounded-lg border border-border p-3 space-y-1.5">
-          <div className="flex justify-between text-xs">
-            <span className="text-text-secondary">إجمالي الطلب</span>
-            <span className="font-bold text-text">{formatCurrencyShort(grandTotal)}</span>
-          </div>
-          <div className="flex justify-between text-xs">
-            <span className="text-text-secondary text-green-700">تم التحصيل</span>
-            <span className="font-bold text-green-700">{formatCurrencyShort(collectedAmount)}</span>
-          </div>
-          <div className="flex justify-between text-xs">
-            <span className="text-text-secondary">المتبقى</span>
-            <span className="font-bold text-text">{formatCurrencyShort(Math.max(grandTotal - collectedAmount, 0))}</span>
-          </div>
-          <hr className="border-border" />
-          <div className="flex items-center justify-between text-xs">
-            <span className="text-text-secondary">نسبة التحصيل</span>
-            <div className="flex items-center gap-2">
-              <div className="w-24 h-2 bg-gray-200 rounded-full overflow-hidden">
-                <div className="h-full bg-emerald-500 rounded-full transition-all" style={{ width: `${collectionPercentage}%` }} />
-              </div>
-              <span className="font-bold text-text min-w-[3ch] text-left">{collectionPercentage}%</span>
-            </div>
-          </div>
-          {lastCollection && (
-            <>
-              <hr className="border-border" />
-              <div className="flex justify-between text-xs">
-                <span className="text-text-secondary">آخر تحصيل</span>
-                <span className="font-bold text-text">{formatCurrencyShort(Number(lastCollection.amount))}</span>
-              </div>
-              <div className="flex justify-between text-xs">
-                <span className="text-text-secondary">تاريخ آخر تحصيل</span>
-                <span className="font-medium text-text">{lastCollection.collected_at ? formatDate(lastCollection.collected_at) : '—'}</span>
-              </div>
-            </>
-          )}
-        </div>
-
-        <div className="space-y-1">
-          {collections.map((c) => (
-            <div key={c.id} className="flex items-center justify-between py-1.5 border-b border-border last:border-0 text-xs">
-              <div className="flex items-center gap-2">
-                <span className="font-medium text-text">{c.code}</span>
-                <span className="text-text-secondary">{c.method}</span>
-                <span className={`text-[9px] px-1.5 py-0.5 rounded-full ${
-                  c.status === 'approved' || c.status === 'treasury_posted' ? 'bg-emerald-100 text-emerald-700' :
-                  'bg-gray-100 text-gray-500'
-                }`}>
-                  {c.status === 'approved' ? 'معتمد' : c.status === 'treasury_posted' ? 'مرحل للخزينة' : 'معلق'}
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="font-bold text-text">{formatCurrencyShort(Number(c.amount))}</span>
-                {c.collected_at && <span className="text-text-secondary text-[9px]">{formatDate(c.collected_at)}</span>}
-              </div>
-            </div>
-          ))}
-        </div>
+      <div className="border-t border-[#E5E7EB] pt-2 mt-2 flex justify-between items-center">
+        <p className="text-[12px] text-[#6B7280] font-medium">الإجمالي</p>
+        <p className="text-[15px] font-bold text-[#059669]">{formatCurrencyShort(totalCollected)}</p>
       </div>
     </div>
   )

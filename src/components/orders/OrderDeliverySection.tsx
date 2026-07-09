@@ -12,35 +12,35 @@ export function OrderDeliverySection({ current_delivery, delivery_mode, customer
   const hasAddressCoords = customer?.address_latitude != null && customer?.address_longitude != null
 
   return (
-    <div className="bg-white rounded-xl border border-border p-4">
-      <p className="text-[10px] font-bold text-text-secondary uppercase mb-2">التوصيل</p>
+    <div className="bg-white rounded-lg border border-[#E5E7EB] shadow-sm p-5">
+      <p className="text-[14px] font-bold text-[#111827] mb-3">التوصيل</p>
 
       {delivery_mode === 'internal' ? (
-        <div className="space-y-1.5 text-xs">
-          <div className="flex items-center gap-2">
-            <span className="text-text-secondary shrink-0">نوع التوصيل</span>
-            <span className="font-medium text-text">داخلى</span>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-2 text-[13px]">
+          <div>
+            <p className="text-[#9CA3AF] text-[11px] font-medium">نوع التوصيل</p>
+            <p className="font-semibold text-[#111827] mt-0.5">داخلى</p>
           </div>
           {current_delivery && (
             <>
-              <div className="flex items-center gap-2">
-                <span className="text-text-secondary shrink-0">المندوب</span>
-                <span className="font-medium text-text">{current_delivery.assigned_to_name || 'غير محدد'}</span>
+              <div>
+                <p className="text-[#9CA3AF] text-[11px] font-medium">المندوب</p>
+                <p className="font-semibold text-[#111827] mt-0.5">{current_delivery.assigned_to_name || 'غير محدد'}</p>
               </div>
               {current_delivery.assigned_to_phone && (
-                <div className="flex items-center gap-2">
-                  <span className="text-text-secondary shrink-0">الهاتف</span>
-                  <span className="font-medium text-text" dir="ltr">{current_delivery.assigned_to_phone}</span>
+                <div>
+                  <p className="text-[#9CA3AF] text-[11px] font-medium">الهاتف</p>
+                  <p className="font-semibold text-[#111827] mt-0.5 font-mono" dir="ltr">{current_delivery.assigned_to_phone}</p>
                 </div>
               )}
-              <div className="flex items-center gap-2">
-                <span className="text-text-secondary shrink-0">الحالة</span>
-                <span className={`inline-block text-[10px] px-2 py-0.5 rounded-full font-medium ${
-                  current_delivery.status === 'delivered' ? 'bg-emerald-100 text-emerald-700' :
-                  current_delivery.status === 'out_for_delivery' ? 'bg-amber-100 text-amber-700' :
-                  current_delivery.status === 'assigned' ? 'bg-blue-100 text-blue-700' :
-                  current_delivery.status === 'failed' ? 'bg-red-100 text-red-700' :
-                  'bg-gray-100 text-gray-500'
+              <div>
+                <p className="text-[#9CA3AF] text-[11px] font-medium">الحالة</p>
+                <span className={`inline-block text-[11px] px-2 py-0.5 rounded-full font-medium mt-0.5 ${
+                  current_delivery.status === 'delivered' ? 'bg-[#ECFDF5] text-[#059669]' :
+                  current_delivery.status === 'out_for_delivery' ? 'bg-[#FFFBEB] text-[#D97706]' :
+                  current_delivery.status === 'assigned' ? 'bg-[#EFF6FF] text-[#2563EB]' :
+                  current_delivery.status === 'failed' ? 'bg-[#FEF2F2] text-[#DC2626]' :
+                  'bg-[#F3F4F6] text-[#6B7280]'
                 }`}>
                   {current_delivery.status === 'assigned' ? 'تم الإسناد' :
                    current_delivery.status === 'out_for_delivery' ? 'خرج للتوصيل' :
@@ -48,58 +48,62 @@ export function OrderDeliverySection({ current_delivery, delivery_mode, customer
                    current_delivery.status === 'failed' ? 'فشل التوصيل' : current_delivery.status}
                 </span>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-text-secondary shrink-0">آخر تحديث</span>
-                <span className="font-medium text-text">{formatDateTime(current_delivery.updated_at || current_delivery.started_at || current_delivery.assigned_at || '')}</span>
+              <div>
+                <p className="text-[#9CA3AF] text-[11px] font-medium">آخر تحديث</p>
+                <p className="font-semibold text-[#111827] mt-0.5">{formatDateTime(current_delivery.updated_at || current_delivery.started_at || current_delivery.assigned_at || '')}</p>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-text-secondary shrink-0">المحاولة</span>
-                <span className="font-medium text-text">#{current_delivery.attempt_number}</span>
+              <div>
+                <p className="text-[#9CA3AF] text-[11px] font-medium">المحاولة</p>
+                <p className="font-semibold text-[#111827] mt-0.5">#{current_delivery.attempt_number}</p>
               </div>
               {hasAddressCoords && (
-                <div className="mt-2">
+                <div className="mt-1">
                   <MapButton latitude={customer!.address_latitude!} longitude={customer!.address_longitude!} size="sm" />
                 </div>
               )}
             </>
           )}
           {!current_delivery && (
-            <p className="text-xs text-text-secondary">بانتظار إسناد التوصيل</p>
+            <div className="col-span-4">
+              <p className="text-[13px] text-[#6B7280]">بانتظار إسناد التوصيل</p>
+            </div>
           )}
         </div>
       ) : (
-        <div className="space-y-1.5 text-xs">
-          <div className="flex items-center gap-2">
-            <span className="text-text-secondary shrink-0">نوع التوصيل</span>
-            <span className="font-medium text-text">شركة شحن</span>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-2 text-[13px]">
+          <div>
+            <p className="text-[#9CA3AF] text-[11px] font-medium">نوع التوصيل</p>
+            <p className="font-semibold text-[#111827] mt-0.5">شركة شحن</p>
           </div>
           {current_delivery?.external_carrier_name && (
-            <div className="flex items-center gap-2">
-              <span className="text-text-secondary shrink-0">شركة الشحن</span>
-              <span className="font-medium text-text">{current_delivery.external_carrier_name}</span>
+            <div>
+              <p className="text-[#9CA3AF] text-[11px] font-medium">شركة الشحن</p>
+              <p className="font-semibold text-[#111827] mt-0.5">{current_delivery.external_carrier_name}</p>
             </div>
           )}
           {current_delivery?.waybill_number && (
-            <div className="flex items-center gap-2">
-              <span className="text-text-secondary shrink-0">رقم البوليصة</span>
-              <span className="font-medium text-text font-mono" dir="ltr">{current_delivery.waybill_number}</span>
+            <div>
+              <p className="text-[#9CA3AF] text-[11px] font-medium">رقم البوليصة</p>
+              <p className="font-semibold text-[#111827] mt-0.5 font-mono" dir="ltr">{current_delivery.waybill_number}</p>
             </div>
           )}
           {current_delivery?.tracking_url && (
-            <div className="mt-1">
-              <a href={current_delivery.tracking_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[10px] text-blue-600 bg-blue-50 px-2 py-1 rounded-lg hover:bg-blue-100 transition-colors">
-                🔗 تتبع الشحنة
+            <div>
+              <a href={current_delivery.tracking_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[11px] text-[#2563EB] bg-[#EFF6FF] px-2 py-1 rounded-lg hover:bg-[#DBEAFE] transition-colors mt-1">
+                تتبع الشحنة
               </a>
             </div>
           )}
           {current_delivery && (
-            <div className="flex items-center gap-2">
-              <span className="text-text-secondary shrink-0">الحالة</span>
-              <span className="font-medium text-text">{current_delivery.status === 'assigned' ? 'تم الإسناد' : current_delivery.status}</span>
+            <div>
+              <p className="text-[#9CA3AF] text-[11px] font-medium">الحالة</p>
+              <p className="font-semibold text-[#111827] mt-0.5">{current_delivery.status === 'assigned' ? 'تم الإسناد' : current_delivery.status}</p>
             </div>
           )}
           {!current_delivery && (
-            <p className="text-xs text-text-secondary">لم يتم إرسال الطلب للتوصيل بعد</p>
+            <div className="col-span-4">
+              <p className="text-[13px] text-[#6B7280]">لم يتم إرسال الطلب للتوصيل بعد</p>
+            </div>
           )}
         </div>
       )}

@@ -17,50 +17,56 @@ export function OrderExecutiveStatusPanel({
   currentOwner,
 }: OrderExecutiveStatusPanelProps) {
   return (
-    <div className="bg-white rounded-xl border border-border overflow-hidden">
-      <div className="grid grid-cols-3 divide-x divide-border">
-        <div className="p-3 text-center">
-          <p className="text-[9px] text-text-secondary font-bold uppercase mb-1">الطلب</p>
+    <div className="bg-white rounded-lg border border-[#E5E7EB] shadow-sm overflow-hidden">
+      <div className="grid grid-cols-3 gap-0">
+        <div className="p-4 text-center border-l border-[#E5E7EB]">
+          <p className="text-xs font-medium mb-1.5" style={{color:'#9CA3AF'}}>الطلب</p>
           <StatusBadge status={order.status} size="sm" />
         </div>
-        <div className="p-3 text-center">
-          <p className="text-[9px] text-text-secondary font-bold uppercase mb-1">التوصيل</p>
+        <div className="p-4 text-center border-l border-[#E5E7EB]">
+          <p className="text-xs font-medium mb-1.5" style={{color:'#9CA3AF'}}>التوصيل</p>
           {current_delivery ? (
-            <span className="inline-block text-[10px] px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 font-medium">
+            <span className={`inline-block px-3 py-1 rounded-full font-semibold ${
+              current_delivery.status === 'delivered' ? 'bg-[#ECFDF5] text-[#059669]' :
+              current_delivery.status === 'out_for_delivery' ? 'bg-[#FFFBEB] text-[#D97706]' :
+              current_delivery.status === 'assigned' ? 'bg-[#EFF6FF] text-[#2563EB]' :
+              current_delivery.status === 'failed' ? 'bg-[#FEF2F2] text-[#DC2626]' :
+              'bg-[#F3F4F6] text-gray-500'
+            }`}>
               {current_delivery.status === 'assigned' ? 'تم الإسناد' :
                current_delivery.status === 'out_for_delivery' ? 'خرج للتوصيل' :
                current_delivery.status === 'delivered' ? 'تم التسليم' :
                current_delivery.status === 'failed' ? 'فشل التوصيل' : current_delivery.status}
             </span>
           ) : (
-            <span className="inline-block text-[10px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 font-medium">
-              بانتصار التوصيل
+            <span className="inline-block px-3 py-1 rounded-full bg-[#F3F4F6] font-medium" style={{color:'#6B7280'}}>
+              بانتظار التوصيل
             </span>
           )}
         </div>
-        <div className="p-3 text-center">
-          <p className="text-[9px] text-text-secondary font-bold uppercase mb-1">التحصيل</p>
-          <span className={`inline-block text-[10px] px-2 py-0.5 rounded-full font-medium ${
-            collectionStatus === 'محصل بالكامل' ? 'bg-emerald-100 text-emerald-700' :
-            collectionStatus === 'محصل جزئى' ? 'bg-amber-100 text-amber-700' :
-            'bg-gray-100 text-gray-500'
+        <div className="p-4 text-center">
+          <p className="text-xs font-medium mb-1.5" style={{color:'#9CA3AF'}}>التحصيل</p>
+          <span className={`inline-block px-3 py-1 rounded-full font-semibold ${
+            collectionStatus === 'محصل بالكامل' ? 'bg-[#ECFDF5] text-[#059669]' :
+            collectionStatus === 'محصل جزئى' ? 'bg-[#FFFBEB] text-[#D97706]' :
+            'bg-[#F3F4F6] text-gray-500'
           }`}>
             {collectionStatus}
           </span>
         </div>
       </div>
-      <div className="border-t border-border px-3 py-2 bg-surface/30 text-[10px] space-y-1">
+      <div className="border-t border-[#E5E7EB] px-5 py-3 bg-[#F9FAFB] grid grid-cols-3 gap-4" style={{fontSize:'12px'}}>
         <div className="flex items-center justify-between">
-          <span className="text-text-secondary">نوع التوصيل</span>
-          <span className="font-medium text-text">{order.delivery_mode === 'internal' ? 'داخلى' : 'شركة شحن'}</span>
+          <span style={{color:'#9CA3AF'}}>نوع التوصيل</span>
+          <span className="font-semibold" style={{color:'#111827'}}>{order.delivery_mode === 'internal' ? 'داخلى' : 'شركة شحن'}</span>
         </div>
         <div className="flex items-center justify-between">
-          <span className="text-text-secondary">عدد محاولات التوصيل</span>
-          <span className="font-medium text-text">{deliveryAttempts}</span>
+          <span style={{color:'#9CA3AF'}}>محاولات التوصيل</span>
+          <span className="font-semibold" style={{color:'#111827'}}>{deliveryAttempts}</span>
         </div>
         <div className="flex items-center justify-between">
-          <span className="text-text-secondary">المسؤول الحالى</span>
-          <span className="font-medium text-text">{currentOwner}</span>
+          <span style={{color:'#9CA3AF'}}>المسؤول الحالى</span>
+          <span className="font-semibold" style={{color:'#111827'}}>{currentOwner}</span>
         </div>
       </div>
     </div>

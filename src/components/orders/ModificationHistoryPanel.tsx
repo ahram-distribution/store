@@ -38,56 +38,56 @@ export function ModificationHistoryPanel({ entries, revisionNumber, lastRevisedA
   const totalEditCount = snapshotEntries.length
 
   return (
-    <div className="bg-white rounded-xl border border-border overflow-hidden">
-      <button onClick={() => setExpanded(!expanded)} className="w-full flex items-center justify-between px-4 py-3 hover:bg-surface/50 transition-colors">
+    <div className="bg-white rounded-lg border border-[#E5E7EB] shadow-sm overflow-hidden">
+      <button onClick={() => setExpanded(!expanded)} className="w-full flex items-center justify-between px-5 py-3 hover:bg-[#F9FAFB] transition-colors">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-bold text-text">سجل التعديلات</span>
-          <span className="text-[10px] bg-accent/10 text-accent px-2 py-0.5 rounded-full">
+          <span className="text-[14px] font-bold text-[#111827]">سجل التعديلات</span>
+          <span className="text-[10px] bg-[#F3F4F6] text-[#6B7280] px-2 py-0.5 rounded-full font-medium">
             {totalEditCount} تعديل{totalEditCount !== 1 ? 'ات' : ''}
           </span>
         </div>
-        <svg className={`w-4 h-4 text-text-secondary transition-transform ${expanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg className={`w-4 h-4 text-[#9CA3AF] transition-transform ${expanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
         </svg>
       </button>
 
       {expanded && (
-        <div className="px-4 pb-4 space-y-3 border-t border-border pt-3">
+        <div className="px-5 pb-5 space-y-3 border-t border-[#E5E7EB] pt-4">
           {snapshotEntries.map(entry => {
             const oldSnap = tryParseJSON(entry.old_value)
             const newSnap = tryParseJSON(entry.new_value)
             const changedFields = findChangedFields(oldSnap, newSnap)
 
             return (
-              <div key={entry.id} className="bg-amber-50/50 rounded-lg p-3 space-y-2">
+              <div key={entry.id} className="bg-[#FFFBEB]/50 rounded-lg p-4 space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-amber-800">
+                  <span className="text-[13px] font-bold text-[#92400E]">
                     Revision #{entry.revision_number}
                   </span>
-                  <span className="text-[10px] text-text-secondary">{formatDateTime(entry.modified_at)}</span>
+                  <span className="text-[11px] text-[#6B7280]">{formatDateTime(entry.modified_at)}</span>
                 </div>
                 {entry.reason && (
-                  <p className="text-[11px] text-text-secondary bg-white/60 rounded px-2 py-1">
-                    <span className="font-medium text-text">السبب: </span>{entry.reason}
+                  <p className="text-[12px] text-[#6B7280] bg-white/60 rounded px-3 py-1.5">
+                    <span className="font-medium text-[#111827]">السبب: </span>{entry.reason}
                   </p>
                 )}
                 {changedFields.length > 0 && (
-                  <div className="space-y-1">
-                    <span className="text-[10px] text-text-secondary font-medium">التغييرات:</span>
+                  <div className="space-y-1.5">
+                    <span className="text-[11px] text-[#9CA3AF] font-medium">التغييرات:</span>
                     {changedFields.map(f => (
-                      <div key={f.key} className="text-[11px] bg-white rounded px-2 py-1 flex items-start gap-2">
-                        <span className="shrink-0 font-medium text-text min-w-[60px]">{FIELD_LABELS[f.key] || f.key}:</span>
+                      <div key={f.key} className="text-[12px] bg-white rounded px-3 py-1.5 flex items-start gap-2">
+                        <span className="shrink-0 font-semibold text-[#111827] min-w-[70px]">{FIELD_LABELS[f.key] || f.key}:</span>
                         <div className="flex flex-wrap items-center gap-1">
                           {f.old !== undefined && (
-                            <span className="line-through text-danger/70">{String(f.old).substring(0, 60)}</span>
+                            <span className="line-through text-[#DC2626]/70">{String(f.old).substring(0, 60)}</span>
                           )}
                           {f.old !== undefined && f.new !== undefined && (
-                            <svg className="w-3 h-3 text-text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg className="w-3 h-3 text-[#6B7280]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
                             </svg>
                           )}
                           {f.new !== undefined && (
-                            <span className="text-success">{String(f.new).substring(0, 60)}</span>
+                            <span className="text-[#059669]">{String(f.new).substring(0, 60)}</span>
                           )}
                         </div>
                       </div>
@@ -95,9 +95,9 @@ export function ModificationHistoryPanel({ entries, revisionNumber, lastRevisedA
                   </div>
                 )}
                 {hasItemsDiff(entry) && (
-                  <div className="text-[11px] bg-white rounded px-2 py-1">
-                    <span className="font-medium text-text">المنتجات: </span>
-                    <span className="text-text-secondary">تم تعديل المنتجات والكميات</span>
+                  <div className="text-[12px] bg-white rounded px-3 py-1.5">
+                    <span className="font-semibold text-[#111827]">المنتجات: </span>
+                    <span className="text-[#6B7280]">تم تعديل المنتجات والكميات</span>
                   </div>
                 )}
               </div>
@@ -105,19 +105,19 @@ export function ModificationHistoryPanel({ entries, revisionNumber, lastRevisedA
           })}
 
           {fieldChangeEntries.length > 0 && (
-            <div className="space-y-1">
-              <span className="text-[10px] text-text-secondary font-medium">تغييرات الحقول المفردة:</span>
+            <div className="space-y-1.5">
+              <span className="text-[11px] text-[#9CA3AF] font-medium">تغييرات الحقول المفردة:</span>
               {fieldChangeEntries.map(entry => (
-                <div key={entry.id} className="text-[11px] bg-surface rounded px-2 py-1 flex items-start gap-2">
-                  <span className="shrink-0 font-medium text-text min-w-[60px]">{FIELD_LABELS[entry.field_name] || entry.field_name}</span>
+                <div key={entry.id} className="text-[12px] bg-[#F9FAFB] rounded px-3 py-1.5 flex items-start gap-2">
+                  <span className="shrink-0 font-semibold text-[#111827] min-w-[70px]">{FIELD_LABELS[entry.field_name] || entry.field_name}</span>
                   <div className="flex flex-wrap items-center gap-1">
-                    {entry.old_value && <span className="line-through text-danger/70">{entry.old_value.substring(0, 60)}</span>}
+                    {entry.old_value && <span className="line-through text-[#DC2626]/70">{entry.old_value.substring(0, 60)}</span>}
                     {entry.old_value && entry.new_value && (
-                      <svg className="w-3 h-3 text-text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-3 h-3 text-[#6B7280]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
                       </svg>
                     )}
-                    {entry.new_value && <span className="text-success">{entry.new_value.substring(0, 60)}</span>}
+                    {entry.new_value && <span className="text-[#059669]">{entry.new_value.substring(0, 60)}</span>}
                   </div>
                 </div>
               ))}
@@ -125,7 +125,7 @@ export function ModificationHistoryPanel({ entries, revisionNumber, lastRevisedA
           )}
 
           {revisionNumber > 0 && (
-            <div className="text-[10px] text-text-secondary pt-1 border-t border-border">
+            <div className="text-[11px] text-[#6B7280] pt-2 border-t border-[#E5E7EB]">
               إجمالي التعديلات: {totalEditCount}
               {lastRevisedAt && ` • آخر إعادة إرسال: ${formatDateTime(lastRevisedAt)}`}
             </div>

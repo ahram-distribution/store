@@ -31,89 +31,84 @@ export function OrderProductsSection({ items, order }: OrderProductsSectionProps
   }, [items])
 
   return (
-    <div className="bg-white rounded-xl border border-border overflow-hidden">
-      <div className="px-3 py-2 border-b border-border bg-surface/50 flex items-center justify-between">
-        <h3 className="text-xs font-semibold text-text">المنتجات</h3>
-        {order.notes && (
-          <span className="text-[9px] text-amber-600 bg-amber-50 px-2 py-0.5 rounded">ملاحظات</span>
-        )}
-      </div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-[11px]">
-          <thead>
-            <tr className="border-b border-border bg-surface/50 text-text-secondary">
-              <th className="px-2 py-1.5 text-right w-10"></th>
-              <th className="px-2 py-1.5 text-right">الصنف</th>
-              <th className="px-2 py-1.5 text-center">الوحدة</th>
-              <th className="px-2 py-1.5 text-center">الكمية</th>
-              <th className="px-2 py-1.5 text-left">السعر</th>
-              <th className="px-2 py-1.5 text-left">الإجمالي</th>
-            </tr>
-          </thead>
-          <tbody>
-            {groups.map((group) => (
-              <Fragment key={group.company}>
-                <tr className="bg-primary/5 border-b border-primary/20">
-                  <td colSpan={6} className="px-2 py-1.5 text-xs font-bold text-primary-dark">{group.company} ({group.items.length})</td>
-                </tr>
-                {group.items.map((item, idx) => {
-                  const qty = Number(item.unit_quantity || 1)
-                  const price = Number(item.unit_price || 0)
-                  const lineTotal = qty * price
-                  return (
-                    <tr key={item.id || idx} className="border-b border-border last:border-0">
-                      <td className="px-1 py-1.5">
-                        {item.image_url ? (
-                          <img src={item.image_url} alt="" className="w-7 h-7 rounded object-contain bg-surface" />
-                        ) : (
-                          <div className="w-7 h-7 rounded bg-surface flex items-center justify-center text-text-secondary text-[8px]">—</div>
-                        )}
-                      </td>
-                      <td className="px-2 py-1.5">
-                        <p className="text-text font-medium">{item.product_name || 'غير متوفر'}</p>
-                        {item.legacy_code && <p className="text-[9px] text-text-secondary font-mono" dir="ltr">{item.legacy_code}</p>}
-                      </td>
-                      <td className="px-2 py-1.5 text-center text-text-secondary">{UNIT_LABELS[item.unit_type] || item.unit_type}</td>
-                      <td className="px-2 py-1.5 text-center text-text">{qty}</td>
-                      <td className="px-2 py-1.5 text-left text-text">{formatCurrencyShort(price)}</td>
-                      <td className="px-2 py-1.5 text-left text-text font-semibold">{formatCurrencyShort(lineTotal)}</td>
-                    </tr>
-                  )
-                })}
-                {groups.length > 1 && (
-                  <tr className="bg-surface/30 border-b border-border">
-                    <td colSpan={5} className="px-2 py-1 text-left text-[10px] text-text-secondary">إجمالي {group.company}</td>
-                    <td className="px-2 py-1 text-left text-xs font-bold text-text">{formatCurrencyShort(group.subtotal)}</td>
+    <div>
+      <div className="bg-white rounded-lg border border-[#E5E7EB] shadow-sm overflow-hidden">
+        <div className="px-5 py-3 border-b border-[#E5E7EB] bg-[#F9FAFB]">
+          <h3 className="text-[14px] font-bold text-[#111827]">المنتجات</h3>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-[12px]">
+            <thead>
+              <tr className="border-b border-[#E5E7EB] bg-[#F3F4F6] text-[#6B7280]">
+                <th className="px-3 py-3 text-right w-10 font-semibold"></th>
+                <th className="px-3 py-3 text-right font-semibold">الصنف</th>
+                <th className="px-3 py-3 text-center font-semibold">الوحدة</th>
+                <th className="px-3 py-3 text-center font-semibold">الكمية</th>
+                <th className="px-3 py-3 text-left font-semibold">السعر</th>
+                <th className="px-3 py-3 text-left font-semibold">الإجمالي</th>
+              </tr>
+            </thead>
+            <tbody>
+              {groups.map((group) => (
+                <Fragment key={group.company}>
+                  <tr className="bg-[#F0FDF4] border-b border-[#D1FAE5]">
+                    <td colSpan={6} className="px-3 py-2 text-[13px] font-bold text-[#059669]">{group.company} ({group.items.length})</td>
                   </tr>
-                )}
-              </Fragment>
-            ))}
-          </tbody>
-        </table>
+                  {group.items.map((item, idx) => {
+                    const qty = Number(item.unit_quantity || 1)
+                    const price = Number(item.unit_price || 0)
+                    const lineTotal = qty * price
+                    return (
+                      <tr key={item.id || idx} className="border-b border-[#E5E7EB] last:border-0 hover:bg-[#F9FAFB] transition-colors">
+                        <td className="px-2 py-3">
+                          {item.image_url ? (
+                            <img src={item.image_url} alt="" className="w-8 h-8 rounded-lg object-contain bg-[#F9FAFB] border border-[#E5E7EB]" />
+                          ) : (
+                            <div className="w-8 h-8 rounded-lg bg-[#F9FAFB] border border-[#E5E7EB] flex items-center justify-center text-[#9CA3AF] text-[9px]">—</div>
+                          )}
+                        </td>
+                        <td className="px-3 py-3">
+                          <p className="font-semibold text-[#111827]">{item.product_name || 'غير متوفر'}</p>
+                          {item.legacy_code && <p className="text-[10px] text-[#9CA3AF] font-mono mt-0.5" dir="ltr">{item.legacy_code}</p>}
+                        </td>
+                        <td className="px-3 py-3 text-center text-[#6B7280]">{UNIT_LABELS[item.unit_type] || item.unit_type}</td>
+                        <td className="px-3 py-3 text-center text-[#111827] font-semibold">{qty}</td>
+                        <td className="px-3 py-3 text-left text-[#111827]">{formatCurrencyShort(price)}</td>
+                        <td className="px-3 py-3 text-left text-[#111827] font-bold">{formatCurrencyShort(lineTotal)}</td>
+                      </tr>
+                    )
+                  })}
+                  {groups.length > 1 && (
+                    <tr className="bg-[#F9FAFB] border-b border-[#E5E7EB]">
+                      <td colSpan={5} className="px-3 py-2 text-left text-[11px] text-[#6B7280] font-medium">إجمالي {group.company}</td>
+                      <td className="px-3 py-2 text-left text-[13px] font-bold text-[#111827]">{formatCurrencyShort(group.subtotal)}</td>
+                    </tr>
+                  )}
+                </Fragment>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
-      <div className="border-t border-border px-3 py-2 space-y-1 bg-surface/20">
-        <div className="flex justify-between text-xs">
-          <span className="text-text-secondary">عدد الأصناف</span>
-          <span className="font-semibold text-text">{items.length}</span>
-        </div>
-        <div className="flex justify-between text-xs">
-          <span className="text-text-secondary">إجمالي الوحدات</span>
-          <span className="font-semibold text-text">{totalQty.toLocaleString('en-EG')}</span>
-        </div>
-        <div className="flex justify-between text-xs">
-          <span className="text-text-secondary">إجمالي القطع</span>
-          <span className="font-semibold text-text">{totalPieces.toLocaleString('en-EG')}</span>
-        </div>
-        <hr className="border-border" />
-        <div className="flex justify-between text-sm font-bold">
-          <span className="text-text-secondary">الإجمالي النهائي</span>
-          <span className="text-text">{formatCurrencyShort(grandTotal)}</span>
-        </div>
-        {order.notes && (
-          <div className="mt-1 text-[10px] p-2 bg-amber-50 border border-amber-200 rounded-lg">
-            <span className="text-text-secondary">ملاحظات: </span><span className="text-text">{order.notes}</span>
+      <div className="bg-white rounded-lg border border-[#E5E7EB] shadow-sm p-5 mt-3">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div>
+            <p className="text-[11px] text-[#9CA3AF] font-medium">عدد الأصناف</p>
+            <p className="text-[13px] font-bold text-[#111827] mt-0.5">{items.length}</p>
           </div>
-        )}
+          <div>
+            <p className="text-[11px] text-[#9CA3AF] font-medium">إجمالي الوحدات</p>
+            <p className="text-[13px] font-bold text-[#111827] mt-0.5">{totalQty.toLocaleString('en-EG')}</p>
+          </div>
+          <div>
+            <p className="text-[11px] text-[#9CA3AF] font-medium">إجمالي القطع</p>
+            <p className="text-[13px] font-bold text-[#111827] mt-0.5">{totalPieces.toLocaleString('en-EG')}</p>
+          </div>
+          <div className="text-left">
+            <p className="text-[11px] text-[#9CA3AF] font-medium">الإجمالي النهائي</p>
+            <p className="text-[21px] font-bold text-[#059669] mt-0.5">{formatCurrencyShort(grandTotal)}</p>
+          </div>
+        </div>
       </div>
     </div>
   )

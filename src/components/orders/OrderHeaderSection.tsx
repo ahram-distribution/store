@@ -16,7 +16,6 @@ interface OrderHeaderSectionProps {
 
 export function OrderHeaderSection({ order, currentOwner, overLimit, lastAction, modificationEntries, actions, onBack }: OrderHeaderSectionProps) {
   const navigate = useNavigate()
-  console.log('[DEBUG] OrderHeaderSection lastAction:', JSON.stringify(lastAction))
 
   const revisionCount = order.revision_number
   const totalEditCount = modificationEntries?.filter(e => e.field_name === 'REVISION_SNAPSHOT').length || 0
@@ -24,16 +23,15 @@ export function OrderHeaderSection({ order, currentOwner, overLimit, lastAction,
   function renderCreator(creator: UnifiedOrder['order']) {
     const name = creator.order_creator_name
     const role = creator.order_creator_role || 'عميل'
-    if (!name) return <span className="text-text-secondary">—</span>
+    if (!name) return <span className="text-[#6B7280]">—</span>
     const target = creator.order_creator_type === 'customer'
       ? `/customers/${creator.order_creator_id}`
       : `/employees/${creator.order_creator_id}`
-    if (!creator.order_creator_id) return <span>{name}<span className="text-text-secondary"> — {role}</span></span>
+    if (!creator.order_creator_id) return <span>{name}<span className="text-[#6B7280]"> — {role}</span></span>
     return (
       <span className="cursor-pointer hover:opacity-70 transition-opacity" onClick={() => navigate(target)}>
         {name}
-        <span className="text-text-secondary"> — {role}</span>
-        <svg className="w-3 h-3 inline-block mr-0.5 -mt-0.5 text-text-secondary/40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+        <span className="text-[#6B7280]"> — {role}</span>
       </span>
     )
   }
@@ -43,84 +41,80 @@ export function OrderHeaderSection({ order, currentOwner, overLimit, lastAction,
   )[0]
 
   return (
-    <div className="bg-white rounded-xl border border-border overflow-hidden">
-      <div className="p-4">
-        <div className="flex items-center gap-2 mb-3">
-          {onBack && (
-            <button onClick={onBack} className="text-text-secondary text-lg hover:text-text transition-colors shrink-0">&larr;</button>
-          )}
-          <p className="text-lg font-bold text-text flex-1 truncate">{order.order_number}</p>
-          {overLimit && (
-            <span className="text-[10px] bg-danger/10 text-danger px-2 py-1 rounded-full border border-danger/30 shrink-0">
-              تجاوز الحد الائتماني
-            </span>
-          )}
-        </div>
-
-        <div className="flex items-stretch gap-2 mb-3 flex-wrap">
-          <div className="flex items-center">
-            <StatusBadge status={order.status} size="md" />
+    <div className="bg-white rounded-lg border border-[#E5E7EB] shadow-sm overflow-hidden">
+      <div className="px-6 py-5">
+        <div className="flex flex-col lg:flex-row lg:items-start gap-5">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-3 mb-3">
+              {onBack && (
+                <button onClick={onBack} className="text-[#6B7280] text-xl hover:text-[#111827] transition-colors shrink-0 leading-none">&larr;</button>
+              )}
+              <h1 className="text-[21px] font-bold text-[#111827] truncate leading-tight">{order.order_number}</h1>
+              <StatusBadge status={order.status} size="md" />
+              {overLimit && (
+                <span className="text-[10px] bg-[#FEF2F2] text-[#DC2626] px-2 py-0.5 rounded-full border border-[#FECACA] shrink-0 font-medium">
+                  تجاوز الحد
+                </span>
+              )}
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-1.5 text-[13px]">
+              <div className="flex items-center gap-1.5">
+                <span className="text-[#9CA3AF] shrink-0">حالة:</span>
+                <span className="font-medium text-[#111827]">{ORDER_STATUS_LABELS[order.status] || order.status}</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[#9CA3AF] shrink-0">مسؤول:</span>
+                <span className="font-medium text-[#111827]">{currentOwner}</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[#9CA3AF] shrink-0">منشئ:</span>
+                <span className="font-medium text-[#111827]">{renderCreator(order)}</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[#9CA3AF] shrink-0">توصيل:</span>
+                <span className="font-medium text-[#111827]">{order.delivery_mode === 'internal' ? 'داخلى' : 'خارجى'}</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[#9CA3AF] shrink-0">التحديث:</span>
+                <span className="font-medium text-[#111827]">{formatDateTime(order.updated_at)}</span>
+              </div>
+              {order.last_revised_at && (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[#9CA3AF] shrink-0">تعديل:</span>
+                  <span className="font-medium text-[#111827]">{formatDateTime(order.last_revised_at)}</span>
+                </div>
+              )}
+            </div>
+            {(revisionCount > 0 || order.status === 'returned_for_revision') && (
+              <div className="flex flex-wrap items-center gap-2 mt-3">
+                <span className="text-[10px] bg-[#FFFBEB] text-[#D97706] px-2 py-0.5 rounded-full border border-[#FDE68A] font-medium">
+                  Revision #{revisionCount + 1}
+                </span>
+                {totalEditCount > 0 && (
+                  <span className="text-[10px] bg-[#EFF6FF] text-[#2563EB] px-2 py-0.5 rounded-full border border-[#BFDBFE] font-medium">
+                    {totalEditCount} تعديل{totalEditCount !== 1 ? 'ات' : ''}
+                  </span>
+                )}
+                {lastRevision?.reason && (
+                  <span className="text-[10px] text-[#6B7280]">{lastRevision.reason}</span>
+                )}
+              </div>
+            )}
+            {lastAction && (
+              <div className="mt-2 pt-2 border-t border-[#E5E7EB] text-[12px] text-[#6B7280]">
+                <span className="font-medium">آخر إجراء: </span>
+                <span className="font-medium text-[#111827]">{lastAction.label}</span>
+                {lastAction.actor && <span className="text-[#111827] font-medium"> — {lastAction.actor}</span>}
+                <span> — {lastAction.time}</span>
+              </div>
+            )}
           </div>
           {actions && (
-            <div className="flex items-stretch gap-2 flex-wrap">
+            <div className="shrink-0 flex flex-wrap items-center gap-2.5">
               {actions}
             </div>
           )}
         </div>
-
-        {(revisionCount > 0 || order.status === 'returned_for_revision') && (
-          <div className="flex flex-wrap items-center gap-2 mb-3">
-            <span className="text-[10px] bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full border border-amber-200">
-              Revision #{revisionCount + 1}
-            </span>
-            <span className="text-[10px] bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full border border-blue-200">
-              {totalEditCount} تعديل{totalEditCount !== 1 ? 'ات' : ''}
-            </span>
-            {lastRevision && (
-              <span className="text-[10px] text-text-secondary">
-                {lastRevision.reason && `سبب آخر تعديل: ${lastRevision.reason}`}
-              </span>
-            )}
-          </div>
-        )}
-
-        <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-[11px]">
-          <div className="flex items-center gap-2">
-            <span className="text-text-secondary shrink-0">الحالة</span>
-            <span className="font-medium text-text">{ORDER_STATUS_LABELS[order.status] || order.status}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-text-secondary shrink-0">المسؤول</span>
-            <span className="font-medium text-text">{currentOwner}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-text-secondary shrink-0">منشئ الطلب</span>
-            <span className="font-medium text-text">{renderCreator(order)}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-text-secondary shrink-0">التوصيل</span>
-            <span className="font-medium text-text">{order.delivery_mode === 'internal' ? 'داخلى' : 'خارجى'}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-text-secondary shrink-0">آخر تحديث</span>
-            <span className="font-medium text-text">{formatDateTime(order.updated_at)}</span>
-          </div>
-          {order.last_revised_at && (
-            <div className="flex items-center gap-2">
-              <span className="text-text-secondary shrink-0">آخر تعديل</span>
-              <span className="font-medium text-text">{formatDateTime(order.last_revised_at)}</span>
-            </div>
-          )}
-        </div>
-
-        {lastAction && (
-          <div className="mt-2 pt-2 border-t border-border text-[10px] text-text-secondary">
-            آخر إجراء: <span className="font-medium text-text">{lastAction.label}</span>
-            {lastAction.actor && <span className="font-medium text-text"> — {lastAction.actor}</span>}
-            {' — '}
-            <span>{lastAction.time}</span>
-          </div>
-        )}
       </div>
     </div>
   )
