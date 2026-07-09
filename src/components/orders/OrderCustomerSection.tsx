@@ -90,18 +90,6 @@ export function OrderCustomerSection({ customer, order }: OrderCustomerSectionPr
                 <span className="font-medium">{formatCurrencyShort(Number(customer.average_order_value))}</span>
               </p>
             )}
-            {customer?.last_order_number && (
-              <p className="text-xs text-text-secondary">
-                <span className="text-text-muted">آخر طلب: </span>
-                <span className="font-medium font-mono">{customer.last_order_number}</span>
-              </p>
-            )}
-            {customer?.last_order_date && !customer?.last_order_number && (
-              <p className="text-xs text-text-secondary">
-                <span className="text-text-muted">آخر طلب: </span>
-                <span className="font-medium">{formatDate(new Date(customer.last_order_date))}</span>
-              </p>
-            )}
             {customer?.activity_level && (() => {
               const s = activityLevelStyle[customer.activity_level!]
               return s ? (
@@ -111,6 +99,30 @@ export function OrderCustomerSection({ customer, order }: OrderCustomerSectionPr
                 </p>
               ) : null
             })()}
+          </div>
+        </div>
+      )}
+
+      {customer?.last_order_number && (
+        <div className="mt-2 pt-2 border-t border-dashed border-border/50">
+          <p className="text-[10px] font-bold text-text-secondary uppercase mb-1.5">آخر طلب للعميل</p>
+          <div className="flex flex-wrap gap-x-4 gap-y-1">
+            <p className="text-xs text-text-secondary">
+              <span className="text-text-muted">🧾 رقم الطلب: </span>
+              <span className="font-medium font-mono">{customer.last_order_number}</span>
+            </p>
+            {customer.last_order_date && (
+              <p className="text-xs text-text-secondary">
+                <span className="text-text-muted">📅 تاريخ الطلب: </span>
+                <span className="font-medium">{formatDate(new Date(customer.last_order_date))}</span>
+              </p>
+            )}
+            {customer.last_order_total != null && (
+              <p className="text-xs text-text-secondary">
+                <span className="text-text-muted">💰 قيمة الطلب: </span>
+                <span className="font-medium">{formatCurrencyShort(Number(customer.last_order_total))}</span>
+              </p>
+            )}
           </div>
         </div>
       )}

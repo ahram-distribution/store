@@ -28,6 +28,7 @@ interface OrderCardProps {
     customer_average_order_value?: number | null
     customer_last_order_date?: string | null
     customer_last_order_number?: string | null
+    customer_last_order_total?: number | null
     customer_activity_level?: CustomerActivityLevel | null
     collection_badge?: { label: string; className: string }
   }
@@ -63,7 +64,7 @@ export function OrderCard({ order, onClick }: OrderCardProps) {
   const timeStr = dt ? dt.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }) : ''
   const isSubmitted = order.status === 'submitted'
   const accent = isSubmitted
-    ? 'border-r-blue-400 shadow-[0_0_0_1px_rgba(59,130,246,0.08)] bg-[rgba(59,130,246,0.015)]'
+    ? 'border-r-[#2563EB] shadow-[0_2px_8px_-2px_rgba(37,99,235,0.12),0_0_0_1px_rgba(37,99,235,0.06)] bg-[rgba(37,99,235,0.04)]'
     : (cardAccent[order.status] || 'border-r-gray-300')
 
   const actLvl = order.customer_activity_level
@@ -85,7 +86,7 @@ export function OrderCard({ order, onClick }: OrderCardProps) {
       )}
 
       <div className="flex items-center justify-between mb-1.5">
-        <StatusBadge status={order.status} size="md" />
+        <StatusBadge status={order.status} size={isSubmitted ? 'lg' : 'md'} />
         <div className="flex items-center gap-1">
           <p className="text-xs font-bold text-text font-mono tracking-tight">{order.order_number}</p>
           {order.revision_number !== undefined && order.revision_number > 0 && (
@@ -112,7 +113,7 @@ export function OrderCard({ order, onClick }: OrderCardProps) {
         </p>
       )}
 
-      {(order.customer_order_count != null || order.customer_lifetime_total != null || order.customer_average_order_value != null || order.customer_last_order_date != null) && (
+      {(order.customer_order_count != null || order.customer_lifetime_total != null || order.customer_average_order_value != null || order.customer_last_order_number != null) && (
         <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
           {order.customer_order_count != null && (
             <span className="text-[10px] text-text-secondary">
@@ -132,18 +133,30 @@ export function OrderCard({ order, onClick }: OrderCardProps) {
               <span className="font-medium">{formatCurrencyShort(Number(order.customer_average_order_value))}</span>
             </span>
           )}
-          {order.customer_last_order_number && (
-            <span className="text-[10px] text-text-secondary">
-              <span className="text-text-muted">آخر طلب: </span>
-              <span className="font-medium font-mono">{order.customer_last_order_number}</span>
-            </span>
-          )}
-          {order.customer_last_order_date && !order.customer_last_order_number && (
-            <span className="text-[10px] text-text-secondary">
-              <span className="text-text-muted">آخر طلب: </span>
-              <span className="font-medium">{formatDate(new Date(order.customer_last_order_date))}</span>
-            </span>
-          )}
+        </div>
+      )}
+
+      {(order.customer_last_order_number != null) && (
+        <div className="mt-2 pt-1.5 border-t border-dashed border-border/50">
+          <p className="text-[9px] font-bold text-text-secondary uppercase mb-1">آخر طلب للعميل</p>
+          <div className="space-y-0.5">
+            <p className="text-[11px] text-text-secondary">
+              <span className="text-text-muted">🧾 رقم الطلب: </span>
+              <span className="font-medium font-mono text-text">{order.customer_last_order_number}</span>
+            </p>
+            {order.customer_last_order_date && (
+              <p className="text-[11px] text-text-secondary">
+                <span className="text-text-muted">📅 تاريخ الطلب: </span>
+                <span className="font-medium">{formatDate(new Date(order.customer_last_order_date))}</span>
+              </p>
+            )}
+            {order.customer_last_order_total != null && (
+              <p className="text-[11px] text-text-secondary">
+                <span className="text-text-muted">💰 قيمة الطلب: </span>
+                <span className="font-medium">{formatCurrencyShort(Number(order.customer_last_order_total))}</span>
+              </p>
+            )}
+          </div>
         </div>
       )}
 
