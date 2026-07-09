@@ -3,7 +3,14 @@ import { useNavigate } from 'react-router-dom'
 import { MapButton } from '../shared/MapButton'
 import { getFullAddress } from './order-detail.utils'
 import { formatCurrencyShort, formatDate } from '../../utils/format'
-import type { UnifiedCustomerSummary, UnifiedOrderHeader } from '../../types/unified-order'
+import type { UnifiedCustomerSummary, UnifiedOrderHeader, CustomerActivityLevel } from '../../types/unified-order'
+
+const activityLevelStyle: Record<CustomerActivityLevel, { label: string; className: string }> = {
+  NEW: { label: 'جديد', className: 'bg-blue-100 text-blue-700' },
+  LOW: { label: 'منخفض', className: 'bg-amber-100 text-amber-700' },
+  ACTIVE: { label: 'نشط', className: 'bg-emerald-100 text-emerald-700' },
+  VIP: { label: 'VIP', className: 'bg-purple-100 text-purple-700' },
+}
 
 interface OrderCustomerSectionProps {
   customer: UnifiedCustomerSummary | null
@@ -33,7 +40,7 @@ export function OrderCustomerSection({ customer, order }: OrderCustomerSectionPr
   const navigate = useNavigate()
   const displayName = customer?.company_name || order.snapshot_customer_name || 'غير متوفر'
   const displayPhone = customer?.phone || order.snapshot_customer_phone || 'غير متوفر'
-  const fullAddress = useMemo(() => getFullAddress(customer, order), [customer, order])
+  const fullAddress = useMemo(() => customer?.display_address || getFullAddress(customer, order), [customer, order])
   const hasAddressCoords = customer?.address_latitude != null && customer?.address_longitude != null
 
   return (
@@ -61,7 +68,7 @@ export function OrderCustomerSection({ customer, order }: OrderCustomerSectionPr
         </div>
       )}
 
-      {(customer?.order_count != null || customer?.lifetime_total != null || customer?.last_order_date != null) && (
+      {(customer?.order_count != null || customer?.lifetime_total != null || customer?.average_order_value != null || customer?.last_order_date != null) && (
         <div className="mt-2 pt-2 border-t border-border">
           <p className="text-[10px] font-bold text-text-secondary uppercase mb-1.5">سجل العميل</p>
           <div className="flex flex-wrap gap-x-4 gap-y-1">
@@ -77,12 +84,27 @@ export function OrderCustomerSection({ customer, order }: OrderCustomerSectionPr
                 <span className="font-medium">{formatCurrencyShort(Number(customer.lifetime_total))}</span>
               </p>
             )}
+            {customer?.average_order_value != null && (
+              <p className="text-xs text-text-secondary">
+                <span className="text-text-muted">متوسط قيمة الطلب: </span>
+                <span className="font-medium">{formatCurrencyShort(Number(customer.average_order_value))}</span>
+              </p>
+            )}
             {customer?.last_order_date && (
               <p className="text-xs text-text-secondary">
                 <span className="text-text-muted">آخر طلب: </span>
                 <span className="font-medium">{formatDate(new Date(customer.last_order_date))}</span>
               </p>
             )}
+            {customer?.activity_level && (() => {
+              const s = activityLevelStyle[customer.activity_level!]
+              return s ? (
+                <p className="text-xs">
+                  <span className="text-text-muted">النشاط: </span>
+                  <span className={'font-medium px-1.5 py-0.5 rounded ' + s.className}>{s.label}</span>
+                </p>
+              ) : null
+            })()}
           </div>
         </div>
       )}
