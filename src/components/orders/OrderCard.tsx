@@ -26,58 +26,77 @@ interface OrderCardProps {
   onClick?: () => void
 }
 
+const cardStatusStyle: Record<string, { bg: string; border: string }> = {
+  draft: { bg: 'bg-gray-50', border: 'border-gray-200' },
+  submitted: { bg: 'bg-blue-50', border: 'border-blue-200' },
+  reviewing: { bg: 'bg-yellow-50', border: 'border-yellow-200' },
+  returned_for_revision: { bg: 'bg-amber-50', border: 'border-amber-200' },
+  approved: { bg: 'bg-green-50', border: 'border-green-200' },
+  preparing: { bg: 'bg-orange-50', border: 'border-orange-200' },
+  prepared: { bg: 'bg-purple-50', border: 'border-purple-200' },
+  ready_for_dispatch: { bg: 'bg-indigo-50', border: 'border-indigo-200' },
+  sent_to_delivery: { bg: 'bg-cyan-50', border: 'border-cyan-200' },
+  dispatched: { bg: 'bg-teal-50', border: 'border-teal-200' },
+  deferred: { bg: 'bg-gray-50', border: 'border-gray-200' },
+  cancelled: { bg: 'bg-red-50', border: 'border-red-200' },
+  delivered: { bg: 'bg-emerald-50', border: 'border-emerald-200' },
+}
+
 export function OrderCard({ order, onClick }: OrderCardProps) {
   const dt = order.created_at ? new Date(order.created_at) : null
   const dateStr = dt ? formatDate(dt) : ''
   const timeStr = dt ? dt.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }) : ''
+  const style = cardStatusStyle[order.status] || cardStatusStyle.draft
 
   return (
     <div
       onClick={onClick}
-      className="bg-white rounded-xl border border-border p-3.5 cursor-pointer active:bg-surface transition-colors"
+      className={'h-full rounded-xl border p-3.5 cursor-pointer active:scale-[0.98] transition-all flex flex-col ' + style.bg + ' ' + style.border}
     >
-      <div className="flex items-start justify-between mb-2">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-1.5">
-            <p className="text-xs text-text-secondary font-medium">{order.order_number}</p>
-            {order.revision_number !== undefined && order.revision_number > 0 && (
-              <span className="text-[9px] text-text-secondary bg-surface px-1 py-0.5 rounded">مراجعة #{order.revision_number}</span>
-            )}
-          </div>
-          <p className="text-sm font-bold text-text mt-0.5">
-            {order.customer_name || 'غير متوفر'}
-          </p>
-          {order.customer_phone && (
-            <p className="text-[10px] text-text-secondary mt-0.5" dir="ltr">{order.customer_phone}</p>
-          )}
-        </div>
+      <div className="flex justify-end mb-2">
         <StatusBadge status={order.status} size="md" />
       </div>
 
-      <div className="flex items-end justify-between mt-1.5">
-        <div className="text-[11px] text-text-secondary space-y-1">
-          {order.created_by_name && (
-            <div>
-              <span className="text-[9px] text-text-secondary">منشئ الطلب: </span>
-              <span className="text-primary/70">{order.created_by_name}</span>
-            </div>
-          )}
-          {(order.customer_owner_name) && (
-            <div>
-              <span className="text-[9px] text-text-secondary">التابع لـ: </span>
-              <span className="text-text font-medium">{order.customer_owner_name}</span>
-              {order.customer_owner_role && <span className="text-[10px] text-text-secondary"> ({order.customer_owner_role})</span>}
-            </div>
-          )}
-          <p>{dateStr} {timeStr}</p>
-        </div>
-        <p className="text-sm font-bold text-text">
-          {formatCurrencyShort(Number(order.total_amount) || 0)}
-        </p>
+      <div className="flex items-center gap-1.5 mb-1">
+        <p className="text-xs font-bold text-text font-mono tracking-tight">{order.order_number}</p>
+        {order.revision_number !== undefined && order.revision_number > 0 && (
+          <span className="text-[9px] text-text-secondary bg-surface px-1 py-0.5 rounded">مراجعة #{order.revision_number}</span>
+        )}
       </div>
 
+      <p className="text-sm font-bold text-text mb-1.5">
+        {order.customer_name || 'غير متوفر'}
+      </p>
+
+      {order.created_by_name && (
+        <p className="text-[11px] text-text-secondary mb-0.5">
+          <span className="text-text-muted">المسؤول: </span>
+          <span className="text-primary/80 font-medium">{order.created_by_name}</span>
+        </p>
+      )}
+      {!order.created_by_name && order.customer_owner_name && (
+        <p className="text-[11px] text-text-secondary mb-0.5">
+          <span className="text-text-muted">المسؤول: </span>
+          <span className="text-text font-medium">{order.customer_owner_name}</span>
+        </p>
+      )}
+      {order.customer_owner_role && (
+        <p className="text-[11px] text-text-secondary mb-0.5">
+          <span className="text-text-muted">الدور: </span>
+          <span>{order.customer_owner_role}</span>
+        </p>
+      )}
+
+      <div className="flex-1" />
+
+      <p className="text-lg font-bold text-text mt-2">
+        {formatCurrencyShort(Number(order.total_amount) || 0)}
+      </p>
+
+      <p className="text-[11px] text-text-secondary mt-0.5">{dateStr} {timeStr}</p>
+
       {(order.delivery_mode || order.governorate || order.collection_badge) && (
-        <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-border">
+        <div className="flex items-center gap-1.5 mt-1.5 pt-1.5 border-t border-border/50">
           {order.governorate && (
             <span className="text-[10px] text-text-secondary bg-surface px-1.5 py-0.5 rounded">{order.governorate}</span>
           )}

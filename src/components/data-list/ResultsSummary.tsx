@@ -10,6 +10,8 @@ export function ResultsSummary({
   lastRefresh,
   executionTimeMs,
   serverSource,
+  title,
+  unit,
 }: ResultsSummaryProps) {
   const dateRangeActive = dateFrom || dateTo
 
@@ -17,9 +19,18 @@ export function ResultsSummary({
     <div className="bg-white rounded-xl border border-border p-3.5 space-y-2">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-sm font-bold text-text">
-            عدد النتائج: {total.toLocaleString('ar-EG')}
-          </p>
+          {title ? (
+            <>
+              <p className="text-xs text-text-secondary font-medium">{title}</p>
+              <p className="text-lg font-bold text-text mt-0.5">
+                {total.toLocaleString('ar-EG')}{unit ? ' ' + unit : ''}
+              </p>
+            </>
+          ) : (
+            <p className="text-sm font-bold text-text">
+              عدد النتائج: {total.toLocaleString('ar-EG')}
+            </p>
+          )}
           {dateRangeActive && (
             <p className="text-[11px] text-text-secondary mt-0.5">
               {dateFrom && <span>من {dateFrom}</span>}
@@ -32,8 +43,11 @@ export function ResultsSummary({
           <button
             onClick={onRefresh}
             disabled={refreshState === 'loading'}
-            className="border border-border rounded-lg px-2.5 py-1.5 text-xs text-text-secondary font-medium hover:bg-surface active:bg-surface/70 transition-colors disabled:opacity-50"
+            className="bg-primary text-white rounded-lg px-3 py-2 text-xs font-semibold shadow-sm active:opacity-90 transition-opacity disabled:opacity-50 flex items-center gap-1.5"
           >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
             {refreshState === 'loading' ? 'جاري التحديث...' : 'تحديث'}
           </button>
         )}

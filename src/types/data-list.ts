@@ -33,6 +33,8 @@ export interface ResultsSummaryProps {
   lastRefresh?: string
   executionTimeMs?: number
   serverSource?: string
+  title?: string
+  unit?: string
 }
 
 export interface PaginationFooterProps {

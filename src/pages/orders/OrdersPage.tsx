@@ -19,11 +19,11 @@ type Tab = 'all' | 'my_orders' | 'my_invoices'
 const datePresetLabels: Record<string, string> = {
   all: 'كل الفترات',
   today: 'اليوم',
-  yesterday: 'الأمس',
-  week: 'هذا الأسبوع',
-  month: 'هذا الشهر',
+  yesterday: 'أمس',
+  week: 'الأسبوع الحالي',
+  month: 'الشهر الحالي',
   prev_month: 'الشهر السابق',
-  custom: 'فترة مخصصة',
+  custom: 'الفترة المخصصة',
 }
 
 const STATUS_OPTIONS = [
@@ -71,7 +71,7 @@ export function OrdersPage() {
         return { from: startOfDay(y), to: endOfDay(y) }
       }
       case 'week': {
-        const wk = new Date(); wk.setDate(wk.getDate() - wk.getDay())
+        const wk = new Date(); wk.setDate(wk.getDate() - ((wk.getDay() + 1) % 7))
         return { from: startOfDay(wk), to: endOfDay(new Date()) }
       }
       case 'month': return { from: startOfDay(new Date(now.getFullYear(), now.getMonth(), 1)), to: endOfDay(new Date()) }
@@ -150,7 +150,7 @@ export function OrdersPage() {
 
     if (filters.employeeId) {
       const emp = employees.find((e: any) => (e.identity_id || e.id) === filters.employeeId)
-      if (emp) items.push({ id: 'employee', label: 'المندوب', value: emp.full_name })
+      if (emp) items.push({ id: 'employee', label: 'المسؤول', value: emp.full_name })
     }
 
     if (statusFilter) {
@@ -165,6 +165,15 @@ export function OrdersPage() {
 
     return items
   }, [tab, filters, statusFilter, customerFilter, employees, customers])
+
+  const statusCounts = useMemo(() => {
+    const counts: Record<string, number> = {}
+    for (const order of sorted) {
+      const s = order.status
+      counts[s] = (counts[s] || 0) + 1
+    }
+    return counts
+  }, [sorted])
 
   const dateRangeStr = filters.datePreset === 'custom'
     ? (filters.dateFrom || '...') + ' → ' + (filters.dateTo || '...')
@@ -189,6 +198,7 @@ export function OrdersPage() {
       <SmartFilterBar
         searchPlaceholder="بحث برقم الطلب أو اسم العميل..."
         employees={employees.map(e => ({ id: e.identity_id || e.id, name: e.full_name }))}
+        employeeLabel="المسؤول"
         onFilterChange={setFilters}
       />
 
@@ -210,9 +220,24 @@ export function OrdersPage() {
         filters={[]}
         onRefresh={handleRefresh}
         refreshState={loading ? 'loading' : 'idle'}
+        title="إجمالي الطلبات"
+        unit="طلب"
       />
 
       <ActiveFilters filters={activeFilterItems} />
+
+      {Object.keys(statusCounts).length > 1 && !loading && sorted.length > 0 && (
+        <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+          {Object.entries(statusCounts).map(([status, count]) => {
+            const label = STATUS_OPTIONS.find((o) => o.value === status)?.label || status
+            return (
+              <span key={status} className="shrink-0 bg-surface border border-border/50 rounded-lg px-2 py-1 text-[10px] text-text-secondary font-medium whitespace-nowrap">
+                {label}: {count}
+              </span>
+            )
+          })}
+        </div>
+      )}
 
       {loading ? (
         <div className="text-center py-12 text-text-secondary text-sm">جاري التحميل...</div>
