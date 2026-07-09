@@ -84,7 +84,7 @@ export function OrderDetailView({ data, actions, onBack }: OrderDetailViewProps)
         actions={actions}
         onBack={onBack}
       />
-      <OrderCustomerSection customer={customer} order={order} />
+      <OrderCustomerSection customer={customer} order={order} lastVisit={data.last_visit} />
       <OrderExecutiveStatusPanel
         order={order}
         current_delivery={current_delivery}

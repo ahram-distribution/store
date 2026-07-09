@@ -163,12 +163,12 @@ export function OrderStatusManager({ orderId, currentStatus, canReview, canCompl
       {canManage && targets.length > 1 && (
         <>
           <button onClick={() => setShowDropdown(true)} disabled={loading !== null}
-            className="w-full bg-purple-600 text-white text-xs py-2.5 rounded-lg active:opacity-90 disabled:opacity-40 flex items-center justify-center gap-1">
+            className="bg-purple-600 text-white text-xs px-3 py-2.5 rounded-lg active:opacity-90 disabled:opacity-40 inline-flex items-center justify-center gap-1 whitespace-nowrap">
             {loading ? 'جاري...' : 'تغيير الحالة'}
           </button>
           {currentStatus !== 'returned_for_revision' && currentStatus !== 'draft' && currentStatus !== 'cancelled' && (
             <button onClick={() => setShowReturnModal(true)} disabled={loading !== null}
-              className="w-full bg-amber-500 text-white text-xs py-2.5 rounded-lg active:opacity-90 disabled:opacity-40 flex items-center justify-center gap-1 mt-1">
+              className="bg-amber-500 text-white text-xs px-3 py-2.5 rounded-lg active:opacity-90 disabled:opacity-40 inline-flex items-center justify-center gap-1 whitespace-nowrap">
               {loading === 'returned_for_revision' ? 'جاري...' : 'إعادة الطلب للتعديل'}
             </button>
           )}
@@ -198,13 +198,13 @@ export function OrderStatusManager({ orderId, currentStatus, canReview, canCompl
         <div className="flex gap-2 flex-wrap">
           {standardTransitions.map(t => (
             <button key={t} onClick={() => handleStatusChange(t)} disabled={loading !== null}
-              className="flex-1 min-w-[80px] bg-primary text-white text-xs py-2.5 rounded-lg active:opacity-90 disabled:opacity-40">
+              className="bg-primary text-white text-xs px-3 py-2.5 rounded-lg active:opacity-90 disabled:opacity-40 whitespace-nowrap">
               {loading === t ? 'جاري...' : ORDER_STATUS_LABELS[t] || t}
             </button>
           ))}
           {exceptionalTransitions.map(t => (
             <button key={t} onClick={() => handleStatusChange(t)} disabled={loading !== null}
-              className="flex-1 min-w-[80px] bg-amber-500 text-white text-xs py-2.5 rounded-lg active:opacity-90 disabled:opacity-40">
+              className="bg-amber-500 text-white text-xs px-3 py-2.5 rounded-lg active:opacity-90 disabled:opacity-40 whitespace-nowrap">
               {loading === t ? 'جاري...' : ORDER_STATUS_LABELS[t] || t}
             </button>
           ))}

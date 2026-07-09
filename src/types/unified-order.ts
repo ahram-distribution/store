@@ -36,6 +36,7 @@ export interface UnifiedOrder {
   preparation: UnifiedPreparationRecord | null
   returns: UnifiedReturnSummary[]
   collections: UnifiedCollectionSummary[]
+  last_visit: UnifiedVisitSummary | null
 }
 
 export interface UnifiedOrderHeader {
@@ -189,6 +190,17 @@ export interface UnifiedCollectionSummary {
   reference_number: string | null
   collected_at: string | null
   order_id: string | null
+}
+
+export interface UnifiedVisitSummary {
+  id: string
+  started_at: string
+  completed_at: string | null
+  status: string
+  start_latitude: number
+  start_longitude: number
+  employee_name: string | null
+  maps_url: string
 }
 
 export interface UnifiedModificationEntry {

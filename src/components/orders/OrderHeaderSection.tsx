@@ -45,24 +45,28 @@ export function OrderHeaderSection({ order, currentOwner, overLimit, lastAction,
   return (
     <div className="bg-white rounded-xl border border-border overflow-hidden">
       <div className="p-4">
-        <div className="flex items-start justify-between mb-2">
-          <div>
-            {onBack && (
-              <button onClick={onBack} className="text-text-secondary text-lg hover:text-text transition-colors">&larr;</button>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            <StatusBadge status={order.status} size="md" />
-            {overLimit && (
-              <span className="text-[10px] bg-danger/10 text-danger px-2 py-0.5 rounded-full border border-danger/30">
-                تجاوز الحد الائتماني
-              </span>
-            )}
-            {actions}
-          </div>
+        <div className="flex items-center gap-2 mb-3">
+          {onBack && (
+            <button onClick={onBack} className="text-text-secondary text-lg hover:text-text transition-colors shrink-0">&larr;</button>
+          )}
+          <p className="text-lg font-bold text-text flex-1 truncate">{order.order_number}</p>
+          {overLimit && (
+            <span className="text-[10px] bg-danger/10 text-danger px-2 py-1 rounded-full border border-danger/30 shrink-0">
+              تجاوز الحد الائتماني
+            </span>
+          )}
         </div>
 
-        <p className="text-lg font-bold text-text mb-3">{order.order_number}</p>
+        <div className="flex items-stretch gap-2 mb-3 flex-wrap">
+          <div className="flex items-center">
+            <StatusBadge status={order.status} size="md" />
+          </div>
+          {actions && (
+            <div className="flex items-stretch gap-2 flex-wrap">
+              {actions}
+            </div>
+          )}
+        </div>
 
         {(revisionCount > 0 || order.status === 'returned_for_revision') && (
           <div className="flex flex-wrap items-center gap-2 mb-3">

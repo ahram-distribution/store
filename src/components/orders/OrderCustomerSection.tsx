@@ -1,13 +1,15 @@
-import { useMemo } from 'react'
+import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { MapButton } from '../shared/MapButton'
 import { getFullAddress } from './order-detail.utils'
 import { formatCurrencyShort, formatDate } from '../../utils/format'
-import type { UnifiedCustomerSummary, UnifiedOrderHeader } from '../../types/unified-order'
+import toast from 'react-hot-toast'
+import type { UnifiedCustomerSummary, UnifiedOrderHeader, UnifiedOrder } from '../../types/unified-order'
 
 interface OrderCustomerSectionProps {
   customer: UnifiedCustomerSummary | null
   order: UnifiedOrderHeader
+  lastVisit?: UnifiedOrder['last_visit']
 }
 
 function ContactActions({ phone }: { phone?: string }) {
@@ -29,12 +31,99 @@ function ContactActions({ phone }: { phone?: string }) {
   )
 }
 
-export function OrderCustomerSection({ customer, order }: OrderCustomerSectionProps) {
+function LocationActionButtons({ url, lat, lng }: { url: string; lat: number; lng: number }) {
+  function handleCopy() {
+    navigator.clipboard.writeText(url).then(() => {
+      toast.success('تم نسخ رابط الموقع')
+    })
+  }
+
+  function handleShare() {
+    if (navigator.share) {
+      navigator.share({ title: 'الموقع', text: url, url }).catch(() => {
+        navigator.clipboard.writeText(url)
+        toast.success('تم نسخ رابط الموقع')
+      })
+    } else {
+      navigator.clipboard.writeText(url)
+      toast.success('تم نسخ رابط الموقع')
+    }
+  }
+
+  const [address, setAddress] = useState<string | null>(null)
+  const [addressLoading, setAddressLoading] = useState(false)
+
+  function handleReverseGeocode() {
+    if (address) return
+    setAddressLoading(true)
+    fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&accept-language=ar`)
+      .then(r => r.json())
+      .then(d => {
+        setAddress(d.display_name || 'تعذر استخراج العنوان')
+      })
+      .catch(() => {
+        setAddress('تعذر استخراج العنوان')
+      })
+      .finally(() => setAddressLoading(false))
+  }
+
+  return (
+    <div>
+      <div className="flex gap-1.5 flex-wrap mt-1.5">
+        <a href={url} target="_blank" rel="noopener noreferrer"
+          className="inline-flex items-center gap-0.5 text-[10px] text-red-600 bg-red-50 hover:bg-red-100 px-2 py-1.5 rounded-lg transition-colors font-medium">
+          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+          فتح الموقع
+        </a>
+        <button onClick={handleCopy}
+          className="inline-flex items-center gap-0.5 text-[10px] text-blue-600 bg-blue-50 hover:bg-blue-100 px-2 py-1.5 rounded-lg transition-colors font-medium">
+          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" /></svg>
+          نسخ الرابط
+        </button>
+        <button onClick={handleShare}
+          className="inline-flex items-center gap-0.5 text-[10px] text-emerald-600 bg-emerald-50 hover:bg-emerald-100 px-2 py-1.5 rounded-lg transition-colors font-medium">
+          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>
+          مشاركة الموقع
+        </button>
+        <button onClick={handleReverseGeocode} disabled={addressLoading}
+          className="inline-flex items-center gap-0.5 text-[10px] text-amber-600 bg-amber-50 hover:bg-amber-100 px-2 py-1.5 rounded-lg transition-colors font-medium disabled:opacity-40">
+          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
+          {addressLoading ? 'جاري...' : 'العنوان'}
+        </button>
+      </div>
+      {address && (
+        <p className="text-[11px] text-text-secondary mt-1 leading-relaxed">{address}</p>
+      )}
+    </div>
+  )
+}
+
+export function OrderCustomerSection({ customer, order, lastVisit }: OrderCustomerSectionProps) {
   const navigate = useNavigate()
   const displayName = customer?.company_name || order.snapshot_customer_name || 'غير متوفر'
   const displayPhone = customer?.phone || order.snapshot_customer_phone || 'غير متوفر'
   const fullAddress = useMemo(() => customer?.display_address || getFullAddress(customer, order), [customer, order])
   const hasAddressCoords = customer?.address_latitude != null && customer?.address_longitude != null
+  const customerMapsUrl = hasAddressCoords
+    ? `https://www.google.com/maps?q=${customer!.address_latitude},${customer!.address_longitude}`
+    : null
+
+  const [lastVisitAddress, setLastVisitAddress] = useState<string | null>(null)
+  const [lastVisitAddressLoading, setLastVisitAddressLoading] = useState(false)
+
+  function handleLastVisitGeocode() {
+    if (lastVisitAddress || !lastVisit) return
+    setLastVisitAddressLoading(true)
+    fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lastVisit.start_latitude}&lon=${lastVisit.start_longitude}&accept-language=ar`)
+      .then(r => r.json())
+      .then(d => {
+        setLastVisitAddress(d.display_name || 'تعذر استخراج العنوان')
+      })
+      .catch(() => {
+        setLastVisitAddress('تعذر استخراج العنوان')
+      })
+      .finally(() => setLastVisitAddressLoading(false))
+  }
 
   return (
     <div className="bg-white rounded-xl border border-border p-4">
@@ -55,10 +144,9 @@ export function OrderCustomerSection({ customer, order }: OrderCustomerSectionPr
       {fullAddress && (
         <p className="text-xs text-text-secondary mt-1 leading-relaxed">{fullAddress}</p>
       )}
-      {hasAddressCoords && (
-        <div className="mt-2">
-          <MapButton latitude={customer!.address_latitude!} longitude={customer!.address_longitude!} size="sm" showCopyLink />
-        </div>
+
+      {hasAddressCoords && customerMapsUrl && (
+        <LocationActionButtons url={customerMapsUrl} lat={customer!.address_latitude!} lng={customer!.address_longitude!} />
       )}
 
       {(customer?.previous_order_count != null && customer.previous_order_count > 0) ? (
@@ -107,6 +195,33 @@ export function OrderCustomerSection({ customer, order }: OrderCustomerSectionPr
         </div>
       )}
 
+      {lastVisit && (
+        <div className="mt-2 pt-2 border-t border-border">
+          <p className="text-[10px] font-bold text-text-secondary uppercase mb-2">آخر زيارة للعميل</p>
+          <div className="space-y-1 text-[11px]">
+            <p className="text-text-secondary">
+              <span className="text-text-muted">👤 المسؤول: </span>
+              <span className="font-medium text-text">{lastVisit.employee_name || 'غير متوفر'}</span>
+            </p>
+            <p className="text-text-secondary">
+              <span className="text-text-muted">📅 بداية الزيارة: </span>
+              <span className="font-medium text-text">{formatDate(new Date(lastVisit.started_at))}</span>
+            </p>
+            {lastVisit.completed_at && (
+              <p className="text-text-secondary">
+                <span className="text-text-muted">📅 نهاية الزيارة: </span>
+                <span className="font-medium text-text">{formatDate(new Date(lastVisit.completed_at))}</span>
+              </p>
+            )}
+            <p className="text-text-secondary">
+              <span className="text-text-muted">📌 حالة الزيارة: </span>
+              <span className="font-medium text-text">{lastVisit.status}</span>
+            </p>
+          </div>
+          <LocationActionButtons url={lastVisit.maps_url} lat={lastVisit.start_latitude} lng={lastVisit.start_longitude} />
+        </div>
+      )}
+
       <div className="mt-2 pt-2 border-t border-border">
         <p className="text-[10px] font-bold text-text-secondary uppercase mb-1">التابع لـ:</p>
         <p className="text-sm font-medium text-text cursor-pointer hover:opacity-70 transition-opacity" onClick={() => order.customer_owner_id && navigate(`/employees/${order.customer_owner_id}`)}>
@@ -120,3 +235,4 @@ export function OrderCustomerSection({ customer, order }: OrderCustomerSectionPr
     </div>
   )
 }
+

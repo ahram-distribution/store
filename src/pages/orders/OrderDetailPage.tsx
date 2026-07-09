@@ -115,44 +115,42 @@ export function OrderDetailPage() {
       data={data}
       onBack={() => navigate('/orders')}
       actions={
-        <div className="flex flex-col gap-1">
+        <div className="flex items-stretch gap-2 flex-wrap">
           {canEdit && (
             <button onClick={() => navigate(`/storefront/products?editOrder=${id}`)}
-              className="w-full bg-accent text-white text-xs py-2.5 rounded-lg active:opacity-90 flex items-center justify-center gap-1">
+              className="inline-flex items-center gap-1 bg-accent text-white text-xs px-3 py-2.5 rounded-lg active:opacity-90 shrink-0">
               تعديل الطلب
             </button>
           )}
           {isSupreme && (
             <button onClick={() => setEditMode(true)}
-              className="w-full bg-accent text-white text-xs py-2.5 rounded-lg active:opacity-90 flex items-center justify-center gap-1">
+              className="inline-flex items-center gap-1 bg-accent text-white text-xs px-3 py-2.5 rounded-lg active:opacity-90 shrink-0">
               تحرير الطلب
             </button>
           )}
           {isSupreme && isCancelled && !deleteConfirm && (
             <button onClick={() => setDeleteConfirm(true)}
-              className="w-full bg-danger text-white text-xs py-2.5 rounded-lg active:opacity-90 flex items-center justify-center gap-1">
+              className="inline-flex items-center gap-1 bg-danger text-white text-xs px-3 py-2.5 rounded-lg active:opacity-90 shrink-0">
               حذف الطلب
             </button>
           )}
           {isSupreme && isCancelled && deleteConfirm && (
-            <div className="space-y-1">
-              <p className="text-[10px] text-text-secondary text-center">هل تريد حذف هذا الطلب نهائياً؟</p>
-              <div className="flex gap-1">
-                <button onClick={handleDeleteOrder} disabled={deleting}
-                  className="flex-1 bg-danger text-white text-xs py-2 rounded-lg active:opacity-90 disabled:opacity-40">
-                  {deleting ? 'جاري...' : 'تأكيد الحذف'}
-                </button>
-                <button onClick={() => setDeleteConfirm(false)}
-                  className="flex-1 bg-surface text-text-secondary text-xs py-2 rounded-lg active:opacity-90">
-                  إلغاء
-                </button>
-              </div>
+            <div className="flex items-center gap-2">
+              <p className="text-[10px] text-text-secondary shrink-0">حذف نهائياً؟</p>
+              <button onClick={handleDeleteOrder} disabled={deleting}
+                className="bg-danger text-white text-xs px-3 py-2 rounded-lg active:opacity-90 disabled:opacity-40">
+                {deleting ? 'جاري...' : 'تأكيد'}
+              </button>
+              <button onClick={() => setDeleteConfirm(false)}
+                className="bg-surface text-text-secondary text-xs px-3 py-2 rounded-lg active:opacity-90">
+                إلغاء
+              </button>
             </div>
           )}
           {data?.order?.status && (
             <OrderStatusManager
-              orderId={id!}
-              currentStatus={data.order.status}
+              orderId={data!.order.id}
+              currentStatus={data!.order.status}
               canReview={canReview}
               canCompletePreparation={canCompletePreparation}
               canSendToDelivery={canSendToDelivery}
