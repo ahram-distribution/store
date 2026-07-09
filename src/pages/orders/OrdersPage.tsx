@@ -1,15 +1,30 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../store/auth'
 import { OrderCard } from '../../components/orders/OrderCard'
 import SmartFilterBar, { type FilterValues } from '../../components/SmartFilterBar'
+import { ResultsSummary } from '../../components/data-list/ResultsSummary'
+import { ActiveFilters } from '../../components/data-list/ActiveFilters'
+import { CardGrid } from '../../components/data-list/CardGrid'
+import { EmptyState } from '../../components/data-list/EmptyState'
+import type { ActiveFilterItem } from '../../types/data-list'
 
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
 }
 
 type Tab = 'all' | 'my_orders' | 'my_invoices'
+
+const datePresetLabels: Record<string, string> = {
+  all: 'كل الفترات',
+  today: 'اليوم',
+  yesterday: 'الأمس',
+  week: 'هذا الأسبوع',
+  month: 'هذا الشهر',
+  prev_month: 'الشهر السابق',
+  custom: 'فترة مخصصة',
+}
 
 const STATUS_OPTIONS = [
   { value: '', label: 'كل الحالات' },
@@ -113,6 +128,48 @@ export function OrdersPage() {
 
   const tabLabel = tab === 'all' ? 'الطلبات' : tab === 'my_orders' ? 'طلباتي' : 'فواتيري'
 
+  const handleRefresh = useCallback(() => {
+    fetchOrders()
+  }, [])
+
+  const activeFilterItems: ActiveFilterItem[] = useMemo(() => {
+    const items: ActiveFilterItem[] = []
+
+    if (tab === 'my_orders') items.push({ id: 'tab', label: 'النوع', value: 'طلباتي' })
+    else if (tab === 'my_invoices') items.push({ id: 'tab', label: 'النوع', value: 'فواتيري' })
+
+    if (filters.datePreset !== 'all') {
+      items.push({ id: 'date', label: 'الفترة', value: datePresetLabels[filters.datePreset] || filters.datePreset })
+    }
+    if (filters.datePreset === 'custom') {
+      if (filters.dateFrom) items.push({ id: 'dateFrom', label: 'من', value: filters.dateFrom })
+      if (filters.dateTo) items.push({ id: 'dateTo', label: 'إلى', value: filters.dateTo })
+    }
+
+    if (filters.search) items.push({ id: 'search', label: 'بحث', value: filters.search })
+
+    if (filters.employeeId) {
+      const emp = employees.find((e: any) => (e.identity_id || e.id) === filters.employeeId)
+      if (emp) items.push({ id: 'employee', label: 'المندوب', value: emp.full_name })
+    }
+
+    if (statusFilter) {
+      const label = STATUS_OPTIONS.find((o) => o.value === statusFilter)?.label || statusFilter
+      items.push({ id: 'status', label: 'الحالة', value: label })
+    }
+
+    if (customerFilter) {
+      const cust = customers.find((c: any) => c.id === customerFilter)
+      if (cust) items.push({ id: 'customer', label: 'العميل', value: cust.company_name })
+    }
+
+    return items
+  }, [tab, filters, statusFilter, customerFilter, employees, customers])
+
+  const dateRangeStr = filters.datePreset === 'custom'
+    ? (filters.dateFrom || '...') + ' → ' + (filters.dateTo || '...')
+    : (filters.datePreset !== 'all' ? datePresetLabels[filters.datePreset] : undefined)
+
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3">
@@ -147,18 +204,28 @@ export function OrdersPage() {
         </select>
       </div>
 
+      <ResultsSummary
+        total={sorted.length}
+        dateFrom={dateRangeStr}
+        filters={[]}
+        onRefresh={handleRefresh}
+        refreshState={loading ? 'loading' : 'idle'}
+      />
+
+      <ActiveFilters filters={activeFilterItems} />
+
       {loading ? (
         <div className="text-center py-12 text-text-secondary text-sm">جاري التحميل...</div>
       ) : sorted.length === 0 ? (
-        <div className="text-center py-12 text-text-secondary text-sm">
-          {tab === 'my_orders' ? 'لا توجد طلبات لك' : tab === 'my_invoices' ? 'لا توجد فواتير لك' : 'لا توجد طلبات'}
-        </div>
+        <EmptyState
+          message={tab === 'my_orders' ? 'لا توجد طلبات لك' : tab === 'my_invoices' ? 'لا توجد فواتير لك' : undefined}
+        />
       ) : (
-        <div className="space-y-2">
+        <CardGrid>
           {sorted.map((order: any) => (
             <OrderCard key={order.id} order={order} onClick={() => navigate(`/orders/${order.id}`)} />
           ))}
-        </div>
+        </CardGrid>
       )}
     </div>
   )
