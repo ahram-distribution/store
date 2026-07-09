@@ -27,6 +27,7 @@ interface OrderCardProps {
     customer_lifetime_total?: number | null
     customer_average_order_value?: number | null
     customer_last_order_date?: string | null
+    customer_last_order_number?: string | null
     customer_activity_level?: CustomerActivityLevel | null
     collection_badge?: { label: string; className: string }
   }
@@ -128,7 +129,13 @@ export function OrderCard({ order, onClick }: OrderCardProps) {
               <span className="font-medium">{formatCurrencyShort(Number(order.customer_average_order_value))}</span>
             </span>
           )}
-          {order.customer_last_order_date && (
+          {order.customer_last_order_number && (
+            <span className="text-[10px] text-text-secondary">
+              <span className="text-text-muted">آخر طلب: </span>
+              <span className="font-medium font-mono">{order.customer_last_order_number}</span>
+            </span>
+          )}
+          {order.customer_last_order_date && !order.customer_last_order_number && (
             <span className="text-[10px] text-text-secondary">
               <span className="text-text-muted">آخر طلب: </span>
               <span className="font-medium">{formatDate(new Date(order.customer_last_order_date))}</span>

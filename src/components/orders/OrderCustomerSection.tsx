@@ -40,7 +40,7 @@ export function OrderCustomerSection({ customer, order }: OrderCustomerSectionPr
   const navigate = useNavigate()
   const displayName = customer?.company_name || order.snapshot_customer_name || 'غير متوفر'
   const displayPhone = customer?.phone || order.snapshot_customer_phone || 'غير متوفر'
-  const fullAddress = useMemo(() => customer?.display_address || getFullAddress(customer, order), [customer, order])
+  const fullAddress = useMemo(() => customer?.display_address || customer?.customer_display_address || getFullAddress(customer, order), [customer, order])
   const hasAddressCoords = customer?.address_latitude != null && customer?.address_longitude != null
 
   return (
@@ -90,7 +90,13 @@ export function OrderCustomerSection({ customer, order }: OrderCustomerSectionPr
                 <span className="font-medium">{formatCurrencyShort(Number(customer.average_order_value))}</span>
               </p>
             )}
-            {customer?.last_order_date && (
+            {customer?.last_order_number && (
+              <p className="text-xs text-text-secondary">
+                <span className="text-text-muted">آخر طلب: </span>
+                <span className="font-medium font-mono">{customer.last_order_number}</span>
+              </p>
+            )}
+            {customer?.last_order_date && !customer?.last_order_number && (
               <p className="text-xs text-text-secondary">
                 <span className="text-text-muted">آخر طلب: </span>
                 <span className="font-medium">{formatDate(new Date(customer.last_order_date))}</span>

@@ -106,6 +106,7 @@ export interface UnifiedCustomerSummary {
   lifetime_total: number | null
   average_order_value: number | null
   last_order_date: string | null
+  last_order_number: string | null
   activity_level: CustomerActivityLevel | null
 }
 
@@ -225,6 +226,7 @@ export interface UnifiedOrderListItem {
   customer_lifetime_total: number | null
   customer_average_order_value: number | null
   customer_last_order_date: string | null
+  customer_last_order_number: string | null
   customer_activity_level: CustomerActivityLevel | null
   owner_name: string | null
   created_by: string | null
