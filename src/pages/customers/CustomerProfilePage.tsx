@@ -2,11 +2,9 @@ import { useState, useEffect, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useCapability } from '../../hooks/useCapability'
-import { formatCurrencyShort, formatDateTime } from '../../utils/format'
-import { StatusBadge } from '../../components/shared/StatusBadge'
+import { formatCurrencyShort, formatDate, formatDateTime } from '../../utils/format'
 import { getCustomerState, getCustomerStateLabel, CUSTOMER_STATE_LABELS } from '../../utils/systemStates'
 import { LocationRepository, formatAccuracy } from '../../domain/location'
-import { LocationDisplay } from '../../components/shared/LocationDisplay'
 import { getCurrentLocation } from '../../services/gpsService'
 import { SearchableSelect } from '../../components/shared/SearchableSelect'
 import toast from 'react-hot-toast'
@@ -471,8 +469,6 @@ export function CustomerProfilePage() {
   const canManage = useCapability('customers.manage')
   const [customer, setCustomer] = useState<any>(null)
   const [orders, setOrders] = useState<any[]>([])
-  const [visits, setVisits] = useState<any[]>([])
-  const [collections, setCollections] = useState<any[]>([])
   const [contacts, setContacts] = useState<any[]>([])
   const [location, setLocation] = useState<any>(null)
   const [ownershipHistory, setOwnershipHistory] = useState<any[]>([])
@@ -532,12 +528,10 @@ export function CustomerProfilePage() {
     Promise.all([
       supabase.rpc('get_governed_customer', { p_token: token, p_id: id }),
       supabase.rpc('get_customer_orders', { p_token: token, p_customer_id: id }),
-      supabase.rpc('get_customer_collections', { p_token: token, p_customer_id: id }),
-      supabase.rpc('get_customer_visits', { p_token: token, p_customer_id: id }),
       supabase.rpc('get_governed_customer_contacts', { p_token: token, p_customer_id: id }),
       supabase.rpc('get_governed_customer_ownership_history', { p_token: token, p_customer_id: id }),
       supabase.rpc('get_governed_employees', { p_token: token }),
-    ]).then(async ([custRes, ordRes, colRes, visRes, contRes, ownRes, empRes]) => {
+    ]).then(async ([custRes, ordRes, contRes, ownRes, empRes]) => {
       if (custRes.data) {
         setCustomer(custRes.data)
         const c = Array.isArray(custRes.data) ? custRes.data[0] : custRes.data
@@ -547,8 +541,6 @@ export function CustomerProfilePage() {
         }
       }
       if (ordRes.data) setOrders(Array.isArray(ordRes.data) ? ordRes.data : [])
-      if (colRes.data) setCollections(Array.isArray(colRes.data) ? colRes.data : [])
-      if (visRes.data) setVisits(Array.isArray(visRes.data) ? visRes.data : [])
       if (contRes.data) setContacts(Array.isArray(contRes.data) ? contRes.data : [])
       if (ownRes.data) setOwnershipHistory(Array.isArray(ownRes.data) ? ownRes.data : [])
       if (empRes.data) setEmployees(Array.isArray(empRes.data) ? empRes.data : [])
@@ -574,6 +566,52 @@ export function CustomerProfilePage() {
     if (!customer) return null
     return getCustomerState(customer.is_active, lastOrderDays)
   }, [customer, lastOrderDays])
+
+  const comparisonFields = useMemo(() => {
+    if (!location?.formatted_address) return []
+    const addr = location.formatted_address
+    const items = [
+      { label: 'المحافظة', value: customer?.governorate_name },
+      { label: 'المدينة', value: customer?.city_name },
+      { label: 'الشارع', value: customer?.street_address },
+      { label: 'العلامة المميزة', value: customer?.landmark },
+    ]
+    return items.map(i => ({
+      label: i.label,
+      result: !i.value ? 'missing' : addr.includes(i.value) ? 'match' : 'diff',
+    }))
+  }, [customer, location])
+
+  const comparisonAllMatch = useMemo(() => {
+    return comparisonFields.length > 0 && comparisonFields.every(f => f.result === 'match')
+  }, [comparisonFields])
+
+  const getSourceLabel = () => {
+    if (!location) return ''
+    const acc = location.accuracy_meters
+    if (acc === null || acc === undefined) return 'غير معروف'
+    if (acc <= 20) return 'GPS'
+    if (acc <= 100) return 'ترميز جغرافي'
+    if (acc <= 200) return 'مركز المدينة'
+    return 'مركز المحافظة'
+  }
+
+  const getLocationStatus = () => {
+    if (!location) return { label: 'لا يوجد موقع', className: 'bg-danger/10 text-danger', icon: '🔴' }
+    const acc = location.accuracy_meters
+    if (acc !== null && acc !== undefined && acc <= 50) return { label: 'تم تسجيل الموقع', className: 'bg-success/10 text-success', icon: '🟢' }
+    return { label: 'تم استخراج الموقع', className: 'bg-accent/10 text-accent', icon: '🟡' }
+  }
+
+  const getBestMapsUrl = () => {
+    if (location?.latitude && location?.longitude)
+      return `https://maps.google.com/?q=${location.latitude},${location.longitude}`
+    if (location?.formatted_address)
+      return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(location.formatted_address)}`
+    const addr = customer?.registered_address || [customer?.governorate_name, customer?.city_name, customer?.street_address, customer?.landmark].filter(Boolean).join(' ')
+    if (addr) return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}`
+    return null
+  }
 
   const statusColors: Record<string, string> = {
     [CUSTOMER_STATE_LABELS.complete]: 'bg-primary/10 text-primary',
@@ -706,140 +744,240 @@ export function CustomerProfilePage() {
 
       {activeTab === 'info' && (
         <>
-          <div className="grid grid-cols-2 gap-2">
-            <div className="bg-white rounded-xl border border-border p-3 text-center">
-              <div className="text-lg font-bold text-primary">{formatCurrencyShort(monthlySales)}</div>
-              <div className="text-[10px] text-text-secondary">مبيعات الشهر</div>
+          <div className="bg-white rounded-xl border border-border p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-bold text-text">بيانات العميل</h3>
+              {(canEdit || canManage) && (
+                <button onClick={() => { setShowEdit(true); setEditName(customer.company_name); setEditPhone(customer.phone || ''); setEditResponsibleName(customer.responsible_name || ''); setEditBusinessType(customer.business_type || ''); setEditCreditLimit(String(customer.credit_limit || '')); setEditCreditDays(String(customer.credit_days || '')); setEditPassword(''); setEditConfirmPassword(''); setEditFormattedAddress(location?.formatted_address || ''); const pc = contacts.find((c: any) => c.is_primary); setEditContactName(pc?.full_name || ''); setEditContactPhone(pc?.phone || ''); setEditGovernorateId(customer.governorate_id || ''); setEditCityId(customer.city_id || ''); setEditStreet(customer.street_address || ''); setEditLandmark(customer.landmark || ''); }}
+                  className="text-[10px] text-primary font-semibold bg-primary/10 px-2.5 py-1 rounded-lg">تعديل البيانات</button>
+              )}
             </div>
-            <div className="bg-white rounded-xl border border-border p-3 text-center">
-              <div className="text-lg font-bold text-accent">{lastOrderDays !== null ? `منذ ${lastOrderDays} يوم` : 'غير متوفر'}</div>
-              <div className="text-[10px] text-text-secondary">آخر طلب</div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-xl border border-border p-4 space-y-3">
-            <div className="flex justify-between"><span className="text-xs text-text-secondary">الكود</span><span className="text-sm font-semibold">{customer.code}</span></div>
-            <div className="flex justify-between"><span className="text-xs text-text-secondary">اسم المسؤول</span><span className="text-sm font-semibold">{customer.responsible_name || 'غير متوفر'}</span></div>
-            <div className="flex justify-between"><span className="text-xs text-text-secondary">نوع النشاط</span><span className="text-sm font-semibold">{customer.business_type ? BUSINESS_TYPES.find(bt => bt.value === customer.business_type)?.label || customer.business_type : 'غير متوفر'}</span></div>
-            <div className="flex justify-between"><span className="text-xs text-text-secondary">رقم الهاتف</span><span className="text-sm font-semibold" dir="ltr">{customer.phone || 'غير متوفر'}</span></div>
-            <div className="flex justify-between"><span className="text-xs text-text-secondary">البريد الإلكتروني</span><span className="text-sm font-semibold" dir="ltr">{customer.email || 'غير متوفر'}</span></div>
-            <div className="flex justify-between"><span className="text-xs text-text-secondary">الموظف المسؤول</span>
-              <span className="text-sm font-semibold">{customer.owner_name || 'غير متوفر'}</span>
-            </div>
-            <div className="flex justify-between"><span className="text-xs text-text-secondary">الحد الائتماني</span><span className="text-sm font-semibold">{formatCurrencyShort(customer.credit_limit || 0)}</span></div>
-            <div className="flex justify-between"><span className="text-xs text-text-secondary">فترة الائتمان</span><span className="text-sm font-semibold">{customer.credit_days || 0} يوم</span></div>
-            <div className="flex justify-between"><span className="text-xs text-text-secondary">تاريخ التسجيل</span><span className="text-sm font-semibold">{customer.created_at ? formatDateTime(customer.created_at) : 'غير متوفر'}</span></div>
-          </div>
-
-          {contacts.length > 0 && (
-            <div className="bg-white rounded-xl border border-border p-4">
-              <h2 className="text-sm font-bold mb-2">جهات الاتصال</h2>
-              {contacts.map((c: any) => (
-                <div key={c.id} className="flex items-center justify-between py-1.5 border-b border-border/50 last:border-0">
-                  <span className="text-xs">{c.full_name}</span>
-                  <span className="text-xs text-text-secondary" dir="ltr">{c.phone}</span>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-2.5">
+              <div>
+                <div className="text-[10px] text-text-secondary">الكود</div>
+                <div className="text-sm font-semibold">{customer.code}</div>
+              </div>
+              <div>
+                <div className="text-[10px] text-text-secondary">الموظف المسؤول</div>
+                <div className="text-sm font-semibold">{customer.owner_name || 'غير متوفر'}</div>
+              </div>
+              <div>
+                <div className="text-[10px] text-text-secondary">نوع النشاط</div>
+                <div className="text-sm font-semibold">{customer.business_type ? BUSINESS_TYPES.find(bt => bt.value === customer.business_type)?.label || customer.business_type : 'غير متوفر'}</div>
+              </div>
+              <div>
+                <div className="text-[10px] text-text-secondary">المسؤول عن العميل</div>
+                <div className="text-sm font-semibold">{customer.responsible_name || 'غير متوفر'}</div>
+              </div>
+              <div>
+                <div className="text-[10px] text-text-secondary">رقم الهاتف</div>
+                <div className="text-sm font-semibold" dir="ltr">{customer.phone || 'غير متوفر'}</div>
+              </div>
+              <div>
+                <div className="text-[10px] text-text-secondary">تاريخ الإنشاء</div>
+                <div className="text-sm font-semibold">{customer.created_at ? formatDate(customer.created_at) : 'غير متوفر'}</div>
+              </div>
+              {customer.registered_at && customer.created_at !== customer.registered_at && (
+                <div>
+                  <div className="text-[10px] text-text-secondary">تاريخ التسجيل</div>
+                  <div className="text-sm font-semibold">{formatDate(customer.registered_at)}</div>
                 </div>
-              ))}
+              )}
             </div>
-          )}
+          </div>
+
+          <div className="bg-white rounded-xl border border-border p-3 space-y-2.5">
+            <h3 className="text-xs font-bold text-text">البيانات المالية</h3>
+            <div className="flex justify-between text-xs">
+              <span className="text-text-secondary">الحد الائتماني</span>
+              <span className="font-semibold">{formatCurrencyShort(customer.credit_limit || 0)}</span>
+            </div>
+            <div className="flex justify-between text-xs">
+              <span className="text-text-secondary">فترة الائتمان</span>
+              <span className="font-semibold">{customer.credit_days || 0} يوم</span>
+            </div>
+            <div className="flex justify-between text-xs">
+              <span className="text-text-secondary">إجمالي المبيعات</span>
+              <span className="font-semibold">{formatCurrencyShort(monthlySales)}</span>
+            </div>
+            <div className="flex justify-between text-xs">
+              <span className="text-text-secondary">آخر طلب</span>
+              <span className="font-semibold">{lastOrderDays !== null ? `منذ ${lastOrderDays} يوم` : 'غير متوفر'}</span>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl border border-border p-3">
+            <h3 className="text-xs font-bold text-text mb-2">جهات الاتصال</h3>
+            {contacts.length === 0 ? (
+              <div className="text-[10px] text-text-secondary text-center py-2">لا توجد جهات اتصال</div>
+            ) : (
+              <div className="space-y-2">
+                {contacts.map((c: any) => (
+                  <div key={c.id} className="bg-surface rounded-lg p-2">
+                    <div className="text-[11px] font-semibold text-text">{c.full_name}</div>
+                    <div className="flex items-center justify-between mt-1">
+                      <span className="text-[10px] text-text-secondary" dir="ltr">{c.phone}</span>
+                      <div className="flex gap-1">
+                        <a href={`tel:${c.phone}`} className="text-[9px] text-primary bg-primary/10 px-1.5 py-0.5 rounded">اتصال</a>
+                        <a href={`https://wa.me/${c.phone.replace(/^\+/, '')}`} target="_blank" rel="noopener noreferrer" className="text-[9px] text-success bg-success/10 px-1.5 py-0.5 rounded">واتساب</a>
+                        <button onClick={() => { navigator.clipboard.writeText(c.phone); toast.success('تم نسخ الرقم') }} className="text-[9px] text-accent bg-accent/10 px-1.5 py-0.5 rounded">نسخ</button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
 
           {location && (
             <div className="bg-white rounded-xl border border-border p-4">
-              <h2 className="text-sm font-bold mb-2 flex items-center gap-1.5">
-                <span className="text-primary">📍</span>
-                الموقع
-              </h2>
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 text-xs">
-                  <LocationDisplay lat={location.latitude} lng={location.longitude} size="md" className="text-text" />
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-sm font-bold flex items-center gap-1.5">🛰️ الموقع الحالي</h2>
+                <span className={`text-[10px] px-2 py-0.5 rounded font-semibold ${getLocationStatus().className}`}>
+                  {getLocationStatus().icon} {getLocationStatus().label}
+                </span>
+              </div>
+              {location.formatted_address && (
+                <div className="mb-3">
+                  <div className="bg-surface rounded-lg p-3 text-xs text-text leading-relaxed border border-border/50">
+                    {location.formatted_address}
+                  </div>
                 </div>
-                <div className="flex items-center gap-2 text-xs">
-                  <span className="text-text-secondary">دقة الموقع:</span>
+              )}
+              <div className="grid grid-cols-2 gap-y-2 gap-x-4 text-xs mb-3">
+                <div>
+                  <span className="text-text-secondary">مستوى الدقة: </span>
                   <span className={formatAccuracy(location.accuracy_meters).className}>
                     {formatAccuracy(location.accuracy_meters).label}
                     {' ('}{formatAccuracy(location.accuracy_meters).detail}{')'}
                   </span>
                 </div>
-                <div className="flex items-center gap-2 text-xs">
-                  <span className="text-text-secondary">تاريخ التقاط الموقع:</span>
+                <div>
+                  <span className="text-text-secondary">مصدر الدقة: </span>
+                  <span className="bg-surface px-1.5 py-0.5 rounded text-[10px] font-semibold">{getSourceLabel()}</span>
+                </div>
+                <div>
+                  <span className="text-text-secondary">تاريخ الالتقاط: </span>
                   <span>{formatDateTime(location.captured_at)}</span>
                 </div>
-                <button
-                  onClick={handleUpdateLocation}
-                  disabled={locating}
-                  className="w-full mt-2 bg-accent/10 text-accent text-sm py-2.5 rounded-lg font-semibold hover:bg-accent/20 active:bg-accent/30 transition-colors disabled:opacity-50"
-                >
-                  {locating ? 'جاري التحديد...' : 'تحديث الموقع الحالي'}
-                </button>
+                <div>
+                  <span className="text-text-secondary">رقم الهاتف: </span>
+                  <span className="font-semibold" dir="ltr">{customer.phone || 'غير متوفر'}</span>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2 mb-2">
+                {getBestMapsUrl() ? (
+                  <a href={getBestMapsUrl()!} target="_blank" rel="noopener noreferrer"
+                    className="flex-1 bg-primary text-white text-xs py-1.5 rounded-lg font-semibold text-center">فتح Google Maps</a>
+                ) : null}
+                <button onClick={() => { navigator.clipboard.writeText(location.formatted_address || ''); toast.success('تم نسخ العنوان') }}
+                  className="flex-1 bg-primary/10 text-primary text-xs py-1.5 rounded-lg font-semibold">نسخ العنوان</button>
+                <button onClick={() => { navigator.clipboard.writeText(`https://maps.google.com/?q=${location.latitude},${location.longitude}`); toast.success('تم نسخ الرابط') }}
+                  className="flex-1 bg-accent/10 text-accent text-xs py-1.5 rounded-lg font-semibold">نسخ الرابط</button>
+                <button onClick={() => { navigator.share?.({ url: `https://maps.google.com/?q=${location.latitude},${location.longitude}` }) }}
+                  className="flex-1 bg-surface border border-border text-text text-xs py-1.5 rounded-lg font-semibold">مشاركة</button>
+              </div>
+              <button disabled title="قريباً"
+                className="w-full bg-surface border border-border/50 text-text-secondary text-xs py-1.5 rounded-lg font-semibold mb-2 cursor-not-allowed">
+                اعتماد هذا العنوان
+              </button>
+              <button onClick={handleUpdateLocation} disabled={locating}
+                className="w-full bg-accent/10 text-accent text-xs py-1.5 rounded-lg font-semibold hover:bg-accent/20 disabled:opacity-50">
+                {locating ? 'جاري التحديد...' : 'تحديث الموقع'}
+              </button>
+            </div>
+          )}
+
+          {location && location.formatted_address && (customer.street_address || customer.governorate_name || customer.city_name) && (
+            <div className="bg-white rounded-xl border border-border p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-sm font-bold flex items-center gap-1.5">📊 مقارنة العنوان</h2>
+                <span className={`text-[10px] px-2 py-0.5 rounded font-semibold ${comparisonAllMatch ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'}`}>
+                  {comparisonAllMatch ? '🟢 العنوانان متطابقان' : '🟡 يوجد اختلاف يحتاج مراجعة'}
+                </span>
+              </div>
+              <div className="space-y-2">
+                {comparisonFields.map(f => (
+                  <div key={f.label} className="flex items-center justify-between text-xs">
+                    <span className="text-text-secondary">{f.label}</span>
+                    <span className={`font-semibold ${f.result === 'match' ? 'text-success' : f.result === 'diff' ? 'text-warning' : 'text-text-secondary'}`}>
+                      {f.result === 'match' ? '✅ متطابق' : f.result === 'diff' ? '⚠ مختلف' : '➖ غير متوفرة'}
+                    </span>
+                  </div>
+                ))}
               </div>
             </div>
           )}
 
-          {/* Structured Address Fields */}
-          {(customer.street_address || customer.landmark || customer.governorate_name || customer.city_name) && (
-            <div className="bg-white rounded-xl border border-border p-4">
-              <h2 className="text-sm font-bold mb-2 flex items-center gap-1.5">
-                <span className="text-primary">📍</span>
+          {(customer.street_address || customer.landmark || customer.governorate_name || customer.city_name || customer.registered_address) && (
+            <div className="bg-white rounded-xl border border-blue-200 p-4">
+              <h2 className="text-sm font-bold mb-3 flex items-center gap-1.5 text-blue-700">
+                <span>📝</span>
                 العنوان المسجل
               </h2>
-              <div className="space-y-1.5">
-                {customer.governorate_name && (
-                  <div className="flex justify-between text-xs">
-                    <span className="text-text-secondary">المحافظة</span>
-                    <span className="font-semibold">{customer.governorate_name}</span>
-                  </div>
-                )}
-                {customer.city_name && (
-                  <div className="flex justify-between text-xs">
-                    <span className="text-text-secondary">المدينة</span>
-                    <span className="font-semibold">{customer.city_name}</span>
-                  </div>
-                )}
-                {customer.street_address && (
-                  <div className="flex justify-between text-xs">
-                    <span className="text-text-secondary">الشارع</span>
-                    <span className="font-semibold">{customer.street_address}</span>
-                  </div>
-                )}
-                {customer.landmark && (
-                  <div className="flex justify-between text-xs">
-                    <span className="text-text-secondary">علامة مميزة</span>
-                    <span className="font-semibold">{customer.landmark}</span>
-                  </div>
-                )}
-                {customer.registered_address && (
-                  <div className="flex justify-between text-xs">
-                    <span className="text-text-secondary">العنوان الكامل</span>
-                    <span className="font-semibold text-text-secondary text-[10px]">{customer.registered_address}</span>
-                  </div>
-                )}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-2.5">
+                <div>
+                  {customer.governorate_name && (
+                    <div className="mb-2.5">
+                      <div className="text-[10px] text-text-secondary">المحافظة</div>
+                      <div className="text-sm font-semibold">{customer.governorate_name}</div>
+                    </div>
+                  )}
+                  {customer.city_name && (
+                    <div className="mb-2.5">
+                      <div className="text-[10px] text-text-secondary">المدينة</div>
+                      <div className="text-sm font-semibold">{customer.city_name}</div>
+                    </div>
+                  )}
+                  {customer.street_address && (
+                    <div className="mb-2.5">
+                      <div className="text-[10px] text-text-secondary">الشارع</div>
+                      <div className="text-sm font-semibold">{customer.street_address}</div>
+                    </div>
+                  )}
+                  {customer.landmark && (
+                    <div>
+                      <div className="text-[10px] text-text-secondary">العلامة المميزة</div>
+                      <div className="text-sm font-semibold">{customer.landmark}</div>
+                    </div>
+                  )}
+                </div>
+                <div>
+                  {customer.registered_address && (
+                    <div>
+                      <div className="text-[10px] text-text-secondary mb-1">العنوان الكامل</div>
+                      <div className="bg-surface rounded-lg p-2.5 text-xs text-text-secondary leading-relaxed border border-border/50">
+                        {customer.registered_address}
+                      </div>
+                      <div className="text-[9px] text-text-secondary mt-1">
+                        آخر تعديل: {customer.updated_at ? formatDateTime(customer.updated_at) : 'غير متوفر'}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-border/50">
+                <button onClick={() => { const addr = customer.registered_address || [customer.governorate_name, customer.city_name, customer.street_address, customer.landmark].filter(Boolean).join(' - '); navigator.clipboard.writeText(addr); toast.success('تم نسخ العنوان') }}
+                  className="flex-1 bg-primary/10 text-primary text-xs py-1.5 rounded-lg font-semibold">نسخ العنوان</button>
+                <button onClick={() => { const addr = customer.registered_address || [customer.governorate_name, customer.city_name, customer.street_address, customer.landmark].filter(Boolean).join(' - '); navigator.share?.({ text: addr }) }}
+                  className="flex-1 bg-accent/10 text-accent text-xs py-1.5 rounded-lg font-semibold">مشاركة</button>
+                {getBestMapsUrl() ? (
+                  <a href={getBestMapsUrl()!} target="_blank" rel="noopener noreferrer"
+                    className="flex-1 bg-surface border border-border text-text text-xs py-1.5 rounded-lg font-semibold text-center">فتح على الخرائط</a>
+                ) : null}
               </div>
             </div>
           )}
 
-          {location?.formatted_address && (
-            <div className="bg-white rounded-xl border border-border p-4">
-              <h2 className="text-sm font-bold mb-2">العنوان (GPS)</h2>
-              <p className="text-xs">{location.formatted_address}</p>
-            </div>
-          )}
 
-          {(canEdit || canManage) && (
+          {(canManage) && (
             <div className="flex gap-2 flex-wrap">
-              {canEdit && (
-                <button onClick={() => { setShowEdit(true); setEditName(customer.company_name); setEditPhone(customer.phone || ''); setEditResponsibleName(customer.responsible_name || ''); setEditBusinessType(customer.business_type || ''); setEditCreditLimit(String(customer.credit_limit || '')); setEditCreditDays(String(customer.credit_days || '')); setEditPassword(''); setEditConfirmPassword(''); setEditFormattedAddress(location?.formatted_address || ''); const pc = contacts.find((c: any) => c.is_primary); setEditContactName(pc?.full_name || ''); setEditContactPhone(pc?.phone || ''); setEditGovernorateId(customer.governorate_id || ''); setEditCityId(customer.city_id || ''); setEditStreet(customer.street_address || ''); setEditLandmark(customer.landmark || ''); }}
-                  className="flex-1 bg-primary/10 text-primary text-xs py-2 rounded-lg font-semibold">تعديل البيانات</button>
-              )}
-              {canManage && (
-                <>
-                  <button onClick={handleToggleActive}
-                    className={`flex-1 text-xs py-2 rounded-lg font-semibold ${customer.is_active ? 'bg-danger/10 text-danger' : 'bg-success/10 text-success'}`}>
-                    {customer.is_active ? 'إيقاف العميل' : 'تفعيل العميل'}
-                  </button>
-                  <button onClick={() => setShowOwnership(true)}
-                    className="flex-1 bg-accent/10 text-accent text-xs py-2 rounded-lg font-semibold">نقل الملكية</button>
-                </>
-              )}
+              <button onClick={handleToggleActive}
+                className={`flex-1 text-xs py-2 rounded-lg font-semibold ${customer.is_active ? 'bg-danger/10 text-danger' : 'bg-success/10 text-success'}`}>
+                {customer.is_active ? 'إيقاف العميل' : 'تفعيل العميل'}
+              </button>
+              <button onClick={() => setShowOwnership(true)}
+                className="flex-1 bg-accent/10 text-accent text-xs py-2 rounded-lg font-semibold">نقل الملكية</button>
             </div>
           )}
 
