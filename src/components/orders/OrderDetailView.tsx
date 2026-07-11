@@ -11,6 +11,7 @@ import { OrderReturnsSection } from './OrderReturnsSection'
 import { OrderTimelineSection } from './OrderTimelineSection'
 import { ModificationHistoryPanel } from './ModificationHistoryPanel'
 import { formatDateTime, formatCurrencyShort } from '../../utils/format'
+import { resolveLocation } from '../../utils/location-resolver'
 import { ORDER_STATUS_LABELS } from '../../types/order-display'
 import { renderDeliveryPermitHtml, printInvoice } from './order-printing'
 import { buildTimelineEvents } from './order-detail.utils'
@@ -32,6 +33,7 @@ interface OrderDetailViewProps {
 export function OrderDetailView({ data, actions, onBack, editMode, editItems, onQuantityChange, onRemoveItem, onPriceChange, onAddProduct, editActions }: OrderDetailViewProps) {
   const navigate = useNavigate()
   const { order, customer, items, collections, current_delivery, modification_history } = data
+  const resolvedLocation = useMemo(() => resolveLocation(customer, order), [customer, order])
   const [overLimit, setOverLimit] = useState<boolean | null>(null)
 
   const grandTotal = useMemo(() => items.reduce((s, i) => s + Number(i.total_price || 0), 0), [items])
@@ -170,11 +172,9 @@ export function OrderDetailView({ data, actions, onBack, editMode, editItems, on
           <div><span style={{color:'#9CA3AF'}}>اسم العميل:</span> <span className="font-semibold text-primary cursor-pointer hover:text-primary/70 underline decoration-transparent hover:decoration-primary/30 transition-all" onClick={() => customer?.id && navigate(`/customers/${customer.id}`)}>{customer?.company_name || order.snapshot_customer_name || 'غير متوفر'}</span></div>
           <div><span style={{color:'#9CA3AF'}}>الكود:</span> <span className="font-semibold text-[#111827]">{customer?.code || '—'}</span></div>
           <div><span style={{color:'#9CA3AF'}}>الهاتف:</span> <span className="font-semibold text-[#111827] font-mono">{customer?.phone || order.snapshot_customer_phone || 'غير متوفر'}</span></div>
-          <div><span style={{color:'#9CA3AF'}}>المدينة:</span> <span className="font-semibold text-[#111827]">{customer?.address_city || '—'}</span></div>
+          <div><span style={{color:'#9CA3AF'}}>المحافظة:</span> <span className="font-semibold text-[#111827]">{resolvedLocation.governorate}</span></div>
+          <div><span style={{color:'#9CA3AF'}}>المدينة:</span> <span className="font-semibold text-[#111827]">{resolvedLocation.city}</span></div>
           <div><span style={{color:'#9CA3AF'}}>المندوب:</span> <span className="font-semibold text-[#111827]">{order.customer_owner_name || '—'}</span></div>
-          <div><span style={{color:'#9CA3AF'}}>الرصيد:</span> <span className="font-semibold text-[#111827]">{customer?.balance ? formatCurrencyShort(Number(customer.balance)) : '—'}</span></div>
-          <div><span style={{color:'#9CA3AF'}}>الحد الائتماني:</span> <span className="font-semibold text-[#111827]">{customer?.credit_limit ? formatCurrencyShort(Number(customer.credit_limit)) : '—'}</span></div>
-          <div><span style={{color:'#9CA3AF'}}>المحافظة:</span> <span className="font-semibold text-[#111827]">{customer?.address_governorate || '—'}</span></div>
         </div>
         {customer?.display_address && (
           <p className="text-[12px] text-[#6B7280] leading-relaxed mt-1">{customer.display_address}</p>
