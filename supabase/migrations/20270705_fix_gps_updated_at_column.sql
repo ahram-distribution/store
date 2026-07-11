@@ -1,19 +1,7 @@
 -- ============================================================================
--- Migration 20270704: Add GPS address display fields to get_unified_order
---
--- What changed:
---   1. Restores previous_order_* fields (lost in 20270703 rewrite)
---   2. Adds gps_formatted_address, gps_latitude, gps_longitude,
---      gps_accuracy_meters, gps_updated_at to the customer subquery
---      so the frontend can show both manual and GPS address cards
---      independently (not just the COALESCE fallback).
--- ============================================================================
-
--- ============================================================================
--- 1. Recreate get_unified_order with:
---    - previous-order stats (restored from 20260709)
---    - COALESCE fallback for address_lat/lng (from 20270703)
---    - GPS-only fields for independent display (NEW)
+-- Fixup 20270704: gps_updated_at uses ul.created_at (not ul.updated_at)
+-- The unified_locations table has created_at, not updated_at.
+-- If you already applied 20270704, run this to fix the function.
 -- ============================================================================
 
 CREATE OR REPLACE FUNCTION public.get_unified_order(
@@ -63,7 +51,6 @@ BEGIN
 
   v_customer_id := v_order.customer_id;
 
-  -- Compute previous-order stats once (exclude current order)
   SELECT
     count(*)::bigint,
     COALESCE(sum(total_amount), 0),
@@ -150,13 +137,11 @@ BEGIN
             NULLIF(concat_ws(' - ', ca.address_line1, ca.city, ca.governorate), ''),
             v_order.snapshot_customer_address
           ),
-          -- GPS-only fields (from unified_locations, NOT coalesced)
           'gps_formatted_address', ul.formatted_address,
           'gps_latitude', ul.latitude,
           'gps_longitude', ul.longitude,
           'gps_accuracy_meters', ul.accuracy_meters,
           'gps_updated_at', ul.created_at,
-          -- Previous-order stats (restored from 20260709)
           'previous_order_count', v_prev_count,
           'previous_orders_total', v_prev_total,
           'previous_order_number', v_prev_number,
@@ -334,7 +319,3 @@ END;
 $$;
 
 COMMENT ON FUNCTION public.get_unified_order IS 'مصدر الحقيقة الموحد للطلب — مع GPS-only fields, previous-order stats, و fallback للموقع';
-
--- ============================================================================
--- END OF MIGRATION
--- ============================================================================
