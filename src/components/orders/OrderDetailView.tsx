@@ -14,15 +14,22 @@ import { formatDateTime, formatCurrencyShort } from '../../utils/format'
 import { ORDER_STATUS_LABELS } from '../../types/order-display'
 import { renderDeliveryPermitHtml, printInvoice } from './order-printing'
 import { buildTimelineEvents } from './order-detail.utils'
-import type { UnifiedOrder } from '../../types/unified-order'
+import type { UnifiedOrder, UnifiedOrderItem } from '../../types/unified-order'
 
 interface OrderDetailViewProps {
   data: UnifiedOrder
   actions?: React.ReactNode
   onBack?: () => void
+  editMode?: boolean
+  editItems?: UnifiedOrderItem[]
+  onQuantityChange?: (productId: string, unitType: string, newQty: number) => void
+  onRemoveItem?: (productId: string, unitType: string) => void
+  onPriceChange?: (productId: string, unitType: string, newPrice: number) => void
+  onAddProduct?: (companyName: string) => void
+  editActions?: React.ReactNode
 }
 
-export function OrderDetailView({ data, actions, onBack }: OrderDetailViewProps) {
+export function OrderDetailView({ data, actions, onBack, editMode, editItems, onQuantityChange, onRemoveItem, onPriceChange, onAddProduct, editActions }: OrderDetailViewProps) {
   const navigate = useNavigate()
   const { order, customer, items, collections, current_delivery, modification_history } = data
   const [overLimit, setOverLimit] = useState<boolean | null>(null)
@@ -281,7 +288,20 @@ export function OrderDetailView({ data, actions, onBack }: OrderDetailViewProps)
         </div>
       </div>
 
-      <OrderProductsSection items={items} order={order} />
+      <OrderProductsSection
+        items={editMode && editItems ? editItems : items}
+        order={order}
+        mode={editMode ? 'edit' : 'view'}
+        onQuantityChange={onQuantityChange}
+        onRemoveItem={onRemoveItem}
+        onPriceChange={onPriceChange}
+        onAddProduct={onAddProduct}
+      />
+      {editMode && editActions && (
+        <div className="sticky bottom-0 z-10 bg-white border-t border-[#E5E7EB] shadow-[0_-4px_12px_rgba(0,0,0,0.08)] px-4 py-3 -mx-4 lg:-mx-6">
+          {editActions}
+        </div>
+      )}
       {order.notes && (
         <div className="bg-white rounded-lg border border-[#E5E7EB] shadow-sm p-4">
           <p className="text-[13px] font-bold text-[#111827] mb-1">ملاحظات</p>
