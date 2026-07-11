@@ -103,7 +103,7 @@ BEGIN
     SELECT rc.id, rc.name_ar, rc.governorate_id
     INTO v_city_id, v_city_name, v_gov_id_from_city
     FROM reference_cities rc
-    WHERE v_fmt ~* '\m' || rc.name_ar || '\M'
+    WHERE v_fmt ~* ('\m' || rc.name_ar || '\M')
     ORDER BY rc.display_order
     LIMIT 1;
 
@@ -116,7 +116,7 @@ BEGIN
     IF v_gov_id IS NULL THEN
       SELECT rg.id, rg.name_ar INTO v_gov_id, v_gov_name
       FROM reference_governorates rg
-      WHERE v_fmt ~* '\m' || rg.name_ar || '\M'
+      WHERE v_fmt ~* ('\m' || rg.name_ar || '\M')
       ORDER BY rg.display_order
       LIMIT 1;
     END IF;
@@ -162,7 +162,8 @@ BEGIN
       COALESCE(v_gov_id, v_ex_gov_id),
       COALESCE(v_ex_lat, p_latitude),
       COALESCE(v_ex_lng, p_longitude),
-      p_accuracy_level, p_accuracy_level, now(),
+      CASE WHEN p_latitude IS NOT NULL THEN 'gps'::address_source_type ELSE 'mixed'::address_source_type END,
+      p_accuracy_level, now(),
       true
     )
     ON CONFLICT (customer_id) WHERE is_default = true

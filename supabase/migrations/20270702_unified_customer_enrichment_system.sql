@@ -111,7 +111,7 @@ BEGIN
     SELECT rc.id, rc.name_ar, rc.governorate_id
     INTO v_city_id, v_city_name, v_gov_id_from_city
     FROM reference_cities rc
-    WHERE v_fmt ~* '\m' || rc.name_ar || '\M'
+    WHERE v_fmt ~* ('\m' || rc.name_ar || '\M')
     ORDER BY rc.display_order
     LIMIT 1;
 
@@ -124,7 +124,7 @@ BEGIN
     IF v_gov_id IS NULL THEN
       SELECT rg.id, rg.name_ar INTO v_gov_id, v_gov_name
       FROM reference_governorates rg
-      WHERE v_fmt ~* '\m' || rg.name_ar || '\M'
+      WHERE v_fmt ~* ('\m' || rg.name_ar || '\M')
       ORDER BY rg.display_order
       LIMIT 1;
     END IF;
@@ -167,7 +167,8 @@ BEGIN
       COALESCE(NULLIF(v_gov_name, ''), v_ex_gov, ''),
       COALESCE(v_city_id, v_ex_city_id),
       COALESCE(v_gov_id, v_ex_gov_id),
-      p_accuracy_level, p_accuracy_level, now(),
+      CASE WHEN p_latitude IS NOT NULL THEN 'gps'::address_source_type ELSE 'mixed'::address_source_type END,
+      p_accuracy_level, now(),
       true
     )
     ON CONFLICT (customer_id) WHERE is_default = true
@@ -236,14 +237,18 @@ BEGIN
   SELECT formatted_address INTO v_formatted_address
   FROM unified_locations WHERE id = p_end_location_id;
 
-  -- Enrich customer using shared service
-  PERFORM fn_enrich_customer_location(
-    p_customer_id        := v_customer_id,
-    p_latitude           := p_latitude,
-    p_longitude          := p_longitude,
-    p_formatted_address  := v_formatted_address,
-    p_accuracy_level     := 'GPS'
-  );
+  -- Enrich customer using shared service (best-effort, must never fail visit)
+  BEGIN
+    PERFORM fn_enrich_customer_location(
+      p_customer_id        := v_customer_id,
+      p_latitude           := p_latitude,
+      p_longitude          := p_longitude,
+      p_formatted_address  := v_formatted_address,
+      p_accuracy_level     := 'GPS'
+    );
+  EXCEPTION WHEN OTHERS THEN
+    RAISE WARNING 'governed_checkout_visit: enrichment failed for visit % (customer %): %', p_visit_id, v_customer_id, SQLERRM;
+  END;
 
   RETURN jsonb_build_object('success', true);
 END;
