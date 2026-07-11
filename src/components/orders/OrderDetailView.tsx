@@ -11,7 +11,7 @@ import { OrderReturnsSection } from './OrderReturnsSection'
 import { OrderTimelineSection } from './OrderTimelineSection'
 import { ModificationHistoryPanel } from './ModificationHistoryPanel'
 import { formatDateTime, formatCurrencyShort } from '../../utils/format'
-import { resolveLocation } from '../../utils/location-resolver'
+import { CustomerAddressCard } from '../customers/CustomerAddressCard'
 import { ORDER_STATUS_LABELS } from '../../types/order-display'
 import { renderDeliveryPermitHtml, printInvoice } from './order-printing'
 import { buildTimelineEvents } from './order-detail.utils'
@@ -33,7 +33,6 @@ interface OrderDetailViewProps {
 export function OrderDetailView({ data, actions, onBack, editMode, editItems, onQuantityChange, onRemoveItem, onPriceChange, onAddProduct, editActions }: OrderDetailViewProps) {
   const navigate = useNavigate()
   const { order, customer, items, collections, current_delivery, modification_history } = data
-  const resolvedLocation = useMemo(() => resolveLocation(customer, order), [customer, order])
   const [overLimit, setOverLimit] = useState<boolean | null>(null)
 
   const grandTotal = useMemo(() => items.reduce((s, i) => s + Number(i.total_price || 0), 0), [items])
@@ -172,13 +171,22 @@ export function OrderDetailView({ data, actions, onBack, editMode, editItems, on
           <div><span style={{color:'#9CA3AF'}}>اسم العميل:</span> <span className="font-semibold text-primary cursor-pointer hover:text-primary/70 underline decoration-transparent hover:decoration-primary/30 transition-all" onClick={() => customer?.id && navigate(`/customers/${customer.id}`)}>{customer?.company_name || order.snapshot_customer_name || 'غير متوفر'}</span></div>
           <div><span style={{color:'#9CA3AF'}}>الكود:</span> <span className="font-semibold text-[#111827]">{customer?.code || '—'}</span></div>
           <div><span style={{color:'#9CA3AF'}}>الهاتف:</span> <span className="font-semibold text-[#111827] font-mono">{customer?.phone || order.snapshot_customer_phone || 'غير متوفر'}</span></div>
-          <div><span style={{color:'#9CA3AF'}}>المحافظة:</span> <span className="font-semibold text-[#111827]">{resolvedLocation.governorate}</span></div>
-          <div><span style={{color:'#9CA3AF'}}>المدينة:</span> <span className="font-semibold text-[#111827]">{resolvedLocation.city}</span></div>
           <div><span style={{color:'#9CA3AF'}}>المندوب:</span> <span className="font-semibold text-[#111827]">{order.customer_owner_name || '—'}</span></div>
         </div>
-        {customer?.display_address && (
-          <p className="text-[12px] text-[#6B7280] leading-relaxed mt-1">{customer.display_address}</p>
-        )}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
+          <CustomerAddressCard type="gps" gpsData={customer ? {
+            formatted_address: customer.gps_formatted_address,
+            latitude: customer.gps_latitude,
+            longitude: customer.gps_longitude,
+            accuracy_meters: customer.gps_accuracy_meters,
+          } : null} />
+          <CustomerAddressCard type="manual" manualData={customer ? {
+            governorate: customer.governorate,
+            city: customer.city,
+            address_line1: customer.address_line1,
+            address_line2: customer.address_line2,
+          } : null} />
+        </div>
         <div className="flex flex-wrap items-center gap-2 mt-2 pt-2 border-t border-[#E5E7EB]">
           <a href={`tel:${customer?.phone || order.snapshot_customer_phone}`}
             className="flex items-center justify-center gap-1.5 text-xs text-[#2563EB] bg-[#EFF6FF] hover:bg-[#DBEAFE] px-3 py-1.5 rounded-lg transition-colors font-medium h-[32px]">
@@ -190,32 +198,7 @@ export function OrderDetailView({ data, actions, onBack, editMode, editItems, on
             <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
             واتساب
           </a>
-          {customer?.address_latitude != null && customer?.address_longitude != null && (
-            <>
-              <a href={`https://www.google.com/maps?q=${customer.address_latitude},${customer.address_longitude}`} target="_blank" rel="noopener noreferrer"
-                className="flex items-center justify-center gap-1.5 text-xs text-[#DC2626] bg-[#FEF2F2] hover:bg-[#FEE2E2] px-3 py-1.5 rounded-lg transition-colors font-medium h-[32px]">
-                <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-                فتح الموقع
-              </a>
-              <button onClick={() => { navigator.clipboard.writeText(`https://www.google.com/maps?q=${customer.address_latitude},${customer.address_longitude}`); window.alert('تم نسخ الرابط')}}
-                className="flex items-center justify-center gap-1.5 text-xs text-[#2563EB] bg-[#EFF6FF] hover:bg-[#DBEAFE] px-3 py-1.5 rounded-lg transition-colors font-medium h-[32px]">
-                <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/></svg>
-                نسخ
-              </button>
-              <button onClick={() => { if (navigator.share) navigator.share({title:'الموقع', text:'', url:`https://www.google.com/maps?q=${customer.address_latitude},${customer.address_longitude}`}) }}
-                className="flex items-center justify-center gap-1.5 text-xs text-[#059669] bg-[#ECFDF5] hover:bg-[#D1FAE5] px-3 py-1.5 rounded-lg transition-colors font-medium h-[32px]">
-                <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/></svg>
-                مشاركة
-              </button>
-            </>
-          )}
         </div>
-        {customer?.address_latitude == null && (
-          <div className="mt-2 bg-[#F9FAFB] rounded-lg border border-[#E5E7EB] p-3 flex items-center gap-2">
-            <span className="text-lg">📍</span>
-            <p className="text-xs text-[#6B7280]">لم يتم رصد موقع العميل.</p>
-          </div>
-        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">

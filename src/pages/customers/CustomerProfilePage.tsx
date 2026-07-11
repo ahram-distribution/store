@@ -4,9 +4,10 @@ import { supabase } from '../../lib/supabase'
 import { useCapability } from '../../hooks/useCapability'
 import { formatCurrencyShort, formatDate, formatDateTime } from '../../utils/format'
 import { getCustomerState, getCustomerStateLabel, CUSTOMER_STATE_LABELS } from '../../utils/systemStates'
-import { LocationRepository, formatAccuracy } from '../../domain/location'
+import { LocationRepository } from '../../domain/location'
 import { getCurrentLocation } from '../../services/gpsService'
 import { SearchableSelect } from '../../components/shared/SearchableSelect'
+import { CustomerAddressCard } from '../../components/customers/CustomerAddressCard'
 import toast from 'react-hot-toast'
 
 const BUSINESS_TYPES: { value: string; label: string }[] = [
@@ -567,52 +568,6 @@ export function CustomerProfilePage() {
     return getCustomerState(customer.is_active, lastOrderDays)
   }, [customer, lastOrderDays])
 
-  const comparisonFields = useMemo(() => {
-    if (!location?.formatted_address) return []
-    const addr = location.formatted_address
-    const items = [
-      { label: 'المحافظة', value: customer?.governorate_name },
-      { label: 'المدينة', value: customer?.city_name },
-      { label: 'الشارع', value: customer?.street_address },
-      { label: 'العلامة المميزة', value: customer?.landmark },
-    ]
-    return items.map(i => ({
-      label: i.label,
-      result: !i.value ? 'missing' : addr.includes(i.value) ? 'match' : 'diff',
-    }))
-  }, [customer, location])
-
-  const comparisonAllMatch = useMemo(() => {
-    return comparisonFields.length > 0 && comparisonFields.every(f => f.result === 'match')
-  }, [comparisonFields])
-
-  const getSourceLabel = () => {
-    if (!location) return ''
-    const acc = location.accuracy_meters
-    if (acc === null || acc === undefined) return 'غير معروف'
-    if (acc <= 20) return 'GPS'
-    if (acc <= 100) return 'ترميز جغرافي'
-    if (acc <= 200) return 'مركز المدينة'
-    return 'مركز المحافظة'
-  }
-
-  const getLocationStatus = () => {
-    if (!location) return { label: 'لا يوجد موقع', className: 'bg-danger/10 text-danger', icon: '🔴' }
-    const acc = location.accuracy_meters
-    if (acc !== null && acc !== undefined && acc <= 50) return { label: 'تم تسجيل الموقع', className: 'bg-success/10 text-success', icon: '🟢' }
-    return { label: 'تم استخراج الموقع', className: 'bg-accent/10 text-accent', icon: '🟡' }
-  }
-
-  const getBestMapsUrl = () => {
-    if (location?.latitude && location?.longitude)
-      return `https://maps.google.com/?q=${location.latitude},${location.longitude}`
-    if (location?.formatted_address)
-      return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(location.formatted_address)}`
-    const addr = customer?.registered_address || [customer?.governorate_name, customer?.city_name, customer?.street_address, customer?.landmark].filter(Boolean).join(' ')
-    if (addr) return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}`
-    return null
-  }
-
   const statusColors: Record<string, string> = {
     [CUSTOMER_STATE_LABELS.complete]: 'bg-primary/10 text-primary',
     [CUSTOMER_STATE_LABELS.partial]: 'bg-accent/10 text-accent',
@@ -811,143 +766,31 @@ export function CustomerProfilePage() {
             )}
           </div>
 
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <CustomerAddressCard type="gps" gpsData={location ? {
+              formatted_address: location.formatted_address,
+              latitude: location.latitude,
+              longitude: location.longitude,
+              accuracy_meters: location.accuracy_meters,
+            } : null} />
+            <CustomerAddressCard type="manual" manualData={customer ? {
+              governorate: customer.governorate_name,
+              city: customer.city_name,
+              address_line1: customer.street_address,
+              address_line2: customer.landmark,
+            } : null} />
+          </div>
+
           {location && (
-            <div className="bg-white rounded-xl border border-border p-4">
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="text-sm font-bold flex items-center gap-1.5">🛰️ الموقع الحالي</h2>
-                <span className={`text-[10px] px-2 py-0.5 rounded font-semibold ${getLocationStatus().className}`}>
-                  {getLocationStatus().icon} {getLocationStatus().label}
-                </span>
-              </div>
-              {location.formatted_address && (
-                <div className="mb-3">
-                  <div className="bg-surface rounded-lg p-3 text-xs text-text leading-relaxed border border-border/50">
-                    {location.formatted_address}
-                  </div>
-                </div>
-              )}
-              <div className="grid grid-cols-2 gap-y-2 gap-x-4 text-xs mb-3">
-                <div>
-                  <span className="text-text-secondary">مستوى الدقة: </span>
-                  <span className={formatAccuracy(location.accuracy_meters).className}>
-                    {formatAccuracy(location.accuracy_meters).label}
-                    {' ('}{formatAccuracy(location.accuracy_meters).detail}{')'}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-text-secondary">مصدر الدقة: </span>
-                  <span className="bg-surface px-1.5 py-0.5 rounded text-[10px] font-semibold">{getSourceLabel()}</span>
-                </div>
-                <div>
-                  <span className="text-text-secondary">تاريخ الالتقاط: </span>
-                  <span>{formatDateTime(location.captured_at)}</span>
-                </div>
-                <div>
-                  <span className="text-text-secondary">رقم الهاتف: </span>
-                  <span className="font-semibold" dir="ltr">{customer.phone || 'غير متوفر'}</span>
-                </div>
-              </div>
-              <div className="flex flex-wrap gap-2 mb-2">
-                {getBestMapsUrl() ? (
-                  <a href={getBestMapsUrl()!} target="_blank" rel="noopener noreferrer"
-                    className="flex-1 bg-primary text-white text-xs py-1.5 rounded-lg font-semibold text-center">فتح Google Maps</a>
-                ) : null}
-                <button onClick={() => { navigator.clipboard.writeText(location.formatted_address || ''); toast.success('تم نسخ العنوان') }}
-                  className="flex-1 bg-primary/10 text-primary text-xs py-1.5 rounded-lg font-semibold">نسخ العنوان</button>
-                <button onClick={() => { navigator.clipboard.writeText(`https://maps.google.com/?q=${location.latitude},${location.longitude}`); toast.success('تم نسخ الرابط') }}
-                  className="flex-1 bg-accent/10 text-accent text-xs py-1.5 rounded-lg font-semibold">نسخ الرابط</button>
-                <button onClick={() => { navigator.share?.({ url: `https://maps.google.com/?q=${location.latitude},${location.longitude}` }) }}
-                  className="flex-1 bg-surface border border-border text-text text-xs py-1.5 rounded-lg font-semibold">مشاركة</button>
-              </div>
+            <div className="flex gap-2">
               <button disabled title="قريباً"
-                className="w-full bg-surface border border-border/50 text-text-secondary text-xs py-1.5 rounded-lg font-semibold mb-2 cursor-not-allowed">
+                className="flex-1 bg-surface border border-border/50 text-text-secondary text-xs py-1.5 rounded-lg font-semibold cursor-not-allowed text-center">
                 اعتماد هذا العنوان
               </button>
               <button onClick={handleUpdateLocation} disabled={locating}
-                className="w-full bg-accent/10 text-accent text-xs py-1.5 rounded-lg font-semibold hover:bg-accent/20 disabled:opacity-50">
+                className="flex-1 bg-accent/10 text-accent text-xs py-1.5 rounded-lg font-semibold hover:bg-accent/20 disabled:opacity-50">
                 {locating ? 'جاري التحديد...' : 'تحديث الموقع'}
               </button>
-            </div>
-          )}
-
-          {location && location.formatted_address && (customer.street_address || customer.governorate_name || customer.city_name) && (
-            <div className="bg-white rounded-xl border border-border p-4">
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="text-sm font-bold flex items-center gap-1.5">📊 مقارنة العنوان</h2>
-                <span className={`text-[10px] px-2 py-0.5 rounded font-semibold ${comparisonAllMatch ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'}`}>
-                  {comparisonAllMatch ? '🟢 العنوانان متطابقان' : '🟡 يوجد اختلاف يحتاج مراجعة'}
-                </span>
-              </div>
-              <div className="space-y-2">
-                {comparisonFields.map(f => (
-                  <div key={f.label} className="flex items-center justify-between text-xs">
-                    <span className="text-text-secondary">{f.label}</span>
-                    <span className={`font-semibold ${f.result === 'match' ? 'text-success' : f.result === 'diff' ? 'text-warning' : 'text-text-secondary'}`}>
-                      {f.result === 'match' ? '✅ متطابق' : f.result === 'diff' ? '⚠ مختلف' : '➖ غير متوفرة'}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {(customer.street_address || customer.landmark || customer.governorate_name || customer.city_name || customer.registered_address) && (
-            <div className="bg-white rounded-xl border border-blue-200 p-4">
-              <h2 className="text-sm font-bold mb-3 flex items-center gap-1.5 text-blue-700">
-                <span>📝</span>
-                العنوان المسجل
-              </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-2.5">
-                <div>
-                  {customer.governorate_name && (
-                    <div className="mb-2.5">
-                      <div className="text-[10px] text-text-secondary">المحافظة</div>
-                      <div className="text-sm font-semibold">{customer.governorate_name}</div>
-                    </div>
-                  )}
-                  {customer.city_name && (
-                    <div className="mb-2.5">
-                      <div className="text-[10px] text-text-secondary">المدينة</div>
-                      <div className="text-sm font-semibold">{customer.city_name}</div>
-                    </div>
-                  )}
-                  {customer.street_address && (
-                    <div className="mb-2.5">
-                      <div className="text-[10px] text-text-secondary">الشارع</div>
-                      <div className="text-sm font-semibold">{customer.street_address}</div>
-                    </div>
-                  )}
-                  {customer.landmark && (
-                    <div>
-                      <div className="text-[10px] text-text-secondary">العلامة المميزة</div>
-                      <div className="text-sm font-semibold">{customer.landmark}</div>
-                    </div>
-                  )}
-                </div>
-                <div>
-                  {customer.registered_address && (
-                    <div>
-                      <div className="text-[10px] text-text-secondary mb-1">العنوان الكامل</div>
-                      <div className="bg-surface rounded-lg p-2.5 text-xs text-text-secondary leading-relaxed border border-border/50">
-                        {customer.registered_address}
-                      </div>
-                      <div className="text-[9px] text-text-secondary mt-1">
-                        آخر تعديل: {customer.updated_at ? formatDateTime(customer.updated_at) : 'غير متوفر'}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-              <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-border/50">
-                <button onClick={() => { const addr = customer.registered_address || [customer.governorate_name, customer.city_name, customer.street_address, customer.landmark].filter(Boolean).join(' - '); navigator.clipboard.writeText(addr); toast.success('تم نسخ العنوان') }}
-                  className="flex-1 bg-primary/10 text-primary text-xs py-1.5 rounded-lg font-semibold">نسخ العنوان</button>
-                <button onClick={() => { const addr = customer.registered_address || [customer.governorate_name, customer.city_name, customer.street_address, customer.landmark].filter(Boolean).join(' - '); navigator.share?.({ text: addr }) }}
-                  className="flex-1 bg-accent/10 text-accent text-xs py-1.5 rounded-lg font-semibold">مشاركة</button>
-                {getBestMapsUrl() ? (
-                  <a href={getBestMapsUrl()!} target="_blank" rel="noopener noreferrer"
-                    className="flex-1 bg-surface border border-border text-text text-xs py-1.5 rounded-lg font-semibold text-center">فتح على الخرائط</a>
-                ) : null}
-              </div>
             </div>
           )}
 

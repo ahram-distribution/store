@@ -103,6 +103,11 @@ export interface UnifiedCustomerSummary {
   address_latitude: number | null
   address_longitude: number | null
   display_address: string | null
+  gps_formatted_address: string | null
+  gps_latitude: number | null
+  gps_longitude: number | null
+  gps_accuracy_meters: number | null
+  gps_updated_at: string | null
   previous_order_count: number | null
   previous_orders_total: number | null
   previous_order_number: string | null
