@@ -15,22 +15,17 @@ export class SupabaseCustomerProvider implements ICustomerProvider {
   }
 
   async registerNewCustomer(customer: Customer): Promise<void> {
-    const { error } = await supabase
-      .from('customers')
-      .insert({
-        company_id: customer.companyId,
-        name: customer.tradeName || customer.fullName,
-        full_name: customer.fullName,
-        phone: customer.phone.number,
-        customer_type: customer.customerType,
-        credit_limit: customer.creditLimit.amount,
-        address_line1: customer.address.street,
-        address_line2: customer.address.district,
-        city: customer.address.city,
-        governorate: customer.address.governorate,
-        is_active: true,
-        outstanding_balance: 0,
-      })
+    const { error } = await supabase.rpc('governed_create_customer', {
+      p_token: this.context.token,
+      p_company_name: customer.tradeName || customer.fullName,
+      p_phone: customer.phone.number,
+      p_responsible_name: customer.fullName,
+      p_business_type: (customer.customerType === 'retail' ? 'retail' : 'wholesaler') as any,
+      p_street_address: customer.address.street || null,
+      p_landmark: customer.address.district || null,
+      p_city_id: null,
+      p_governorate_id: null,
+    })
     if (error) throw new ProviderException(error.message, PROVIDER_NAME, error)
   }
 

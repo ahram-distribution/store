@@ -5,9 +5,10 @@ import { useCapability } from '../../hooks/useCapability'
 import { formatCurrencyShort, formatDateTime } from '../../utils/format'
 import { StatusBadge } from '../../components/shared/StatusBadge'
 import { getCustomerState, getCustomerStateLabel, CUSTOMER_STATE_LABELS } from '../../utils/systemStates'
-import { locationService } from '../../services/location'
+import { LocationRepository, formatAccuracy } from '../../domain/location'
 import { LocationDisplay } from '../../components/shared/LocationDisplay'
 import { getCurrentLocation } from '../../services/gpsService'
+import { SearchableSelect } from '../../components/shared/SearchableSelect'
 import toast from 'react-hot-toast'
 
 const BUSINESS_TYPES: { value: string; label: string }[] = [
@@ -492,11 +493,36 @@ export function CustomerProfilePage() {
   const [editContactName, setEditContactName] = useState('')
   const [editContactPhone, setEditContactPhone] = useState('')
 
+  const [governorates, setGovernorates] = useState<{ id: string; name_ar: string }[]>([])
+  const [cities, setCities] = useState<{ id: string; governorate_id: string; name_ar: string }[]>([])
+  const [editGovernorateId, setEditGovernorateId] = useState('')
+  const [editCityId, setEditCityId] = useState('')
+  const [editStreet, setEditStreet] = useState('')
+  const [editLandmark, setEditLandmark] = useState('')
+
+  useEffect(() => {
+    supabase.from('reference_governorates').select('id, name_ar').order('name_ar', { ascending: true }).then(({ data }) => {
+      if (data) setGovernorates(data as any[])
+    })
+  }, [])
+
+  useEffect(() => {
+    if (!editGovernorateId) { setCities([]); return }
+    supabase.from('reference_cities').select('id, governorate_id, name_ar').eq('governorate_id', editGovernorateId).order('name_ar', { ascending: true }).then(({ data }) => {
+      if (data) setCities(data as any[])
+    })
+  }, [editGovernorateId])
+
   const [locating, setLocating] = useState(false)
 
   const [showOwnership, setShowOwnership] = useState(false)
   const [newOwnerId, setNewOwnerId] = useState('')
   const [reason, setReason] = useState('')
+
+  function getLocationRepo() {
+    const t = getToken()
+    return t ? new LocationRepository(t) : null
+  }
 
   useEffect(() => {
     if (!id) return
@@ -516,8 +542,8 @@ export function CustomerProfilePage() {
         setCustomer(custRes.data)
         const c = Array.isArray(custRes.data) ? custRes.data[0] : custRes.data
         if (c.location_id) {
-          const loc = await locationService.fetchLocation(c.location_id)
-          if (loc) setLocation(loc)
+          const repo = getLocationRepo()
+          if (repo) { const loc = await repo.fetchLocation(c.location_id); if (loc) setLocation(loc) }
         }
       }
       if (ordRes.data) setOrders(Array.isArray(ordRes.data) ? ordRes.data : [])
@@ -571,6 +597,10 @@ export function CustomerProfilePage() {
       p_formatted_address: editFormattedAddress || null,
       p_contact_name: editContactName || null,
       p_contact_phone: editContactPhone || null,
+      p_governorate_id: editGovernorateId || null,
+      p_city_id: editCityId || null,
+      p_street_address: editStreet.trim() || null,
+      p_landmark: editLandmark.trim() || null,
     })
     if (error) { toast.error(error.message); return }
     const result = data as any
@@ -582,8 +612,8 @@ export function CustomerProfilePage() {
       setCustomer(custRes.data)
       const c = Array.isArray(custRes.data) ? custRes.data[0] : custRes.data
       if (c?.location_id) {
-        const loc = await locationService.fetchLocation(c.location_id)
-        if (loc) setLocation(loc)
+        const repo = getLocationRepo()
+        if (repo) { const loc = await repo.fetchLocation(c.location_id); if (loc) setLocation(loc) }
       }
     }
   }
@@ -610,8 +640,8 @@ export function CustomerProfilePage() {
     if (r?.error) { toast.error(r.error); return }
     toast.success('تم تحديث الموقع (' + accuracy + 'م)')
     if (customer?.location_id) {
-      const loc = await locationService.fetchLocation(customer.location_id)
-      if (loc) setLocation(loc)
+      const repo = getLocationRepo()
+      if (repo) { const loc = await repo.fetchLocation(customer.location_id); if (loc) setLocation(loc) }
     }
   }
 
@@ -725,9 +755,9 @@ export function CustomerProfilePage() {
                 </div>
                 <div className="flex items-center gap-2 text-xs">
                   <span className="text-text-secondary">دقة الموقع:</span>
-                  <span className={locationService.formatAccuracy(location.accuracy_meters).className}>
-                    {locationService.formatAccuracy(location.accuracy_meters).label}
-                    {' ('}{locationService.formatAccuracy(location.accuracy_meters).detail}{')'}
+                  <span className={formatAccuracy(location.accuracy_meters).className}>
+                    {formatAccuracy(location.accuracy_meters).label}
+                    {' ('}{formatAccuracy(location.accuracy_meters).detail}{')'}
                   </span>
                 </div>
                 <div className="flex items-center gap-2 text-xs">
@@ -745,9 +775,51 @@ export function CustomerProfilePage() {
             </div>
           )}
 
+          {/* Structured Address Fields */}
+          {(customer.street_address || customer.landmark || customer.governorate_name || customer.city_name) && (
+            <div className="bg-white rounded-xl border border-border p-4">
+              <h2 className="text-sm font-bold mb-2 flex items-center gap-1.5">
+                <span className="text-primary">📍</span>
+                العنوان المسجل
+              </h2>
+              <div className="space-y-1.5">
+                {customer.governorate_name && (
+                  <div className="flex justify-between text-xs">
+                    <span className="text-text-secondary">المحافظة</span>
+                    <span className="font-semibold">{customer.governorate_name}</span>
+                  </div>
+                )}
+                {customer.city_name && (
+                  <div className="flex justify-between text-xs">
+                    <span className="text-text-secondary">المدينة</span>
+                    <span className="font-semibold">{customer.city_name}</span>
+                  </div>
+                )}
+                {customer.street_address && (
+                  <div className="flex justify-between text-xs">
+                    <span className="text-text-secondary">الشارع</span>
+                    <span className="font-semibold">{customer.street_address}</span>
+                  </div>
+                )}
+                {customer.landmark && (
+                  <div className="flex justify-between text-xs">
+                    <span className="text-text-secondary">علامة مميزة</span>
+                    <span className="font-semibold">{customer.landmark}</span>
+                  </div>
+                )}
+                {customer.registered_address && (
+                  <div className="flex justify-between text-xs">
+                    <span className="text-text-secondary">العنوان الكامل</span>
+                    <span className="font-semibold text-text-secondary text-[10px]">{customer.registered_address}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {location?.formatted_address && (
             <div className="bg-white rounded-xl border border-border p-4">
-              <h2 className="text-sm font-bold mb-2">العنوان</h2>
+              <h2 className="text-sm font-bold mb-2">العنوان (GPS)</h2>
               <p className="text-xs">{location.formatted_address}</p>
             </div>
           )}
@@ -755,7 +827,7 @@ export function CustomerProfilePage() {
           {(canEdit || canManage) && (
             <div className="flex gap-2 flex-wrap">
               {canEdit && (
-                <button onClick={() => { setShowEdit(true); setEditName(customer.company_name); setEditPhone(customer.phone || ''); setEditResponsibleName(customer.responsible_name || ''); setEditBusinessType(customer.business_type || ''); setEditCreditLimit(String(customer.credit_limit || '')); setEditCreditDays(String(customer.credit_days || '')); setEditPassword(''); setEditConfirmPassword(''); setEditFormattedAddress(location?.formatted_address || ''); const pc = contacts.find((c: any) => c.is_primary); setEditContactName(pc?.full_name || ''); setEditContactPhone(pc?.phone || ''); }}
+                <button onClick={() => { setShowEdit(true); setEditName(customer.company_name); setEditPhone(customer.phone || ''); setEditResponsibleName(customer.responsible_name || ''); setEditBusinessType(customer.business_type || ''); setEditCreditLimit(String(customer.credit_limit || '')); setEditCreditDays(String(customer.credit_days || '')); setEditPassword(''); setEditConfirmPassword(''); setEditFormattedAddress(location?.formatted_address || ''); const pc = contacts.find((c: any) => c.is_primary); setEditContactName(pc?.full_name || ''); setEditContactPhone(pc?.phone || ''); setEditGovernorateId(customer.governorate_id || ''); setEditCityId(customer.city_id || ''); setEditStreet(customer.street_address || ''); setEditLandmark(customer.landmark || ''); }}
                   className="flex-1 bg-primary/10 text-primary text-xs py-2 rounded-lg font-semibold">تعديل البيانات</button>
               )}
               {canManage && (
@@ -786,7 +858,16 @@ export function CustomerProfilePage() {
               <input type="number" value={editCreditLimit} onChange={(e) => setEditCreditLimit(e.target.value)} placeholder="الحد الائتماني" className="w-full border border-border rounded-lg px-3 py-2 text-sm" />
               <input type="number" value={editCreditDays} onChange={(e) => setEditCreditDays(e.target.value)} placeholder="فترة الائتمان (أيام)" className="w-full border border-border rounded-lg px-3 py-2 text-sm" />
               <div className="border-t border-border/50 pt-3 mt-1">
-                <p className="text-[10px] text-text-secondary mb-2 font-semibold">العنوان</p>
+                <p className="text-[10px] text-text-secondary mb-2 font-semibold">العنوان المسجل</p>
+                <div className="space-y-2">
+                  <SearchableSelect label="المحافظة" options={governorates.map(g => ({ value: g.id, label: g.name_ar }))} value={editGovernorateId} onChange={setEditGovernorateId} placeholder="اختر المحافظة..." />
+                  <SearchableSelect label="المدينة" options={cities.map(c => ({ value: c.id, label: c.name_ar }))} value={editCityId} onChange={setEditCityId} placeholder={editGovernorateId ? 'اختر المدينة...' : 'اختر المحافظة أولاً'} disabled={!editGovernorateId} />
+                  <input type="text" value={editStreet} onChange={(e) => setEditStreet(e.target.value)} placeholder="الشارع (اختياري)" className="w-full border border-border rounded-lg px-3 py-2 text-sm" />
+                  <input type="text" value={editLandmark} onChange={(e) => setEditLandmark(e.target.value)} placeholder="علامة مميزة (اختياري)" className="w-full border border-border rounded-lg px-3 py-2 text-sm" />
+                </div>
+              </div>
+              <div className="border-t border-border/50 pt-3 mt-1">
+                <p className="text-[10px] text-text-secondary mb-2 font-semibold">العنوان (وصف حر)</p>
                 <textarea value={editFormattedAddress} onChange={(e) => setEditFormattedAddress(e.target.value)} placeholder="العنوان" className="w-full border border-border rounded-lg px-3 py-2 text-sm resize-none" rows={2} />
               </div>
               <div className="border-t border-border/50 pt-3">

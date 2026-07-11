@@ -172,7 +172,17 @@ function AddressSection({ customerId }: { customerId: string }) {
       {addresses.map((addr) => (
         <div key={addr.id} className="bg-white border border-border rounded-lg p-3">
           <span className="text-sm font-semibold text-text">{addr.label || addr.address_type || 'عنوان'}</span>
-          <p className="text-xs text-text-secondary mt-1">{addr.address_line1}{addr.city ? `, ${addr.city}` : ''}{addr.governorate ? `, ${addr.governorate}` : ''}</p>
+          <p className="text-xs text-text-secondary mt-1">
+            {addr.governorate_name || addr.governorate || ''}{addr.city_name || addr.city ? `، ${addr.city_name || addr.city}` : ''}
+          </p>
+          {(addr.street_address || addr.landmark) && (
+            <p className="text-[10px] text-text-secondary mt-0.5">
+              {addr.street_address || ''}{addr.street_address && addr.landmark ? ' - ' : ''}{addr.landmark || ''}
+            </p>
+          )}
+          {addr.address_line1 && addr.address_line1 !== `${addr.governorate_name || addr.governorate} - ${addr.city_name || addr.city}` && (
+            <p className="text-[10px] text-text-secondary mt-0.5">{addr.address_line1}</p>
+          )}
         </div>
       ))}
     </div>

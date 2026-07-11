@@ -1,0 +1,526 @@
+-- ============================================================================
+-- PHASE 2, STEP 1: Address Foundation
+-- 
+-- Scope: Database only — no RPC changes, no frontend changes.
+-- 
+-- What this migration does:
+--   1. Creates reference_governorates + reference_cities (idempotent)
+--   2. Seeds all 27 governorates + 269 cities (idempotent)
+--   3. ALTER TABLE customer_addresses — adds 7 new columns (no drops)
+--   4. Creates fn_customer_default_address() — unified address reader
+--   5. Creates all required indexes with documented purpose
+--
+-- Design rules:
+--   - No columns are dropped or altered in type
+--   - No existing RPCs break (all old columns remain)
+--   - All FK constraints are RESTRICT (prevent deletion of referenced rows)
+--   - New columns are nullable (backward compatible)
+--   - address_line1 stays as display-only (auto-composed later)
+-- ============================================================================
+
+-- 0. Create ENUM types -------------------------------------------------------
+
+DO $$ BEGIN
+  CREATE TYPE address_source_type AS ENUM (
+    'manual',   -- address entered manually by user
+    'gps',      -- address derived from GPS reverse geocode
+    'mixed'     -- address from multiple sources
+  );
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  CREATE TYPE location_accuracy_level AS ENUM (
+    'GPS',                  -- precise GPS fix (accuracy ≤ 100m)
+    'GEOCODED',             -- address-to-coordinates geocoding
+    'CITY_CENTER',          -- approximate: center of the city
+    'GOVERNORATE_CENTER',   -- approximate: center of the governorate
+    'UNKNOWN'               -- no location available
+  );
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+-- ============================================================================
+-- 1. Reference Tables (idempotent — CREATE IF NOT EXISTS)
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS reference_governorates (
+  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  code          varchar(20) UNIQUE NOT NULL,
+  name_ar       varchar(200) NOT NULL,
+  name_en       varchar(200),
+  is_active     boolean NOT NULL DEFAULT true,
+  display_order integer NOT NULL DEFAULT 0,
+  created_at    timestamptz NOT NULL DEFAULT now(),
+  updated_at    timestamptz NOT NULL DEFAULT now()
+);
+
+COMMENT ON TABLE  reference_governorates IS 'المحافظات المصرية — مرجع عام للنظام';
+COMMENT ON COLUMN reference_governorates.code IS 'الرمز الثابت للمحافظة (CAI, GIZ, ALX, ...)';
+
+CREATE INDEX IF NOT EXISTS idx_reference_governorates_code
+  ON reference_governorates (code);
+
+CREATE INDEX IF NOT EXISTS idx_reference_governorates_display_order
+  ON reference_governorates (display_order);
+
+CREATE TABLE IF NOT EXISTS reference_cities (
+  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  governorate_id  uuid NOT NULL REFERENCES reference_governorates (id),
+  code            varchar(20) UNIQUE NOT NULL,
+  name_ar         varchar(200) NOT NULL,
+  name_en         varchar(200),
+  is_active       boolean NOT NULL DEFAULT true,
+  display_order   integer NOT NULL DEFAULT 0,
+  created_at      timestamptz NOT NULL DEFAULT now(),
+  updated_at      timestamptz NOT NULL DEFAULT now()
+);
+
+COMMENT ON TABLE  reference_cities IS 'المدن التابعة للمحافظات — مرجع عام للنظام';
+COMMENT ON COLUMN reference_cities.code IS 'الرمز الثابت للمدينة (CAI-NSR, CAI-MADI, GIZ-DOKKI, ...)';
+COMMENT ON COLUMN reference_cities.governorate_id IS 'المحافظة التابعة لها';
+
+CREATE INDEX IF NOT EXISTS idx_reference_cities_governorate_id
+  ON reference_cities (governorate_id);
+
+CREATE INDEX IF NOT EXISTS idx_reference_cities_code
+  ON reference_cities (code);
+
+CREATE INDEX IF NOT EXISTS idx_reference_cities_display_order
+  ON reference_cities (governorate_id, display_order);
+
+-- ============================================================================
+-- 2. Seed: 27 Governorates (idempotent — ON CONFLICT DO NOTHING)
+-- ============================================================================
+
+INSERT INTO reference_governorates (code, name_ar, name_en, display_order) VALUES
+  ('CAI', 'القاهرة',          'Cairo',       1),
+  ('GIZ', 'الجيزة',           'Giza',        2),
+  ('ALX', 'الإسكندرية',       'Alexandria',  3),
+  ('SHQ', 'الشرقية',          'Sharqia',     4),
+  ('DQL', 'الدقهلية',         'Dakahlia',    5),
+  ('BHR', 'البحيرة',          'Beheira',     6),
+  ('QLY', 'القليوبية',        'Qalyubia',    7),
+  ('MNF', 'المنوفية',         'Monufia',     8),
+  ('GHR', 'الغربية',          'Gharbia',     9),
+  ('KFS', 'كفر الشيخ',        'Kafr El Sheikh', 10),
+  ('DMT', 'دمياط',            'Damietta',    11),
+  ('PST', 'بورسعيد',          'Port Said',   12),
+  ('ISM', 'الإسماعيلية',      'Ismailia',    13),
+  ('SUZ', 'السويس',           'Suez',        14),
+  ('NSN', 'شمال سيناء',       'North Sinai', 15),
+  ('SSN', 'جنوب سيناء',       'South Sinai', 16),
+  ('BNS', 'بني سويف',         'Beni Suef',   17),
+  ('FYM', 'الفيوم',           'Fayoum',      18),
+  ('MIN', 'المنيا',           'Minya',       19),
+  ('AST', 'أسيوط',            'Assiut',      20),
+  ('SHG', 'سوهاج',            'Sohag',       21),
+  ('QNA', 'قنا',              'Qena',        22),
+  ('LXR', 'الأقصر',           'Luxor',       23),
+  ('ASW', 'أسوان',            'Aswan',       24),
+  ('RED', 'البحر الأحمر',     'Red Sea',     25),
+  ('WAD', 'الوادي الجديد',    'New Valley',  26),
+  ('MTH', 'مطروح',            'Matrouh',     27)
+ON CONFLICT (code) DO NOTHING;
+
+-- ============================================================================
+-- 3. Seed: 269 Cities (idempotent — ON CONFLICT DO NOTHING)
+-- ============================================================================
+
+INSERT INTO reference_cities (code, governorate_id, name_ar, name_en, display_order) VALUES
+  ('CAI-NSR',    (SELECT id FROM reference_governorates WHERE code = 'CAI'), 'مدينة نصر',             'Nasr City', 1),
+  ('CAI-MADI',   (SELECT id FROM reference_governorates WHERE code = 'CAI'), 'المعادي',               'Maadi', 2),
+  ('CAI-HEL',    (SELECT id FROM reference_governorates WHERE code = 'CAI'), 'حلوان',                 'Helwan', 3),
+  ('CAI-SHRO',   (SELECT id FROM reference_governorates WHERE code = 'CAI'), 'الشروق',                'Shorouk', 4),
+  ('CAI-OCT',    (SELECT id FROM reference_governorates WHERE code = 'CAI'), 'مدينة 6 أكتوبر',        '6th October', 5),
+  ('CAI-SHBR',   (SELECT id FROM reference_governorates WHERE code = 'CAI'), 'شبرا',                  'Shubra', 6),
+  ('CAI-ZMALK',  (SELECT id FROM reference_governorates WHERE code = 'CAI'), 'الزمالك',               'Zamalek', 7),
+  ('CAI-MOHNDS', (SELECT id FROM reference_governorates WHERE code = 'CAI'), 'المهندسين',             'Mohandeseen', 8),
+  ('CAI-DQQI',   (SELECT id FROM reference_governorates WHERE code = 'CAI'), 'الدقي',                 'Dokki', 9),
+  ('CAI-AGOZA',  (SELECT id FROM reference_governorates WHERE code = 'CAI'), 'العجوزة',               'Agouza', 10),
+  ('CAI-BLD',    (SELECT id FROM reference_governorates WHERE code = 'CAI'), 'بولاق',                 'Bulaq', 11),
+  ('CAI-DRBAR',  (SELECT id FROM reference_governorates WHERE code = 'CAI'), 'الدرب الأحمر',          'Darb El Ahmar', 12),
+  ('CAI-SAYDA',  (SELECT id FROM reference_governorates WHERE code = 'CAI'), 'السيدة زينب',           'Sayeda Zeinab', 13),
+  ('CAI-KHLFA',  (SELECT id FROM reference_governorates WHERE code = 'CAI'), 'الخليفة',               'El Khalifa', 14),
+  ('CAI-MSRQDM', (SELECT id FROM reference_governorates WHERE code = 'CAI'), 'مصر القديمة',           'Old Cairo', 15),
+  ('CAI-GMALIA', (SELECT id FROM reference_governorates WHERE code = 'CAI'), 'الجمالية',              'Gamaleya', 16),
+  ('CAI-ABBASS', (SELECT id FROM reference_governorates WHERE code = 'CAI'), 'العباسية',              'Abbaseya', 17),
+  ('CAI-HLOPLS', (SELECT id FROM reference_governorates WHERE code = 'CAI'), 'حلوان البلد',           'Helwan El Balad', 18),
+  ('CAI-TURAH',  (SELECT id FROM reference_governorates WHERE code = 'CAI'), 'طرة',                   'Tora', 19),
+  ('CAI-MOKATM', (SELECT id FROM reference_governorates WHERE code = 'CAI'), 'المقطم',                'Mokattam', 20),
+  ('CAI-15MAY',  (SELECT id FROM reference_governorates WHERE code = 'CAI'), '15 مايو',               '15th May', 21),
+  ('CAI-BADR',   (SELECT id FROM reference_governorates WHERE code = 'CAI'), 'بدر',                   'Badr', 22),
+  ('CAI-OBUR',   (SELECT id FROM reference_governorates WHERE code = 'CAI'), 'العبور',                'Obour', 23),
+  ('CAI-NOZHA',  (SELECT id FROM reference_governorates WHERE code = 'CAI'), 'النزهة',                'Nozha', 24),
+  ('CAI-HGZ',    (SELECT id FROM reference_governorates WHERE code = 'CAI'), 'حدائق القبة',           'Hadayek El Kobba', 25),
+  ('CAI-WAYLI',  (SELECT id FROM reference_governorates WHERE code = 'CAI'), 'الوايلي',               'El Waily', 26),
+  ('CAI-ZATON',  (SELECT id FROM reference_governorates WHERE code = 'CAI'), 'زيتون',                 'Zeitoun', 27),
+  ('CAI-MATAR',  (SELECT id FROM reference_governorates WHERE code = 'CAI'), 'مطار القاهرة',          'Cairo Airport', 28),
+  ('CAI-SALAM',  (SELECT id FROM reference_governorates WHERE code = 'CAI'), 'السلام',                'El Salam', 29),
+  ('CAI-MARG',   (SELECT id FROM reference_governorates WHERE code = 'CAI'), 'المرج',                 'El Marg', 30),
+  ('GIZ-DOKKI',  (SELECT id FROM reference_governorates WHERE code = 'GIZ'), 'الدقي',                 'Dokki', 31),
+  ('GIZ-HRM',    (SELECT id FROM reference_governorates WHERE code = 'GIZ'), 'الهرم',                 'Pyramids', 32),
+  ('GIZ-MOHNDS', (SELECT id FROM reference_governorates WHERE code = 'GIZ'), 'المهندسين',             'Mohandeseen', 33),
+  ('GIZ-AGOZA',  (SELECT id FROM reference_governorates WHERE code = 'GIZ'), 'العجوزة',               'Agouza', 34),
+  ('GIZ-IMBABA', (SELECT id FROM reference_governorates WHERE code = 'GIZ'), 'إمبابة',                'Imbaba', 35),
+  ('GIZ-BULAQD', (SELECT id FROM reference_governorates WHERE code = 'GIZ'), 'بولاق الدكرور',         'Bulaq El Dakrour', 36),
+  ('GIZ-WARRK',  (SELECT id FROM reference_governorates WHERE code = 'GIZ'), 'الوراق',                'Warraq', 37),
+  ('GIZ-OMRN',   (SELECT id FROM reference_governorates WHERE code = 'GIZ'), 'أوسيم',                 'Ossim', 38),
+  ('GIZ-KRDASA', (SELECT id FROM reference_governorates WHERE code = 'GIZ'), 'كرداسة',                'Kerdasa', 39),
+  ('GIZ-BWATI',  (SELECT id FROM reference_governorates WHERE code = 'GIZ'), 'الباويطي',              'Bawiti', 40),
+  ('GIZ-ATFIH',  (SELECT id FROM reference_governorates WHERE code = 'GIZ'), 'أطفيح',                 'Atfeh', 41),
+  ('GIZ-SAF',    (SELECT id FROM reference_governorates WHERE code = 'GIZ'), 'الصف',                  'Saf', 42),
+  ('GIZ-6OCT',   (SELECT id FROM reference_governorates WHERE code = 'GIZ'), '6 أكتوبر',              '6th October City', 43),
+  ('GIZ-SHKR',   (SELECT id FROM reference_governorates WHERE code = 'GIZ'), 'الشيخ زايد',            'Sheikh Zayed', 44),
+  ('GIZ-HADBHRM',(SELECT id FROM reference_governorates WHERE code = 'GIZ'), 'حدائق الهرم',           'Hadayek El Ahram', 45),
+  ('ALX-MNTSH',  (SELECT id FROM reference_governorates WHERE code = 'ALX'), 'المنتزه',               'Montaza', 46),
+  ('ALX-SHATBY', (SELECT id FROM reference_governorates WHERE code = 'ALX'), 'الشاطبي',               'Shatby', 47),
+  ('ALX-MNSHIA', (SELECT id FROM reference_governorates WHERE code = 'ALX'), 'المنشية',               'Mansheya', 48),
+  ('ALX-MUHARM', (SELECT id FROM reference_governorates WHERE code = 'ALX'), 'محرم بك',               'Moharam Bek', 49),
+  ('ALX-SIDIG',  (SELECT id FROM reference_governorates WHERE code = 'ALX'), 'سيدي جابر',             'Sidi Gaber', 50),
+  ('ALX-SMOUHA', (SELECT id FROM reference_governorates WHERE code = 'ALX'), 'سموحة',                 'Smouha', 51),
+  ('ALX-LORAN',  (SELECT id FROM reference_governorates WHERE code = 'ALX'), 'لوران',                 'Louran', 52),
+  ('ALX-IBRAH',  (SELECT id FROM reference_governorates WHERE code = 'ALX'), 'إبراهيمية',             'Ibrahimeya', 53),
+  ('ALX-ANFUSH', (SELECT id FROM reference_governorates WHERE code = 'ALX'), 'أنفوشي',                'Anfoushi', 54),
+  ('ALX-ATTAR',  (SELECT id FROM reference_governorates WHERE code = 'ALX'), 'العطارين',              'Attarin', 55),
+  ('ALX-GOMRK',  (SELECT id FROM reference_governorates WHERE code = 'ALX'), 'الجمرك',                'Gomrok', 56),
+  ('ALX-RAML',   (SELECT id FROM reference_governorates WHERE code = 'ALX'), 'محطة الرمل',            'Raml Station', 57),
+  ('ALX-KRMZ',   (SELECT id FROM reference_governorates WHERE code = 'ALX'), 'كرموز',                 'Karmouz', 58),
+  ('ALX-AMRIA',  (SELECT id FROM reference_governorates WHERE code = 'ALX'), 'العامرية',              'Amreya', 59),
+  ('ALX-BKR',    (SELECT id FROM reference_governorates WHERE code = 'ALX'), 'باكوس',                 'Bakos', 60),
+  ('ALX-MANDRA', (SELECT id FROM reference_governorates WHERE code = 'ALX'), 'المندرة',               'Mandara', 61),
+  ('ALX-BRG',    (SELECT id FROM reference_governorates WHERE code = 'ALX'), 'برج العرب',             'Borg El Arab', 62),
+  ('ALX-ASYAF',  (SELECT id FROM reference_governorates WHERE code = 'ALX'), 'السيوف',                'El Soyouf', 63),
+  ('SHQ-ZQZQ',   (SELECT id FROM reference_governorates WHERE code = 'SHQ'), 'الزقازيق',              'Zagazig', 64),
+  ('SHQ-BLBS',   (SELECT id FROM reference_governorates WHERE code = 'SHQ'), 'بلبيس',                 'Belbeis', 65),
+  ('SHQ-ABHR',   (SELECT id FROM reference_governorates WHERE code = 'SHQ'), 'أبو حماد',              'Abu Hammad', 66),
+  ('SHQ-MNBA',   (SELECT id FROM reference_governorates WHERE code = 'SHQ'), 'منيا القمح',            'Minya El Qamh', 67),
+  ('SHQ-HSNIA',  (SELECT id FROM reference_governorates WHERE code = 'SHQ'), 'الحسينية',              'Husseiniya', 68),
+  ('SHQ-SHLQW',  (SELECT id FROM reference_governorates WHERE code = 'SHQ'), 'صان الحجر',             'San El Hagar', 69),
+  ('SHQ-DRB',    (SELECT id FROM reference_governorates WHERE code = 'SHQ'), 'درب النجمة',            'Darb Negm', 70),
+  ('SHQ-QNAT',   (SELECT id FROM reference_governorates WHERE code = 'SHQ'), 'القنايات',              'Qenayat', 71),
+  ('SHQ-ABKBR',  (SELECT id FROM reference_governorates WHERE code = 'SHQ'), 'أبو كبير',              'Abu Kabir', 72),
+  ('SHQ-FAQUS',  (SELECT id FROM reference_governorates WHERE code = 'SHQ'), 'فاقوس',                 'Faqous', 73),
+  ('SHQ-IBRA',   (SELECT id FROM reference_governorates WHERE code = 'SHQ'), 'الإبراهيمية',           'Ibrahimeya', 74),
+  ('SHQ-10RMD',  (SELECT id FROM reference_governorates WHERE code = 'SHQ'), 'العاشر من رمضان',       '10th of Ramadan', 75),
+  ('SHQ-AWLAD',  (SELECT id FROM reference_governorates WHERE code = 'SHQ'), 'أولاد صقر',             'Awlad Saqr', 76),
+  ('SHQ-SHABS',  (SELECT id FROM reference_governorates WHERE code = 'SHQ'), 'شبين القناطر',          'Shibin El Qanater', 77),
+  ('SHQ-QURAYN', (SELECT id FROM reference_governorates WHERE code = 'SHQ'), 'قرين',                  'Qurein', 78),
+  ('DQL-MNSR',   (SELECT id FROM reference_governorates WHERE code = 'DQL'), 'المنصورة',              'Mansoura', 79),
+  ('DQL-MITGHR', (SELECT id FROM reference_governorates WHERE code = 'DQL'), 'ميت غمر',               'Meet Ghamr', 80),
+  ('DQL-DQHL',   (SELECT id FROM reference_governorates WHERE code = 'DQL'), 'دقهلة',                 'Dekernes', 81),
+  ('DQL-AGHA',   (SELECT id FROM reference_governorates WHERE code = 'DQL'), 'أجا',                   'Aga', 82),
+  ('DQL-BLQAS',  (SELECT id FROM reference_governorates WHERE code = 'DQL'), 'بلقاس',                 'Bilqas', 83),
+  ('DQL-TALKHA', (SELECT id FROM reference_governorates WHERE code = 'DQL'), 'طلخا',                  'Talkha', 84),
+  ('DQL-SNBLL',  (SELECT id FROM reference_governorates WHERE code = 'DQL'), 'سنبلاوين',              'Semblawin', 85),
+  ('DQL-MNZA',   (SELECT id FROM reference_governorates WHERE code = 'DQL'), 'المنزلة',               'Manzala', 86),
+  ('DQL-MITSLM', (SELECT id FROM reference_governorates WHERE code = 'DQL'), 'ميت سلسيل',             'Meet Selseel', 87),
+  ('DQL-GMBR',   (SELECT id FROM reference_governorates WHERE code = 'DQL'), 'جمصة',                  'Gamasa', 88),
+  ('DQL-BRMD',   (SELECT id FROM reference_governorates WHERE code = 'DQL'), 'بريميت',                'Bareim', 89),
+  ('DQL-NGRJL',  (SELECT id FROM reference_governorates WHERE code = 'DQL'), 'نبروه',                 'Nabroh', 90),
+  ('DQL-MITBADR',(SELECT id FROM reference_governorates WHERE code = 'DQL'), 'ميت بدر',               'Meet Badr', 91),
+  ('DQL-BANYUB', (SELECT id FROM reference_governorates WHERE code = 'DQL'), 'بني عبيد',              'Banī Ubayd', 92),
+  ('DQL-SRWRD',  (SELECT id FROM reference_governorates WHERE code = 'DQL'), 'سرو',                   'Saru', 93),
+  ('BHR-DMNHR',  (SELECT id FROM reference_governorates WHERE code = 'BHR'), 'دمنهور',                'Damanhur', 94),
+  ('BHR-KFRDWD', (SELECT id FROM reference_governorates WHERE code = 'BHR'), 'كفر الدوار',            'Kafr El Dawwar', 95),
+  ('BHR-RAHMAN', (SELECT id FROM reference_governorates WHERE code = 'BHR'), 'الرحمانية',             'Rahmaniya', 96),
+  ('BHR-EDKU',   (SELECT id FROM reference_governorates WHERE code = 'BHR'), 'إدكو',                  'Edku', 97),
+  ('BHR-ABOMTR', (SELECT id FROM reference_governorates WHERE code = 'BHR'), 'أبو المطامير',          'Abu El Matamir', 98),
+  ('BHR-MHMWD',  (SELECT id FROM reference_governorates WHERE code = 'BHR'), 'محمودية',               'Mahmoudiya', 99),
+  ('BHR-SHBRKHT',(SELECT id FROM reference_governorates WHERE code = 'BHR'), 'شبراخيت',              'Shubrakhit', 100),
+  ('BHR-ITAYBR', (SELECT id FROM reference_governorates WHERE code = 'BHR'), 'إيتاي البارود',         'Etay El Barud', 101),
+  ('BHR-DALNJT', (SELECT id FROM reference_governorates WHERE code = 'BHR'), 'دلنجات',                'Delengat', 102),
+  ('BHR-RASHID', (SELECT id FROM reference_governorates WHERE code = 'BHR'), 'رشيد',                  'Rashid', 103),
+  ('BHR-KOMHMD', (SELECT id FROM reference_governorates WHERE code = 'BHR'), 'كوم حمادة',             'Kom Hamada', 104),
+  ('BHR-BADR',   (SELECT id FROM reference_governorates WHERE code = 'BHR'), 'بدر',                   'Badr', 105),
+  ('BHR-NAJILA', (SELECT id FROM reference_governorates WHERE code = 'BHR'), 'النوبارية الجديدة',     'New Nubaria', 106),
+  ('BHR-WADI',   (SELECT id FROM reference_governorates WHERE code = 'BHR'), 'وادي النطرون',          'Wadi El Natrun', 107),
+  ('QLY-BNHA',   (SELECT id FROM reference_governorates WHERE code = 'QLY'), 'بنها',                  'Benha', 108),
+  ('QLY-SHBNAM', (SELECT id FROM reference_governorates WHERE code = 'QLY'), 'شبين القناطر',          'Shibin El Qanater', 109),
+  ('QLY-TOKH',   (SELECT id FROM reference_governorates WHERE code = 'QLY'), 'طوخ',                   'Toukh', 110),
+  ('QLY-QALYUB', (SELECT id FROM reference_governorates WHERE code = 'QLY'), 'قليوب',                 'Qalyub', 111),
+  ('QLY-KFRSHRF',(SELECT id FROM reference_governorates WHERE code = 'QLY'), 'كفر شكر',               'Kafr Shukr', 112),
+  ('QLY-KHNKA',  (SELECT id FROM reference_governorates WHERE code = 'QLY'), 'الخانكة',               'Khanka', 113),
+  ('QLY-UBR',    (SELECT id FROM reference_governorates WHERE code = 'QLY'), 'العبور',                'Obour', 114),
+  ('QLY-SHTA',   (SELECT id FROM reference_governorates WHERE code = 'QLY'), 'شبرا الخيمة',           'Shubra El Kheima', 115),
+  ('QLY-QNAATR', (SELECT id FROM reference_governorates WHERE code = 'QLY'), 'القناطر الخيرية',       'El Qanater El Khayreya', 116),
+  ('MNF-SHBIN',  (SELECT id FROM reference_governorates WHERE code = 'MNF'), 'شبين الكوم',            'Shibin El Kom', 117),
+  ('MNF-MNOF',   (SELECT id FROM reference_governorates WHERE code = 'MNF'), 'منوف',                  'Menouf', 118),
+  ('MNF-SRS',    (SELECT id FROM reference_governorates WHERE code = 'MNF'), 'سرس الليان',            'Sars El Layan', 119),
+  ('MNF-QWSN',   (SELECT id FROM reference_governorates WHERE code = 'MNF'), 'قويسنا',                'Quesna', 120),
+  ('MNF-BRJ',    (SELECT id FROM reference_governorates WHERE code = 'MNF'), 'بركة السبع',            'Birket El Sab', 121),
+  ('MNF-TALA',   (SELECT id FROM reference_governorates WHERE code = 'MNF'), 'تلا',                   'Tala', 122),
+  ('MNF-SHHD',   (SELECT id FROM reference_governorates WHERE code = 'MNF'), 'الشهداء',               'El Shohada', 123),
+  ('MNF-BGR',    (SELECT id FROM reference_governorates WHERE code = 'MNF'), 'الباجور',               'Bagour', 124),
+  ('MNF-ASYMN',  (SELECT id FROM reference_governorates WHERE code = 'MNF'), 'أشمون',                 'Ashmon', 125),
+  ('GHR-TANTA',  (SELECT id FROM reference_governorates WHERE code = 'GHR'), 'طنطا',                  'Tanta', 126),
+  ('GHR-MALL',   (SELECT id FROM reference_governorates WHERE code = 'GHR'), 'المحلة الكبرى',         'El Mahalla El Kubra', 127),
+  ('GHR-KFZZYT', (SELECT id FROM reference_governorates WHERE code = 'GHR'), 'كفر الزيات',            'Kafr El Zayat', 128),
+  ('GHR-SMT',    (SELECT id FROM reference_governorates WHERE code = 'GHR'), 'سمنود',                 'Samannoud', 129),
+  ('GHR-ZIFTA',  (SELECT id FROM reference_governorates WHERE code = 'GHR'), 'زفتى',                  'Zefta', 130),
+  ('GHR-QTR',    (SELECT id FROM reference_governorates WHERE code = 'GHR'), 'قطور',                  'Qutur', 131),
+  ('GHR-SNDBT',  (SELECT id FROM reference_governorates WHERE code = 'GHR'), 'السنطة',                'El Santa', 132),
+  ('GHR-BSLWN',  (SELECT id FROM reference_governorates WHERE code = 'GHR'), 'بسيون',                 'Basyoun', 133),
+  ('KFS-KFSH',   (SELECT id FROM reference_governorates WHERE code = 'KFS'), 'كفر الشيخ',             'Kafr El Sheikh', 134),
+  ('KFS-BLAL',   (SELECT id FROM reference_governorates WHERE code = 'KFS'), 'بيلا',                  'Bila', 135),
+  ('KFS-MTB',    (SELECT id FROM reference_governorates WHERE code = 'KFS'), 'مطوبس',                 'Metoubas', 136),
+  ('KFS-HMUL',   (SELECT id FROM reference_governorates WHERE code = 'KFS'), 'الحامول',               'El Hamoul', 137),
+  ('KFS-RYAD',   (SELECT id FROM reference_governorates WHERE code = 'KFS'), 'الرياض',                'El Riyad', 138),
+  ('KFS-SKWD',   (SELECT id FROM reference_governorates WHERE code = 'KFS'), 'سيدي سالم',             'Sidi Salem', 139),
+  ('KFS-BRJL',   (SELECT id FROM reference_governorates WHERE code = 'KFS'), 'برج البرلس',            'Burg El Burullus', 140),
+  ('KFS-DSSL',   (SELECT id FROM reference_governorates WHERE code = 'KFS'), 'دسوق',                  'Desouk', 141),
+  ('KFS-QLLN',   (SELECT id FROM reference_governorates WHERE code = 'KFS'), 'قلين',                  'Qellen', 142),
+  ('KFS-FWH',    (SELECT id FROM reference_governorates WHERE code = 'KFS'), 'فوة',                   'Fouh', 143),
+  ('DMT-DMT',    (SELECT id FROM reference_governorates WHERE code = 'DMT'), 'دمياط',                 'Damietta', 144),
+  ('DMT-NWDMY',  (SELECT id FROM reference_governorates WHERE code = 'DMT'), 'دمياط الجديدة',         'New Damietta', 145),
+  ('DMT-FARQR',  (SELECT id FROM reference_governorates WHERE code = 'DMT'), 'فارسكور',               'Faraskour', 146),
+  ('DMT-ZQRQ',   (SELECT id FROM reference_governorates WHERE code = 'DMT'), 'الزرقا',                'Zarqa', 147),
+  ('DMT-KFRBD',  (SELECT id FROM reference_governorates WHERE code = 'DMT'), 'كفر البطيخ',            'Kafr El Bateekh', 148),
+  ('DMT-RMAMD',  (SELECT id FROM reference_governorates WHERE code = 'DMT'), 'الروضة',                'Roda', 149),
+  ('DMT-SERW',   (SELECT id FROM reference_governorates WHERE code = 'DMT'), 'سرو',                   'Sarw', 150),
+  ('PST-PST',    (SELECT id FROM reference_governorates WHERE code = 'PST'), 'بورسعيد',               'Port Said', 151),
+  ('PST-PRBD',   (SELECT id FROM reference_governorates WHERE code = 'PST'), 'بورفؤاد',               'Port Fouad', 152),
+  ('PST-ANWA',   (SELECT id FROM reference_governorates WHERE code = 'PST'), 'العرب',                 'El Arab', 153),
+  ('PST-ZHOR',   (SELECT id FROM reference_governorates WHERE code = 'PST'), 'الزهور',                'Zohour', 154),
+  ('PST-DAWA',   (SELECT id FROM reference_governorates WHERE code = 'PST'), 'ضواحي بورسعيد',         'Port Said Suburbs', 155),
+  ('ISM-ISM',    (SELECT id FROM reference_governorates WHERE code = 'ISM'), 'الإسماعيلية',           'Ismailia', 156),
+  ('ISM-FADN',   (SELECT id FROM reference_governorates WHERE code = 'ISM'), 'فايد',                  'Fayed', 157),
+  ('ISM-QNTRA',  (SELECT id FROM reference_governorates WHERE code = 'ISM'), 'القنطرة غرب',           'Qantara West', 158),
+  ('ISM-QNTRS',  (SELECT id FROM reference_governorates WHERE code = 'ISM'), 'القنطرة شرق',           'Qantara East', 159),
+  ('ISM-TLALK',  (SELECT id FROM reference_governorates WHERE code = 'ISM'), 'التل الكبير',           'Tel El Kabir', 160),
+  ('ISM-ABSWR',  (SELECT id FROM reference_governorates WHERE code = 'ISM'), 'أبو صوير',              'Abu Swayer', 161),
+  ('ISM-KASFN',  (SELECT id FROM reference_governorates WHERE code = 'ISM'), 'القصاصين',              'Kasaseen', 162),
+  ('ISM-NFISH',  (SELECT id FROM reference_governorates WHERE code = 'ISM'), 'نفيشة',                 'Nefisha', 163),
+  ('SUZ-SUZ',    (SELECT id FROM reference_governorates WHERE code = 'SUZ'), 'السويس',                'Suez', 164),
+  ('SUZ-ARBAE',  (SELECT id FROM reference_governorates WHERE code = 'SUZ'), 'الأربعين',              'Arbaeen', 165),
+  ('SUZ-GANAYN', (SELECT id FROM reference_governorates WHERE code = 'SUZ'), 'الجناين',               'Ganayen', 166),
+  ('SUZ-FURSH',  (SELECT id FROM reference_governorates WHERE code = 'SUZ'), 'فيصل',                  'Faisal', 167),
+  ('SUZ-ATTK',   (SELECT id FROM reference_governorates WHERE code = 'SUZ'), 'عتاقة',                 'Ataqah', 168),
+  ('SUZ-SHAT',   (SELECT id FROM reference_governorates WHERE code = 'SUZ'), 'الشاطئ',                'El Shatt', 169),
+  ('NSN-ARSH',   (SELECT id FROM reference_governorates WHERE code = 'NSN'), 'العريش',                'Arish', 170),
+  ('NSN-SHKH',   (SELECT id FROM reference_governorates WHERE code = 'NSN'), 'الشيخ زويد',            'Sheikh Zuweid', 171),
+  ('NSN-RAF',    (SELECT id FROM reference_governorates WHERE code = 'NSN'), 'رفح',                   'Rafah', 172),
+  ('NSN-BIRABD', (SELECT id FROM reference_governorates WHERE code = 'NSN'), 'بئر العبد',             'Bir El Abd', 173),
+  ('NSN-HASN',   (SELECT id FROM reference_governorates WHERE code = 'NSN'), 'الحسنة',                'El Hasana', 174),
+  ('NSN-NAHL',   (SELECT id FROM reference_governorates WHERE code = 'NSN'), 'نخل',                   'Nakhl', 175),
+  ('SSN-TOR',    (SELECT id FROM reference_governorates WHERE code = 'SSN'), 'الطور',                 'El Tor', 176),
+  ('SSN-SHRM',   (SELECT id FROM reference_governorates WHERE code = 'SSN'), 'شرم الشيخ',             'Sharm El Sheikh', 177),
+  ('SSN-DHB',    (SELECT id FROM reference_governorates WHERE code = 'SSN'), 'دهب',                   'Dahab', 178),
+  ('SSN-NWBA',   (SELECT id FROM reference_governorates WHERE code = 'SSN'), 'نويبع',                 'Nuweiba', 179),
+  ('SSN-TBN',    (SELECT id FROM reference_governorates WHERE code = 'SSN'), 'طابا',                  'Taba', 180),
+  ('SSN-RASSUDR',(SELECT id FROM reference_governorates WHERE code = 'SSN'), 'رأس سدر',               'Ras Sidr', 181),
+  ('SSN-ABGRM',  (SELECT id FROM reference_governorates WHERE code = 'SSN'), 'أبو رديس',              'Abu Rudeis', 182),
+  ('SSN-STCATH', (SELECT id FROM reference_governorates WHERE code = 'SSN'), 'سانت كاترين',           'Saint Catherine', 183),
+  ('BNS-BNS',    (SELECT id FROM reference_governorates WHERE code = 'BNS'), 'بني سويف',              'Beni Suef', 184),
+  ('BNS-FASHN',  (SELECT id FROM reference_governorates WHERE code = 'BNS'), 'الفشن',                 'Fashn', 185),
+  ('BNS-BBA',    (SELECT id FROM reference_governorates WHERE code = 'BNS'), 'ببا',                   'Beba', 186),
+  ('BNS-WASTA',  (SELECT id FROM reference_governorates WHERE code = 'BNS'), 'الواسطى',               'Wasta', 187),
+  ('BNS-NASR',   (SELECT id FROM reference_governorates WHERE code = 'BNS'), 'ناصر',                  'Naser', 188),
+  ('BNS-AHNAS',  (SELECT id FROM reference_governorates WHERE code = 'BNS'), 'أهناسيا',               'Ehnasia', 189),
+  ('BNS-SIMUR',  (SELECT id FROM reference_governorates WHERE code = 'BNS'), 'سمسطا',                 'Semusta', 190),
+  ('BNS-MBHJL',  (SELECT id FROM reference_governorates WHERE code = 'BNS'), 'مبجل',                  'Mubjal', 191),
+  ('FYM-FYM',    (SELECT id FROM reference_governorates WHERE code = 'FYM'), 'الفيوم',                'Fayoum', 192),
+  ('FYM-SNRS',   (SELECT id FROM reference_governorates WHERE code = 'FYM'), 'سنورس',                 'Souris', 193),
+  ('FYM-TAMIYA', (SELECT id FROM reference_governorates WHERE code = 'FYM'), 'طامية',                 'Tamiya', 194),
+  ('FYM-ABSHAY', (SELECT id FROM reference_governorates WHERE code = 'FYM'), 'أبشواي',                'Ibsheway', 195),
+  ('FYM-ITS',    (SELECT id FROM reference_governorates WHERE code = 'FYM'), 'إطسا',                  'Itsa', 196),
+  ('FYM-AFIF',   (SELECT id FROM reference_governorates WHERE code = 'FYM'), 'يوسف الصديق',           'Youssef El Sadek', 197),
+  ('MIN-MIN',    (SELECT id FROM reference_governorates WHERE code = 'MIN'), 'المنيا',                'Minya', 198),
+  ('MIN-MLAWI',  (SELECT id FROM reference_governorates WHERE code = 'MIN'), 'ملوي',                  'Mallawi', 199),
+  ('MIN-SMWLT',  (SELECT id FROM reference_governorates WHERE code = 'MIN'), 'سمالوط',                'Samalut', 200),
+  ('MIN-BNMZR',  (SELECT id FROM reference_governorates WHERE code = 'MIN'), 'بني مزار',              'Beni Mazar', 201),
+  ('MIN-MATAY',  (SELECT id FROM reference_governorates WHERE code = 'MIN'), 'مطاي',                  'Mattay', 202),
+  ('MIN-MGHL',   (SELECT id FROM reference_governorates WHERE code = 'MIN'), 'مغاغة',                 'Maghagha', 203),
+  ('MIN-BHRS',   (SELECT id FROM reference_governorates WHERE code = 'MIN'), 'بني عبيد',              'Bani Ubaid', 204),
+  ('MIN-ADWA',   (SELECT id FROM reference_governorates WHERE code = 'MIN'), 'أبو قرقاص',             'Abu Qurqas', 205),
+  ('MIN-DRMS',   (SELECT id FROM reference_governorates WHERE code = 'MIN'), 'دير مواس',              'Deir Mawas', 206),
+  ('MIN-ARMAN',  (SELECT id FROM reference_governorates WHERE code = 'MIN'), 'الأرمنت',               'El Armant', 207),
+  ('AST-AST',    (SELECT id FROM reference_governorates WHERE code = 'AST'), 'أسيوط',                 'Assiut', 208),
+  ('AST-DRNG',   (SELECT id FROM reference_governorates WHERE code = 'AST'), 'درنكة',                 'Dairut', 209),
+  ('AST-ABNB',   (SELECT id FROM reference_governorates WHERE code = 'AST'), 'أبنوب',                 'Abnub', 210),
+  ('AST-QUSSION',(SELECT id FROM reference_governorates WHERE code = 'AST'), 'القوصية',               'Qusiya', 211),
+  ('AST-MNKPD',  (SELECT id FROM reference_governorates WHERE code = 'AST'), 'منفلوط',                'Manfalut', 212),
+  ('AST-BDA',    (SELECT id FROM reference_governorates WHERE code = 'AST'), 'البداري',               'El Badari', 213),
+  ('AST-BNJAB',  (SELECT id FROM reference_governorates WHERE code = 'AST'), 'بني غالب',              'Bani Ghalib', 214),
+  ('AST-SHLT',   (SELECT id FROM reference_governorates WHERE code = 'AST'), 'ساحل سليم',             'Sahel Selim', 215),
+  ('AST-ABTIG',  (SELECT id FROM reference_governorates WHERE code = 'AST'), 'أبو تيج',               'Abu Tig', 216),
+  ('AST-AGAN',   (SELECT id FROM reference_governorates WHERE code = 'AST'), 'الغنايم',               'El Ghanayem', 217),
+  ('AST-STF',    (SELECT id FROM reference_governorates WHERE code = 'AST'), 'صدفا',                  'Sidfa', 218),
+  ('SHG-SHG',    (SELECT id FROM reference_governorates WHERE code = 'SHG'), 'سوهاج',                 'Sohag', 219),
+  ('SHG-AGMND',  (SELECT id FROM reference_governorates WHERE code = 'SHG'), 'أخميم',                 'Akhmim', 220),
+  ('SHG-MRAGH',  (SELECT id FROM reference_governorates WHERE code = 'SHG'), 'المراغة',               'El Maragha', 221),
+  ('SHG-TAHTA',  (SELECT id FROM reference_governorates WHERE code = 'SHG'), 'طهطا',                  'Tahta', 222),
+  ('SHG-TMA',    (SELECT id FROM reference_governorates WHERE code = 'SHG'), 'طما',                   'Tema', 223),
+  ('SHG-BNLMD',  (SELECT id FROM reference_governorates WHERE code = 'SHG'), 'بني غالب',              'Bani Ghalib', 224),
+  ('SHG-GHRNA',  (SELECT id FROM reference_governorates WHERE code = 'SHG'), 'جرجا',                  'Gerga', 225),
+  ('SHG-SAKLTA', (SELECT id FROM reference_governorates WHERE code = 'SHG'), 'ساقلتة',                'Saqultah', 226),
+  ('SHG-BALINA', (SELECT id FROM reference_governorates WHERE code = 'SHG'), 'بلينا',                 'Balyana', 227),
+  ('SHG-DHRWA',  (SELECT id FROM reference_governorates WHERE code = 'SHG'), 'دار السلام',            'Dar El Salam', 228),
+  ('SHG-JHAYNA', (SELECT id FROM reference_governorates WHERE code = 'SHG'), 'جهينة',                 'Juhayna', 229),
+  ('QNA-QNA',    (SELECT id FROM reference_governorates WHERE code = 'QNA'), 'قنا',                   'Qena', 230),
+  ('QNA-AFNA',   (SELECT id FROM reference_governorates WHERE code = 'QNA'), 'أبوتشت',                'Abu Tesht', 231),
+  ('QNA-FRSHT',  (SELECT id FROM reference_governorates WHERE code = 'QNA'), 'فرشوط',                 'Farshout', 232),
+  ('QNA-NAQDA',  (SELECT id FROM reference_governorates WHERE code = 'QNA'), 'نقادة',                 'Naqada', 233),
+  ('QNA-QIFT',   (SELECT id FROM reference_governorates WHERE code = 'QNA'), 'قفط',                   'Qift', 234),
+  ('QNA-QWS',    (SELECT id FROM reference_governorates WHERE code = 'QNA'), 'قوص',                   'Qus', 235),
+  ('QNA-DSHNA',  (SELECT id FROM reference_governorates WHERE code = 'QNA'), 'دشنا',                  'Dishna', 236),
+  ('QNA-SHARN',  (SELECT id FROM reference_governorates WHERE code = 'QNA'), 'شباب الشران',           'Shabab El Sheran', 237),
+  ('LXR-LXR',    (SELECT id FROM reference_governorates WHERE code = 'LXR'), 'الأقصر',                'Luxor', 238),
+  ('LXR-BAYAD',  (SELECT id FROM reference_governorates WHERE code = 'LXR'), 'البياضية',              'El Bayadeya', 239),
+  ('LXR-ARMAN',  (SELECT id FROM reference_governorates WHERE code = 'LXR'), 'الكرنك',                'Karnak', 240),
+  ('LXR-ISNA',   (SELECT id FROM reference_governorates WHERE code = 'LXR'), 'إسنا',                  'Esna', 241),
+  ('LXR-ARMNT',  (SELECT id FROM reference_governorates WHERE code = 'LXR'), 'الأرمنت',               'Armant', 242),
+  ('LXR-TUFIA',  (SELECT id FROM reference_governorates WHERE code = 'LXR'), 'الطيبة',                'Toufya', 243),
+  ('ASW-ASW',    (SELECT id FROM reference_governorates WHERE code = 'ASW'), 'أسوان',                 'Aswan', 244),
+  ('ASW-EDFU',   (SELECT id FROM reference_governorates WHERE code = 'ASW'), 'إدفو',                  'Edfu', 245),
+  ('ASW-KOMBS',  (SELECT id FROM reference_governorates WHERE code = 'ASW'), 'كوم أمبو',              'Kom Ombo', 246),
+  ('ASW-SNAL',   (SELECT id FROM reference_governorates WHERE code = 'ASW'), 'أسوان الجديدة',          'New Aswan', 247),
+  ('ASW-NASR',   (SELECT id FROM reference_governorates WHERE code = 'ASW'), 'النصر',                 'Nasr', 248),
+  ('ASW-DRWA',   (SELECT id FROM reference_governorates WHERE code = 'ASW'), 'دراو',                  'Drau', 249),
+  ('ASW-BRNQL',  (SELECT id FROM reference_governorates WHERE code = 'ASW'), 'برنقيل',                'Berneek', 250),
+  ('RED-HRG',    (SELECT id FROM reference_governorates WHERE code = 'RED'), 'الغردقة',               'Hurghada', 251),
+  ('RED-SFHG',   (SELECT id FROM reference_governorates WHERE code = 'RED'), 'سفاجا',                 'Safaga', 252),
+  ('RED-QSR',    (SELECT id FROM reference_governorates WHERE code = 'RED'), 'القصير',                'El Quseir', 253),
+  ('RED-MRS',    (SELECT id FROM reference_governorates WHERE code = 'RED'), 'مرسى علم',              'Marsa Alam', 254),
+  ('RED-SHAL',   (SELECT id FROM reference_governorates WHERE code = 'RED'), 'شلاتين',                'Shalatin', 255),
+  ('RED-HMB',    (SELECT id FROM reference_governorates WHERE code = 'RED'), 'حلايب',                 'Halaib', 256),
+  ('RED-RASGA',  (SELECT id FROM reference_governorates WHERE code = 'RED'), 'رأس غارب',              'Ras Gharib', 257),
+  ('WAD-KHARI',  (SELECT id FROM reference_governorates WHERE code = 'WAD'), 'الخارجة',               'El Kharga', 258),
+  ('WAD-DAKHL',  (SELECT id FROM reference_governorates WHERE code = 'WAD'), 'الداخلة',               'Dakhla', 259),
+  ('WAD-FARFRA', (SELECT id FROM reference_governorates WHERE code = 'WAD'), 'الفرافرة',              'Farafra', 260),
+  ('WAD-BARIS',  (SELECT id FROM reference_governorates WHERE code = 'WAD'), 'باريـس',                'Paris', 261),
+  ('WAD-BLAT',   (SELECT id FROM reference_governorates WHERE code = 'WAD'), 'بلاط',                  'Balat', 262),
+  ('MTH-MRSMTH', (SELECT id FROM reference_governorates WHERE code = 'MTH'), 'مرسى مطروح',            'Mersa Matrouh', 263),
+  ('MTH-SALLUM', (SELECT id FROM reference_governorates WHERE code = 'MTH'), 'السلوم',                'Salloum', 264),
+  ('MTH-DABA',   (SELECT id FROM reference_governorates WHERE code = 'MTH'), 'الضبعة',                'Dabaa', 265),
+  ('MTH-ALM',    (SELECT id FROM reference_governorates WHERE code = 'MTH'), 'العلمين',               'El Alamein', 266),
+  ('MTH-SIDIBRN',(SELECT id FROM reference_governorates WHERE code = 'MTH'), 'سيدي براني',            'Sidi Barrani', 267),
+  ('MTH-SIWAMTH',(SELECT id FROM reference_governorates WHERE code = 'MTH'), 'سيوة',                  'Siwa', 268),
+  ('MTH-NJILA',  (SELECT id FROM reference_governorates WHERE code = 'MTH'), 'النجيلة',               'El Negaila', 269)
+ON CONFLICT (code) DO NOTHING;
+
+-- ============================================================================
+-- 4. ALTER TABLE customer_addresses — Add new columns (no drops)
+-- ============================================================================
+
+-- Foreign Key columns to reference tables
+ALTER TABLE customer_addresses
+  ADD COLUMN IF NOT EXISTS governorate_id uuid
+    REFERENCES reference_governorates (id) ON DELETE RESTRICT;
+
+ALTER TABLE customer_addresses
+  ADD COLUMN IF NOT EXISTS city_id uuid
+    REFERENCES reference_cities (id) ON DELETE RESTRICT;
+
+-- Structured address fields (replaces free-text address_line1 as source)
+ALTER TABLE customer_addresses
+  ADD COLUMN IF NOT EXISTS street_address varchar(255);
+
+ALTER TABLE customer_addresses
+  ADD COLUMN IF NOT EXISTS landmark text;
+
+-- Address metadata
+ALTER TABLE customer_addresses
+  ADD COLUMN IF NOT EXISTS address_source address_source_type;
+
+ALTER TABLE customer_addresses
+  ADD COLUMN IF NOT EXISTS address_updated_at timestamptz;
+
+-- Location accuracy (how were the coordinates obtained)
+ALTER TABLE customer_addresses
+  ADD COLUMN IF NOT EXISTS location_accuracy location_accuracy_level;
+
+-- ============================================================================
+-- 5. Indexes (with documented purpose)
+-- ============================================================================
+
+-- Index 1: governorate_id lookup
+--   Purpose: Fast filtering of customers by governorate in Coverage Map,
+--   Customer List, and all admin screens. Used by get_governed_customers
+--   when filtering by governorate.
+CREATE INDEX IF NOT EXISTS idx_customer_addresses_governorate_id
+  ON customer_addresses (governorate_id);
+
+-- Index 2: city_id lookup
+--   Purpose: Fast filtering of customers by city in Coverage Map and
+--   all admin screens.
+CREATE INDEX IF NOT EXISTS idx_customer_addresses_city_id
+  ON customer_addresses (city_id);
+
+-- Index 3: Composite (customer_id, governorate_id)
+--   Purpose: Optimizes the common LATERAL join pattern where we fetch
+--   the default customer address while also filtering by governorate.
+--   Used by get_governed_customers, get_coverage_map, and unified_search.
+CREATE INDEX IF NOT EXISTS idx_customer_addresses_customer_gov
+  ON customer_addresses (customer_id, governorate_id);
+
+-- Index 4: Composite (customer_id, city_id)
+--   Purpose: Same as Index 3 but for city filtering. Both columns in
+--   the index make the LATERAL join + WHERE city filter a single index seek.
+CREATE INDEX IF NOT EXISTS idx_customer_addresses_customer_city
+  ON customer_addresses (customer_id, city_id);
+
+-- ============================================================================
+-- 6. Function: fn_customer_default_address
+--    Centralized, reusable reader for a customer's default address.
+--    Replaces repeated LATERAL subqueries across RPCs.
+-- ============================================================================
+
+CREATE OR REPLACE FUNCTION fn_customer_default_address(p_customer_id uuid)
+RETURNS TABLE (
+  -- Original columns (kept for backward compatibility)
+  id                uuid,
+  customer_id       uuid,
+  label             varchar(100),
+  address_line1     varchar(255),
+  address_line2     varchar(255),
+  city              varchar(100),
+  governorate       varchar(100),
+  postal_code       varchar(20),
+  latitude          decimal(10,7),
+  longitude         decimal(10,7),
+  is_default        boolean,
+  -- New columns (added in this migration)
+  governorate_id    uuid,
+  city_id           uuid,
+  street_address    varchar(255),
+  landmark          text,
+  address_source    address_source_type,
+  address_updated_at timestamptz,
+  location_accuracy location_accuracy_level
+)
+LANGUAGE sql STABLE
+SET search_path TO 'public'
+AS $$
+  SELECT
+    ca.id,
+    ca.customer_id,
+    ca.label,
+    ca.address_line1,
+    ca.address_line2,
+    ca.city,
+    ca.governorate,
+    ca.postal_code,
+    ca.latitude,
+    ca.longitude,
+    ca.is_default,
+    ca.governorate_id,
+    ca.city_id,
+    ca.street_address,
+    ca.landmark,
+    ca.address_source,
+    ca.address_updated_at,
+    ca.location_accuracy
+  FROM customer_addresses ca
+  WHERE ca.customer_id = p_customer_id
+    AND ca.is_default = true
+  LIMIT 1;
+$$;
+
+COMMENT ON FUNCTION fn_customer_default_address IS
+  'Returns the default address for a customer. Replaces repeated LATERAL subqueries. Usage: LEFT JOIN LATERAL fn_customer_default_address(c.id) ca ON true';
+
+-- ============================================================================
+-- END OF PHASE 2, STEP 1 — Address Foundation
+-- No breaking changes. All existing RPCs continue to work unchanged.
+-- ============================================================================

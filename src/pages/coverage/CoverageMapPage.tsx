@@ -1,32 +1,10 @@
 import { useState, useEffect, useCallback } from 'react'
-import { supabase } from '../../lib/supabase'
 import { useNavigate } from 'react-router-dom'
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import PresenceLabel from '../../components/shared/PresenceLabel'
-
-interface CustomerPoint {
-  id: string; code: string; name: string; responsible_name: string
-  phone: string; governorate: string; city: string; formatted_address: string
-  location_source: string | null
-  latitude: number; longitude: number
-  owner_code: string; owner_name: string; created_at: string
-  total_orders: number; total_sales: number; last_order_at: string | null; last_visit_at: string | null
-}
-
-interface EmployeePoint {
-  employee_id: string; name: string; code: string; role_name: string
-  status: string; connection_status: string
-  latitude: number; longitude: number; last_seen_at: string | null; accuracy_meters: number | null
-  last_activity_at: string | null; last_activity_type: string | null
-  duration_minutes: number
-  order_count: number; sales_value: number; visit_count: number; new_customer_count: number
-}
-
-interface Summary {
-  total_customers: number; active_employees: number; covered_governorates: number
-  visited_customers_today: number; today_orders: number; today_sales: number
-}
+import { LocationRepository, getCustomerLocationColor, getEmployeeStatusColor } from '../../domain/location'
+import type { CoverageCustomer, CoverageEmployee, CoverageSummary } from '../../domain/location'
 
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
@@ -53,7 +31,14 @@ const fmtDuration = (min?: number) => {
 }
 
 function customerIcon(source: string | null): L.DivIcon {
-  const colors: Record<string, string> = { gps: '#22c55e', address_geocoded: '#eab308', manual: '#f97316' }
+  const colors: Record<string, string> = {
+    gps: '#22c55e',
+    address_geocoded: '#eab308',
+    manual: '#f97316',
+    city_center: '#3b82f6',
+    governorate_center: '#8b5cf6',
+    unknown: '#9ca3af',
+  }
   const fill = source && colors[source] ? colors[source] : '#3b82f6'
   return L.divIcon({
     className: 'bg-transparent',
@@ -91,25 +76,24 @@ type Layer = typeof LAYERS[number]
 const LAYER_LABELS: Record<Layer, string> = { all: 'الكل', employees: 'المناديب', customers: 'العملاء' }
 
 export default function CoverageMapPage() {
-  const [customers, setCustomers] = useState<CustomerPoint[]>([])
-  const [employees, setEmployees] = useState<EmployeePoint[]>([])
-  const [summary, setSummary] = useState<Summary | null>(null)
+  const [customers, setCustomers] = useState<CoverageCustomer[]>([])
+  const [employees, setEmployees] = useState<CoverageEmployee[]>([])
+  const [summary, setSummary] = useState<CoverageSummary | null>(null)
   const [loading, setLoading] = useState(true)
   const [layer, setLayer] = useState<Layer>('all')
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null)
-  const [selectedEmployee, setSelectedEmployee] = useState<EmployeePoint | null>(null)
-  const [selectedCustomer, setSelectedCustomer] = useState<CustomerPoint | null>(null)
+  const [selectedEmployee, setSelectedEmployee] = useState<CoverageEmployee | null>(null)
+  const [selectedCustomer, setSelectedCustomer] = useState<CoverageCustomer | null>(null)
   const token = getToken()
   const navigate = useNavigate()
 
   const fetchData = useCallback(async (isInitial: boolean) => {
     if (!token) return
-    const { data } = await supabase.rpc('get_coverage_map', { p_token: token })
-    if (data && !data.error) {
-      if (isInitial && data.customers) setCustomers(data.customers as CustomerPoint[])
-      if (data.employees) setEmployees(data.employees as EmployeePoint[])
-      if (data.summary) setSummary(data.summary as Summary)
-    }
+    const repo = new LocationRepository(token)
+    const mapData = await repo.getCoverageMap()
+    if (isInitial && mapData.customers) setCustomers(mapData.customers)
+    if (mapData.employees) setEmployees(mapData.employees)
+    if (mapData.summary) setSummary(mapData.summary)
     setLastUpdate(new Date())
     if (isInitial) setLoading(false)
   }, [token])
@@ -168,13 +152,22 @@ export default function CoverageMapPage() {
             <Marker key={`c-${c.id}`} position={[c.latitude, c.longitude]} icon={customerIcon(c.location_source)}>
               <Popup>
                 <div className="text-right text-xs leading-relaxed min-w-[220px]" dir="rtl">
-                  <div className="font-bold text-sm mb-1.5 border-b pb-1" style={{ color: c.location_source === 'gps' ? '#22c55e' : c.location_source === 'address_geocoded' ? '#eab308' : '#f97316' }}>
+                  <div className="font-bold text-sm mb-1.5 border-b pb-1" style={{
+                    color: c.location_source === 'gps' ? '#22c55e' : c.location_source === 'address_geocoded' ? '#eab308' : c.location_source === 'city_center' ? '#3b82f6' : c.location_source === 'governorate_center' ? '#8b5cf6' : '#9ca3af'
+                  }}>
                     {c.name || c.responsible_name}
                   </div>
-                  <div className="mb-1 text-[10px] font-semibold">{c.location_source === 'gps' ? '🟢 مصدر الموقع: GPS حقيقى' : c.location_source === 'address_geocoded' ? '🟡 مصدر الموقع: مستخرج من العنوان' : c.location_source === 'manual' ? '🟠 مصدر الموقع: مضاف يدوياً' : ''}</div>
+                  <div className="mb-1 text-[10px] font-semibold">
+                    {c.location_source === 'gps' ? '🟢 دقة GPS' :
+                     c.location_source === 'address_geocoded' ? '🟡 مستخرج من العنوان' :
+                     c.location_source === 'city_center' ? '🔵 مركز المدينة' :
+                     c.location_source === 'governorate_center' ? '🟣 مركز المحافظة' :
+                     c.location_source === 'unknown' ? '⚪ غير معروف' : ''}
+                  </div>
                   {c.phone && <div className="mb-0.5"><span className="text-text-secondary">📞 </span>{c.phone}</div>}
                   {c.owner_name && <div className="mb-0.5"><span className="text-text-secondary">👤 </span>{c.owner_name} ({c.owner_code})</div>}
                   {c.governorate && <div className="mb-0.5"><span className="text-text-secondary">🌍 </span>{c.governorate}{c.city ? `، ${c.city}` : ''}</div>}
+                  {(c.landmark || c.street_address) && <div className="mb-0.5 text-text-secondary text-[10px] truncate max-w-[200px]">{c.street_address || ''}{c.street_address && c.landmark ? ' - ' : ''}{c.landmark || ''}</div>}
                   {c.formatted_address && <div className="mb-0.5 text-text-secondary text-[10px] truncate max-w-[200px]">{c.formatted_address}</div>}
                   <div className="border-t my-1 pt-1 grid grid-cols-2 gap-x-3 gap-y-0.5 text-[10px]">
                     <span>📦 {fmtNum(c.total_orders)} طلب</span>

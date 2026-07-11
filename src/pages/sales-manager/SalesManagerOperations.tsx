@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { formatCurrencyShort, toEnglishDigits, safeFormatDateTime } from '../../utils/format'
-import { locationService } from '../../services/location'
+import { LocationRepository, formatAccuracy } from '../../domain/location'
 import { getCurrentLocation } from '../../services/gpsService'
 import { VisitCard } from '../../components/visits/VisitCard'
 import { lifeSignalService } from '../../services/lifeSignalService'
@@ -72,9 +72,12 @@ export default function SalesManagerOperations() {
   const [custPassword, setCustPassword] = useState('')
   const [custResponsible, setCustResponsible] = useState('')
   const [custBusinessType, setCustBusinessType] = useState('')
-  const [custAddress, setCustAddress] = useState('')
-  const [custCreditLimit, setCustCreditLimit] = useState('')
-  const [custCreditDays, setCustCreditDays] = useState('')
+  const [custGovernorateId, setCustGovernorateId] = useState('')
+  const [custCityId, setCustCityId] = useState('')
+  const [custStreet, setCustStreet] = useState('')
+  const [custLandmark, setCustLandmark] = useState('')
+  const [custGovernorates, setCustGovernorates] = useState<any[]>([])
+  const [custCities, setCustCities] = useState<any[]>([])
   const [custLocation, setCustLocation] = useState<{ latitude: number | null; longitude: number | null; accuracyMeters: number | null }>({ latitude: null, longitude: null, accuracyMeters: null })
   const [custLocating, setCustLocating] = useState(false)
   const [custOwnerId, setCustOwnerId] = useState('')
@@ -129,6 +132,28 @@ export default function SalesManagerOperations() {
 
   useEffect(() => { if (showAddEmployee) loadRoles() }, [showAddEmployee, loadRoles])
 
+  const loadGovernorates = useCallback(async () => {
+    const t = getToken()
+    if (!t) return
+    const repo = new LocationRepository(t)
+    const g = await repo.getGovernorates()
+    setCustGovernorates(g)
+  }, [])
+
+  useEffect(() => { if (showAddCustomer) loadGovernorates() }, [showAddCustomer, loadGovernorates])
+
+  useEffect(() => {
+    if (custGovernorateId) {
+      const t = getToken()
+      if (!t) return
+      const repo = new LocationRepository(t)
+      repo.getCities(custGovernorateId).then(setCustCities)
+    } else {
+      setCustCities([])
+    }
+    setCustCityId('')
+  }, [custGovernorateId])
+
   const handleAddEmployee = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!empName.trim() || !empPhone.trim()) { toast.error('الاسم ورقم الهاتف مطلوبان'); return }
@@ -164,10 +189,13 @@ export default function SalesManagerOperations() {
       p_token: t, p_company_name: custName.trim(), p_phone: custPhone.trim() || null,
       p_contact_name: custResponsible.trim() || null, p_contact_phone: custPhone.trim() || null,
       p_business_type: custBusinessType || null, p_responsible_name: custResponsible.trim() || null,
-      p_password: custPassword || null, p_formatted_address: custAddress.trim() || null,
+      p_password: custPassword || null,
       p_latitude: custLocation.latitude, p_longitude: custLocation.longitude,
-      p_accuracy_meters: custLocation.accuracyMeters, p_credit_limit: custCreditLimit ? Number(custCreditLimit) : null,
-      p_credit_days: custCreditDays ? Number(custCreditDays) : null,
+      p_accuracy_meters: custLocation.accuracyMeters,
+      p_governorate_id: custGovernorateId || null,
+      p_city_id: custCityId || null,
+      p_street_address: custStreet.trim() || null,
+      p_landmark: custLandmark.trim() || null,
     })
     if (error) {
       setSubmitting(false)
@@ -192,7 +220,7 @@ export default function SalesManagerOperations() {
     setSubmitting(false)
     toast.success('تم إنشاء العميل بنجاح')
     setShowAddCustomer(false); setCustName(''); setCustPhone(''); setCustPassword(''); setCustResponsible('')
-    setCustBusinessType(''); setCustAddress(''); setCustCreditLimit(''); setCustCreditDays('')
+    setCustBusinessType(''); setCustGovernorateId(''); setCustCityId(''); setCustStreet(''); setCustLandmark('')
     setCustLocation({ latitude: null, longitude: null, accuracyMeters: null }); setCustOwnerId('')
     fetchData()
   }
@@ -560,17 +588,22 @@ export default function SalesManagerOperations() {
           <input type="password" dir="ltr" value={custPassword} onChange={e => setCustPassword(e.target.value)}
             placeholder="كلمة المرور" maxLength={6}
             className="w-full border border-border rounded-lg px-3 py-2 text-sm" />
-          <textarea value={custAddress} onChange={e => setCustAddress(e.target.value)}
-            placeholder="العنوان" rows={1}
-            className="w-full border border-border rounded-lg px-3 py-2 text-sm resize-none" />
-          <div className="flex items-center gap-2">
-            <input type="number" dir="ltr" value={custCreditLimit} onChange={e => setCustCreditLimit(toEnglishDigits(e.target.value))}
-              placeholder="حد الائتمان"
-              className="flex-1 border border-border rounded-lg px-3 py-2 text-sm" />
-            <input type="number" dir="ltr" value={custCreditDays} onChange={e => setCustCreditDays(toEnglishDigits(e.target.value))}
-              placeholder="أيام الائتمان"
-              className="flex-1 border border-border rounded-lg px-3 py-2 text-sm" />
-          </div>
+          <select value={custGovernorateId} onChange={e => setCustGovernorateId(e.target.value)}
+            className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-white">
+            <option value="">المحافظة</option>
+            {custGovernorates.map((g: any) => <option key={g.id} value={g.id}>{g.name_ar || g.name}</option>)}
+          </select>
+          <select value={custCityId} onChange={e => setCustCityId(e.target.value)}
+            className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-white">
+            <option value="">المدينة</option>
+            {custCities.map((c: any) => <option key={c.id} value={c.id}>{c.name_ar || c.name}</option>)}
+          </select>
+          <input type="text" value={custStreet} onChange={e => setCustStreet(e.target.value)}
+            placeholder="الشارع"
+            className="w-full border border-border rounded-lg px-3 py-2 text-sm" />
+          <input type="text" value={custLandmark} onChange={e => setCustLandmark(e.target.value)}
+            placeholder="العلامة المميزة"
+            className="w-full border border-border rounded-lg px-3 py-2 text-sm" />
           <div>
             {custLocation.latitude ? (
               <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-2 flex items-center justify-between">

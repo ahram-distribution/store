@@ -34,22 +34,13 @@ export function CustomerCard({ customer }: CustomerCardProps) {
         </div>
       )}
 
-      {/* 3. Registered address */}
       {customer.registered_address && (
         <div className="flex items-start gap-1.5 mt-1.5 text-[11px] text-text-secondary">
           <MapPin className="w-3 h-3 shrink-0 text-text-muted mt-0.5" />
           <span className="truncate">{customer.registered_address}</span>
         </div>
       )}
-
-      {/* 4. Location address */}
-      {customer.location_address && (
-        <div className="flex items-start gap-1.5 mt-1 text-[11px] text-text-secondary">
-          <MapPin className="w-3 h-3 shrink-0 text-text-muted mt-0.5" />
-          <span className="truncate">{customer.location_address}</span>
-        </div>
-      )}
-      {!customer.location_address && !customer.registered_address && (
+      {!customer.registered_address && (
         <div className="flex items-center gap-1.5 mt-1.5 text-[11px] text-text-muted">
           <MapPin className="w-3 h-3 shrink-0" />
           <span>لا يوجد عنوان</span>

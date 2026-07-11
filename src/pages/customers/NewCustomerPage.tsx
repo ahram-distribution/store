@@ -1,10 +1,11 @@
-import { useState } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { toEnglishDigits } from '../../utils/format'
-import { locationService } from '../../services/location'
+import { formatAccuracy } from '../../domain/location'
 import { getCurrentLocation } from '../../services/gpsService'
 import { lifeSignalService } from '../../services/lifeSignalService'
+import { SearchableSelect } from '../../components/shared/SearchableSelect'
 import toast from 'react-hot-toast'
 
 const BUSINESS_TYPES: { value: string; label: string }[] = [
@@ -18,6 +19,9 @@ const BUSINESS_TYPES: { value: string; label: string }[] = [
   { value: 'warehouse', label: 'مخزن' },
   { value: 'other', label: 'أخرى' },
 ]
+
+interface Governorate { id: string; name_ar: string }
+interface City { id: string; governorate_id: string; name_ar: string }
 
 interface LocationState {
   latitude: number | null
@@ -41,6 +45,38 @@ export function NewCustomerPage() {
   const [location, setLocation] = useState<LocationState>({ latitude: null, longitude: null, accuracyMeters: null })
   const [locating, setLocating] = useState(false)
   const [saving, setSaving] = useState(false)
+
+  const [governorates, setGovernorates] = useState<Governorate[]>([])
+  const [cities, setCities] = useState<City[]>([])
+  const [selectedGov, setSelectedGov] = useState('')
+  const [selectedCity, setSelectedCity] = useState('')
+  const [street, setStreet] = useState('')
+  const [landmark, setLandmark] = useState('')
+
+  useEffect(() => {
+    supabase.from('reference_governorates').select('id, name_ar').order('name_ar', { ascending: true }).then(({ data }) => {
+      if (data) setGovernorates(data as Governorate[])
+    })
+  }, [])
+
+  useEffect(() => {
+    if (!selectedGov) { setCities([]); setSelectedCity(''); return }
+    supabase.from('reference_cities').select('id, governorate_id, name_ar').eq('governorate_id', selectedGov).order('name_ar', { ascending: true }).then(({ data }) => {
+      if (data) setCities(data as City[])
+    })
+    setSelectedCity('')
+  }, [selectedGov])
+
+  const addressPreview = useMemo(() => {
+    const parts: string[] = []
+    const gov = governorates.find(g => g.id === selectedGov)
+    const city = cities.find(c => c.id === selectedCity)
+    if (gov) parts.push(gov.name_ar)
+    if (city) parts.push(city.name_ar)
+    if (street.trim()) parts.push(street.trim())
+    if (landmark.trim()) parts.push(landmark.trim())
+    return parts.join(' - ')
+  }, [selectedGov, selectedCity, street, landmark, governorates, cities])
 
   const handleCaptureLocation = async () => {
     setLocating(true)
@@ -92,6 +128,10 @@ export function NewCustomerPage() {
       p_latitude: location.latitude,
       p_longitude: location.longitude,
       p_accuracy_meters: location.accuracyMeters,
+      p_governorate_id: selectedGov || null,
+      p_city_id: selectedCity || null,
+      p_street_address: street.trim() || null,
+      p_landmark: landmark.trim() || null,
     }
 
     const { data, error } = await supabase.rpc('governed_create_customer', args)
@@ -139,10 +179,43 @@ export function NewCustomerPage() {
             className="w-full border border-border rounded-lg px-3 py-2.5 text-sm bg-white text-text placeholder:text-text-secondary" placeholder="الاسم الكامل" />
         </div>
 
-        <div>
-          <label className="block text-xs font-semibold text-text mb-1">العنوان</label>
-          <textarea placeholder="العنوان بالتفصيل" value={addressDetail} onChange={(e) => setAddressDetail(e.target.value)}
-            rows={1} className="w-full border border-border rounded-lg px-3 py-2.5 text-sm bg-white text-text placeholder:text-text-secondary resize-none" />
+        {/* Structured Address */}
+        <div className="border-t border-border/50 pt-3 mt-1">
+          <p className="text-xs font-semibold text-text mb-2">العنوان</p>
+          <div className="space-y-2">
+            <SearchableSelect
+              label="المحافظة"
+              options={governorates.map(g => ({ value: g.id, label: g.name_ar }))}
+              value={selectedGov}
+              onChange={setSelectedGov}
+              placeholder="اختر المحافظة..."
+            />
+            <SearchableSelect
+              label="المدينة"
+              options={cities.map(c => ({ value: c.id, label: c.name_ar }))}
+              value={selectedCity}
+              onChange={setSelectedCity}
+              placeholder={selectedGov ? 'اختر المدينة...' : 'اختر المحافظة أولاً'}
+              disabled={!selectedGov}
+            />
+            <input type="text" value={street} onChange={(e) => setStreet(e.target.value)}
+              placeholder="الشارع (اختياري)"
+              className="w-full border border-border rounded-lg px-3 py-2.5 text-sm bg-white text-text placeholder:text-text-secondary" />
+            <input type="text" value={landmark} onChange={(e) => setLandmark(e.target.value)}
+              placeholder="علامة مميزة (اختياري)"
+              className="w-full border border-border rounded-lg px-3 py-2.5 text-sm bg-white text-text placeholder:text-text-secondary" />
+            {addressPreview && (
+              <div className="bg-surface rounded-lg px-3 py-2 text-xs text-text border border-border/50">
+                <span className="text-text-secondary text-[10px]">📍 معاينة العنوان: </span>
+                {addressPreview}
+              </div>
+            )}
+          </div>
+          <div className="mt-2">
+            <label className="block text-xs font-semibold text-text mb-1">وصف إضافي</label>
+            <textarea placeholder="تفاصيل إضافية للعنوان (اختياري)" value={addressDetail} onChange={(e) => setAddressDetail(e.target.value)}
+              rows={1} className="w-full border border-border rounded-lg px-3 py-2.5 text-sm bg-white text-text placeholder:text-text-secondary resize-none" />
+          </div>
         </div>
 
         <div>
@@ -175,11 +248,11 @@ export function NewCustomerPage() {
           {location.latitude ? (
             <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-2 space-y-1">
               <div className="flex items-center justify-between">
-                <span className="text-xs text-green-700">✓ تم ({locationService.formatAccuracy(location.accuracyMeters).label})</span>
+                <span className="text-xs text-green-700">✓ تم ({formatAccuracy(location.accuracyMeters).label})</span>
                 <button type="button" onClick={() => setLocation({ latitude: null, longitude: null, accuracyMeters: null })}
                   className="text-xs text-primary font-semibold">تغيير</button>
               </div>
-              <a href={locationService.buildGoogleMapsUrl(location.latitude, location.longitude)} target="_blank" rel="noopener noreferrer"
+              <a href={`https://www.google.com/maps?q=${location.latitude},${location.longitude}`} target="_blank" rel="noopener noreferrer"
                 className="text-[10px] text-primary underline block">
                 خريطة
               </a>

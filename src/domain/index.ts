@@ -1,5 +1,6 @@
 export * as enums from './enums'
 export * as events from './events'
 export * as models from './models'
+export * as location from './location'
 export * as services from './services'
 export * as valueObjects from './value-objects'

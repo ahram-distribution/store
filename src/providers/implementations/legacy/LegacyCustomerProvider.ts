@@ -17,17 +17,14 @@ export class LegacyCustomerProvider implements ICustomerProvider {
   async registerNewCustomer(customer: Customer): Promise<void> {
     const { error } = await supabase.rpc('governed_create_customer', {
       p_token: this.context.token,
-      p_name: customer.tradeName || customer.fullName,
-      p_full_name: customer.fullName,
+      p_company_name: customer.tradeName || customer.fullName,
       p_phone: customer.phone.number,
-      p_customer_type: customer.customerType,
-      p_credit_limit: customer.creditLimit.amount,
-      p_address_line1: customer.address.street,
-      p_address_line2: customer.address.district,
-      p_city: customer.address.city,
-      p_governorate: customer.address.governorate,
-      p_latitude: null,
-      p_longitude: null,
+      p_responsible_name: customer.fullName,
+      p_business_type: (customer.customerType === 'retail' ? 'retail' : 'wholesaler') as any,
+      p_street_address: customer.address.street || null,
+      p_landmark: customer.address.district || null,
+      p_city_id: null,
+      p_governorate_id: null,
     })
     if (error) throw new ProviderException(error.message, PROVIDER_NAME, error)
   }
