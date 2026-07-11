@@ -91,6 +91,7 @@ export function OrderCustomerSection({ customer, order, lastVisit }: OrderCustom
   const navigate = useNavigate()
   const displayName = customer?.company_name || order.snapshot_customer_name || 'غير متوفر'
   const displayPhone = customer?.phone || order.snapshot_customer_phone || 'غير متوفر'
+  const ownerName = order.customer_owner_name || 'غير متوفر'
   const fullAddress = useMemo(() => customer?.display_address || getFullAddress(customer, order), [customer, order])
   const hasAddressCoords = customer?.address_latitude != null && customer?.address_longitude != null
   const customerMapsUrl = hasAddressCoords
@@ -122,11 +123,17 @@ export function OrderCustomerSection({ customer, order, lastVisit }: OrderCustom
         <div className="lg:col-span-7 bg-white rounded-lg border border-[#E5E7EB] shadow-sm p-5">
           <div className="flex items-start justify-between">
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-1">
-                <p className="text-[14px] font-bold text-[#111827] cursor-pointer hover:opacity-70 transition-opacity" onClick={() => customer?.id && navigate(`/customers/${customer.id}`)}>
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className="text-xl">🏢</span>
+                <span className="text-xl font-bold text-primary cursor-pointer hover:text-primary/70 underline decoration-transparent hover:decoration-primary/30 transition-all" onClick={() => customer?.id && navigate(`/customers/${customer.id}`)}>
                   {displayName}
-                </p>
+                </span>
                 {customer?.code && <span className="text-[11px] text-[#6B7280] font-mono bg-[#F9FAFB] px-2 py-0.5 rounded" dir="ltr">{customer.code}</span>}
+              </div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-base">👤</span>
+                <span className="text-base font-semibold text-accent">{ownerName}</span>
+                <span className="text-[11px] text-[#9CA3AF]">الموظف المسؤول</span>
               </div>
               <p className="text-[13px] text-[#6B7280] font-mono" dir="ltr">{displayPhone}</p>
               {fullAddress && (

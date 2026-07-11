@@ -160,7 +160,7 @@ export function OrderDetailView({ data, actions, onBack }: OrderDetailViewProps)
 
       <div className="bg-white rounded-lg border border-[#E5E7EB] shadow-sm p-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1 text-[13px]">
-          <div><span style={{color:'#9CA3AF'}}>اسم العميل:</span> <span className="font-semibold text-[#111827]">{customer?.company_name || order.snapshot_customer_name || 'غير متوفر'}</span></div>
+          <div><span style={{color:'#9CA3AF'}}>اسم العميل:</span> <span className="font-semibold text-primary cursor-pointer hover:text-primary/70 underline decoration-transparent hover:decoration-primary/30 transition-all" onClick={() => customer?.id && navigate(`/customers/${customer.id}`)}>{customer?.company_name || order.snapshot_customer_name || 'غير متوفر'}</span></div>
           <div><span style={{color:'#9CA3AF'}}>الكود:</span> <span className="font-semibold text-[#111827]">{customer?.code || '—'}</span></div>
           <div><span style={{color:'#9CA3AF'}}>الهاتف:</span> <span className="font-semibold text-[#111827] font-mono">{customer?.phone || order.snapshot_customer_phone || 'غير متوفر'}</span></div>
           <div><span style={{color:'#9CA3AF'}}>المدينة:</span> <span className="font-semibold text-[#111827]">{customer?.address_city || '—'}</span></div>
