@@ -786,25 +786,7 @@ export function CustomerProfilePage() {
             </div>
           </div>
 
-          <div className="bg-white rounded-xl border border-border p-3 space-y-2.5">
-            <h3 className="text-xs font-bold text-text">البيانات المالية</h3>
-            <div className="flex justify-between text-xs">
-              <span className="text-text-secondary">الحد الائتماني</span>
-              <span className="font-semibold">{formatCurrencyShort(customer.credit_limit || 0)}</span>
-            </div>
-            <div className="flex justify-between text-xs">
-              <span className="text-text-secondary">فترة الائتمان</span>
-              <span className="font-semibold">{customer.credit_days || 0} يوم</span>
-            </div>
-            <div className="flex justify-between text-xs">
-              <span className="text-text-secondary">إجمالي المبيعات</span>
-              <span className="font-semibold">{formatCurrencyShort(monthlySales)}</span>
-            </div>
-            <div className="flex justify-between text-xs">
-              <span className="text-text-secondary">آخر طلب</span>
-              <span className="font-semibold">{lastOrderDays !== null ? `منذ ${lastOrderDays} يوم` : 'غير متوفر'}</span>
-            </div>
-          </div>
+
 
           <div className="bg-white rounded-xl border border-border p-3">
             <h3 className="text-xs font-bold text-text mb-2">جهات الاتصال</h3>
