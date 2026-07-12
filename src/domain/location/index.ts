@@ -2,6 +2,7 @@ export { LocationRepository, createLocationRepository } from './repository'
 export { formatAccuracy, getLocationAccuracyLabel, ACCURACY_COLORS } from './accuracy'
 export { buildRegisteredAddress, composeAddress, formatAddressPreview } from './address-builder'
 export { geocoding } from './geocoding'
+export { LocationNormalizationService } from './enrichment'
 export { getCustomerLocationColor, getEmployeeStatusColor, hasGpsLocation, getEmployeesByStatus } from './coverage'
 
 export type {
@@ -18,6 +19,8 @@ export type {
   CoverageCustomer,
   CoverageEmployee,
   CoverageMapData,
+  EnrichmentStatus,
+  EnrichLocationInput,
 } from './types'
 
 export {

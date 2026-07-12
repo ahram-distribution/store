@@ -1,5 +1,5 @@
 import { supabase } from '../../lib/supabase'
-import type { Governorate, City, LocationRecord, GpsLocation, CoverageMapData, GeocodeResult } from './types'
+import type { Governorate, City, LocationRecord, GpsLocation, CoverageMapData, GeocodeResult, EnrichLocationInput } from './types'
 
 export class LocationRepository {
   constructor(private token: string) {}
@@ -64,6 +64,25 @@ export class LocationRepository {
   // ============================================================
   // Geocoding
   // ============================================================
+
+  // ============================================================
+  // Location Enrichment
+  // ============================================================
+
+  async enrichLocation(locationId: string, input: EnrichLocationInput): Promise<boolean> {
+    const { data } = await supabase.rpc('enrich_location', {
+      p_token: this.token,
+      p_location_id: locationId,
+      p_governorate_id: input.governorate_id || null,
+      p_city_id: input.city_id || null,
+      p_road: input.road || null,
+      p_formatted_address: input.formatted_address || null,
+      p_geocoding_provider: input.geocoding_provider || 'nominatim',
+      p_enrichment_version: input.enrichment_version || 1,
+    })
+    const result = data as any
+    return result?.success === true
+  }
 
   async geocodeCustomerAddress(customerId: string): Promise<GeocodeResult> {
     const { data } = await supabase.rpc('geocode_customer_address', {

@@ -4,7 +4,7 @@ import { supabase } from '../../lib/supabase'
 import { useCapability } from '../../hooks/useCapability'
 import { formatCurrencyShort, formatDate, formatDateTime } from '../../utils/format'
 import { getCustomerState, getCustomerStateLabel, CUSTOMER_STATE_LABELS } from '../../utils/systemStates'
-import { LocationRepository } from '../../domain/location'
+import { LocationRepository, LocationNormalizationService } from '../../domain/location'
 import { getCurrentLocation } from '../../services/gpsService'
 import { SearchableSelect } from '../../components/shared/SearchableSelect'
 import { CustomerAddressCard } from '../../components/customers/CustomerAddressCard'
@@ -633,6 +633,8 @@ export function CustomerProfilePage() {
     if (r?.error) { toast.error(r.error); return }
     toast.success('تم تحديث الموقع (' + accuracy + 'م)')
     if (customer?.location_id) {
+      // Enrich the location (reverse geocode + match reference IDs)
+      LocationNormalizationService.enrichLocationIfNeeded(customer.location_id)
       const repo = getLocationRepo()
       if (repo) { const loc = await repo.fetchLocation(customer.location_id); if (loc) setLocation(loc) }
     }
@@ -772,6 +774,10 @@ export function CustomerProfilePage() {
               latitude: location.latitude,
               longitude: location.longitude,
               accuracy_meters: location.accuracy_meters,
+              enrichment_status: location.enrichment_status,
+              governorate_name: location.governorate_name,
+              city_name: location.city_name,
+              road: location.road,
             } : null} />
             <CustomerAddressCard type="manual" manualData={customer ? {
               governorate: customer.governorate_name,
@@ -782,16 +788,10 @@ export function CustomerProfilePage() {
           </div>
 
           {location && (
-            <div className="flex gap-2">
-              <button disabled title="قريباً"
-                className="flex-1 bg-surface border border-border/50 text-text-secondary text-xs py-1.5 rounded-lg font-semibold cursor-not-allowed text-center">
-                اعتماد هذا العنوان
-              </button>
-              <button onClick={handleUpdateLocation} disabled={locating}
-                className="flex-1 bg-accent/10 text-accent text-xs py-1.5 rounded-lg font-semibold hover:bg-accent/20 disabled:opacity-50">
-                {locating ? 'جاري التحديد...' : 'تحديث الموقع'}
-              </button>
-            </div>
+            <button onClick={handleUpdateLocation} disabled={locating}
+              className="w-full bg-accent/10 text-accent text-xs py-1.5 rounded-lg font-semibold hover:bg-accent/20 disabled:opacity-50">
+              {locating ? 'جاري التحديد...' : 'تحديث الموقع'}
+            </button>
           )}
 
 

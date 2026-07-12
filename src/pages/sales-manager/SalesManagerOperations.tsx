@@ -99,8 +99,8 @@ export default function SalesManagerOperations() {
   const [selectedVisitLoading, setSelectedVisitLoading] = useState(false)
   const [visitDetailCustName, setVisitDetailCustName] = useState('')
   const [visitDetailEmpName, setVisitDetailEmpName] = useState('')
-  const [visitDetailStartAddr, setVisitDetailStartAddr] = useState('')
-  const [visitDetailEndAddr, setVisitDetailEndAddr] = useState('')
+  const [visitDetailStartCoord, setVisitDetailStartCoord] = useState('')
+  const [visitDetailEndCoord, setVisitDetailEndCoord] = useState('')
 
   const token = getToken()
 
@@ -298,8 +298,8 @@ export default function SalesManagerOperations() {
       }
       const slat = Number(v.check_in_latitude); const slng = Number(v.check_in_longitude)
       const elat = Number(v.check_out_latitude); const elng = Number(v.check_out_longitude)
-      if (slat && slng) locationService.reverseGeocode(slat, slng).then(a => { if (a) setVisitDetailStartAddr(a) })
-      if (elat && elng) locationService.reverseGeocode(elat, elng).then(a => { if (a) setVisitDetailEndAddr(a) })
+      if (slat && slng) setVisitDetailStartCoord(`${slat.toFixed(6)}, ${slng.toFixed(6)}`)
+      if (elat && elng) setVisitDetailEndCoord(`${elat.toFixed(6)}, ${elng.toFixed(6)}`)
     }
     setSelectedVisitLoading(false)
   }
@@ -473,7 +473,7 @@ export default function SalesManagerOperations() {
                       <p className="text-[11px] text-blue-700 font-semibold mb-1">بداية الزيارة</p>
                       <p className="text-[13px] flex items-center flex-wrap gap-x-2">
                         <a href={locationService.buildGoogleMapsUrl(Number(v.check_in_latitude), Number(v.check_in_longitude))} target="_blank" rel="noopener noreferrer" className="inline-block bg-blue-600 text-white text-[11px] px-3 py-1 rounded-full font-semibold">فتح الخريطة</a>
-                        {visitDetailStartAddr && <span className="text-blue-500">- {visitDetailStartAddr}</span>}
+                        {visitDetailStartCoord && <span className="text-blue-500 text-[10px]">({visitDetailStartCoord})</span>}
                       </p>
                     </div>
                   )}
@@ -482,7 +482,7 @@ export default function SalesManagerOperations() {
                       <p className="text-[11px] text-emerald-700 font-semibold mb-1">نهاية الزيارة</p>
                       <p className="text-[13px] flex items-center flex-wrap gap-x-2">
                         <a href={locationService.buildGoogleMapsUrl(Number(v.check_out_latitude), Number(v.check_out_longitude))} target="_blank" rel="noopener noreferrer" className="inline-block bg-emerald-600 text-white text-[11px] px-3 py-1 rounded-full font-semibold">فتح الخريطة</a>
-                        {visitDetailEndAddr && <span className="text-emerald-500">- {visitDetailEndAddr}</span>}
+                        {visitDetailEndCoord && <span className="text-emerald-500 text-[10px]">({visitDetailEndCoord})</span>}
                       </p>
                     </div>
                   )}

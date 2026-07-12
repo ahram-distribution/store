@@ -16,29 +16,13 @@ interface GpsAddress {
   accuracy_meters: number | null
 }
 
-interface ParsedGpsAddress {
-  governorate: string | null
-  city: string | null
-  street: string | null
-}
-
-function parseGpsAddress(formatted: string | null | undefined): ParsedGpsAddress {
-  if (!formatted) return { governorate: null, city: null, street: null }
-  const parts = formatted.split(/ - | – | — | \- /).map(s => s.trim()).filter(Boolean)
-  if (parts.length >= 3) {
-    return { governorate: parts[0], city: parts[1], street: parts.slice(2).join(' - ') }
-  }
-  if (parts.length === 2) {
-    return { governorate: null, city: parts[0], street: parts[1] }
-  }
-  return { governorate: null, city: null, street: null }
-}
-
 interface CustomerAddressCardProps {
   type: 'manual' | 'gps'
   manualData?: ManualAddress | null
   gpsData?: GpsAddress | null
 }
+
+const ENRICHED = 'completed'
 
 export function CustomerAddressCard({ type, manualData, gpsData }: CustomerAddressCardProps) {
   const isManual = type === 'manual'
@@ -49,7 +33,7 @@ export function CustomerAddressCard({ type, manualData, gpsData }: CustomerAddre
       .filter(Boolean).join(' - ')
   }, [manualData])
 
-  const parsedGps = useMemo(() => parseGpsAddress(gpsData?.formatted_address), [gpsData?.formatted_address])
+  const isEnriched = gpsData?.enrichment_status === ENRICHED
 
   const mapsUrl = useMemo(() => {
     const lat = isManual ? (manualData?.latitude ?? null) : (gpsData?.latitude ?? null)
@@ -57,7 +41,7 @@ export function CustomerAddressCard({ type, manualData, gpsData }: CustomerAddre
     if (lat != null && lng != null) {
       return `https://www.google.com/maps?q=${lat},${lng}`
     }
-    const addr = isManual ? manualFullAddress : gpsData?.formatted_address
+    const addr = isManual ? manualFullAddress : (gpsData?.formatted_address || '')
     if (addr) {
       return `https://www.google.com/maps/search/${encodeURIComponent(addr)}`
     }
@@ -81,6 +65,7 @@ export function CustomerAddressCard({ type, manualData, gpsData }: CustomerAddre
         </h2>
       </div>
 
+      {/* ===================== Manual Card ===================== */}
       {isManual && manualData && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-2 mb-3">
           {manualData.governorate && (
@@ -152,6 +137,7 @@ export function CustomerAddressCard({ type, manualData, gpsData }: CustomerAddre
         </div>
       )}
 
+      {/* ===================== GPS Card ===================== */}
       {!isManual && !hasGps && (
         <div className="bg-amber-50 rounded-lg border border-amber-200 p-3 flex items-center gap-2">
           <span className="text-lg">📍</span>
@@ -161,6 +147,7 @@ export function CustomerAddressCard({ type, manualData, gpsData }: CustomerAddre
 
       {!isManual && hasGps && (
         <>
+          {/* GPS Accuracy */}
           {gpsData?.accuracy_meters != null && (
             <div className="mb-2">
               <span className="text-xs text-text-secondary">دقة GPS: </span>
@@ -171,34 +158,45 @@ export function CustomerAddressCard({ type, manualData, gpsData }: CustomerAddre
             </div>
           )}
 
-          {parsedGps.governorate && (
-            <div className="mb-1">
-              <div className="text-[10px] text-text-secondary">المحافظة المستخرجة</div>
-              <div className="text-sm font-semibold text-text">{parsedGps.governorate}</div>
-            </div>
-          )}
-          {parsedGps.city && (
-            <div className="mb-1">
-              <div className="text-[10px] text-text-secondary">المدينة المستخرجة</div>
-              <div className="text-sm font-semibold text-text">{parsedGps.city}</div>
-            </div>
-          )}
-          {parsedGps.street && (
-            <div className="mb-1">
-              <div className="text-[10px] text-text-secondary">الشارع المستخرج</div>
-              <div className="text-sm font-semibold text-text">{parsedGps.street}</div>
+          {/* Enriched structured address */}
+          {isEnriched ? (
+            <>
+              {gpsData.governorate_name && (
+                <div className="mb-1">
+                  <div className="text-[10px] text-text-secondary">المحافظة المستخرجة</div>
+                  <div className="text-sm font-semibold text-text">{gpsData.governorate_name}</div>
+                </div>
+              )}
+              {gpsData.city_name && (
+                <div className="mb-1">
+                  <div className="text-[10px] text-text-secondary">المدينة المستخرجة</div>
+                  <div className="text-sm font-semibold text-text">{gpsData.city_name}</div>
+                </div>
+              )}
+              {gpsData.road && (
+                <div className="mb-1">
+                  <div className="text-[10px] text-text-secondary">الشارع المستخرج</div>
+                  <div className="text-sm font-semibold text-text">{gpsData.road}</div>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="bg-amber-50 rounded-lg border border-amber-200 p-2.5 mb-2">
+              <p className="text-xs text-amber-700">لا يمكن استخراج عنوان تفصيلي.</p>
             </div>
           )}
 
+          {/* Full address (always shown) */}
           {gpsData?.formatted_address && (
             <div className="mb-3 mt-2">
-              <div className="text-[10px] text-text-secondary mb-1">العنوان الكامل المستخرج</div>
+              <div className="text-[10px] text-text-secondary mb-1">العنوان الكامل</div>
               <div className="bg-gray-50 rounded-lg p-3 text-xs text-text leading-relaxed border border-gray-100">
                 {gpsData.formatted_address}
               </div>
             </div>
           )}
 
+          {/* Action buttons */}
           <div className="flex flex-wrap gap-2">
             {mapsUrl && (
               <a href={mapsUrl} target="_blank" rel="noopener noreferrer"

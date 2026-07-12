@@ -48,6 +48,8 @@ export interface GpsLocation {
   accuracy: number | null
 }
 
+export type EnrichmentStatus = 'pending' | 'processing' | 'completed' | 'failed'
+
 export interface LocationRecord {
   id: string
   latitude: number
@@ -57,6 +59,26 @@ export interface LocationRecord {
   google_maps_url: string
   captured_at: string
   created_at: string
+  // Enrichment fields
+  governorate_id: string | null
+  city_id: string | null
+  road: string | null
+  enriched_at: string | null
+  enrichment_status: EnrichmentStatus | null
+  geocoding_provider: string | null
+  enrichment_version: number | null
+  // Resolved names from reference tables
+  governorate_name: string | null
+  city_name: string | null
+}
+
+export interface EnrichLocationInput {
+  governorate_id?: string | null
+  city_id?: string | null
+  road?: string | null
+  formatted_address?: string | null
+  geocoding_provider?: string
+  enrichment_version?: number
 }
 
 // ---- Accuracy ----

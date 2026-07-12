@@ -1,4 +1,3 @@
-import { useState, useEffect } from 'react'
 import { MapPin } from 'lucide-react'
 import { locationService } from '../../services/location'
 
@@ -6,29 +5,13 @@ interface LocationDisplayProps {
   lat: number | null | undefined
   lng: number | null | undefined
   showAddress?: boolean
+  address?: string | null
   size?: 'sm' | 'md'
   className?: string
 }
 
-export function LocationDisplay({ lat, lng, showAddress = true, size = 'sm', className = '' }: LocationDisplayProps) {
-  const [address, setAddress] = useState<string | null>(null)
-  const [loading, setLoading] = useState(false)
-
+export function LocationDisplay({ lat, lng, showAddress = true, address, size = 'sm', className = '' }: LocationDisplayProps) {
   const hasCoords = lat != null && lng != null
-
-  useEffect(() => {
-    if (!hasCoords || !showAddress) return
-    let cancelled = false
-    setLoading(true)
-    locationService.reverseGeocodeStructured(lat!, lng!).then(addr => {
-      if (!cancelled) {
-        const short = locationService.formatShortAddress(lat!, lng!, addr)
-        setAddress(short)
-        setLoading(false)
-      }
-    })
-    return () => { cancelled = true }
-  }, [lat, lng, showAddress])
 
   if (!hasCoords) return null
 
@@ -49,9 +32,9 @@ export function LocationDisplay({ lat, lng, showAddress = true, size = 'sm', cla
       >
         <MapPin className={iconSize} />
       </a>
-      {showAddress && (
+      {showAddress && address && (
         <span className={`${textSize} text-gray-600 leading-normal`}>
-          {loading ? '...' : address || ''}
+          {address}
         </span>
       )}
     </span>

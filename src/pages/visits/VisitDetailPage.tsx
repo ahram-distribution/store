@@ -32,8 +32,8 @@ export function VisitDetailPage() {
   const [visit, setVisit] = useState<any>(null)
   const [customerName, setCustomerName] = useState('')
   const [employeeName, setEmployeeName] = useState('')
-  const [startAddress, setStartAddress] = useState('')
-  const [endAddress, setEndAddress] = useState('')
+  const [startCoords, setStartCoords] = useState('')
+  const [endCoords, setEndCoords] = useState('')
   const [loading, setLoading] = useState(true)
   const [notes, setNotes] = useState('')
   const [result, setResult] = useState('')
@@ -70,10 +70,10 @@ export function VisitDetailPage() {
         const endLat = Number(v.check_out_latitude)
         const endLng = Number(v.check_out_longitude)
         if (startLat && startLng) {
-          locationService.reverseGeocode(startLat, startLng).then(a => { if (a) setStartAddress(a) })
+          setStartCoords(`${startLat.toFixed(6)}, ${startLng.toFixed(6)}`)
         }
         if (endLat && endLng) {
-          locationService.reverseGeocode(endLat, endLng).then(a => { if (a) setEndAddress(a) })
+          setEndCoords(`${endLat.toFixed(6)}, ${endLng.toFixed(6)}`)
         }
       }
       if (cid) {
@@ -246,7 +246,7 @@ export function VisitDetailPage() {
                     <p className="text-[11px] text-blue-700 font-semibold mb-1">بداية الزيارة</p>
                     <p className="text-[13px] flex items-center flex-wrap gap-x-2">
                       <a href={locationService.buildGoogleMapsUrl(Number(visit.check_in_latitude), Number(visit.check_in_longitude))} target="_blank" rel="noopener noreferrer" className="inline-block bg-blue-600 text-white text-[11px] px-3 py-1 rounded-full font-semibold">فتح الخريطة</a>
-                      {startAddress && <span className="text-blue-500">- {startAddress}</span>}
+                      {startCoords && <span className="text-blue-500 text-[10px]">({startCoords})</span>}
                     </p>
                   </div>
                 )}
@@ -255,7 +255,7 @@ export function VisitDetailPage() {
                     <p className="text-[11px] text-emerald-700 font-semibold mb-1">نهاية الزيارة</p>
                     <p className="text-[13px] flex items-center flex-wrap gap-x-2">
                       <a href={locationService.buildGoogleMapsUrl(Number(visit.check_out_latitude), Number(visit.check_out_longitude))} target="_blank" rel="noopener noreferrer" className="inline-block bg-emerald-600 text-white text-[11px] px-3 py-1 rounded-full font-semibold">فتح الخريطة</a>
-                      {endAddress && <span className="text-emerald-500">- {endAddress}</span>}
+                      {endCoords && <span className="text-emerald-500 text-[10px]">({endCoords})</span>}
                     </p>
                   </div>
                 )}

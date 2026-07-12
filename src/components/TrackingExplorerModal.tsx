@@ -1,7 +1,6 @@
-import { useMemo, useState, useEffect } from 'react'
+import { useMemo } from 'react'
 import { MapContainer, TileLayer, Polyline, CircleMarker, Popup, Marker as LeafletMarker, useMap } from 'react-leaflet'
 import L from 'leaflet'
-import { locationService } from '../services/location'
 
 const visitIcon = L.divIcon({ className: 'bg-transparent', html: '<span style="font-size:20px;line-height:1">📍</span>', iconSize: [20, 20], iconAnchor: [10, 18] })
 const stopIcon = L.divIcon({ className: 'bg-transparent', html: '<span style="font-size:18px;line-height:1">⏸️</span>', iconSize: [18, 18], iconAnchor: [9, 9] })
@@ -39,26 +38,6 @@ interface Props {
 }
 
 export default function TrackingExplorerModal({ open, onClose, employeeName, employeeCode, date, sessionStart, sessionEnd, timeline, mapData }: Props) {
-  const [addresses, setAddresses] = useState<Record<string, string>>({})
-
-  useEffect(() => {
-    if (!open || !mapData?.visit_locations) return
-    let cancelled = false
-    mapData.visit_locations.forEach((v) => {
-      const key = `${v.latitude.toFixed(5)},${v.longitude.toFixed(5)}`
-      if (!addresses[key]) {
-        locationService.reverseGeocodeStructured(v.latitude, v.longitude).then((addr) => {
-          if (cancelled) return
-          if (addr) {
-            const short = locationService.formatShortAddress(v.latitude, v.longitude, addr)
-            setAddresses((prev) => ({ ...prev, [key]: short || addr.displayName }))
-          }
-        })
-      }
-    })
-    return () => { cancelled = true }
-  }, [open, mapData])
-
   const routePoints: [number, number][] = useMemo(() => {
     if (!mapData?.route) return []
     return mapData.route.map((p) => [p.latitude, p.longitude])
@@ -110,15 +89,14 @@ export default function TrackingExplorerModal({ open, onClose, employeeName, emp
                 <Polyline positions={routePoints} pathOptions={{ color: '#3b82f6', weight: 3, opacity: 0.7 }} />
               )}
               {mapData?.visit_locations?.map((v) => {
-                const addrKey = `${v.latitude.toFixed(5)},${v.longitude.toFixed(5)}`
-                const addr = addresses[addrKey]
+                const coords = `${v.latitude.toFixed(6)}, ${v.longitude.toFixed(6)}`
                 return (
                 <LeafletMarker key={v.visit_id} position={[v.latitude, v.longitude]} icon={visitIcon}>
                   <Popup>
                     <div className="text-xs">
                       <p className="font-bold">{v.customer_name}</p>
                       <p className="text-text-secondary">{fmtTime(v.check_in_at)}{v.check_out_at ? ` → ${fmtTime(v.check_out_at)}` : ''}</p>
-                      {addr && <p className="text-text-secondary text-[10px]">{addr}</p>}
+                      <p className="text-text-secondary text-[10px]">{coords}</p>
                       {v.visit_result && <p className="text-text-secondary">{v.visit_result}</p>}
                     </div>
                   </Popup>
