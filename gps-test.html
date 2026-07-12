@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GPS Diagnostic</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: sans-serif; background: #f5f5f5; padding: 20px; }
+    h1 { font-size: 18px; margin-bottom: 4px; }
+    h2 { font-size: 14px; margin: 16px 0 8px; color: #444; }
+    p.desc { font-size: 12px; color: #666; margin-bottom: 12px; }
+    .env-info { font-size: 11px; color: #666; margin-bottom: 16px; line-height: 1.6; }
+    button {
+      width: 100%; padding: 14px; font-size: 16px; font-weight: bold;
+      background: #2563eb; color: white; border: none; border-radius: 12px;
+      cursor: pointer; margin-bottom: 8px;
+    }
+    button:active { opacity: 0.8; }
+    button.test-b { background: #059669; }
+    .output {
+      margin-top: 8px; padding: 12px; border-radius: 8px;
+      font-size: 12px; direction: ltr; text-align: left;
+      white-space: pre-wrap; font-family: monospace;
+    }
+    .success { background: #dcfce7; border: 1px solid #86efac; }
+    .error { background: #fee2e2; border: 1px solid #fca5a5; }
+    .info { background: #e0f2fe; border: 1px solid #7dd3fc; }
+    .warn { background: #fef3c7; border: 1px solid #fbbf24; }
+  </style>
+</head>
+<body>
+  <h1>🧪 تشخيص GPS</h1>
+  <div class="env-info" id="env"></div>
+
+  <h2>الاختبار A — بدون HighAccuracy + Cache</h2>
+  <p class="desc">enableHighAccuracy: false · timeout: 30000ms · maximumAge: 60000ms</p>
+  <button id="btnA" class="test-b">🔵 اختبار A</button>
+  <div id="outA" class="output info">اضغط لبدء الاختبار A</div>
+
+  <h2>الاختبار B — HighAccuracy + Fresh</h2>
+  <p class="desc">enableHighAccuracy: true · timeout: 30000ms · maximumAge: 0</p>
+  <button id="btnB">🔴 اختبار B</button>
+  <div id="outB" class="output info">اضغط لبدء الاختبار B</div>
+
+  <h2>الاختبار C — مثل نظام الزيارات تماماً</h2>
+  <p class="desc">watchPosition + convergence 3s + retry ×3 (يحاكي locationService._attemptGPS)</p>
+  <button id="btnC" style="background:#7c3aed;">🟣 اختبار C</button>
+  <div id="outC" class="output info">اضغط لبدء الاختبار C</div>
+
+  <script>
+    const ENV = document.getElementById('env')
+    const outA = document.getElementById('outA')
+    const outB = document.getElementById('outB')
+    const outC = document.getElementById('outC')
+
+    ENV.textContent = [
+      '📍 URL: ' + window.location.href,
+      '🔒 isSecureContext: ' + window.isSecureContext,
+      '📱 Geolocation API: ' + (navigator.geolocation ? '✅ مدعوم' : '❌ غير مدعوم'),
+    ].join('\n')
+
+    function fmtElapsed(start) {
+      const elapsed = ((Date.now() - start) / 1000).toFixed(1)
+      return elapsed + 's'
+    }
+
+    function runTestA() {
+      const start = Date.now()
+      outA.className = 'output info'
+      outA.textContent = '⏳ جاري التحديد... (timeout: 30s, highAccuracy: false)'
+
+      navigator.permissions.query({ name: 'geolocation' }).then(perm => {
+        outA.textContent += '\n📋 Permission: ' + perm.state
+      })
+
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const elapsed = ((Date.now() - start) / 1000).toFixed(1)
+          outA.className = 'output success'
+          outA.textContent = [
+            '✅ SUCCESS',
+            '',
+            '📋 Permission: granted',
+            '🕐 Start:  ' + new Date(start).toISOString(),
+            '🕐 End:    ' + new Date().toISOString(),
+            '🕐 Elapsed: ' + elapsed + 's',
+            '',
+            '📍 Latitude:  ' + pos.coords.latitude,
+            '📍 Longitude: ' + pos.coords.longitude,
+            '📍 Accuracy:  ' + pos.coords.accuracy + 'm',
+            '📍 Altitude:  ' + (pos.coords.altitude || 'null'),
+            '📍 Speed:     ' + (pos.coords.speed || 'null'),
+            '',
+            '⚙️  highAccuracy: false',
+            '⚙️  timeout: 30000',
+            '⚙️  maxAge: 60000',
+            '📡 Timestamp: ' + new Date(pos.timestamp).toISOString(),
+          ].join('\n')
+        },
+        (err) => {
+          const elapsed = ((Date.now() - start) / 1000).toFixed(1)
+          const codes = { 1: 'PERMISSION_DENIED', 2: 'POSITION_UNAVAILABLE', 3: 'TIMEOUT' }
+          outA.className = 'output error'
+          outA.textContent = [
+            '❌ FAILED',
+            '',
+            '📋 Elapsed before fail: ' + elapsed + 's',
+            '📋 error.code:    ' + err.code + ' (' + (codes[err.code] || 'UNKNOWN') + ')',
+            '📋 error.message: ' + err.message,
+            '',
+            '⚙️  highAccuracy: false',
+            '⚙️  timeout: 30000',
+            '⚙️  maxAge: 60000',
+          ].join('\n')
+        },
+        { enableHighAccuracy: false, timeout: 30000, maximumAge: 60000 }
+      )
+    }
+
+    function runTestB() {
+      const start = Date.now()
+      outB.className = 'output info'
+      outB.textContent = '⏳ جاري التحديد... (timeout: 30s, highAccuracy: true)'
+
+      navigator.permissions.query({ name: 'geolocation' }).then(perm => {
+        outB.textContent += '\n📋 Permission: ' + perm.state
+      })
+
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const elapsed = ((Date.now() - start) / 1000).toFixed(1)
+          outB.className = 'output success'
+          outB.textContent = [
+            '✅ SUCCESS',
+            '',
+            '📋 Permission: granted',
+            '🕐 Start:  ' + new Date(start).toISOString(),
+            '🕐 End:    ' + new Date().toISOString(),
+            '🕐 Elapsed: ' + elapsed + 's',
+            '',
+            '📍 Latitude:  ' + pos.coords.latitude,
+            '📍 Longitude: ' + pos.coords.longitude,
+            '📍 Accuracy:  ' + pos.coords.accuracy + 'm',
+            '📍 Altitude:  ' + (pos.coords.altitude || 'null'),
+            '📍 Speed:     ' + (pos.coords.speed || 'null'),
+            '',
+            '⚙️  highAccuracy: true',
+            '⚙️  timeout: 30000',
+            '⚙️  maxAge: 0',
+            '📡 Timestamp: ' + new Date(pos.timestamp).toISOString(),
+          ].join('\n')
+        },
+        (err) => {
+          const elapsed = ((Date.now() - start) / 1000).toFixed(1)
+          const codes = { 1: 'PERMISSION_DENIED', 2: 'POSITION_UNAVAILABLE', 3: 'TIMEOUT' }
+          outB.className = 'output error'
+          outB.textContent = [
+            '❌ FAILED',
+            '',
+            '📋 Elapsed before fail: ' + elapsed + 's',
+            '📋 error.code:    ' + err.code + ' (' + (codes[err.code] || 'UNKNOWN') + ')',
+            '📋 error.message: ' + err.message,
+            '',
+            '⚙️  highAccuracy: true',
+            '⚙️  timeout: 30000',
+            '⚙️  maxAge: 0',
+          ].join('\n')
+        },
+        { enableHighAccuracy: true, timeout: 30000, maximumAge: 0 }
+      )
+    }
+
+    function runTestC() {
+      // يحاكي locationService._attemptGPS بالضبط
+      const start = Date.now()
+      outC.className = 'output info'
+      outC.textContent = '⏳ جاري watchPosition مع convergence 3s...'
+
+      const CONVERGENCE_MS = 3000
+      const EARLY_EXIT_ACCURACY = 10
+      let watchId
+      let timer
+      let resolved = false
+      const fixes = []
+
+      const cleanup = () => {
+        navigator.geolocation.clearWatch(watchId)
+        clearTimeout(timer)
+      }
+
+      const finish = (success, data) => {
+        if (resolved) return
+        resolved = true
+        cleanup()
+        const elapsed = ((Date.now() - start) / 1000).toFixed(1)
+        if (success) {
+          outC.className = 'output success'
+          outC.textContent = [
+            '✅ SUCCESS (محاكاة locationService)',
+            '',
+            '🕐 Elapsed: ' + elapsed + 's',
+            '📍 Latitude:  ' + data.latitude,
+            '📍 Longitude: ' + data.longitude,
+            '📍 Accuracy:  ' + data.accuracy + 'm',
+            '📍 Fixes collected: ' + fixes.length,
+            '',
+            '⚙️  highAccuracy: true',
+            '⚙️  timeout: 15000',
+            '⚙️  maxAge: 0',
+            '⚙️  convergence: 3s',
+            '⚙️  earlyExit: 10m',
+          ].join('\n')
+        } else {
+          outC.className = 'output error'
+          outC.textContent = [
+            '❌ FAILED (محاكاة locationService)',
+            '',
+            '🕐 Elapsed: ' + elapsed + 's',
+            '📋 Fixes collected: ' + fixes.length,
+            '📋 Cause: ' + (data || 'convergence timeout'),
+            '',
+            '⚙️  highAccuracy: true',
+            '⚙️  timeout: 15000',
+            '⚙️  maxAge: 0',
+            '⚙️  convergence: 3s',
+            '⚙️  earlyExit: 10m',
+          ].join('\n')
+        }
+      }
+
+      navigator.permissions.query({ name: 'geolocation' }).then(perm => {
+        outC.textContent += '\n📋 Permission: ' + perm.state
+      })
+
+      watchId = navigator.geolocation.watchPosition(
+        (pos) => {
+          const accuracy = Math.round(pos.coords.accuracy)
+          const fix = {
+            accuracy,
+            latitude: pos.coords.latitude,
+            longitude: pos.coords.longitude,
+            time: new Date().toISOString()
+          }
+          fixes.push(fix)
+          outC.textContent = '📡 Fix #' + fixes.length + ' received (accuracy: ' + accuracy + 'm)...\n'
+
+          if (accuracy <= EARLY_EXIT_ACCURACY) {
+            finish(true, fix)
+          }
+        },
+        (err) => {
+          if (err.code === err.PERMISSION_DENIED) {
+            finish(false, 'PERMISSION_DENIED')
+            return
+          }
+          if (fixes.length === 0) {
+            finish(false, 'POSITION_UNAVAILABLE (' + err.message + ')')
+          }
+        },
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+      )
+
+      timer = setTimeout(() => {
+        if (fixes.length > 0) {
+          const best = fixes.reduce((a, b) => a.accuracy <= b.accuracy ? a : b)
+          finish(true, best)
+        } else {
+          finish(false, 'انتهت مهلة convergence (3s)')
+        }
+      }, CONVERGENCE_MS)
+    }
+
+    document.getElementById('btnA').addEventListener('click', runTestA)
+    document.getElementById('btnB').addEventListener('click', runTestB)
+    document.getElementById('btnC').addEventListener('click', runTestC)
+  </script>
+</body>
+</html>
