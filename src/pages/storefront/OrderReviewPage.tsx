@@ -38,7 +38,7 @@ function getToken(): string | null {
 export function OrderReviewPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const orderType = searchParams.get('order_type') || 'cash'
+  const orderType = useCartStore((s) => s.orderType)
   const { items, dealItems, flashOfferItems, products, getSelectedTier, getTotals, clearCart, selectedCustomer, editingOrderId, setEditingOrder } = useCartStore()
   const user = useAuthStore((s) => s.user)
   const [submitting, setSubmitting] = useState(false)

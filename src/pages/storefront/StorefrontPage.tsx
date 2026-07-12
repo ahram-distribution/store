@@ -34,6 +34,7 @@ export function StorefrontPage() {
     selectedCustomer,
     setSelectedCustomer,
     setEditingOrder,
+    setOrderType,
     restoreCart,
   } = useCartStore()
 
@@ -151,6 +152,11 @@ export function StorefrontPage() {
       restoreCart(items, editOrderId)
     })
   }, [editOrderId, authToken])
+
+  useEffect(() => {
+    const urlOrderType = searchParams.get('order_type')
+    if (urlOrderType) setOrderType(urlOrderType)
+  }, [searchParams, setOrderType])
 
   useEffect(() => {
     if (!customerParam || !authToken) return

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useCompaniesStore } from '../../store/companies'
+import { useCartStore } from '../../store/cart'
 import { StorefrontFooter } from '../../components/storefront/CompanyInfoSection'
 import { StorefrontHero } from '../../components/storefront/StorefrontHero'
 import { BusinessShortcuts } from '../../components/storefront/BusinessShortcuts'
@@ -16,9 +17,15 @@ export function CompaniesPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const customerParam = searchParams.get('customer')
+  const setOrderType = useCartStore((s) => s.setOrderType)
   const refreshKey = useCompaniesStore((s) => s.refreshKey)
   const [companies, setCompanies] = useState<CompanyItem[]>([])
   const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const urlOrderType = searchParams.get('order_type')
+    if (urlOrderType) setOrderType(urlOrderType)
+  }, [searchParams, setOrderType])
 
   useEffect(() => {
     supabase

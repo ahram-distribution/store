@@ -21,6 +21,7 @@ interface CartState {
   products: ProductWithPrice[]
   selectedCustomer: CartCustomer | null
   editingOrderId: string | null
+  orderType: string
 
   setTiers: (tiers: TierConfig[]) => void
   setProducts: (products: ProductWithPrice[]) => void
@@ -41,6 +42,7 @@ interface CartState {
   recalculateAll: () => void
   setSelectedCustomer: (customer: CartCustomer | null) => void
   setEditingOrder: (orderId: string | null) => void
+  setOrderType: (orderType: string) => void
   restoreCart: (items: CartItem[], editingOrderId: string) => void
 }
 
@@ -55,6 +57,7 @@ export const useCartStore = create(
       products: [],
       selectedCustomer: null,
       editingOrderId: null,
+      orderType: 'cash',
 
       setTiers: (tiers) => set({ tiers }),
 
@@ -245,6 +248,8 @@ export const useCartStore = create(
       setSelectedCustomer: (customer) => set({ selectedCustomer: customer }),
 
       setEditingOrder: (orderId) => set({ editingOrderId: orderId }),
+
+      setOrderType: (orderType) => set({ orderType }),
 
       restoreCart: (orderItems, editingOrderId) => {
         const state = get()

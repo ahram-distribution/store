@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
+import { useCartStore } from '../../store/cart'
 
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
@@ -13,6 +14,7 @@ export function OrderNewPage() {
   const [searchParams] = useSearchParams()
   const customerParam = searchParams.get('customer')
   const visitParam = searchParams.get('visit')
+  const setOrderTypeInStore = useCartStore((s) => s.setOrderType)
 
   const [orderType, setOrderType] = useState<OrderType>(null)
   const [customerSearchQuery, setCustomerSearchQuery] = useState('')
@@ -51,14 +53,14 @@ export function OrderNewPage() {
           <p className="text-sm text-text-secondary text-center">اختر نوع الطلب</p>
           <div className="space-y-3">
             <button
-              onClick={() => setOrderType('cash')}
+              onClick={() => { setOrderType('cash'); setOrderTypeInStore('cash') }}
               className="w-full bg-white rounded-xl border-2 border-emerald-200 p-4 text-right active:bg-emerald-50 transition-colors hover:border-emerald-400"
             >
               <p className="text-base font-bold text-emerald-700">نقدي</p>
               <p className="text-xs text-text-secondary mt-1">طلب عادي — دفع نقدي عند الاستلام</p>
             </button>
             <button
-              onClick={() => setOrderType('credit')}
+              onClick={() => { setOrderType('credit'); setOrderTypeInStore('credit') }}
               className="w-full bg-white rounded-xl border-2 border-purple-200 p-4 text-right active:bg-purple-50 transition-colors hover:border-purple-400"
             >
               <p className="text-base font-bold text-purple-700">آجل</p>
@@ -84,14 +86,14 @@ export function OrderNewPage() {
           <p className="text-sm text-text-secondary text-center">اختر نوع الطلب</p>
           <div className="space-y-3">
             <button
-              onClick={() => setOrderType('cash')}
+              onClick={() => { setOrderType('cash'); setOrderTypeInStore('cash') }}
               className="w-full bg-white rounded-xl border-2 border-emerald-200 p-4 text-right active:bg-emerald-50 transition-colors hover:border-emerald-400"
             >
               <p className="text-base font-bold text-emerald-700">نقدي</p>
               <p className="text-xs text-text-secondary mt-1">طلب عادي — دفع نقدي عند الاستلام</p>
             </button>
             <button
-              onClick={() => setOrderType('credit')}
+              onClick={() => { setOrderType('credit'); setOrderTypeInStore('credit') }}
               className="w-full bg-white rounded-xl border-2 border-purple-200 p-4 text-right active:bg-purple-50 transition-colors hover:border-purple-400"
             >
               <p className="text-base font-bold text-purple-700">آجل</p>
