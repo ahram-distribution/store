@@ -15,6 +15,7 @@ interface SmartFilterBarProps {
   employeeLabel?: string
   onFilterChange: (filters: FilterValues) => void
   initialFilters?: Partial<FilterValues>
+  collapsible?: boolean
 }
 
 const DATE_PRESETS = [
@@ -27,7 +28,7 @@ const DATE_PRESETS = [
   { key: 'custom', label: 'فترة' },
 ]
 
-export default function SmartFilterBar({ searchPlaceholder, employees, employeeLabel, onFilterChange, initialFilters }: SmartFilterBarProps) {
+export default function SmartFilterBar({ searchPlaceholder, employees, employeeLabel, onFilterChange, initialFilters, collapsible = true }: SmartFilterBarProps) {
   const [datePreset, setDatePreset] = useState(initialFilters?.datePreset ?? 'month')
   const [dateFrom, setDateFrom] = useState(initialFilters?.dateFrom ?? '')
   const [dateTo, setDateTo] = useState(initialFilters?.dateTo ?? '')

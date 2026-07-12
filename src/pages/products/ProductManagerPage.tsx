@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Search, X, Loader2, AlertTriangle, ChevronDown, Trash2, Power, Image, Upload } from 'lucide-react'
+import { Plus, Search, X, Loader2, AlertTriangle, Trash2, Power, Image, Upload } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useCapability } from '../../hooks/useCapability'
 import { ProductCard } from '../../components/products/ProductCard'
@@ -38,9 +38,8 @@ export function ProductManagerPage() {
     searchQuery: '',
     companyFilter: '',
     statusFilter: 'all' as 'all' | 'active' | 'out_of_stock' | 'inactive' | 'no_price',
-    showFilters: false,
   })
-  const { searchQuery, companyFilter, statusFilter, showFilters } = viewState
+  const { searchQuery, companyFilter, statusFilter } = viewState
 
   // Derived company names (from products list)
   const companyNames = useMemo(() => {
@@ -387,7 +386,7 @@ export function ProductManagerPage() {
       </div>
 
       <div className="px-3 py-4 space-y-4">
-        {/* ── Filters ── */}
+        {/* ── Filters (always visible) ── */}
         <div className="bg-white rounded-xl border border-border p-3 space-y-2">
           <div className="flex gap-2">
             <div className="relative flex-1">
@@ -400,53 +399,41 @@ export function ProductManagerPage() {
               />
               <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary" />
             </div>
-            <button
-              onClick={() => setViewState({ showFilters: !showFilters })}
-              className={`px-3 py-2 rounded-lg border text-sm font-semibold ${
-                showFilters ? 'bg-primary/5 border-primary/30 text-primary' : 'border-border text-text-secondary'
-              }`}
-            >
-              <ChevronDown className={`w-4 h-4 transition-transform ${showFilters ? 'rotate-180' : ''}`} />
-            </button>
           </div>
 
-          {showFilters && (
-            <div className="grid grid-cols-2 gap-2 pt-2 border-t border-border">
-              <select
-                value={statusFilter}
-                onChange={(e) => setViewState({ statusFilter: e.target.value as any })}
-                className="px-2 py-1.5 rounded-lg border border-border text-xs bg-surface"
-              >
-                <option value="all">كل الحالات</option>
-                <option value="active">نشط</option>
-                <option value="out_of_stock">نفذت الكمية</option>
-                <option value="inactive">مخفي</option>
-                <option value="no_price">موقوف - السعر غير محدد</option>
-              </select>
-              <select
-                value={companyFilter}
-                onChange={(e) => setViewState({ companyFilter: e.target.value })}
-                className="px-2 py-1.5 rounded-lg border border-border text-xs bg-surface"
-              >
-                <option value="">كل الشركات</option>
-                {companyNames.map((n) => <option key={n} value={n}>{n}</option>)}
-              </select>
-            </div>
-          )}
+          <div className="grid grid-cols-2 gap-2 pt-2 border-t border-border">
+            <select
+              value={statusFilter}
+              onChange={(e) => setViewState({ statusFilter: e.target.value as any })}
+              className="px-2 py-1.5 rounded-lg border border-border text-xs bg-surface"
+            >
+              <option value="all">كل الحالات</option>
+              <option value="active">نشط</option>
+              <option value="out_of_stock">نفذت الكمية</option>
+              <option value="inactive">مخفي</option>
+              <option value="no_price">موقوف - السعر غير محدد</option>
+            </select>
+            <select
+              value={companyFilter}
+              onChange={(e) => setViewState({ companyFilter: e.target.value })}
+              className="px-2 py-1.5 rounded-lg border border-border text-xs bg-surface"
+            >
+              <option value="">كل الشركات</option>
+              {companyNames.map((n) => <option key={n} value={n}>{n}</option>)}
+            </select>
+          </div>
 
-          {!showFilters && (
-            <div className="flex gap-2 text-[11px] text-text-secondary pt-0.5">
-              <span>{filtered.length} من {products.length} منتج</span>
-              {(searchQuery || companyFilter || statusFilter !== 'all') && (
-                <button
-                  onClick={resetViewState}
-                  className="text-primary font-semibold"
-                >
-                  إعادة تعيين
-                </button>
-              )}
-            </div>
-          )}
+          <div className="flex gap-2 text-[11px] text-text-secondary pt-0.5">
+            <span>{filtered.length} من {products.length} منتج</span>
+            {(searchQuery || companyFilter || statusFilter !== 'all') && (
+              <button
+                onClick={resetViewState}
+                className="text-primary font-semibold"
+              >
+                إعادة تعيين
+              </button>
+            )}
+          </div>
         </div>
 
         {/* ── Product Cards Grid ── */}
