@@ -7,6 +7,7 @@ import { ProductCard } from '../../components/products/ProductCard'
 import { formatCurrencyShort } from '../../utils/format'
 import { UNIT_LABELS } from '../../types/order-display'
 import toast from 'react-hot-toast'
+import { usePersistentViewState } from '../../hooks/usePersistentViewState'
 
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
@@ -33,10 +34,13 @@ export function ProductManagerPage() {
   const [loading, setLoading] = useState(true)
 
   // ── Filters ──
-  const [searchQuery, setSearchQuery] = useState('')
-  const [companyFilter, setCompanyFilter] = useState('')
-  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'out_of_stock' | 'inactive' | 'no_price'>('all')
-  const [showFilters, setShowFilters] = useState(false)
+  const [viewState, setViewState, resetViewState] = usePersistentViewState('products-manage', {
+    searchQuery: '',
+    companyFilter: '',
+    statusFilter: 'all' as 'all' | 'active' | 'out_of_stock' | 'inactive' | 'no_price',
+    showFilters: false,
+  })
+  const { searchQuery, companyFilter, statusFilter, showFilters } = viewState
 
   // Derived company names (from products list)
   const companyNames = useMemo(() => {
@@ -390,14 +394,14 @@ export function ProductManagerPage() {
               <input
                 type="text"
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => setViewState({ searchQuery: e.target.value })}
                 placeholder="بحث باسم المنتج أو الكود أو الشركة..."
                 className="w-full pr-9 pl-3 py-2.5 rounded-lg border border-border text-sm bg-surface focus:outline-none focus:ring-2 focus:ring-primary/20"
               />
               <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary" />
             </div>
             <button
-              onClick={() => setShowFilters(!showFilters)}
+              onClick={() => setViewState({ showFilters: !showFilters })}
               className={`px-3 py-2 rounded-lg border text-sm font-semibold ${
                 showFilters ? 'bg-primary/5 border-primary/30 text-primary' : 'border-border text-text-secondary'
               }`}
@@ -410,7 +414,7 @@ export function ProductManagerPage() {
             <div className="grid grid-cols-2 gap-2 pt-2 border-t border-border">
               <select
                 value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value as any)}
+                onChange={(e) => setViewState({ statusFilter: e.target.value as any })}
                 className="px-2 py-1.5 rounded-lg border border-border text-xs bg-surface"
               >
                 <option value="all">كل الحالات</option>
@@ -421,7 +425,7 @@ export function ProductManagerPage() {
               </select>
               <select
                 value={companyFilter}
-                onChange={(e) => setCompanyFilter(e.target.value)}
+                onChange={(e) => setViewState({ companyFilter: e.target.value })}
                 className="px-2 py-1.5 rounded-lg border border-border text-xs bg-surface"
               >
                 <option value="">كل الشركات</option>
@@ -435,7 +439,7 @@ export function ProductManagerPage() {
               <span>{filtered.length} من {products.length} منتج</span>
               {(searchQuery || companyFilter || statusFilter !== 'all') && (
                 <button
-                  onClick={() => { setSearchQuery(''); setCompanyFilter(''); setStatusFilter('all') }}
+                  onClick={resetViewState}
                   className="text-primary font-semibold"
                 >
                   إعادة تعيين

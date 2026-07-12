@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import SmartFilterBar, { type FilterValues } from '../../components/SmartFilterBar'
 import { VisitCard } from '../../components/visits/VisitCard'
+import { usePersistentViewState } from '../../hooks/usePersistentViewState'
 
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
@@ -15,9 +16,11 @@ export default function SalesManagerVisitsList() {
   const [visits, setVisits] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [employees, setEmployees] = useState<{ id: string; name: string }[]>([])
-  const [filters, setFilters] = useState<FilterValues>({
-    datePreset: 'month', dateFrom: '', dateTo: '', search: '', employeeId: ''
+  const [viewState, setViewState, resetViewState] = usePersistentViewState('sales-visits', {
+    filters: { datePreset: 'month', dateFrom: '', dateTo: '', search: '', employeeId: '' } as FilterValues,
   })
+  const { filters } = viewState
+  const [sfResetKey, setSfResetKey] = useState(0)
 
   const resolveDateRange = (f: FilterValues): { from: string | null; to: string | null } => {
     if (f.datePreset === 'all') return { from: null, to: null }
@@ -83,11 +86,12 @@ export default function SalesManagerVisitsList() {
         </div>
       </div>
 
-      <SmartFilterBar
+      <SmartFilterBar key={sfResetKey} initialFilters={filters}
         searchPlaceholder="بحث باسم العميل أو كود الزيارة..."
         employees={employees}
-        onFilterChange={setFilters}
+        onFilterChange={(f) => setViewState({ filters: f })}
       />
+      <button onClick={() => { resetViewState(); setSfResetKey(k => k + 1) }} className="text-[10px] px-2 py-1 text-danger font-semibold">إعادة تعيين</button>
 
       {loading ? (
         <div className="text-center py-12 text-text-secondary text-sm">جاري التحميل...</div>

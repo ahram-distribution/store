@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../store/auth'
 import { useCapability } from '../../hooks/useCapability'
+import { usePersistentViewState } from '../../hooks/usePersistentViewState'
 import SmartFilterBar, { type FilterValues } from '../../components/SmartFilterBar'
 import { CustomerCard } from '../../components/customers/CustomerCard'
 import type { CustomerCardData } from '../../types/customers'
@@ -18,15 +19,13 @@ export function CustomersPage() {
   const [customers, setCustomers] = useState<CustomerCardData[]>([])
   const [employees, setEmployees] = useState<{ id: string; name: string }[]>([])
   const [loading, setLoading] = useState(true)
-  const [myOnly, setMyOnly] = useState(false)
-  const [filters, setFilters] = useState<FilterValues>({
-    datePreset: 'all', dateFrom: '', dateTo: '', search: '', employeeId: ''
+  const [viewState, setViewState, resetViewState] = usePersistentViewState('customers-list', {
+    myOnly: false,
+    filters: { datePreset: 'all', dateFrom: '', dateTo: '', search: '', employeeId: '' } as FilterValues,
+    quickFilters: { noOrders: false, noVisits: false, noLocation: false },
   })
-  const [quickFilters, setQuickFilters] = useState({
-    noOrders: false,
-    noVisits: false,
-    noLocation: false,
-  })
+  const { myOnly, filters, quickFilters } = viewState
+  const [sfResetKey, setSfResetKey] = useState(0)
 
   const resolveDateRange = (f: FilterValues): { from: string | null; to: string | null } => {
     if (f.datePreset === 'all') return { from: null, to: null }
@@ -90,7 +89,7 @@ export function CustomersPage() {
   useEffect(() => { fetchData() }, [filters, myOnly, quickFilters])
 
   const toggleQuickFilter = (key: keyof typeof quickFilters) => {
-    setQuickFilters(prev => ({ ...prev, [key]: !prev[key] }))
+    setViewState((prev: typeof viewState) => ({ quickFilters: { ...prev.quickFilters, [key]: !prev.quickFilters[key] } }))
   }
 
   const hasActiveQuickFilter = quickFilters.noOrders || quickFilters.noVisits || quickFilters.noLocation
@@ -107,16 +106,19 @@ export function CustomersPage() {
 
       {currentEmpId && (
         <div className="flex gap-1 bg-white rounded-lg border border-border p-1">
-          <button onClick={() => setMyOnly(false)} className={`flex-1 text-xs py-1.5 rounded-md font-semibold transition-colors ${!myOnly ? 'bg-primary text-white' : 'text-text-secondary'}`}>الكل</button>
-          <button onClick={() => setMyOnly(true)} className={`flex-1 text-xs py-1.5 rounded-md font-semibold transition-colors ${myOnly ? 'bg-primary text-white' : 'text-text-secondary'}`}>عملائي</button>
+          <button onClick={() => setViewState({ myOnly: false })} className={`flex-1 text-xs py-1.5 rounded-md font-semibold transition-colors ${!myOnly ? 'bg-primary text-white' : 'text-text-secondary'}`}>الكل</button>
+          <button onClick={() => setViewState({ myOnly: true })} className={`flex-1 text-xs py-1.5 rounded-md font-semibold transition-colors ${myOnly ? 'bg-primary text-white' : 'text-text-secondary'}`}>عملائي</button>
+          <button onClick={() => { resetViewState(); setSfResetKey(k => k + 1) }} className="text-[10px] px-2 py-1 mr-auto text-danger font-semibold">إعادة تعيين</button>
         </div>
       )}
 
       <SmartFilterBar
+        key={sfResetKey}
         searchPlaceholder="بحث باسم العميل أو الكود..."
         employees={employees}
         employeeLabel="المسؤول عن العميل"
-        onFilterChange={setFilters}
+        initialFilters={filters}
+        onFilterChange={(f) => setViewState({ filters: f })}
       />
 
       {/* Stats bar */}
@@ -172,7 +174,7 @@ export function CustomersPage() {
         </button>
         {hasActiveQuickFilter && (
           <button
-            onClick={() => setQuickFilters({ noOrders: false, noVisits: false, noLocation: false })}
+            onClick={() => setViewState({ quickFilters: { noOrders: false, noVisits: false, noLocation: false } })}
             className="text-[10px] px-2.5 py-1 rounded-lg font-semibold bg-red-50 text-red-600 border border-red-100 hover:bg-red-100 transition-colors"
           >
             إلغاء الكل

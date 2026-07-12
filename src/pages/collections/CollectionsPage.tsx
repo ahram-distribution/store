@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
+import { usePersistentViewState } from '../../hooks/usePersistentViewState'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { formatCurrencyShort, formatDate } from '../../utils/format'
@@ -35,12 +36,15 @@ export function CollectionsPage() {
   const [collections, setCollections] = useState<any[]>([])
   const [customers, setCustomers] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [searchQuery, setSearchQuery] = useState('')
-  const [methodFilter, setMethodFilter] = useState('')
-  const [statusFilter, setStatusFilter] = useState('')
-  const [customerFilter, setCustomerFilter] = useState('')
-  const [dateFrom, setDateFrom] = useState('')
-  const [dateTo, setDateTo] = useState('')
+  const [viewState, setViewState, resetViewState] = usePersistentViewState('collections-list', {
+    searchQuery: '',
+    methodFilter: '',
+    statusFilter: '',
+    customerFilter: '',
+    dateFrom: '',
+    dateTo: '',
+  })
+  const { searchQuery, methodFilter, statusFilter, customerFilter, dateFrom, dateTo } = viewState
 
   useEffect(() => {
     const token = getToken()
@@ -110,11 +114,11 @@ export function CollectionsPage() {
         {!filter && <button onClick={() => navigate('/collections/new')} className="bg-primary text-white text-xs px-3 py-2 rounded-lg">+ تحصيل جديد</button>}
       </div>
 
-      <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
+      <input type="text" value={searchQuery} onChange={(e) => setViewState({ searchQuery: e.target.value })}
         placeholder="بحث برقم التحصيل أو اسم العميل..." className="w-full border border-border rounded-lg px-3 py-2.5 text-sm bg-white" />
 
       <div className="grid grid-cols-2 gap-2">
-        <select value={methodFilter} onChange={(e) => setMethodFilter(e.target.value)}
+        <select value={methodFilter} onChange={(e) => setViewState({ methodFilter: e.target.value })}
           className="border border-border rounded-lg px-2 py-1.5 text-xs bg-white">
           <option value="">كل وسائل الدفع</option>
           <option value="cash">نقداً</option>
@@ -122,22 +126,22 @@ export function CollectionsPage() {
           <option value="cheque">شيك</option>
           <option value="deposit">إيداع</option>
         </select>
-        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
+        <select value={statusFilter} onChange={(e) => setViewState({ statusFilter: e.target.value })}
           className="border border-border rounded-lg px-2 py-1.5 text-xs bg-white">
           <option value="">كل الحالات</option>
           <option value="pending">معلق</option>
           <option value="approved">معتمد</option>
           <option value="treasury_posted">مرحل للخزينة</option>
         </select>
-        <select value={customerFilter} onChange={(e) => setCustomerFilter(e.target.value)}
+        <select value={customerFilter} onChange={(e) => setViewState({ customerFilter: e.target.value })}
           className="border border-border rounded-lg px-2 py-1.5 text-xs bg-white">
           <option value="">كل العملاء</option>
           {customers.map((c: any) => <option key={c.id} value={c.id}>{c.company_name}</option>)}
         </select>
         <div className="flex gap-1">
-          <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
+          <input type="date" value={dateFrom} onChange={(e) => setViewState({ dateFrom: e.target.value })}
             className="flex-1 border border-border rounded-lg px-2 py-1.5 text-xs bg-white" />
-          <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
+          <input type="date" value={dateTo} onChange={(e) => setViewState({ dateTo: e.target.value })}
             className="flex-1 border border-border rounded-lg px-2 py-1.5 text-xs bg-white" />
         </div>
       </div>

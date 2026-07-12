@@ -14,6 +14,7 @@ interface SmartFilterBarProps {
   customerSearch?: boolean
   employeeLabel?: string
   onFilterChange: (filters: FilterValues) => void
+  initialFilters?: Partial<FilterValues>
 }
 
 const DATE_PRESETS = [
@@ -26,12 +27,12 @@ const DATE_PRESETS = [
   { key: 'custom', label: 'فترة' },
 ]
 
-export default function SmartFilterBar({ searchPlaceholder, employees, employeeLabel, onFilterChange }: SmartFilterBarProps) {
-  const [datePreset, setDatePreset] = useState('month')
-  const [dateFrom, setDateFrom] = useState('')
-  const [dateTo, setDateTo] = useState('')
-  const [search, setSearch] = useState('')
-  const [employeeId, setEmployeeId] = useState('')
+export default function SmartFilterBar({ searchPlaceholder, employees, employeeLabel, onFilterChange, initialFilters }: SmartFilterBarProps) {
+  const [datePreset, setDatePreset] = useState(initialFilters?.datePreset ?? 'month')
+  const [dateFrom, setDateFrom] = useState(initialFilters?.dateFrom ?? '')
+  const [dateTo, setDateTo] = useState(initialFilters?.dateTo ?? '')
+  const [search, setSearch] = useState(initialFilters?.search ?? '')
+  const [employeeId, setEmployeeId] = useState(initialFilters?.employeeId ?? '')
 
   const emit = (partial: Partial<FilterValues>) => {
     const vals: FilterValues = {

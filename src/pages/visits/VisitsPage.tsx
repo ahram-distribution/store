@@ -9,6 +9,7 @@ import { getCurrentLocation } from '../../services/gpsService'
 import { lifeSignalService } from '../../services/lifeSignalService'
 import SmartFilterBar, { type FilterValues } from '../../components/SmartFilterBar'
 import toast from 'react-hot-toast'
+import { usePersistentViewState } from '../../hooks/usePersistentViewState'
 
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
@@ -34,12 +35,13 @@ export function VisitsPage() {
   const [customers, setCustomers] = useState<any[]>([])
   const [employees, setEmployees] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [statusFilter, setStatusFilter] = useState(filter === 'active' ? 'active' : '')
-  const [customerFilter, setCustomerFilter] = useState('')
-  const [filters, setFilters] = useState<FilterValues>({
-    datePreset: filter === 'today' ? 'today' : 'all',
-    dateFrom: '', dateTo: '', search: '', employeeId: ''
+  const [viewState, setViewState, resetViewState] = usePersistentViewState('visits-list', {
+    statusFilter: filter === 'active' ? 'active' : '',
+    customerFilter: '',
+    filters: { datePreset: filter === 'today' ? 'today' : 'all', dateFrom: '', dateTo: '', search: '', employeeId: '' } as FilterValues,
   })
+  const { statusFilter, customerFilter, filters } = viewState
+  const [sfResetKey, setSfResetKey] = useState(0)
 
   const [showCheckin, setShowCheckin] = useState(false)
   const [checkinCustomerId, setCheckinCustomerId] = useState('')
@@ -197,18 +199,19 @@ export function VisitsPage() {
         </div>
       )}
 
-      <SmartFilterBar
+      <SmartFilterBar key={sfResetKey} initialFilters={filters}
         searchPlaceholder="بحث باسم العميل أو كود الزيارة..."
         employees={employees.map(e => ({ id: e.id, name: e.full_name }))}
-        onFilterChange={setFilters}
+        onFilterChange={(f) => setViewState({ filters: f })}
       />
+        <button onClick={() => { resetViewState(); setSfResetKey(k => k + 1) }} className="text-[10px] px-2 py-1 text-danger font-semibold">إعادة تعيين</button>
 
       <div className="flex gap-2">
-        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
+        <select value={statusFilter} onChange={(e) => setViewState({ statusFilter: e.target.value })}
           className="flex-1 border border-border rounded-lg px-2 py-1.5 text-xs bg-white">
           {STATUS_OPTIONS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
         </select>
-        <select value={customerFilter} onChange={(e) => setCustomerFilter(e.target.value)}
+        <select value={customerFilter} onChange={(e) => setViewState({ customerFilter: e.target.value })}
           className="flex-1 border border-border rounded-lg px-2 py-1.5 text-xs bg-white">
           <option value="">كل العملاء</option>
           {customers.map((c: any) => <option key={c.id} value={c.id}>{c.company_name}</option>)}

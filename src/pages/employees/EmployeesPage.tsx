@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
+import { usePersistentViewState } from '../../hooks/usePersistentViewState'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../store/auth'
@@ -14,9 +15,12 @@ export function EmployeesPage({ embedded }: { embedded?: boolean }) {
   const currentEmpId = useAuthStore((s) => s.user?.employee_id)
   const [employees, setEmployees] = useState<any[]>([])
   const [roles, setRoles] = useState<any[]>([])
-  const [searchQuery, setSearchQuery] = useState('')
-  const [roleFilter, setRoleFilter] = useState(searchParams.get('role') || '')
-  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all')
+  const [viewState, setViewState, resetViewState] = usePersistentViewState('employees-list', {
+    searchQuery: '',
+    roleFilter: searchParams.get('role') || '',
+    statusFilter: 'all' as 'all' | 'active' | 'inactive',
+  })
+  const { searchQuery, roleFilter, statusFilter } = viewState
   const [loading, setLoading] = useState(true)
 
   const [showAddForm, setShowAddForm] = useState(false)
@@ -194,17 +198,17 @@ export function EmployeesPage({ embedded }: { embedded?: boolean }) {
         <button onClick={() => setShowAddForm(true)} className="bg-primary text-white text-xs px-3 py-1.5 rounded-lg font-semibold">+ إضافة موظف</button>
       )}
 
-      <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
+      <input type="text" value={searchQuery} onChange={(e) => setViewState({ searchQuery: e.target.value })}
         placeholder="بحث بالاسم أو الكود أو الهاتف..." className="w-full border border-border rounded-lg px-3 py-2.5 text-sm bg-white" />
 
       <div className="flex gap-2">
-        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as any)}
+        <select value={statusFilter} onChange={(e) => setViewState({ statusFilter: e.target.value as any })}
           className="border border-border rounded-lg px-2 py-1.5 text-xs bg-white">
           <option value="all">الكل</option>
           <option value="active">نشط</option>
           <option value="inactive">موقوف</option>
         </select>
-        <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)}
+        <select value={roleFilter} onChange={(e) => setViewState({ roleFilter: e.target.value })}
           className="border border-border rounded-lg px-2 py-1.5 text-xs bg-white flex-1">
           <option value="">كل الأدوار</option>
           {roleOptions.map(r => <option key={r} value={r}>{r}</option>)}

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useCapability } from '../../hooks/useCapability'
 import { useCompaniesStore } from '../../store/companies'
+import { usePersistentViewState } from '../../hooks/usePersistentViewState'
 import toast from 'react-hot-toast'
 
 function getToken(): string | null {
@@ -18,7 +19,10 @@ export function CompanyManagerPage() {
   const [companyExceptions, setCompanyExceptions] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [searchQuery, setSearchQuery] = useState('')
+  const [viewState, setViewState, resetViewState] = usePersistentViewState('companies-manage', {
+    searchQuery: '',
+  })
+  const { searchQuery } = viewState
 
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [fullCompany, setFullCompany] = useState<any | null>(null)
@@ -169,7 +173,7 @@ export function CompanyManagerPage() {
         {!canManage && <span className="text-[10px] bg-warning/10 text-warning px-2 py-0.5 rounded">عرض فقط</span>}
       </div>
 
-      <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
+      <input type="text" value={searchQuery} onChange={(e) => setViewState({ searchQuery: e.target.value })}
         placeholder="بحث بالاسم أو الكود..." className="w-full border border-border rounded-lg px-3 py-2.5 text-sm bg-white" />
 
       <select value={selectedId || ''} onChange={(e) => selectCompany(e.target.value)}

@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
+import { usePersistentViewState } from '../../hooks/usePersistentViewState'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../store/auth'
@@ -69,12 +70,14 @@ export function OrdersPage() {
   const [employees, setEmployees] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const params = new URLSearchParams(window.location.search)
-  const [tab, setTab] = useState<Tab>(params.get('my') === '1' ? 'my_orders' : 'all')
-  const [statusFilter, setStatusFilter] = useState('')
-  const [customerFilter, setCustomerFilter] = useState('')
-  const [filters, setFilters] = useState<FilterValues>({
-    datePreset: 'all', dateFrom: '', dateTo: '', search: '', employeeId: ''
+  const [viewState, setViewState, resetViewState] = usePersistentViewState('orders-list', {
+    tab: (params.get('my') === '1' ? 'my_orders' : 'all') as Tab,
+    statusFilter: '',
+    customerFilter: '',
+    filters: { datePreset: 'all', dateFrom: '', dateTo: '', search: '', employeeId: '' } as FilterValues,
   })
+  const { tab, statusFilter, customerFilter, filters } = viewState
+  const [sfResetKey, setSfResetKey] = useState(0)
 
   const resolveDateRange = (f: FilterValues): { from: string | null; to: string | null } => {
     if (f.datePreset === 'all') return { from: null, to: null }
@@ -150,7 +153,7 @@ export function OrdersPage() {
   }, [])
 
   const handleStatusToggle = useCallback((status: string) => {
-    setStatusFilter((prev) => (prev === status ? '' : status))
+    setViewState((prev: any) => ({ statusFilter: prev.statusFilter === status ? '' : status }))
   }, [])
 
   const activeFilterItems: ActiveFilterItem[] = useMemo(() => {
@@ -176,7 +179,7 @@ export function OrdersPage() {
 
     if (statusFilter) {
       const label = STATUS_OPTIONS.find((o) => o.value === statusFilter)?.label || statusFilter
-      items.push({ id: 'status', label: 'الحالة', value: label, onRemove: () => setStatusFilter('') })
+      items.push({ id: 'status', label: 'الحالة', value: label, onRemove: () => setViewState({ statusFilter: '' }) })
     }
 
     if (customerFilter) {
@@ -231,20 +234,23 @@ export function OrdersPage() {
 
       {currentEmpId && (
         <div className="flex gap-1 bg-white rounded-lg border border-border p-1">
-          <button onClick={() => setTab('all')} className={'flex-1 text-xs py-1.5 rounded-md font-semibold transition-colors ' + (tab === 'all' ? 'bg-primary text-white' : 'text-text-secondary')}>الكل</button>
-          <button onClick={() => setTab('my_orders')} className={'flex-1 text-xs py-1.5 rounded-md font-semibold transition-colors ' + (tab === 'my_orders' ? 'bg-primary text-white' : 'text-text-secondary')}>طلباتي</button>
-          <button onClick={() => setTab('my_invoices')} className={'flex-1 text-xs py-1.5 rounded-md font-semibold transition-colors ' + (tab === 'my_invoices' ? 'bg-primary text-white' : 'text-text-secondary')}>فواتيري</button>
+          <button onClick={() => setViewState({ tab: 'all' })} className={'flex-1 text-xs py-1.5 rounded-md font-semibold transition-colors ' + (tab === 'all' ? 'bg-primary text-white' : 'text-text-secondary')}>الكل</button>
+          <button onClick={() => setViewState({ tab: 'my_orders' })} className={'flex-1 text-xs py-1.5 rounded-md font-semibold transition-colors ' + (tab === 'my_orders' ? 'bg-primary text-white' : 'text-text-secondary')}>طلباتي</button>
+          <button onClick={() => setViewState({ tab: 'my_invoices' })} className={'flex-1 text-xs py-1.5 rounded-md font-semibold transition-colors ' + (tab === 'my_invoices' ? 'bg-primary text-white' : 'text-text-secondary')}>فواتيري</button>
+          <button onClick={() => { resetViewState(); setSfResetKey(k => k + 1) }} className="text-[10px] px-2 py-1 mr-auto text-danger font-semibold">إعادة تعيين</button>
         </div>
       )}
 
       <SmartFilterBar
+        key={sfResetKey}
         searchPlaceholder="بحث برقم الطلب أو اسم العميل..."
         employees={employees.map(e => ({ id: e.identity_id || e.id, name: e.full_name }))}
         employeeLabel="المسؤول"
-        onFilterChange={setFilters}
+        initialFilters={filters}
+        onFilterChange={(f) => setViewState({ filters: f })}
       />
 
-      <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
+      <select value={statusFilter} onChange={(e) => setViewState({ statusFilter: e.target.value })}
         className="w-full border border-border rounded-lg px-2 py-1.5 text-xs bg-white">
         {STATUS_OPTIONS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
       </select>
