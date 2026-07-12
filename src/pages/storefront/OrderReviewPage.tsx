@@ -126,6 +126,7 @@ export function OrderReviewPage() {
           p_token: token,
           p_id: editingOrderId,
           p_items: orderItems,
+          p_order_type: orderType,
         })
         if (replaceError) { toast.error('فشل تحديث الطلب: ' + replaceError.message); setSubmitting(false); return }
         order = { id: editingOrderId }
