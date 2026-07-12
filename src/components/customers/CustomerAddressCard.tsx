@@ -5,6 +5,7 @@ interface ManualAddress {
   city: string | null
   address_line1: string | null
   address_line2: string | null
+  registered_address: string | null
   latitude?: number | null
   longitude?: number | null
 }
@@ -54,9 +55,10 @@ export function CustomerAddressCard({ type, manualData, gpsData, onUpdateLocatio
   }, [isManual, manualData, gpsData, manualFullAddress])
 
   const hasGps = gpsData?.latitude != null && gpsData?.longitude != null
-  const hasManualAddr = manualData && (manualData.governorate || manualData.city || manualData.address_line1)
+  const hasStructuredAddr = manualData && (manualData.governorate || manualData.city || manualData.address_line1)
+  const hasLegacyAddr = manualData && !hasStructuredAddr && !!manualData.registered_address
 
-  if (isManual && !hasManualAddr) return null
+  if (isManual && !hasStructuredAddr && !hasLegacyAddr) return null
 
   return (
     <div className={`bg-white rounded-xl border p-4 ${isManual ? 'border-blue-200' : 'border-emerald-200'}`}>
@@ -71,7 +73,7 @@ export function CustomerAddressCard({ type, manualData, gpsData, onUpdateLocatio
       </div>
 
       {/* ===================== Manual Card ===================== */}
-      {isManual && manualData && (
+      {isManual && manualData && hasStructuredAddr && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-2 mb-3">
           {manualData.governorate && (
             <div>
@@ -111,7 +113,17 @@ export function CustomerAddressCard({ type, manualData, gpsData, onUpdateLocatio
         </div>
       )}
 
-      {isManual && hasManualAddr && (
+      {/* Legacy manual address */}
+      {isManual && hasLegacyAddr && (
+        <div className="mb-3">
+          <div className="text-[10px] text-text-secondary mb-1">العنوان الحر (القديم)</div>
+          <div className="bg-surface rounded-lg p-3 text-xs text-text leading-relaxed border border-border">
+            {manualData.registered_address}
+          </div>
+        </div>
+      )}
+
+      {isManual && (hasStructuredAddr || hasLegacyAddr) && (
         <div className="flex flex-wrap gap-2">
           <button onClick={() => { navigator.clipboard.writeText(manualFullAddress); alert('تم نسخ العنوان') }}
             className="flex-1 text-xs py-1.5 rounded-lg font-semibold text-center"

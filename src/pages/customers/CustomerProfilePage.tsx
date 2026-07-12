@@ -806,6 +806,7 @@ export function CustomerProfilePage() {
               city: customer.city_name,
               address_line1: customer.street_address,
               address_line2: customer.landmark,
+              registered_address: customer.registered_address,
             } : null} />
           </div>
 
