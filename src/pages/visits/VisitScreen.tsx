@@ -264,7 +264,7 @@ export function VisitScreen() {
           </div>
 
           <button
-            onClick={() => navigate(`/storefront/products?customer=${activeVisit.customer_id}&visit=${activeVisit.id}`)}
+            onClick={() => navigate(`/orders/new?customer=${activeVisit.customer_id}&visit=${activeVisit.id}`)}
             className="w-full bg-primary text-white text-sm py-3 rounded-lg active:bg-primary-dark transition-colors"
           >
             + إنشاء طلب للعميل
