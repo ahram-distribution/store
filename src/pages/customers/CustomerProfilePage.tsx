@@ -648,6 +648,8 @@ export function CustomerProfilePage() {
       setCustomer(custRes.data)
       const c = Array.isArray(custRes.data) ? custRes.data[0] : custRes.data
       if (c?.location_id) {
+        const repo = getLocationRepo()
+        if (repo) { const loc = await repo.fetchLocation(c.location_id); if (loc) setLocation(loc) }
         LocationNormalizationService.enrichLocationIfNeeded(c.location_id)
           .then(async (ok) => {
             if (ok) {
@@ -807,7 +809,7 @@ export function CustomerProfilePage() {
               address_line1: customer.street_address,
               address_line2: customer.landmark,
               registered_address: customer.registered_address,
-            } : null} />
+            } : null} legacyFormattedAddress={location && !location.latitude && !location.longitude ? location.formatted_address : null} />
           </div>
 
           {(canManage) && (

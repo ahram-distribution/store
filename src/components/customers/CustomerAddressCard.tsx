@@ -26,11 +26,12 @@ interface CustomerAddressCardProps {
   manualData?: ManualAddress | null
   gpsData?: GpsAddress | null
   onUpdateLocation?: () => void
+  legacyFormattedAddress?: string | null
 }
 
 const ENRICHED = 'completed'
 
-export function CustomerAddressCard({ type, manualData, gpsData, onUpdateLocation }: CustomerAddressCardProps) {
+export function CustomerAddressCard({ type, manualData, gpsData, onUpdateLocation, legacyFormattedAddress }: CustomerAddressCardProps) {
   const isManual = type === 'manual'
 
   const manualFullAddress = useMemo(() => {
@@ -47,9 +48,8 @@ export function CustomerAddressCard({ type, manualData, gpsData, onUpdateLocatio
     if (lat != null && lng != null) {
       return `https://www.google.com/maps?q=${lat},${lng}`
     }
-    const addr = isManual ? manualFullAddress : (gpsData?.formatted_address || '')
-    if (addr) {
-      return `https://www.google.com/maps/search/${encodeURIComponent(addr)}`
+    if (isManual && manualFullAddress) {
+      return `https://www.google.com/maps/search/${encodeURIComponent(manualFullAddress)}`
     }
     return null
   }, [isManual, manualData, gpsData, manualFullAddress])
@@ -57,8 +57,9 @@ export function CustomerAddressCard({ type, manualData, gpsData, onUpdateLocatio
   const hasGps = gpsData?.latitude != null && gpsData?.longitude != null
   const hasStructuredAddr = manualData && (manualData.governorate || manualData.city || manualData.address_line1)
   const hasLegacyAddr = manualData && !hasStructuredAddr && !!manualData.registered_address
+  const displayLegacyManual = isManual && !!legacyFormattedAddress && !hasStructuredAddr && !hasLegacyAddr
 
-  if (isManual && !hasStructuredAddr && !hasLegacyAddr) return null
+  if (isManual && !hasStructuredAddr && !hasLegacyAddr && !legacyFormattedAddress) return null
 
   return (
     <div className={`bg-white rounded-xl border p-4 ${isManual ? 'border-blue-200' : 'border-emerald-200'}`}>
@@ -113,7 +114,7 @@ export function CustomerAddressCard({ type, manualData, gpsData, onUpdateLocatio
         </div>
       )}
 
-      {/* Legacy manual address */}
+      {/* Legacy manual address (from customer_addresses.registered_address) */}
       {isManual && hasLegacyAddr && (
         <div className="mb-3">
           <div className="text-[10px] text-text-secondary mb-1">العنوان الحر (القديم)</div>
@@ -123,9 +124,25 @@ export function CustomerAddressCard({ type, manualData, gpsData, onUpdateLocatio
         </div>
       )}
 
-      {isManual && (hasStructuredAddr || hasLegacyAddr) && (
+      {/* Legacy manual address (from unified_locations.formatted_address, no GPS coords) */}
+      {isManual && displayLegacyManual && (
+        <div className="mb-3">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-[10px] text-text-secondary">العنوان القديم (Legacy)</span>
+            <span className="bg-amber-100 text-amber-700 text-[10px] px-1.5 py-0.5 rounded font-medium">عنوان قديم</span>
+          </div>
+          <div className="bg-surface rounded-lg p-3 text-xs text-text leading-relaxed border border-border">
+            {legacyFormattedAddress}
+          </div>
+        </div>
+      )}
+
+      {isManual && (hasStructuredAddr || hasLegacyAddr || displayLegacyManual) && (
         <div className="flex flex-wrap gap-2">
-          <button onClick={() => { navigator.clipboard.writeText(manualFullAddress); alert('تم نسخ العنوان') }}
+          <button onClick={() => {
+            const txt = manualFullAddress || legacyFormattedAddress || ''
+            navigator.clipboard.writeText(txt); alert('تم نسخ العنوان')
+          }}
             className="flex-1 text-xs py-1.5 rounded-lg font-semibold text-center"
             style={{ backgroundColor: '#EFF6FF', color: '#2563EB' }}>
             نسخ العنوان
@@ -157,11 +174,11 @@ export function CustomerAddressCard({ type, manualData, gpsData, onUpdateLocatio
       {/* ===================== GPS Card ===================== */}
 
       {/* State 3: No location recorded */}
-      {!isManual && !gpsData && (
+      {!isManual && (!gpsData || !hasGps) && (
         <div className="space-y-3">
           <div className="flex items-center gap-2">
             <span className="text-lg">📍</span>
-            <p className="text-xs text-text-secondary">لا يوجد موقع مسجل لهذا العميل.</p>
+            <p className="text-xs text-text-secondary">لا يوجد موقع GPS مسجل لهذا العميل.</p>
           </div>
           <button onClick={onUpdateLocation}
             className="w-full bg-primary text-white text-xs py-2.5 rounded-lg font-semibold">
@@ -171,7 +188,7 @@ export function CustomerAddressCard({ type, manualData, gpsData, onUpdateLocatio
       )}
 
       {/* State 2: Location exists, enrichment pending */}
-      {!isManual && gpsData && !isEnriched && (
+      {!isManual && gpsData && hasGps && !isEnriched && (
         <div className="space-y-2">
           <div className="flex items-center gap-2 py-2">
             <span className="inline-block w-4 h-4 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
@@ -200,7 +217,7 @@ export function CustomerAddressCard({ type, manualData, gpsData, onUpdateLocatio
       )}
 
       {/* State 1: Location exists and enriched */}
-      {!isManual && gpsData && isEnriched && (
+      {!isManual && gpsData && hasGps && isEnriched && (
         <>
           {gpsData.accuracy_meters != null && (
             <div className="mb-2">
