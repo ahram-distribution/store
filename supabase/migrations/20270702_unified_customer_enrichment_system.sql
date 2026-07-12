@@ -469,7 +469,7 @@ DECLARE
   v_order public.orders;
   v_order_number text;
   v_seq int;
-  v_item jsonb;
+  v_order_item jsonb;
   v_product record;
   v_calculated_unit_price numeric;
   v_calculated_total_price numeric;
@@ -506,8 +506,8 @@ BEGIN
 
   -- Validate no out_of_stock products in the order
   IF EXISTS (
-    SELECT 1 FROM jsonb_array_elements(p_items) AS v_item
-    JOIN public.products p ON p.id = (v_item->>'product_id')::uuid
+    SELECT 1 FROM jsonb_array_elements(p_items) AS vi
+    JOIN public.products p ON p.id = (vi->>'product_id')::uuid
     WHERE p.is_out_of_stock = true AND p.is_active = true
   ) THEN
     RAISE EXCEPTION 'ORDER_CONTAINS_OUT_OF_STOCK_PRODUCTS';
@@ -615,59 +615,60 @@ BEGIN
     RETURNING * INTO v_order;
   END IF;
 
-  -- Insert order items
-  FOR v_item IN SELECT * FROM jsonb_array_elements(p_items)
+  -- Insert order items (only real columns from schema)
+  FOR v_order_item IN SELECT * FROM jsonb_array_elements(p_items)
   LOOP
-    SELECT id, product_code, product_name, unit_id, product_unit_id,
-           selling_price, max_price, min_price, has_tax, tax_ratio, commercial_unit_ratio
+    SELECT id, product_name, legacy_code AS product_code, carton_price, carton_quantity
     INTO v_product
-    FROM products
-    WHERE id = (v_item->>'product_id')::uuid;
+    FROM public.products
+    WHERE id = (v_order_item->>'product_id')::uuid;
 
     IF NOT FOUND THEN
-      RAISE EXCEPTION 'PRODUCT_NOT_FOUND: %', (v_item->>'product_id')::uuid;
+      RAISE EXCEPTION 'PRODUCT_NOT_FOUND: %', (v_order_item->>'product_id')::uuid;
     END IF;
 
-    IF v_product.has_tax THEN
-      v_calculated_unit_price := ROUND(
-        ((v_item->>'unit_price')::numeric * (1 + v_product.tax_ratio / 100))::numeric, 2
-      );
-    ELSE
-      v_calculated_unit_price := (v_item->>'unit_price')::numeric;
-    END IF;
+    v_calculated_unit_price := (v_order_item->>'unit_price')::numeric;
 
     v_calculated_total_price := ROUND(
-      (v_calculated_unit_price * (v_item->>'unit_quantity')::numeric)::numeric, 2
+      (v_calculated_unit_price * (v_order_item->>'unit_quantity')::numeric)::numeric, 2
     );
 
     INSERT INTO public.order_items (
-      order_id, product_id, product_code, product_name, unit_id, product_unit_id,
-      quantity, unit_price, total_price, selling_price, max_price, min_price,
-      has_tax, tax_ratio, commercial_unit_ratio
+      order_id, product_id, unit_type, unit_quantity, piece_quantity, unit_price, total_price
     ) VALUES (
-      v_order.id, v_product.id, v_product.product_code, v_product.product_name,
-      v_product.unit_id, v_product.product_unit_id,
-      (v_item->>'unit_quantity')::numeric, v_calculated_unit_price, v_calculated_total_price,
-      v_product.selling_price, v_product.max_price, v_product.min_price,
-      v_product.has_tax, v_product.tax_ratio, v_product.commercial_unit_ratio
+      v_order.id, v_product.id,
+      COALESCE(v_order_item->>'unit_type', 'piece'),
+      GREATEST(COALESCE((v_order_item->>'unit_quantity')::integer, 1), 1),
+      GREATEST(COALESCE((v_order_item->>'piece_quantity')::integer, 0), 1),
+      v_calculated_unit_price, v_calculated_total_price
     );
   END LOOP;
 
-  INSERT INTO public.order_status_history (order_id, from_status, to_status)
-  VALUES (v_order.id, 'draft', 'pending');
+  INSERT INTO public.order_status_history (order_id, from_status, to_status, changed_by, reason)
+  VALUES (v_order.id, NULL, 'draft', v_session.identity_id, 'Order created');
 
   UPDATE public.code_sequences
   SET last_sequence = v_seq
   WHERE code_type = 'order' AND year = EXTRACT(year FROM now())::int;
 
-  -- Enrich customer from order execution location (if available)
-  PERFORM fn_enrich_customer_location(
-    p_customer_id        := p_customer_id,
-    p_latitude           := p_execution_latitude,
-    p_longitude          := p_execution_longitude,
-    p_accuracy_meters    := p_execution_accuracy_meters,
-    p_accuracy_level     := 'GEOCODED'
-  );
+  -- Update order totals
+  UPDATE public.orders SET
+    subtotal = (SELECT COALESCE(SUM(total_price), 0) FROM public.order_items WHERE order_id = v_order.id),
+    total_amount = (SELECT COALESCE(SUM(total_price), 0) FROM public.order_items WHERE order_id = v_order.id)
+  WHERE id = v_order.id;
+
+  -- Enrich customer from order execution location (best-effort)
+  BEGIN
+    PERFORM fn_enrich_customer_location(
+      p_customer_id        := p_customer_id,
+      p_latitude           := p_execution_latitude,
+      p_longitude          := p_execution_longitude,
+      p_accuracy_meters    := p_execution_accuracy_meters,
+      p_accuracy_level     := 'GEOCODED'
+    );
+  EXCEPTION WHEN OTHERS THEN
+    RAISE WARNING 'governed_create_order: enrichment failed for order % (customer %): %', v_order.id, p_customer_id, SQLERRM;
+  END;
 
   PERFORM pg_notify('order_created', jsonb_build_object('order_id', v_order.id, 'number', v_order.order_number)::text);
 
