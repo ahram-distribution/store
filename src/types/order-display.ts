@@ -97,6 +97,7 @@ export interface OrderDisplayData {
   notes: string
   tierName: string
   paymentMethod: string
+  orderType: string
 }
 
 export const ORDER_STATUS_LABELS: Record<string, string> = {
@@ -232,5 +233,6 @@ export function buildOrderDisplayData(params: {
     notes: o.notes || '',
     tierName: o.tier_name || '',
     paymentMethod: o.payment_method || '',
+    orderType: o.order_type || 'cash',
   }
 }

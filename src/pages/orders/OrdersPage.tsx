@@ -45,6 +45,12 @@ const STATUS_OPTIONS = [
   { value: 'delivered', label: 'تم التسليم' },
 ]
 
+const ORDER_TYPE_OPTIONS = [
+  { value: '', label: 'كل الأنواع' },
+  { value: 'cash', label: 'نقدي' },
+  { value: 'credit', label: 'آجل' },
+]
+
 const STATUS_KPI_GROUPS: Record<string, { dot: string; chip: string; active: string }> = {
   draft: { dot: 'bg-gray-300', chip: 'bg-gray-50 border-gray-150 text-gray-500', active: 'bg-gray-100 border-gray-300 text-gray-700 ring-1 ring-gray-200' },
   submitted: { dot: 'bg-blue-300', chip: 'bg-blue-50 border-blue-100 text-blue-600', active: 'bg-blue-100 border-blue-300 text-blue-700 ring-1 ring-blue-200' },
@@ -74,9 +80,10 @@ export function OrdersPage() {
     tab: (params.get('my') === '1' ? 'my_orders' : 'all') as Tab,
     statusFilter: '',
     customerFilter: '',
+    orderTypeFilter: '',
     filters: { datePreset: 'all', dateFrom: '', dateTo: '', search: '', employeeId: '' } as FilterValues,
   })
-  const { tab, statusFilter, customerFilter, filters } = viewState
+  const { tab, statusFilter, customerFilter, orderTypeFilter, filters } = viewState
   const [sfResetKey, setSfResetKey] = useState(0)
 
   const resolveDateRange = (f: FilterValues): { from: string | null; to: string | null } => {
@@ -143,8 +150,11 @@ export function OrdersPage() {
     if (tab === 'my_invoices' && currentUserId) {
       list = list.filter((o: any) => o.owner_id === currentUserId)
     }
+    if (orderTypeFilter) {
+      list = list.filter((o: any) => (o.order_type || 'cash') === orderTypeFilter)
+    }
     return [...list].sort((a: any, b: any) => ((b.created_at || '') > (a.created_at || '') ? 1 : -1))
-  }, [orders, tab, currentUserId])
+  }, [orders, tab, currentUserId, orderTypeFilter])
 
   const tabLabel = tab === 'all' ? 'الطلبات' : tab === 'my_orders' ? 'طلباتي' : 'فواتيري'
 
@@ -180,6 +190,11 @@ export function OrdersPage() {
     if (statusFilter) {
       const label = STATUS_OPTIONS.find((o) => o.value === statusFilter)?.label || statusFilter
       items.push({ id: 'status', label: 'الحالة', value: label, onRemove: () => setViewState({ statusFilter: '' }) })
+    }
+
+    if (orderTypeFilter) {
+      const label = ORDER_TYPE_OPTIONS.find((o) => o.value === orderTypeFilter)?.label || orderTypeFilter
+      items.push({ id: 'orderType', label: 'النوع', value: label, onRemove: () => setViewState({ orderTypeFilter: '' }) })
     }
 
     if (customerFilter) {
@@ -250,10 +265,16 @@ export function OrdersPage() {
         onFilterChange={(f) => setViewState({ filters: f })}
       />
 
-      <select value={statusFilter} onChange={(e) => setViewState({ statusFilter: e.target.value })}
-        className="w-full border border-border rounded-lg px-2 py-1.5 text-xs bg-white">
-        {STATUS_OPTIONS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-      </select>
+      <div className="flex gap-2">
+        <select value={statusFilter} onChange={(e) => setViewState({ statusFilter: e.target.value })}
+          className="flex-1 border border-border rounded-lg px-2 py-1.5 text-xs bg-white">
+          {STATUS_OPTIONS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+        </select>
+        <select value={orderTypeFilter} onChange={(e) => setViewState({ orderTypeFilter: e.target.value })}
+          className="w-[120px] border border-border rounded-lg px-2 py-1.5 text-xs bg-white">
+          {ORDER_TYPE_OPTIONS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+        </select>
+      </div>
 
       <ResultsSummary
         total={sorted.length}

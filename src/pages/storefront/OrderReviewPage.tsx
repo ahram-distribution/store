@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useCartStore } from '../../store/cart'
 import { useAuthStore } from '../../store/auth'
 import { formatCurrencyShort } from '../../utils/format'
@@ -37,6 +37,8 @@ function getToken(): string | null {
 
 export function OrderReviewPage() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const orderType = searchParams.get('order_type') || 'cash'
   const { items, dealItems, flashOfferItems, products, getSelectedTier, getTotals, clearCart, selectedCustomer, editingOrderId, setEditingOrder } = useCartStore()
   const user = useAuthStore((s) => s.user)
   const [submitting, setSubmitting] = useState(false)
@@ -150,6 +152,7 @@ export function OrderReviewPage() {
           p_execution_longitude: null,
           p_execution_accuracy_meters: null,
           p_execution_captured_at: null,
+          p_order_type: orderType,
         })
         if (createError) { toast.error('فشل إنشاء الطلب: ' + createError.message); setSubmitting(false); return }
         if (!created) { toast.error('فشل إنشاء الطلب'); setSubmitting(false); return }

@@ -104,8 +104,9 @@ export function OrderEditPage() {
   const [dailyDeals, setDailyDeals] = useState<DailyDealRecord[]>([])
   const [flashOffers, setFlashOffers] = useState<FlashOfferRecord[]>([])
 
-  // Notes
+  // Notes & Order Type
   const [notes, setNotes] = useState('')
+  const [orderType, setOrderType] = useState<string>('cash')
   const [showReview, setShowReview] = useState(false)
 
   // Fetch all data on mount
@@ -126,6 +127,7 @@ export function OrderEditPage() {
       const ord = raw.order || raw
       setOrder(ord)
       setNotes(ord.notes || '')
+      setOrderType(ord.order_type || 'cash')
       if (ord.tier_id) setSelectedTierId(ord.tier_id)
 
       // Customer info
@@ -362,6 +364,7 @@ export function OrderEditPage() {
         p_notes: notes || null,
         p_daily_deals: dealsPayload,
         p_flash_offers: offersPayload,
+        p_order_type: orderType,
       })
 
       if (replaceError) { toast.error('فشل حفظ التعديلات: ' + replaceError.message); setSubmitting(false); return }
@@ -701,6 +704,33 @@ export function OrderEditPage() {
               </p>
             </div>
           )}
+
+          {/* Order Type */}
+          <div className="bg-white rounded-xl border border-border p-3">
+            <h3 className="text-sm font-semibold text-text mb-2">نوع الطلب</h3>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setOrderType('cash')}
+                className={`flex-1 text-xs px-3 py-2 rounded-lg border transition-colors ${
+                  orderType === 'cash'
+                    ? 'bg-success text-white border-success'
+                    : 'bg-white text-text-secondary border-border'
+                }`}
+              >
+                نقدي
+              </button>
+              <button
+                onClick={() => setOrderType('credit')}
+                className={`flex-1 text-xs px-3 py-2 rounded-lg border transition-colors ${
+                  orderType === 'credit'
+                    ? 'bg-accent text-white border-accent'
+                    : 'bg-white text-text-secondary border-border'
+                }`}
+              >
+                آجل
+              </button>
+            </div>
+          </div>
 
           {/* Notes */}
           <textarea

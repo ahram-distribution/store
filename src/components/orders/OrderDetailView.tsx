@@ -144,6 +144,12 @@ export function OrderDetailView({ data, actions, onBack, editMode, editItems, on
               <span className="font-medium text-[#111827]">{order.payment_method === 'credit' ? 'آجل' : 'نقدي'}</span>
             </div>
             <div className="flex items-center gap-1.5">
+              <span style={{color:'#9CA3AF'}}>نوع الطلب:</span>
+              <span className={'text-xs px-2 py-0.5 rounded font-medium ' + ((order as any).order_type === 'credit' ? 'bg-purple-100 text-purple-700' : 'bg-emerald-100 text-emerald-700')}>
+                {(order as any).order_type === 'credit' ? 'آجل' : 'نقدي'}
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5">
               <span style={{color:'#9CA3AF'}}>نوع التوصيل:</span>
               <span className="font-medium text-[#111827]">{order.delivery_mode === 'internal' ? 'داخلى' : 'شركة شحن'}</span>
             </div>

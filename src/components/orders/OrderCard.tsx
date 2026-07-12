@@ -19,6 +19,7 @@ interface OrderCardProps {
     created_at: string
     updated_at?: string
     delivery_mode?: string
+    order_type?: string
     revision_number?: number
     governorate?: string
     customer_display_address?: string | null
@@ -149,6 +150,11 @@ export function OrderCard({ order, onClick }: OrderCardProps) {
       <div className="flex-1" />
 
       <div className="flex items-center gap-1.5 mt-1.5 pt-1.5 border-t border-border/50 flex-wrap">
+        {order.order_type && (
+          <span className={'text-[10px] px-1.5 py-0.5 rounded font-medium ' + (order.order_type === 'credit' ? 'bg-purple-100 text-purple-700' : 'bg-emerald-100 text-emerald-700')}>
+            {order.order_type === 'credit' ? 'آجل' : 'نقدي'}
+          </span>
+        )}
         {order.delivery_mode && (
           <span className={'text-[10px] px-1.5 py-0.5 rounded ' + (order.delivery_mode === 'external' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700')}>
             {order.delivery_mode === 'external' ? 'شركة شحن' : 'توصيل داخلي'}

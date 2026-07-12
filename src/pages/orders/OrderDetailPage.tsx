@@ -80,6 +80,7 @@ export function OrderDetailPage() {
 
   const [editItems, setEditItems] = useState<UnifiedOrderItem[]>([])
   const [editNotes, setEditNotes] = useState<string>('')
+  const [editOrderType, setEditOrderType] = useState<string>('cash')
   const [submitting, setSubmitting] = useState(false)
   const [products, setProducts] = useState<ProductWithPrice[]>([])
   const [companies, setCompanies] = useState<any[]>([])
@@ -167,6 +168,7 @@ export function OrderDetailPage() {
     if (!data) return
     setEditItems(data.items.map(i => ({ ...i })))
     setEditNotes(data.order.notes || '')
+    setEditOrderType((data.order as any).order_type || 'cash')
     setEditMode(true)
   }
 
@@ -249,6 +251,7 @@ export function OrderDetailPage() {
       p_notes: editNotes || null,
       p_discount_amount: null,
       p_reason: 'تعديل بواسطة الإدارة العليا',
+      p_order_type: editOrderType,
     })
 
     setSubmitting(false)
@@ -370,24 +373,43 @@ export function OrderDetailPage() {
         onPriceChange={handlePriceChange}
         onAddProduct={() => { setShowProductSearch(true); setSelectedCompanyId(null); setSearchQuery('') }}
         editActions={
-          <div className="flex items-center gap-3">
-            <div className="flex-1 text-xs text-[#6B7280]">
-              <span className="font-semibold text-[#111827]">{editItems.length}</span> صنف · <span className="font-semibold text-[#059669]">{formatCurrencyShort(editTotal)}</span>
+          <div className="space-y-3">
+            <div className="bg-white rounded-xl border border-[#E5E7EB] p-3">
+              <h3 className="text-sm font-semibold text-[#111827] mb-2">نوع الطلب</h3>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setEditOrderType('cash')}
+                  className={`flex-1 text-xs px-3 py-2 rounded-lg border transition-colors ${editOrderType === 'cash' ? 'bg-emerald-500 text-white border-emerald-500' : 'bg-white text-[#6B7280] border-[#E5E7EB]'}`}
+                >
+                  نقدي
+                </button>
+                <button
+                  onClick={() => setEditOrderType('credit')}
+                  className={`flex-1 text-xs px-3 py-2 rounded-lg border transition-colors ${editOrderType === 'credit' ? 'bg-purple-500 text-white border-purple-500' : 'bg-white text-[#6B7280] border-[#E5E7EB]'}`}
+                >
+                  آجل
+                </button>
+              </div>
             </div>
-            <button
-              onClick={() => { setEditMode(false); setShowProductSearch(false); }}
-              disabled={submitting}
-              className="px-4 py-2 text-xs font-semibold text-[#6B7280] border border-[#E5E7EB] rounded-lg hover:bg-[#F9FAFB] transition-colors"
-            >
-              إلغاء
-            </button>
-            <button
-              onClick={handleSave}
-              disabled={submitting || editItems.length === 0}
-              className="px-5 py-2 text-xs font-semibold text-white bg-accent rounded-lg hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-            >
-              {submitting ? 'جارِ الحفظ...' : 'حفظ التغييرات'}
-            </button>
+            <div className="flex items-center gap-3">
+              <div className="flex-1 text-xs text-[#6B7280]">
+                <span className="font-semibold text-[#111827]">{editItems.length}</span> صنف · <span className="font-semibold text-[#059669]">{formatCurrencyShort(editTotal)}</span>
+              </div>
+              <button
+                onClick={() => { setEditMode(false); setShowProductSearch(false); }}
+                disabled={submitting}
+                className="px-4 py-2 text-xs font-semibold text-[#6B7280] border border-[#E5E7EB] rounded-lg hover:bg-[#F9FAFB] transition-colors"
+              >
+                إلغاء
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={submitting || editItems.length === 0}
+                className="px-5 py-2 text-xs font-semibold text-white bg-accent rounded-lg hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                {submitting ? 'جارِ الحفظ...' : 'حفظ التغييرات'}
+              </button>
+            </div>
           </div>
         }
       />

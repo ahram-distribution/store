@@ -63,12 +63,13 @@ interface SupremeOrderEditorProps {
   orderId: string
   initialItems: UnifiedOrderItem[]
   initialNotes: string | null
+  initialOrderType: string | null
   customerId: string
   onSaved: () => void
   onCancel: () => void
 }
 
-export function SupremeOrderEditor({ orderId, initialItems, initialNotes, customerId, onSaved, onCancel }: SupremeOrderEditorProps) {
+export function SupremeOrderEditor({ orderId, initialItems, initialNotes, initialOrderType, customerId, onSaved, onCancel }: SupremeOrderEditorProps) {
   const [items, setItems] = useState<EditableItem[]>(() =>
     initialItems.map(i => ({
       productId: i.product_id,
@@ -83,6 +84,7 @@ export function SupremeOrderEditor({ orderId, initialItems, initialNotes, custom
     }))
   )
   const [notes, setNotes] = useState(initialNotes || '')
+  const [orderType, setOrderType] = useState<string>(initialOrderType || 'cash')
   const [submitting, setSubmitting] = useState(false)
   const [products, setProducts] = useState<ProductWithPrice[]>([])
   const [companies, setCompanies] = useState<any[]>([])
@@ -225,6 +227,7 @@ export function SupremeOrderEditor({ orderId, initialItems, initialNotes, custom
       p_notes: notes || null,
       p_discount_amount: null,
       p_reason: 'تعديل بواسطة الإدارة العليا',
+      p_order_type: orderType,
     })
     setSubmitting(false)
     if (error) {
@@ -402,6 +405,32 @@ export function SupremeOrderEditor({ orderId, initialItems, initialNotes, custom
             </div>
           </div>
         ))}
+      </div>
+
+      <div className="bg-white rounded-xl border border-border p-3">
+        <h3 className="text-sm font-semibold text-text mb-2">نوع الطلب</h3>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setOrderType('cash')}
+            className={`flex-1 text-xs px-3 py-2 rounded-lg border transition-colors ${
+              orderType === 'cash'
+                ? 'bg-success text-white border-success'
+                : 'bg-white text-text-secondary border-border'
+            }`}
+          >
+            نقدي
+          </button>
+          <button
+            onClick={() => setOrderType('credit')}
+            className={`flex-1 text-xs px-3 py-2 rounded-lg border transition-colors ${
+              orderType === 'credit'
+                ? 'bg-accent text-white border-accent'
+                : 'bg-white text-text-secondary border-border'
+            }`}
+          >
+            آجل
+          </button>
+        </div>
       </div>
 
       <textarea

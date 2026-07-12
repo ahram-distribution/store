@@ -45,6 +45,7 @@ export interface UnifiedOrderHeader {
   status: string
   delivery_mode: DeliveryMode
   payment_method: string
+  order_type: string
   subtotal: number
   discount_amount: number
   tax_amount: number
@@ -231,6 +232,7 @@ export interface UnifiedOrderListItem {
   status: string
   delivery_mode: DeliveryMode
   payment_method: string
+  order_type: string
   total_amount: number
   revision_number: number
   customer_id: string

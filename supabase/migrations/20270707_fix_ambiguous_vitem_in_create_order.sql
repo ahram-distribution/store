@@ -29,7 +29,8 @@ CREATE OR REPLACE FUNCTION public.governed_create_order(
   p_execution_latitude numeric DEFAULT NULL,
   p_execution_longitude numeric DEFAULT NULL,
   p_execution_accuracy_meters numeric DEFAULT NULL,
-  p_execution_captured_at timestamptz DEFAULT NULL
+  p_execution_captured_at timestamptz DEFAULT NULL,
+  p_order_type varchar DEFAULT 'cash'
 )
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -148,7 +149,7 @@ BEGIN
   IF v_session.identity_type = 'employee' THEN
     INSERT INTO public.orders (
       order_number, customer_id, owner_type, owner_id, created_by,
-      notes, tier_id,
+      notes, tier_id, order_type,
       execution_location_id, execution_latitude, execution_longitude,
       execution_accuracy_meters, execution_captured_at,
       snapshot_customer_name, snapshot_customer_phone, snapshot_customer_address,
@@ -156,7 +157,7 @@ BEGIN
       snapshot_sender_name, snapshot_sender_phone, snapshot_sender_address
     ) VALUES (
       v_order_number, p_customer_id, 'employee', v_session.identity_id, v_session.identity_id,
-      p_notes, p_tier_id,
+      p_notes, p_tier_id, p_order_type,
       v_exec_location_id, p_execution_latitude, p_execution_longitude,
       p_execution_accuracy_meters, p_execution_captured_at,
       v_cust_name, v_cust_phone, v_cust_address,
@@ -167,7 +168,7 @@ BEGIN
   ELSE
     INSERT INTO public.orders (
       order_number, customer_id, owner_type, owner_id, created_by,
-      notes, tier_id,
+      notes, tier_id, order_type,
       execution_location_id, execution_latitude, execution_longitude,
       execution_accuracy_meters, execution_captured_at,
       snapshot_customer_name, snapshot_customer_phone, snapshot_customer_address,
@@ -175,7 +176,7 @@ BEGIN
       snapshot_sender_name, snapshot_sender_phone, snapshot_sender_address
     ) VALUES (
       v_order_number, p_customer_id, 'customer', v_session.identity_id, v_session.identity_id,
-      p_notes, p_tier_id,
+      p_notes, p_tier_id, p_order_type,
       v_exec_location_id, p_execution_latitude, p_execution_longitude,
       p_execution_accuracy_meters, p_execution_captured_at,
       v_cust_name, v_cust_phone, v_cust_address,

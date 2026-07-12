@@ -82,6 +82,7 @@ BEGIN
         'status', o.status,
         'delivery_mode', o.delivery_mode,
         'payment_method', o.payment_method,
+        'order_type', o.order_type,
         'subtotal', o.subtotal,
         'discount_amount', o.discount_amount,
         'tax_amount', o.tax_amount,
