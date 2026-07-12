@@ -528,7 +528,7 @@ export function CustomerProfilePage() {
 
     Promise.all([
       supabase.rpc('get_governed_customer', { p_token: token, p_id: id }),
-      supabase.rpc('get_customer_orders', { p_token: token, p_customer_id: id }),
+      supabase.rpc('get_customer_orders', { p_token: token, p_customer_id: id, p_limit: 50 }),
       supabase.rpc('get_governed_customer_contacts', { p_token: token, p_customer_id: id }),
       supabase.rpc('get_governed_customer_ownership_history', { p_token: token, p_customer_id: id }),
       supabase.rpc('get_governed_employees', { p_token: token }),
