@@ -539,6 +539,16 @@ export function CustomerProfilePage() {
         if (c.location_id) {
           const repo = getLocationRepo()
           if (repo) { const loc = await repo.fetchLocation(c.location_id); if (loc) setLocation(loc) }
+          LocationNormalizationService.enrichLocationIfNeeded(c.location_id)
+            .then(async (ok) => {
+              if (ok) {
+                const repo2 = getLocationRepo()
+                if (repo2) {
+                  const loc2 = await repo2.fetchLocation(c.location_id)
+                  if (loc2) setLocation(loc2)
+                }
+              }
+            })
         }
       }
       if (ordRes.data) setOrders(Array.isArray(ordRes.data) ? ordRes.data : [])
