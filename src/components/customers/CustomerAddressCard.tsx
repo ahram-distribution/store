@@ -39,7 +39,9 @@ export function CustomerAddressCard({ type, manualData, gpsData, onUpdateLocatio
       .filter(Boolean).join(' - ')
   }, [manualData])
 
-  const isEnriched = gpsData?.enrichment_status === ENRICHED
+  const hasCoords = gpsData?.latitude != null && gpsData?.longitude != null
+  const statusPending = gpsData?.enrichment_status === 'pending'
+  const statusCompleted = gpsData?.enrichment_status === 'completed'
 
   const mapsUrl = useMemo(() => {
     const lat = isManual ? (manualData?.latitude ?? null) : (gpsData?.latitude ?? null)
@@ -53,7 +55,6 @@ export function CustomerAddressCard({ type, manualData, gpsData, onUpdateLocatio
     return null
   }, [isManual, manualData, gpsData, manualFullAddress])
 
-  const hasGps = gpsData?.latitude != null && gpsData?.longitude != null
   const hasStructuredAddr = manualData && (manualData.governorate || manualData.city || manualData.address_line1)
   const hasLegacyAddr = manualData && !hasStructuredAddr && !!manualData.registered_address
 
@@ -155,8 +156,8 @@ export function CustomerAddressCard({ type, manualData, gpsData, onUpdateLocatio
 
       {/* ===================== GPS Card ===================== */}
 
-      {/* State 3: No location recorded */}
-      {!isManual && (!gpsData || !hasGps) && (
+      {/* State 3: No GPS coordinates (lat IS NULL OR lng IS NULL) */}
+      {!isManual && !hasCoords && (
         <div className="space-y-3">
           <div className="flex items-center gap-2">
             <span className="text-lg">📍</span>
@@ -169,8 +170,8 @@ export function CustomerAddressCard({ type, manualData, gpsData, onUpdateLocatio
         </div>
       )}
 
-      {/* State 2: Location exists, enrichment pending */}
-      {!isManual && gpsData && hasGps && !isEnriched && (
+      {/* State 2: Has GPS coordinates AND enrichment_status = pending */}
+      {!isManual && hasCoords && statusPending && (
         <div className="space-y-2">
           <div className="flex items-center gap-2 py-2">
             <span className="inline-block w-4 h-4 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
@@ -198,8 +199,8 @@ export function CustomerAddressCard({ type, manualData, gpsData, onUpdateLocatio
         </div>
       )}
 
-      {/* State 1: Location exists and enriched */}
-      {!isManual && gpsData && hasGps && isEnriched && (
+      {/* State 1: Has GPS coordinates AND enrichment_status = completed */}
+      {!isManual && hasCoords && statusCompleted && (
         <>
           {gpsData.accuracy_meters != null && (
             <div className="mb-2">

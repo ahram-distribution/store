@@ -179,6 +179,7 @@ export function OrderDetailView({ data, actions, onBack, editMode, editItems, on
             latitude: customer.gps_latitude,
             longitude: customer.gps_longitude,
             accuracy_meters: customer.gps_accuracy_meters,
+            enrichment_status: customer.gps_latitude != null && customer.gps_longitude != null ? 'completed' : null,
           } : null} />
           <CustomerAddressCard type="manual" manualData={customer ? {
             governorate: customer.governorate,
