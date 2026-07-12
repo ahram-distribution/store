@@ -211,11 +211,7 @@ export function NewCustomerPage() {
               </div>
             )}
           </div>
-          <div className="mt-2">
-            <label className="block text-xs font-semibold text-text mb-1">وصف إضافي</label>
-            <textarea placeholder="تفاصيل إضافية للعنوان (اختياري)" value={addressDetail} onChange={(e) => setAddressDetail(e.target.value)}
-              rows={1} className="w-full border border-border rounded-lg px-3 py-2.5 text-sm bg-white text-text placeholder:text-text-secondary resize-none" />
-          </div>
+          {/* الوصف الإضافي مخفي حسب طلب العميل */}
         </div>
 
         <div>

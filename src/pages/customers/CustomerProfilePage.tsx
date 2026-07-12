@@ -772,6 +772,11 @@ export function CustomerProfilePage() {
               latitude: location.latitude,
               longitude: location.longitude,
               accuracy_meters: location.accuracy_meters,
+            } : null} detailedAddress={customer ? {
+              governorate: customer.governorate_name,
+              city: customer.city_name,
+              street: customer.street_address,
+              landmark: customer.landmark,
             } : null} />
             <CustomerAddressCard type="manual" manualData={customer ? {
               governorate: customer.governorate_name,
