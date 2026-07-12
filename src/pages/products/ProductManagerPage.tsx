@@ -358,7 +358,15 @@ export function ProductManagerPage() {
 
   // ── Render ──
   return (
-    <div className="min-h-screen bg-surface pb-24" dir="rtl">
+    <div id="product-manager-page" className="min-h-screen bg-surface pb-24" dir="rtl">
+      <style>{`#product-manager-page input[type="number"]::-webkit-inner-spin-button,
+#product-manager-page input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none !important;
+  margin: 0 !important;
+}
+#product-manager-page input[type="number"] {
+  -moz-appearance: textfield !important;
+}`}</style>
       {/* Header */}
       <div className="bg-gradient-to-l from-primary to-primary/80 text-white px-4 py-4 flex items-center gap-3">
         <button onClick={() => nav('/dashboard')} className="text-white/80 hover:text-white">&larr;</button>
