@@ -642,11 +642,23 @@ export function CustomerProfilePage() {
     const r = data as any
     if (r?.error) { toast.error(r.error); return }
     toast.success('تم تحديث الموقع (' + accuracy + 'م)')
-    if (customer?.location_id) {
-      // Enrich the location (reverse geocode + match reference IDs)
-      LocationNormalizationService.enrichLocationIfNeeded(customer.location_id)
-      const repo = getLocationRepo()
-      if (repo) { const loc = await repo.fetchLocation(customer.location_id); if (loc) setLocation(loc) }
+    // Re-fetch customer to get the (possibly new) location_id
+    const custRes = await supabase.rpc('get_governed_customer', { p_token: token, p_id: id })
+    if (custRes.data) {
+      setCustomer(custRes.data)
+      const c = Array.isArray(custRes.data) ? custRes.data[0] : custRes.data
+      if (c?.location_id) {
+        LocationNormalizationService.enrichLocationIfNeeded(c.location_id)
+          .then(async (ok) => {
+            if (ok) {
+              const repo2 = getLocationRepo()
+              if (repo2) {
+                const loc2 = await repo2.fetchLocation(c.location_id)
+                if (loc2) setLocation(loc2)
+              }
+            }
+          })
+      }
     }
   }
 
@@ -788,7 +800,7 @@ export function CustomerProfilePage() {
               governorate_name: location.governorate_name,
               city_name: location.city_name,
               road: location.road,
-            } : null} />
+            } : null} onUpdateLocation={handleUpdateLocation} />
             <CustomerAddressCard type="manual" manualData={customer ? {
               governorate: customer.governorate_name,
               city: customer.city_name,
@@ -796,14 +808,6 @@ export function CustomerProfilePage() {
               address_line2: customer.landmark,
             } : null} />
           </div>
-
-          {location && (
-            <button onClick={handleUpdateLocation} disabled={locating}
-              className="w-full bg-accent/10 text-accent text-xs py-1.5 rounded-lg font-semibold hover:bg-accent/20 disabled:opacity-50">
-              {locating ? 'جاري التحديد...' : 'تحديث الموقع'}
-            </button>
-          )}
-
 
           {(canManage) && (
             <div className="flex gap-2 flex-wrap">

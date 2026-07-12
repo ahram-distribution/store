@@ -14,17 +14,22 @@ interface GpsAddress {
   latitude: number | null
   longitude: number | null
   accuracy_meters: number | null
+  enrichment_status: string | null
+  governorate_name: string | null
+  city_name: string | null
+  road: string | null
 }
 
 interface CustomerAddressCardProps {
   type: 'manual' | 'gps'
   manualData?: ManualAddress | null
   gpsData?: GpsAddress | null
+  onUpdateLocation?: () => void
 }
 
 const ENRICHED = 'completed'
 
-export function CustomerAddressCard({ type, manualData, gpsData }: CustomerAddressCardProps) {
+export function CustomerAddressCard({ type, manualData, gpsData, onUpdateLocation }: CustomerAddressCardProps) {
   const isManual = type === 'manual'
 
   const manualFullAddress = useMemo(() => {
@@ -138,17 +143,54 @@ export function CustomerAddressCard({ type, manualData, gpsData }: CustomerAddre
       )}
 
       {/* ===================== GPS Card ===================== */}
-      {!isManual && !hasGps && (
-        <div className="bg-amber-50 rounded-lg border border-amber-200 p-3 flex items-center gap-2">
-          <span className="text-lg">📍</span>
-          <p className="text-xs text-amber-700">لا توجد بيانات موقع مستخرجة.</p>
+
+      {/* State 3: No location recorded */}
+      {!isManual && !gpsData && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <span className="text-lg">📍</span>
+            <p className="text-xs text-text-secondary">لا يوجد موقع مسجل لهذا العميل.</p>
+          </div>
+          <button onClick={onUpdateLocation}
+            className="w-full bg-primary text-white text-xs py-2.5 rounded-lg font-semibold">
+            تحديث موقع العميل
+          </button>
         </div>
       )}
 
-      {!isManual && hasGps && (
+      {/* State 2: Location exists, enrichment pending */}
+      {!isManual && gpsData && !isEnriched && (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 py-2">
+            <span className="inline-block w-4 h-4 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
+            <span className="text-xs text-text-secondary">جارى استخراج بيانات الموقع...</span>
+          </div>
+          {mapsUrl && (
+            <div className="flex flex-wrap gap-2">
+              <a href={mapsUrl} target="_blank" rel="noopener noreferrer"
+                className="flex-1 text-xs py-1.5 rounded-lg font-semibold text-center"
+                style={{ backgroundColor: '#ECFDF5', color: '#059669' }}>
+                فتح على الخرائط
+              </a>
+              <button onClick={() => { navigator.clipboard.writeText(mapsUrl || ''); alert('تم نسخ الرابط') }}
+                className="flex-1 text-xs py-1.5 rounded-lg font-semibold text-center"
+                style={{ backgroundColor: '#FEF3C7', color: '#D97706' }}>
+                نسخ الرابط
+              </button>
+              <button onClick={() => { navigator.share?.({ url: mapsUrl || '' }) }}
+                className="flex-1 text-xs py-1.5 rounded-lg font-semibold text-center"
+                style={{ backgroundColor: '#F3E8FF', color: '#7C3AED' }}>
+                مشاركة
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* State 1: Location exists and enriched */}
+      {!isManual && gpsData && isEnriched && (
         <>
-          {/* GPS Accuracy */}
-          {gpsData?.accuracy_meters != null && (
+          {gpsData.accuracy_meters != null && (
             <div className="mb-2">
               <span className="text-xs text-text-secondary">دقة GPS: </span>
               <span className="text-xs font-semibold text-text">
@@ -158,36 +200,26 @@ export function CustomerAddressCard({ type, manualData, gpsData }: CustomerAddre
             </div>
           )}
 
-          {/* Enriched structured address */}
-          {isEnriched ? (
-            <>
-              {gpsData.governorate_name && (
-                <div className="mb-1">
-                  <div className="text-[10px] text-text-secondary">المحافظة المستخرجة</div>
-                  <div className="text-sm font-semibold text-text">{gpsData.governorate_name}</div>
-                </div>
-              )}
-              {gpsData.city_name && (
-                <div className="mb-1">
-                  <div className="text-[10px] text-text-secondary">المدينة المستخرجة</div>
-                  <div className="text-sm font-semibold text-text">{gpsData.city_name}</div>
-                </div>
-              )}
-              {gpsData.road && (
-                <div className="mb-1">
-                  <div className="text-[10px] text-text-secondary">الشارع المستخرج</div>
-                  <div className="text-sm font-semibold text-text">{gpsData.road}</div>
-                </div>
-              )}
-            </>
-          ) : (
-            <div className="bg-amber-50 rounded-lg border border-amber-200 p-2.5 mb-2">
-              <p className="text-xs text-amber-700">لا يمكن استخراج عنوان تفصيلي.</p>
+          {gpsData.governorate_name && (
+            <div className="mb-1">
+              <div className="text-[10px] text-text-secondary">المحافظة المستخرجة</div>
+              <div className="text-sm font-semibold text-text">{gpsData.governorate_name}</div>
+            </div>
+          )}
+          {gpsData.city_name && (
+            <div className="mb-1">
+              <div className="text-[10px] text-text-secondary">المدينة المستخرجة</div>
+              <div className="text-sm font-semibold text-text">{gpsData.city_name}</div>
+            </div>
+          )}
+          {gpsData.road && (
+            <div className="mb-1">
+              <div className="text-[10px] text-text-secondary">الشارع المستخرج</div>
+              <div className="text-sm font-semibold text-text">{gpsData.road}</div>
             </div>
           )}
 
-          {/* Full address (always shown) */}
-          {gpsData?.formatted_address && (
+          {gpsData.formatted_address && (
             <div className="mb-3 mt-2">
               <div className="text-[10px] text-text-secondary mb-1">العنوان الكامل</div>
               <div className="bg-gray-50 rounded-lg p-3 text-xs text-text leading-relaxed border border-gray-100">
@@ -196,7 +228,6 @@ export function CustomerAddressCard({ type, manualData, gpsData }: CustomerAddre
             </div>
           )}
 
-          {/* Action buttons */}
           <div className="flex flex-wrap gap-2">
             {mapsUrl && (
               <a href={mapsUrl} target="_blank" rel="noopener noreferrer"
@@ -206,20 +237,25 @@ export function CustomerAddressCard({ type, manualData, gpsData }: CustomerAddre
               </a>
             )}
             {mapsUrl && (
-              <button onClick={() => { navigator.clipboard.writeText(mapsUrl); alert('تم نسخ الرابط') }}
+              <button onClick={() => { navigator.clipboard.writeText(mapsUrl || ''); alert('تم نسخ الرابط') }}
                 className="flex-1 text-xs py-1.5 rounded-lg font-semibold text-center"
                 style={{ backgroundColor: '#FEF3C7', color: '#D97706' }}>
                 نسخ الرابط
               </button>
             )}
             {mapsUrl && (
-              <button onClick={() => { navigator.share?.({ url: mapsUrl }) }}
+              <button onClick={() => { navigator.share?.({ url: mapsUrl || '' }) }}
                 className="flex-1 text-xs py-1.5 rounded-lg font-semibold text-center"
                 style={{ backgroundColor: '#F3E8FF', color: '#7C3AED' }}>
                 مشاركة
               </button>
             )}
           </div>
+
+          <button onClick={onUpdateLocation}
+            className="w-full bg-accent/10 text-accent text-xs py-1.5 rounded-lg font-semibold hover:bg-accent/20 mt-2">
+            تحديث الموقع
+          </button>
         </>
       )}
     </div>
