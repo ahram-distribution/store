@@ -26,12 +26,11 @@ interface CustomerAddressCardProps {
   manualData?: ManualAddress | null
   gpsData?: GpsAddress | null
   onUpdateLocation?: () => void
-  legacyFormattedAddress?: string | null
 }
 
 const ENRICHED = 'completed'
 
-export function CustomerAddressCard({ type, manualData, gpsData, onUpdateLocation, legacyFormattedAddress }: CustomerAddressCardProps) {
+export function CustomerAddressCard({ type, manualData, gpsData, onUpdateLocation }: CustomerAddressCardProps) {
   const isManual = type === 'manual'
 
   const manualFullAddress = useMemo(() => {
@@ -57,9 +56,8 @@ export function CustomerAddressCard({ type, manualData, gpsData, onUpdateLocatio
   const hasGps = gpsData?.latitude != null && gpsData?.longitude != null
   const hasStructuredAddr = manualData && (manualData.governorate || manualData.city || manualData.address_line1)
   const hasLegacyAddr = manualData && !hasStructuredAddr && !!manualData.registered_address
-  const displayLegacyManual = isManual && !!legacyFormattedAddress && !hasStructuredAddr && !hasLegacyAddr
 
-  if (isManual && !hasStructuredAddr && !hasLegacyAddr && !legacyFormattedAddress) return null
+  if (isManual && !hasStructuredAddr && !hasLegacyAddr) return null
 
   return (
     <div className={`bg-white rounded-xl border p-4 ${isManual ? 'border-blue-200' : 'border-emerald-200'}`}>
@@ -124,25 +122,9 @@ export function CustomerAddressCard({ type, manualData, gpsData, onUpdateLocatio
         </div>
       )}
 
-      {/* Legacy manual address (from unified_locations.formatted_address, no GPS coords) */}
-      {isManual && displayLegacyManual && (
-        <div className="mb-3">
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-[10px] text-text-secondary">العنوان القديم (Legacy)</span>
-            <span className="bg-amber-100 text-amber-700 text-[10px] px-1.5 py-0.5 rounded font-medium">عنوان قديم</span>
-          </div>
-          <div className="bg-surface rounded-lg p-3 text-xs text-text leading-relaxed border border-border">
-            {legacyFormattedAddress}
-          </div>
-        </div>
-      )}
-
-      {isManual && (hasStructuredAddr || hasLegacyAddr || displayLegacyManual) && (
+      {isManual && (hasStructuredAddr || hasLegacyAddr) && (
         <div className="flex flex-wrap gap-2">
-          <button onClick={() => {
-            const txt = manualFullAddress || legacyFormattedAddress || ''
-            navigator.clipboard.writeText(txt); alert('تم نسخ العنوان')
-          }}
+          <button onClick={() => { navigator.clipboard.writeText(manualFullAddress); alert('تم نسخ العنوان') }}
             className="flex-1 text-xs py-1.5 rounded-lg font-semibold text-center"
             style={{ backgroundColor: '#EFF6FF', color: '#2563EB' }}>
             نسخ العنوان

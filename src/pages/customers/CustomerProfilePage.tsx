@@ -809,7 +809,7 @@ export function CustomerProfilePage() {
               address_line1: customer.street_address,
               address_line2: customer.landmark,
               registered_address: customer.registered_address,
-            } : null} legacyFormattedAddress={location && !location.latitude && !location.longitude ? location.formatted_address : null} />
+            } : null} />
           </div>
 
           {(canManage) && (
