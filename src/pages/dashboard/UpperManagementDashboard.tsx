@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { targetService } from '../../services/targets'
 import { useAuthStore } from '../../store/auth'
-import { formatCurrencyShort } from '../../utils/format'
+import { MonthlyActivity } from '../../components/activity/MonthlyActivity'
 
 interface DashMgmt {
   total_orders: number; pending_orders: number; approved_orders: number
@@ -24,12 +24,6 @@ const CUR_MONTH = now.getMonth() + 1
 const CUR_YEAR = now.getFullYear()
 const MONTHS = ['يناير', 'فبراير', 'مارس', 'إبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر']
 
-function monthRange(month: number, year: number) {
-  return {
-    from: new Date(year, month - 1, 1).toISOString().slice(0, 10),
-    to: new Date(year, month, 1).toISOString().slice(0, 10),
-  }
-}
 
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
@@ -38,7 +32,6 @@ function getToken(): string | null {
 export default function UpperManagementDashboard() {
   const nav = useNavigate()
   const user = useAuthStore((s) => s.user)
-  const [kpiData, setKpiData] = useState<{ sales: number; orders: number; new_customers: number } | null>(null)
   const [achievementPct, setAchievementPct] = useState(0)
   const [dashMgmt, setDashMgmt] = useState<DashMgmt | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
@@ -46,25 +39,6 @@ export default function UpperManagementDashboard() {
   useEffect(() => {
     const token = getToken()
     if (!token) return
-
-    const { from, to } = monthRange(CUR_MONTH, CUR_YEAR)
-
-    supabase.rpc('get_runtime_team_activity', {
-      p_manager_employee_id: null,
-      p_date_from: from,
-      p_date_to: to,
-    }).then(({ data, error: err }) => {
-      if (!err && data) {
-        const members = data as any[]
-        let sales = 0, orders = 0, new_customers = 0
-        members.forEach((m: any) => {
-          sales += m.sales || 0
-          orders += m.orders || 0
-          new_customers += m.registered_customers || 0
-        })
-        setKpiData({ sales, orders, new_customers })
-      }
-    })
 
     targetService.getPerformance(CUR_MONTH, CUR_YEAR, token).then((result) => {
       if (!result.error && result.data) {
@@ -81,13 +55,6 @@ export default function UpperManagementDashboard() {
   }, [])
 
   const achievementValue = achievementPct
-
-  const statItems = [
-    { label: 'مبيعات الشهر', value: kpiData?.sales != null ? formatCurrencyShort(kpiData.sales) : '0', color: 'text-success' },
-    { label: 'الطلبات', value: String(kpiData?.orders ?? 0), color: 'text-primary' },
-    { label: 'الإنجاز', value: achievementValue.toFixed(1) + '%', color: achievementValue >= 50 ? 'text-success' : 'text-warning' },
-    { label: 'عملاء جدد', value: String(kpiData?.new_customers ?? 0), color: 'text-accent' },
-  ]
 
   const groups: LauncherGroup[] = [
     { icon: '📊', label: 'النشاط والتارجت', path: '/dashboard/activity-target' },
@@ -166,28 +133,7 @@ export default function UpperManagementDashboard() {
         </div>
       </div>
 
-      {/* ===== 2. COMPANY KPIs ===== */}
-      <div className="bg-white rounded-2xl border border-border shadow-sm overflow-hidden">
-        <div className="bg-gradient-to-l from-primary to-primary-dark px-5 py-3.5">
-          <h2 className="text-sm font-bold text-white">📊 مؤشرات الشركة</h2>
-        </div>
-        <div className="p-5">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            {statItems.map((s, idx) => (
-              <div key={s.label} className={
-                `rounded-xl p-4 text-center border shadow-sm ` +
-                (idx === 0 ? 'bg-gradient-to-br from-emerald-50 to-green-100/60 border-emerald-200/50' :
-                 idx === 1 ? 'bg-gradient-to-br from-blue-50 to-blue-100/60 border-blue-200/50' :
-                 idx === 2 ? 'bg-gradient-to-br from-amber-50 to-yellow-100/60 border-amber-200/50' :
-                 'bg-gradient-to-br from-violet-50 to-purple-100/60 border-violet-200/50')
-              }>
-                <div className={`text-2xl sm:text-3xl font-bold ${s.color}`}>{s.value}</div>
-                <div className="text-[11px] text-text-secondary mt-1.5 font-medium">{s.label}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
+      <MonthlyActivity scope="company" />
 
       {/* ===== 3. OPERATIONAL MODULES ===== */}
       {operationalFiltered.length > 0 && (

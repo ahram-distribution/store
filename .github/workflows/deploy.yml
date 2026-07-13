@@ -17,6 +17,9 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    outputs:
+      build_id: ${{ steps.vars.outputs.build_id }}
+      commit_hash: ${{ steps.vars.outputs.commit_hash }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -30,33 +33,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Debug
+      - name: Generate build ID
+        id: vars
         run: |
-          set +e
-          echo "=== NODE ==="
-          node --version
-          npm --version
-          which node
-          echo "=== VITE BIN ==="
-          ls -la node_modules/vite/bin/vite.js
-          echo "=== RESOLVE ==="
-          node -e "try { console.log('vite/bin/vite.js', require.resolve('vite/bin/vite.js')) } catch(e) { console.log('ERR:', e.message) }"
-          node -e "try { require('@tailwindcss/vite'); console.log('tailwindcss-vite ok') } catch(e) { console.log('ERR:', e.message) }"
-          node -e "try { require('vite'); console.log('vite ok') } catch(e) { console.log('ERR:', e.message) }"
-          node -e "try { require('@vitejs/plugin-react'); console.log('react-plugin ok') } catch(e) { console.log('ERR:', e.message) }"
-          echo "=== NPM LIST ==="
-          npm ls vite 2>&1 || true
-          echo "=== TAILWIND OXIDE TEST ==="
-          node -e "try { const ox = require('@tailwindcss/oxide'); console.log('oxide keys:', Object.keys(ox)); } catch(e) { console.log('OXIDE ERR:', e.message); }"
-          echo "=== VITE DRY-RUN ==="
-          node -e "
-            const { defineConfig } = require('vite');
-            const react = require('@vitejs/plugin-react');
-            const tailwindcss = require('@tailwindcss/vite');
-            const cfg = defineConfig({ plugins: [react(), tailwindcss()] });
-            console.log('config created ok');
-          "
-          echo "=== DONE ==="
+          echo "build_id=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+          echo "commit_hash=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
 
       - name: Build
         id: build
@@ -75,6 +56,8 @@ jobs:
           VITE_APP_NAME: ${{ vars.VITE_APP_NAME || 'Ahram Distribution' }}
           VITE_APP_VERSION: ${{ vars.VITE_APP_VERSION || '1.0.0' }}
           VITE_WHATSAPP_NUMBER: ${{ vars.VITE_WHATSAPP_NUMBER }}
+          BUILD_ID: ${{ steps.vars.outputs.build_id }}
+          COMMIT_HASH: ${{ steps.vars.outputs.commit_hash }}
           NODE_OPTIONS: "--no-warnings"
 
       - name: Report build errors
@@ -82,7 +65,9 @@ jobs:
         run: |
           ec=$(cat /tmp/build_exit_code 2>/dev/null || echo "unknown")
           if [ "$ec" = "0" ]; then
-            echo "Build succeeded"
+            echo "Build succeeded — build_id: ${{ steps.vars.outputs.build_id }}"
+            echo "Manifest:"
+            cat dist/build-manifest.json 2>/dev/null || echo "(no manifest)"
             exit 0
           fi
           echo "::warning::Build failed with exit code $ec"
@@ -105,14 +90,6 @@ jobs:
         with:
           path: ./deploy
 
-      - name: Deploy to gh-pages branch (SPA fallback)
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./deploy
-          publish_branch: gh-pages
-          force_orphan: true
-
   deploy:
     needs: build
     runs-on: ubuntu-latest
@@ -124,4 +101,25 @@ jobs:
         id: deployment
         uses: actions/deploy-pages@v4
 
-
+      - name: Post-deploy verification
+        run: |
+          build_id="${{ needs.build.outputs.build_id }}"
+          commit="${{ needs.build.outputs.commit_hash }}"
+          echo "=== BUILD INFO ==="
+          echo "Build ID:  $build_id"
+          echo "Commit:    $commit"
+          echo "Deploy URL: ${{ steps.deployment.outputs.page_url }}"
+          echo ""
+          echo "=== VERIFICATION ==="
+          sleep 30
+          manifest_url="${{ steps.deployment.outputs.page_url }}build-manifest.json"
+          echo "Fetching: $manifest_url"
+          http_status=$(curl -s -o /dev/null -w "%{http_code}" "$manifest_url" 2>/dev/null || echo "000")
+          if [ "$http_status" = "200" ]; then
+            echo "✓ build-manifest.json reachable (HTTP $http_status)"
+            echo "Deployed manifest:"
+            curl -sS "$manifest_url"
+          else
+            echo "⚠ build-manifest.json not yet reachable (HTTP $http_status)"
+            echo "CDN may still be propagating. Verify manually in 5-10 min."
+          fi

@@ -1,10 +1,12 @@
-const CACHE_NAME = 'ahram-v2'
+const BUILD_ID = typeof __BUILD_ID__ !== 'undefined' ? __BUILD_ID__ : 'dev'
+const CACHE_NAME = `ahram-${BUILD_ID}`
 const SUPABASE_URL = self.__VITE_SUPABASE_URL__ || ''
 const SUPABASE_ANON_KEY = self.__VITE_SUPABASE_ANON_KEY__ || ''
 
 declare const self: ServiceWorkerGlobalScope & {
   __VITE_SUPABASE_URL__?: string
   __VITE_SUPABASE_ANON_KEY__?: string
+  __BUILD_ID__?: string
   __WB_MANIFEST: Array<{ url: string; revision: string | null }>
 }
 

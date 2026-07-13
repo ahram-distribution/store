@@ -2,6 +2,7 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
+import crypto from 'crypto'
 import fs from 'fs'
 import path from 'path'
 
@@ -52,6 +53,10 @@ const pwaManifest = {
 
 export default defineConfig({
   base: isMobileBuild ? './' : '/store/',
+  define: {
+    __BUILD_ID__: JSON.stringify(process.env.BUILD_ID || 'dev'),
+    __COMMIT_HASH__: JSON.stringify(process.env.COMMIT_HASH || 'dev'),
+  },
   server: {
     host: '0.0.0.0',
     ...(hasCerts
@@ -89,6 +94,30 @@ export default defineConfig({
         const indexPath = path.join(distDir, 'index.html')
         if (!fs.existsSync(indexPath)) return
         fs.copyFileSync(indexPath, path.join(distDir, '404.html'))
+      },
+    },
+    {
+      name: 'build-manifest',
+      closeBundle() {
+        if (isMobileBuild) return
+        const distDir = path.resolve(__dirname, 'dist')
+        const assetsDir = path.join(distDir, 'assets')
+        if (!fs.existsSync(assetsDir)) return
+        const assets: Record<string, string> = {}
+        for (const file of fs.readdirSync(assetsDir)) {
+          const fullPath = path.join(assetsDir, file)
+          if (fs.statSync(fullPath).isFile()) {
+            const content = fs.readFileSync(fullPath)
+            assets[file] = crypto.createHash('sha256').update(content).digest('hex')
+          }
+        }
+        const manifest = {
+          build_id: process.env.BUILD_ID || 'dev',
+          commit_hash: process.env.COMMIT_HASH || 'dev',
+          build_date: new Date().toISOString(),
+          assets,
+        }
+        fs.writeFileSync(path.join(distDir, 'build-manifest.json'), JSON.stringify(manifest, null, 2))
       },
     },
    ],

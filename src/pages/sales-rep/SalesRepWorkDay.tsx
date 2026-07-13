@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../store/auth'
 import { useCapability } from '../../hooks/useCapability'
+import { MonthlyActivity } from '../../components/activity/MonthlyActivity'
 
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
@@ -21,20 +22,9 @@ interface Opportunity {
 }
 
 const MONTH_START = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
-const TODAY_START = new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()).toISOString()
-
-function isToday(iso: string | null | undefined): boolean {
-  if (!iso) return false
-  return iso >= TODAY_START
-}
 
 function isDelivered(o: any): boolean {
   return o.status === 'delivered' && !!o.delivered_at
-}
-
-function fmt(n: number | null | undefined): string {
-  if (n == null) return '\u2014'
-  return n.toLocaleString('ar-EG-u-nu-latn')
 }
 
 function fmtShort(n: number): string {
@@ -69,12 +59,6 @@ export function SalesRepWorkDay() {
   const now = new Date()
 
   const deliveredOrders = useMemo(() => orders.filter(isDelivered), [orders])
-
-  // ── ACTIVITY TODAY (created / completed / registered) ──
-  const todayCreatedSales = useMemo(() => Math.round(orders.filter((o) => isToday(o.created_at)).reduce((s, o) => s + Number(o.total_amount || 0), 0)), [orders])
-  const todayCreatedOrders = useMemo(() => orders.filter((o) => isToday(o.created_at)).length, [orders])
-  const todayCompletedVisits = useMemo(() => visits.filter((v) => isToday(v.created_at) && v.status === 'completed').length, [visits])
-  const todayRegisteredCustomers = useMemo(() => customers.filter((c) => isToday(c.created_at)).length, [customers])
 
   const oppColors: Record<string, { from: string; to: string; label: string }> = {
     needs_followup: { from: 'from-emerald-500', to: 'to-emerald-700', label: 'متابعة مطلوبة' },
@@ -180,31 +164,7 @@ export function SalesRepWorkDay() {
         </div>
       </div>
 
-      {/* ── ACTIVITY TODAY ── */}
-      <div>
-        <div className="flex items-center gap-2 mb-2">
-          <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
-          <h2 className="text-[13px] font-semibold text-gray-700">النشاط اليومي</h2>
-        </div>
-        <div className="grid grid-cols-4 gap-1.5">
-          <div className="bg-emerald-50 rounded-xl py-2 text-center">
-            <div className="text-sm font-bold text-emerald-700">{fmtShort(todayCreatedSales)}</div>
-            <div className="text-[8px] text-emerald-500 mt-0.5">قيمة المبيعات</div>
-          </div>
-          <div className="bg-indigo-50 rounded-xl py-2 text-center">
-            <div className="text-base font-bold text-indigo-700">{todayCreatedOrders}</div>
-            <div className="text-[8px] text-indigo-500 mt-0.5">الطلبات</div>
-          </div>
-          <div className="bg-amber-50 rounded-xl py-2 text-center">
-            <div className="text-base font-bold text-amber-700">{todayCompletedVisits}</div>
-            <div className="text-[8px] text-amber-500 mt-0.5">الزيارات</div>
-          </div>
-          <div className="bg-cyan-50 rounded-xl py-2 text-center">
-            <div className="text-base font-bold text-cyan-700">{todayRegisteredCustomers}</div>
-            <div className="text-[8px] text-cyan-500 mt-0.5">العملاء الجدد</div>
-          </div>
-        </div>
-      </div>
+      <MonthlyActivity scope="personal" />
 
       {/* ── ATTENDANCE ── */}
       <button onClick={() => navigate('/attendance/runtime')}
@@ -260,11 +220,6 @@ export function SalesRepWorkDay() {
             <div className="text-[10px] opacity-80 mt-0.5">تحليلات العملاء</div>
           </button>
 
-          <button onClick={() => navigate('/runtime/activity')}
-            className="bg-violet-600 rounded-xl py-3 text-center text-white active:opacity-80 transition-opacity">
-            <div className="text-sm font-bold">ماذا فعلت؟</div>
-            <div className="text-[10px] opacity-80 mt-0.5">نشاطي بالفترة</div>
-          </button>
           <button onClick={() => navigate('/runtime/achievement')}
             className="bg-rose-600 rounded-xl py-3 text-center text-white active:opacity-80 transition-opacity">
             <div className="text-sm font-bold">ماذا حققت؟</div>

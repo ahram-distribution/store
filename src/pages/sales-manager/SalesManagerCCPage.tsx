@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { formatCurrencyShort } from '../../utils/format'
 import { MobileDialog } from '../../components/shared/MobileDialog'
+import { useAuthStore } from '../../store/auth'
+import { MonthlyActivity } from '../../components/activity/MonthlyActivity'
 import toast from 'react-hot-toast'
 
 const POLLING_INTERVAL = 30000
@@ -36,6 +38,7 @@ export default function SalesManagerCCPage() {
   const nav = useNavigate()
   const [data, setData] = useState<SalesManagerCC | null>(null)
   const [loading, setLoading] = useState(true)
+  const user = useAuthStore((s) => s.user)
 
   /* Customer Picker */
   const [showCustomerPicker, setShowCustomerPicker] = useState<'order' | 'visit' | null>(null)
@@ -77,7 +80,7 @@ export default function SalesManagerCCPage() {
   if (loading) return <div className="text-center py-12 text-text-secondary text-sm">جاري التحميل...</div>
   if (!data) return <div className="text-center py-12 text-text-secondary text-sm">لا توجد بيانات</div>
 
-  const { team_overview: tov, attendance: att, orders: ord, visits: vis, customers: cust, team_performance: tp } = data
+  const { team_overview: tov, attendance: att, team_performance: tp } = data
   const tt = tp?.team_targets
 
   return (
@@ -121,18 +124,7 @@ export default function SalesManagerCCPage() {
         </div>
       )}
 
-      {/* Business Activity Summary */}
-      <div className="bg-white rounded-xl border border-border p-4">
-        <h3 className="text-sm font-bold text-text mb-3">ملخص النشاط التجاري</h3>
-        <div className="grid grid-cols-3 gap-3">
-          <ActivityCard label="طلبات اليوم" value={fmt(ord?.today_orders ?? 0)} icon="📋" />
-          <ActivityCard label="مبيعات اليوم" value={formatCurrencyShort(ord?.today_sales ?? 0)} icon="💰" />
-          <ActivityCard label="مبيعات الشهر" value={formatCurrencyShort(ord?.month_sales ?? 0)} icon="📈" />
-          <ActivityCard label="زيارات نشطة" value={fmt(vis?.active_visits ?? 0)} icon="📍" />
-          <ActivityCard label="بانتظار الاعتماد" value={fmt(ord?.pending_followup ?? 0)} icon="⏳" />
-          <ActivityCard label="تحصيلات معلقة" value={formatCurrencyShort(ord?.pending_collections ?? 0)} icon="💳" />
-        </div>
-      </div>
+      <MonthlyActivity scope="team" managerEmployeeId={user?.employee_id} />
 
       {/* Attendance Mini */}
       <div className="bg-white rounded-xl border border-border p-4">
@@ -216,16 +208,6 @@ function OverviewCard({ label, value, icon, onClick }: { label: string; value: s
       </div>
       <p className="text-lg font-bold text-text">{value}</p>
     </button>
-  )
-}
-
-function ActivityCard({ label, value, icon }: { label: string; value: string; icon: string }) {
-  return (
-    <div className="bg-surface rounded-xl p-3 border border-border/50 text-center">
-      <span className="text-lg">{icon}</span>
-      <p className="text-sm font-bold text-text mt-1">{value}</p>
-      <p className="text-[9px] text-text-secondary mt-0.5">{label}</p>
-    </div>
   )
 }
 

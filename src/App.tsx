@@ -12,10 +12,12 @@ import { notificationService } from './services/notificationService'
 import { healthMonitor } from './utils/pageHealthCheck'
 import { lifeSignalService } from './services/lifeSignalService'
 import { trackingEngine } from './services/trackingEngine'
+import { useSWUpdate } from './hooks/useSWUpdate'
 
 const isNative = typeof window !== 'undefined' && !!(window as any).Capacitor?.isNativePlatform?.()
 const Router = isNative ? HashRouter : BrowserRouter
 export function App() {
+  useSWUpdate()
   const [splashDone, setSplashDone] = useState(false)
   const { loading, restoreSession } = useAuthStore()
   const restored = useRef(false)
