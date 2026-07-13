@@ -142,7 +142,7 @@ export function MonthlyActivity({ scope, managerEmployeeId }: MonthlyActivityPro
   return (
     <div className="bg-white rounded-2xl border border-border shadow-sm overflow-hidden">
       <div className="bg-gradient-to-l from-primary to-primary-dark px-5 py-3.5 flex items-center justify-between">
-        <h2 className="text-sm font-bold text-white">النشاط الشهرى 🟢</h2>
+        <h2 className="text-sm font-bold text-white">النشاط الشهرى</h2>
         <div className="flex items-center gap-2">
           <span className="text-xs text-white/70">📅</span>
           <select value={month}
