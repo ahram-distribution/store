@@ -1,25 +1,15 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
-import { formatCurrencyShort, toEnglishDigits, safeFormatDateTime } from '../../utils/format'
-import { LocationRepository, formatAccuracy } from '../../domain/location'
-import { getCurrentLocation } from '../../services/gpsService'
+import { formatCurrencyShort, safeFormatDateTime, toEnglishDigits } from '../../utils/format'
+import { locationService } from '../../services/location'
 import { VisitCard } from '../../components/visits/VisitCard'
 import { lifeSignalService } from '../../services/lifeSignalService'
 import { MobileDialog } from '../../components/shared/MobileDialog'
+import { CustomerForm } from '../../components/customers/CustomerForm'
+import type { CustomerFormData } from '../../components/customers/CustomerForm'
+import { CUSTOMER_DEFAULT_PASSWORD } from '../../lib/customerConstants'
 import toast from 'react-hot-toast'
-
-const BUSINESS_TYPES = [
-  { value: 'wholesaler', label: 'تاجر جملة' },
-  { value: 'distributor', label: 'موزع' },
-  { value: 'cosmetics_store', label: 'متجر مستحضرات تجميل' },
-  { value: 'supermarket', label: 'سوبر ماركت' },
-  { value: 'hypermarket', label: 'هايبر ماركت' },
-  { value: 'perfume_store', label: 'متجر عطور / عطار' },
-  { value: 'pharmacy', label: 'صيدلية' },
-  { value: 'warehouse', label: 'مخزن' },
-  { value: 'other', label: 'أخرى' },
-]
 
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
@@ -67,19 +57,6 @@ export default function SalesManagerOperations() {
 
   /* Add Customer */
   const [showAddCustomer, setShowAddCustomer] = useState(false)
-  const [custName, setCustName] = useState('')
-  const [custPhone, setCustPhone] = useState('')
-  const [custPassword, setCustPassword] = useState('')
-  const [custResponsible, setCustResponsible] = useState('')
-  const [custBusinessType, setCustBusinessType] = useState('')
-  const [custGovernorateId, setCustGovernorateId] = useState('')
-  const [custCityId, setCustCityId] = useState('')
-  const [custStreet, setCustStreet] = useState('')
-  const [custLandmark, setCustLandmark] = useState('')
-  const [custGovernorates, setCustGovernorates] = useState<any[]>([])
-  const [custCities, setCustCities] = useState<any[]>([])
-  const [custLocation, setCustLocation] = useState<{ latitude: number | null; longitude: number | null; accuracyMeters: number | null }>({ latitude: null, longitude: null, accuracyMeters: null })
-  const [custLocating, setCustLocating] = useState(false)
   const [custOwnerId, setCustOwnerId] = useState('')
 
   /* Customer Picker */
@@ -132,28 +109,6 @@ export default function SalesManagerOperations() {
 
   useEffect(() => { if (showAddEmployee) loadRoles() }, [showAddEmployee, loadRoles])
 
-  const loadGovernorates = useCallback(async () => {
-    const t = getToken()
-    if (!t) return
-    const repo = new LocationRepository(t)
-    const g = await repo.getGovernorates()
-    setCustGovernorates(g)
-  }, [])
-
-  useEffect(() => { if (showAddCustomer) loadGovernorates() }, [showAddCustomer, loadGovernorates])
-
-  useEffect(() => {
-    if (custGovernorateId) {
-      const t = getToken()
-      if (!t) return
-      const repo = new LocationRepository(t)
-      repo.getCities(custGovernorateId).then(setCustCities)
-    } else {
-      setCustCities([])
-    }
-    setCustCityId('')
-  }, [custGovernorateId])
-
   const handleAddEmployee = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!empName.trim() || !empPhone.trim()) { toast.error('الاسم ورقم الهاتف مطلوبان'); return }
@@ -176,26 +131,21 @@ export default function SalesManagerOperations() {
     fetchData()
   }
 
-  const handleAddCustomer = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!custName.trim()) { toast.error('يرجى إدخال اسم النشاط التجاري'); return }
-    if (!custPhone.trim()) { toast.error('يرجى إدخال رقم الهاتف'); return }
-    if (!/^01[0-9]{9}$/.test(custPhone.trim())) { toast.error('رقم الهاتف غير صالح'); return }
+  const handleAddCustomer = async (formData: CustomerFormData) => {
     setSubmitting(true)
     const t = getToken()
     const { data: session } = await supabase.rpc('validate_session', { p_token: t })
     const managerId = (session as any)?.employee_id || null
     const { data, error } = await supabase.rpc('governed_create_customer', {
-      p_token: t, p_company_name: custName.trim(), p_phone: custPhone.trim() || null,
-      p_contact_name: custResponsible.trim() || null, p_contact_phone: custPhone.trim() || null,
-      p_business_type: custBusinessType || null, p_responsible_name: custResponsible.trim() || null,
-      p_password: custPassword || null,
-      p_latitude: custLocation.latitude, p_longitude: custLocation.longitude,
-      p_accuracy_meters: custLocation.accuracyMeters,
-      p_governorate_id: custGovernorateId || null,
-      p_city_id: custCityId || null,
-      p_street_address: custStreet.trim() || null,
-      p_landmark: custLandmark.trim() || null,
+      p_token: t, p_company_name: formData.companyName.trim(), p_phone: formData.phone.trim() || null,
+      p_contact_name: formData.contactName.trim() || null, p_contact_phone: formData.phone.trim() || null,
+      p_business_type: formData.businessType || null, p_responsible_name: formData.contactName.trim() || null,
+      p_password: CUSTOMER_DEFAULT_PASSWORD,
+      p_latitude: formData.latitude, p_longitude: formData.longitude,
+      p_accuracy_meters: formData.accuracyMeters,
+      p_governorate_id: formData.governorateId || null,
+      p_city: formData.city.trim() || null,
+      p_street_address: formData.streetAddress.trim() || null,
     })
     if (error) {
       setSubmitting(false)
@@ -219,24 +169,8 @@ export default function SalesManagerOperations() {
     }
     setSubmitting(false)
     toast.success('تم إنشاء العميل بنجاح')
-    setShowAddCustomer(false); setCustName(''); setCustPhone(''); setCustPassword(''); setCustResponsible('')
-    setCustBusinessType(''); setCustGovernorateId(''); setCustCityId(''); setCustStreet(''); setCustLandmark('')
-    setCustLocation({ latitude: null, longitude: null, accuracyMeters: null }); setCustOwnerId('')
+    setShowAddCustomer(false); setCustOwnerId('')
     fetchData()
-  }
-
-  const handleCaptureLocation = async () => {
-    setCustLocating(true)
-    const result = await getCurrentLocation()
-    setCustLocating(false)
-    if (result.success && result.location) {
-      setCustLocation({ latitude: result.location.latitude, longitude: result.location.longitude, accuracyMeters: result.location.accuracy })
-      const acc = result.location.accuracy
-      if (acc > 50) toast('⚠️ دقة الموقع منخفضة (' + acc + 'م)', { duration: 5000 })
-      else toast.success('تم تحديد الموقع (' + acc + 'م)')
-    } else {
-      toast.error(result.error?.message || 'فشل تحديد الموقع')
-    }
   }
 
   const fetchCustomers = useCallback(async () => {
@@ -281,7 +215,7 @@ export default function SalesManagerOperations() {
 
   const openVisitDetail = async (visitId: string) => {
     setSelectedVisitLoading(true)
-    setVisitDetailCustName(''); setVisitDetailEmpName(''); setVisitDetailStartAddr(''); setVisitDetailEndAddr('')
+    setVisitDetailCustName(''); setVisitDetailEmpName(''); setVisitDetailStartCoord(''); setVisitDetailEndCoord('')
     const t = getToken()
     if (!t) { setSelectedVisitLoading(false); return }
     const { data } = await supabase.rpc('get_governed_visit', { p_token: t, p_id: visitId })
@@ -378,7 +312,7 @@ export default function SalesManagerOperations() {
               { key: 'active', label: 'نشط' },
               { key: 'today', label: 'اليوم' },
             ].map(f => (
-              <button key={f.key} onClick={() => setVisitsFilter(f.key)}
+              <button key={f.key} onClick={() => setVisitsFilter(f.key as 'all' | 'active' | 'today')}
                 className={`shrink-0 text-[10px] px-2.5 py-1 rounded-lg font-semibold transition-colors ${
                   visitsFilter === f.key ? 'bg-primary text-white' : 'bg-surface text-text-secondary border border-border/50'
                 }`}>
@@ -563,72 +497,17 @@ export default function SalesManagerOperations() {
         open={showAddCustomer}
         onClose={() => setShowAddCustomer(false)}
         title="إضافة عميل جديد"
-        footer={
-          <button type="submit" form="addCustomerForm" disabled={submitting || !custName.trim()}
-            className="w-full bg-primary text-white text-xs py-2.5 rounded-lg font-semibold disabled:opacity-40">
-            {submitting ? 'جاري الحفظ...' : 'حفظ'}
-          </button>
-        }
+        footer={null}
       >
-        <form id="addCustomerForm" onSubmit={handleAddCustomer} className="space-y-3">
-          <input type="text" value={custName} onChange={e => setCustName(e.target.value)}
-            placeholder="اسم النشاط التجاري *" required
-            className="w-full border border-border rounded-lg px-3 py-2 text-sm" />
-          <input type="tel" dir="ltr" value={custPhone} onChange={e => setCustPhone(toEnglishDigits(e.target.value))}
-            placeholder="رقم الهاتف *" required maxLength={11}
-            className="w-full border border-border rounded-lg px-3 py-2 text-sm" />
-          <input type="text" value={custResponsible} onChange={e => setCustResponsible(e.target.value)}
-            placeholder="اسم المسؤول"
-            className="w-full border border-border rounded-lg px-3 py-2 text-sm" />
-          <select value={custBusinessType} onChange={e => setCustBusinessType(e.target.value)}
-            className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-white">
-            <option value="">نوع النشاط</option>
-            {BUSINESS_TYPES.map(bt => <option key={bt.value} value={bt.value}>{bt.label}</option>)}
-          </select>
-          <input type="password" dir="ltr" value={custPassword} onChange={e => setCustPassword(e.target.value)}
-            placeholder="كلمة المرور" maxLength={6}
-            className="w-full border border-border rounded-lg px-3 py-2 text-sm" />
-          <select value={custGovernorateId} onChange={e => setCustGovernorateId(e.target.value)}
-            className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-white">
-            <option value="">المحافظة</option>
-            {custGovernorates.map((g: any) => <option key={g.id} value={g.id}>{g.name_ar || g.name}</option>)}
-          </select>
-          <select value={custCityId} onChange={e => setCustCityId(e.target.value)}
-            className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-white">
-            <option value="">المدينة</option>
-            {custCities.map((c: any) => <option key={c.id} value={c.id}>{c.name_ar || c.name}</option>)}
-          </select>
-          <input type="text" value={custStreet} onChange={e => setCustStreet(e.target.value)}
-            placeholder="الشارع"
-            className="w-full border border-border rounded-lg px-3 py-2 text-sm" />
-          <input type="text" value={custLandmark} onChange={e => setCustLandmark(e.target.value)}
-            placeholder="العلامة المميزة"
-            className="w-full border border-border rounded-lg px-3 py-2 text-sm" />
-          <div>
-            {custLocation.latitude ? (
-              <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-2 flex items-center justify-between">
-                <span className="text-xs text-green-700">✓ تم تحديد الموقع</span>
-                <button type="button" onClick={() => setCustLocation({ latitude: null, longitude: null, accuracyMeters: null })}
-                  className="text-xs text-primary font-semibold">تغيير</button>
-              </div>
-            ) : (
-              <button type="button" onClick={handleCaptureLocation} disabled={custLocating}
-                className="w-full py-2 rounded-lg border-2 border-dashed border-primary/40 text-primary text-xs font-semibold disabled:opacity-50">
-                {custLocating ? 'جاري التحديد...' : '📍 الموقع الجغرافي'}
-              </button>
-            )}
-          </div>
-          <div>
-            <label className="block text-[10px] font-semibold text-text-secondary mb-1">ربط العميل بـ</label>
-            <select value={custOwnerId} onChange={e => setCustOwnerId(e.target.value)}
-              className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-white">
-              <option value="">نفسي (المدير)</option>
-              {teamMembers.map((m: any) => (
-                <option key={m.employee_id} value={m.employee_id}>{m.employee_name}</option>
-              ))}
-            </select>
-          </div>
-        </form>
+        <CustomerForm
+          mode="modal"
+          onSubmit={handleAddCustomer}
+          onCancel={() => setShowAddCustomer(false)}
+          compact
+          ownerId={custOwnerId}
+          onOwnerChange={setCustOwnerId}
+          teamMembers={teamMembers.map(m => ({ employee_id: m.employee_id, employee_name: m.employee_name }))}
+        />
       </MobileDialog>
 
       {/* Customer Picker Modal */}

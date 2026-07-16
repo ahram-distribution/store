@@ -1,2 +1,2 @@
 export { LoginPage } from './LoginPage'
-export { RegistrationPage } from './RegistrationPage'
+export { default as RegistrationPage } from './RegistrationPage'
