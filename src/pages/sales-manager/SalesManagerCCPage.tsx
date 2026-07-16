@@ -122,6 +122,7 @@ export default function SalesManagerCCPage() {
       {/* Navigation Grid */}
       <div className="grid grid-cols-2 gap-3">
         <NavCard icon="⚙️" label="العمليات التجارية" desc="الطلبات، الزيارات، العملاء" onClick={() => nav('/sales-manager/operations')} />
+        <NavCard icon="⏱️" label="الحضور والانصراف" desc="شاشة مراقبة الحضور والجلسات" onClick={() => nav('/attendance/operations')} />
         <NavCard icon="📑" label="مركز التقارير" desc="تقارير النشاط والتارجت" onClick={() => setShowReportsCenter(true)} />
       </div>
 
