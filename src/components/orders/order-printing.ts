@@ -12,14 +12,16 @@ function esc(s: string | null | undefined): string {
 export function renderPdfHtml(data: UnifiedOrder): string {
   const order = data.order
   const items = data.items
+  const lc = data.customer
+  const useLive = order.status !== 'delivered' && lc
   const now = new Date()
   const statusLabel = ORDER_STATUS_LABELS[order.status] || order.status || 'غير معروف'
   const grandTotal = items.reduce((s, i) => s + Number(i.total_price || 0), 0)
 
-  const customerName = order.snapshot_customer_name || ''
-  const customerCode = order.snapshot_customer_code || ''
-  const customerPhone = order.snapshot_customer_phone || ''
-  const customerAddress = order.snapshot_customer_address || ''
+  const customerName = useLive ? (lc.company_name || '') : (order.snapshot_customer_name || '')
+  const customerCode = useLive ? (lc.code || '') : (order.snapshot_customer_code || '')
+  const customerPhone = useLive ? (lc.phone || '') : (order.snapshot_customer_phone || '')
+  const customerAddress = useLive ? [lc.governorate, lc.city, lc.address_line1, lc.address_line2].filter(Boolean).join(' - ') : (order.snapshot_customer_address || '')
   const ownerName = order.snapshot_owner_name || ''
   const ownerPhone = order.snapshot_owner_phone || ''
   const ownerAddress = order.snapshot_owner_address || ''
@@ -107,11 +109,13 @@ ${itemsTable()}
 export function renderDeliveryPermitHtml(data: UnifiedOrder, logoUrl?: string): string {
   const order = data.order
   const items = data.items
+  const lc = data.customer
+  const useLive = order.status !== 'delivered' && lc
   const now = new Date()
 
-  const customerName = order.snapshot_customer_name || ''
-  const customerPhone = order.snapshot_customer_phone || ''
-  const customerAddress = order.snapshot_customer_address || ''
+  const customerName = useLive ? (lc.company_name || '') : (order.snapshot_customer_name || '')
+  const customerPhone = useLive ? (lc.phone || '') : (order.snapshot_customer_phone || '')
+  const customerAddress = useLive ? [lc.governorate, lc.city, lc.address_line1, lc.address_line2].filter(Boolean).join(' - ') : (order.snapshot_customer_address || '')
   const repName = order.order_creator_name || order.snapshot_sender_name || ''
   const paymentLabel = order.payment_method === 'cash' ? 'نقداً' : order.payment_method === 'credit' ? 'آجل' : order.payment_method || ''
 

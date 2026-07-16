@@ -71,12 +71,12 @@ export function OrderDetailView({ data, actions, onBack, editMode, editItems, on
   }
 
   function handleWhatsApp() {
-    const display = buildOrderDisplayData({ order: data.order as any, items: data.items as any })
+    const display = buildOrderDisplayData({ order: data.order as any, items: data.items as any, liveCustomer: customer })
     sendWhatsAppFromDisplay(display)
   }
 
   function handleCopyMessage() {
-    const display = buildOrderDisplayData({ order: data.order as any, items: data.items as any })
+    const display = buildOrderDisplayData({ order: data.order as any, items: data.items as any, liveCustomer: customer })
     copyWhatsAppFromDisplay(display)
   }
 

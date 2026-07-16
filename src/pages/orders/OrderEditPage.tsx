@@ -389,7 +389,7 @@ export function OrderEditPage() {
         const orderRes = await supabase.rpc('get_unified_order', { p_token: token, p_id: id })
         if (!orderRes.error && orderRes.data && !orderRes.data?.error) {
           const fullOrder = orderRes.data
-          sendWhatsAppFromDisplay(buildOrderDisplayData({ order: fullOrder.order, items: fullOrder.items }))
+          sendWhatsAppFromDisplay(buildOrderDisplayData({ order: fullOrder.order, items: fullOrder.items, liveCustomer: fullOrder.customer }))
         }
       } catch (e) { /* best-effort */ }
     } catch (err: any) {

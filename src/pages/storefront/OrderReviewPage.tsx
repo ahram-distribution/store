@@ -196,7 +196,7 @@ export function OrderReviewPage() {
       const orderRes = await supabase.rpc('get_unified_order', { p_token: token, p_id: order.id })
       if (orderRes.error || !orderRes.data || orderRes.data?.error) throw orderRes.error || new Error('no order')
       const fullOrder = orderRes.data
-      const display = buildOrderDisplayData({ order: fullOrder.order, items: fullOrder.items })
+      const display = buildOrderDisplayData({ order: fullOrder.order, items: fullOrder.items, liveCustomer: fullOrder.customer })
       console.log('ORDER_REVIEW_DISPLAY_DATA', display)
       sendWhatsAppFromDisplay(display)
     } catch (e) { console.error('WHATSAPP_OPEN_FAILED', e) }

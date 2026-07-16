@@ -37,7 +37,7 @@ export class CreateCustomerHandler implements ICommandHandler<CreateCustomerComm
     const phone = createPhoneNumber(command.phone)
     const address = { street: command.street, district: command.district, city: command.city, governorate: command.governorate }
     const creditLimit = createMoney(command.creditLimit)
-    const customer = createCustomer(id, command.companyId, command.customerType, command.tradeName, command.fullName, phone, address, creditLimit)
+    const customer = createCustomer(id, command.companyId, '', command.customerType, command.tradeName, command.fullName, phone, address, creditLimit)
     try {
       await this.customerProvider.registerNewCustomer(customer)
       return success(customer satisfies Customer)

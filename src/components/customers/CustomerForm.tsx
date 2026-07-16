@@ -1,13 +1,12 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../../lib/supabase'
 import { toEnglishDigits } from '../../utils/format'
 import { getCurrentLocation } from '../../services/gpsService'
 import { SearchableSelect } from '../shared/SearchableSelect'
-import { CUSTOMER_BUSINESS_TYPES, CUSTOMER_DEFAULT_PASSWORD, validateCustomerPhone } from '../../lib/customerConstants'
+import { CUSTOMER_BUSINESS_TYPES, validateCustomerPhone } from '../../lib/customerConstants'
 import toast from 'react-hot-toast'
 
 interface Governorate { id: string; name_ar: string }
-interface City { id: string; governorate_id: string; name_ar: string }
 
 export interface CustomerFormData {
   companyName: string
@@ -20,6 +19,7 @@ export interface CustomerFormData {
   latitude: number | null
   longitude: number | null
   accuracyMeters: number | null
+  password?: string
 }
 
 export interface CustomerFormProps {
@@ -31,6 +31,7 @@ export interface CustomerFormProps {
   teamMembers?: Array<{ employee_id: string; employee_name: string }>
   onOwnerChange?: (ownerId: string) => void
   compact?: boolean
+  editMode?: boolean
 }
 
 const EMPTY: CustomerFormData = {
@@ -44,6 +45,7 @@ const EMPTY: CustomerFormData = {
   latitude: null,
   longitude: null,
   accuracyMeters: null,
+  password: '',
 }
 
 export function CustomerForm({
@@ -55,12 +57,12 @@ export function CustomerForm({
   teamMembers,
   onOwnerChange,
   compact = false,
+  editMode = false,
 }: CustomerFormProps) {
   const [form, setForm] = useState<CustomerFormData>({ ...EMPTY, ...initialData })
   const [locating, setLocating] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [governorates, setGovernorates] = useState<Governorate[]>([])
-  const [cities, setCities] = useState<City[]>([])
 
   const set = useCallback(<K extends keyof CustomerFormData>(key: K, val: CustomerFormData[K]) => {
     setForm(prev => ({ ...prev, [key]: val }))
@@ -71,15 +73,6 @@ export function CustomerForm({
       if (data) setGovernorates(data as Governorate[])
     })
   }, [])
-
-  useEffect(() => {
-    if (!form.governorateId) { setCities([]); return }
-    supabase.from('reference_cities').select('id, governorate_id, name_ar').eq('governorate_id', form.governorateId).order('name_ar', { ascending: true }).then(({ data }) => {
-      if (data) setCities(data as City[])
-    })
-  }, [form.governorateId])
-
-  const selectedGov = governorates.find(g => g.id === form.governorateId)
 
   const handleCaptureLocation = async () => {
     setLocating(true)
@@ -139,7 +132,6 @@ export function CustomerForm({
   if (mode === 'registration') {
     return (
       <form onSubmit={handleSubmit} className="space-y-5">
-        {/* Business Information */}
         <div>
           <div className={sectionTitle}>بيانات النشاط</div>
           <div className="h-px bg-gradient-to-r from-primary/30 to-transparent mb-3" />
@@ -164,7 +156,6 @@ export function CustomerForm({
           </div>
         </div>
 
-        {/* Contact Information */}
         <div>
           <div className={sectionTitle}>بيانات المسؤول</div>
           <div className="h-px bg-gradient-to-r from-primary/30 to-transparent mb-3" />
@@ -185,7 +176,6 @@ export function CustomerForm({
           </div>
         </div>
 
-        {/* Address */}
         <div>
           <div className={sectionTitle}>العنوان</div>
           <div className="h-px bg-gradient-to-r from-primary/30 to-transparent mb-3" />
@@ -216,7 +206,6 @@ export function CustomerForm({
           </div>
         </div>
 
-        {/* Location */}
         <div>
           <div className={sectionTitle}>الموقع الجغرافي</div>
           <div className="h-px bg-gradient-to-r from-primary/30 to-transparent mb-3" />
@@ -251,7 +240,7 @@ export function CustomerForm({
     )
   }
 
-  // Internal & Modal modes
+  // Internal, Modal & Edit modes
   return (
     <form onSubmit={handleSubmit} className={compact ? 'space-y-3' : 'space-y-5'}>
       {/* Business Information */}
@@ -301,7 +290,7 @@ export function CustomerForm({
             <SearchableSelect
               options={governorates.map(g => ({ value: g.id, label: g.name_ar }))}
               value={form.governorateId}
-              onChange={v => { set('governorateId', v); set('city', '') }}
+              onChange={v => set('governorateId', v)}
               placeholder="اختر المحافظة..."
             />
           </div>
@@ -345,6 +334,20 @@ export function CustomerForm({
         )}
       </div>
 
+      {/* Password — Edit mode ONLY */}
+      {editMode && (
+        <div>
+          <div className={sectionTitle}>كلمة المرور</div>
+          {!compact && <div className="h-px bg-gradient-to-r from-primary/30 to-transparent mb-3" />}
+          <div>
+            <label className={labelClass}>كلمة المرور الجديدة (اتركها فارغة للإبقاء)</label>
+            <input type="password" placeholder="اتركها فارغة nếu لا تريد التغيير" value={form.password || ''}
+              onChange={e => set('password', e.target.value)}
+              maxLength={6} className={inputClass} />
+          </div>
+        </div>
+      )}
+
       {/* Owner Assignment (modal mode only) */}
       {mode === 'modal' && teamMembers && teamMembers.length > 0 && (
         <div>
@@ -363,7 +366,7 @@ export function CustomerForm({
       <div className={compact ? 'pt-1' : 'pt-2'}>
         <button type="submit" disabled={submitting || !form.companyName.trim()}
           className="w-full bg-primary text-white text-sm py-3 rounded-xl font-bold active:scale-[0.98] transition-all disabled:opacity-40 shadow-lg shadow-primary/20">
-          {submitting ? 'جاري الحفظ...' : 'حفظ'}
+          {submitting ? 'جاري الحفظ...' : (editMode ? 'حفظ التعديلات' : 'حفظ')}
         </button>
         {onCancel && (
           <button type="button" onClick={onCancel}

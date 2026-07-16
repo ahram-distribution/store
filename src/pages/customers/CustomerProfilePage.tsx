@@ -6,7 +6,8 @@ import { formatCurrencyShort, formatDate, formatDateTime } from '../../utils/for
 import { getCustomerState, getCustomerStateLabel, CUSTOMER_STATE_LABELS } from '../../utils/systemStates'
 import { LocationRepository, LocationNormalizationService } from '../../domain/location'
 import { getCurrentLocation } from '../../services/gpsService'
-import { SearchableSelect } from '../../components/shared/SearchableSelect'
+import { CustomerForm } from '../../components/customers/CustomerForm'
+import type { CustomerFormData } from '../../components/customers/CustomerForm'
 import { CustomerAddressCard } from '../../components/customers/CustomerAddressCard'
 import toast from 'react-hot-toast'
 
@@ -478,37 +479,6 @@ export function CustomerProfilePage() {
   const [activeTab, setActiveTab] = useState<Tab>('info')
 
   const [showEdit, setShowEdit] = useState(false)
-  const [editName, setEditName] = useState('')
-  const [editPhone, setEditPhone] = useState('')
-  const [editResponsibleName, setEditResponsibleName] = useState('')
-  const [editBusinessType, setEditBusinessType] = useState('')
-  const [editCreditLimit, setEditCreditLimit] = useState('')
-  const [editCreditDays, setEditCreditDays] = useState('')
-  const [editPassword, setEditPassword] = useState('')
-  const [editConfirmPassword, setEditConfirmPassword] = useState('')
-  const [editFormattedAddress, setEditFormattedAddress] = useState('')
-  const [editContactName, setEditContactName] = useState('')
-  const [editContactPhone, setEditContactPhone] = useState('')
-
-  const [governorates, setGovernorates] = useState<{ id: string; name_ar: string }[]>([])
-  const [cities, setCities] = useState<{ id: string; governorate_id: string; name_ar: string }[]>([])
-  const [editGovernorateId, setEditGovernorateId] = useState('')
-  const [editCityId, setEditCityId] = useState('')
-  const [editStreet, setEditStreet] = useState('')
-  const [editLandmark, setEditLandmark] = useState('')
-
-  useEffect(() => {
-    supabase.from('reference_governorates').select('id, name_ar').order('name_ar', { ascending: true }).then(({ data }) => {
-      if (data) setGovernorates(data as any[])
-    })
-  }, [])
-
-  useEffect(() => {
-    if (!editGovernorateId) { setCities([]); return }
-    supabase.from('reference_cities').select('id, governorate_id, name_ar').eq('governorate_id', editGovernorateId).order('name_ar', { ascending: true }).then(({ data }) => {
-      if (data) setCities(data as any[])
-    })
-  }, [editGovernorateId])
 
   const [locating, setLocating] = useState(false)
 
@@ -588,31 +558,27 @@ export function CustomerProfilePage() {
     [CUSTOMER_STATE_LABELS.new]: 'bg-success/10 text-success',
   }
 
-  async function handleEdit() {
+  async function handleEdit(formData: CustomerFormData) {
     const token = getToken()
-    if (editPassword && editPassword !== editConfirmPassword) { toast.error('كلمة المرور غير متطابقة'); return }
     const { data, error } = await supabase.rpc('governed_update_customer', {
       p_token: token, p_id: id,
-      p_company_name: editName || null,
-      p_phone: editPhone || null,
-      p_responsible_name: editResponsibleName || null,
-      p_business_type: editBusinessType || null,
-      p_credit_limit: editCreditLimit ? parseFloat(editCreditLimit) : null,
-      p_credit_days: editCreditDays ? parseInt(editCreditDays) : null,
-      p_password: editPassword || null,
-      p_formatted_address: editFormattedAddress || null,
-      p_contact_name: editContactName || null,
-      p_contact_phone: editContactPhone || null,
-      p_governorate_id: editGovernorateId || null,
-      p_city_id: editCityId || null,
-      p_street_address: editStreet.trim() || null,
-      p_landmark: editLandmark.trim() || null,
+      p_company_name: formData.companyName.trim() || null,
+      p_phone: formData.phone.trim() || null,
+      p_responsible_name: formData.contactName.trim() || null,
+      p_business_type: formData.businessType || null,
+      p_governorate_id: formData.governorateId || null,
+      p_city_name: formData.city.trim() || null,
+      p_street_address: formData.streetAddress.trim() || null,
+      p_password: formData.password?.trim() || null,
+      p_latitude: formData.latitude,
+      p_longitude: formData.longitude,
+      p_accuracy_meters: formData.accuracyMeters,
     })
     if (error) { toast.error(error.message); return }
     const result = data as any
     if (result.error) { toast.error(result.error); return }
     toast.success('تم تحديث بيانات العميل')
-    setShowEdit(false); setEditPassword(''); setEditConfirmPassword('')
+    setShowEdit(false)
     const custRes = await supabase.rpc('get_governed_customer', { p_token: token, p_id: id })
     if (custRes.data) {
       setCustomer(custRes.data)
@@ -635,11 +601,26 @@ export function CustomerProfilePage() {
     const { latitude, longitude, accuracy } = result.location
     const token = getToken()
     if (!token) { toast.error('جلسة منتهية'); return }
+
+    // Reverse geocode to get formatted_address before saving
+    let formattedAddress: string | null = null
+    try {
+      const resp = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&accept-language=ar`,
+        { headers: { 'User-Agent': 'AhrmStore/1.0' } }
+      )
+      if (resp.ok) {
+        const geo = await resp.json()
+        formattedAddress = geo.display_name || null
+      }
+    } catch { /* best-effort */ }
+
     const { data, error } = await supabase.rpc('governed_update_customer', {
       p_token: token, p_id: id,
       p_latitude: latitude,
       p_longitude: longitude,
       p_accuracy_meters: accuracy,
+      p_formatted_address: formattedAddress,
     })
     if (error) { toast.error(error.message); return }
     const r = data as any
@@ -735,7 +716,7 @@ export function CustomerProfilePage() {
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-bold text-text">بيانات العميل</h3>
               {(canEdit || canManage) && (
-                <button onClick={() => { setShowEdit(true); setEditName(customer.company_name); setEditPhone(customer.phone || ''); setEditResponsibleName(customer.responsible_name || ''); setEditBusinessType(customer.business_type || ''); setEditCreditLimit(String(customer.credit_limit || '')); setEditCreditDays(String(customer.credit_days || '')); setEditPassword(''); setEditConfirmPassword(''); setEditFormattedAddress(location?.formatted_address || ''); const pc = contacts.find((c: any) => c.is_primary); setEditContactName(pc?.full_name || ''); setEditContactPhone(pc?.phone || ''); setEditGovernorateId(customer.governorate_id || ''); setEditCityId(customer.city_id || ''); setEditStreet(customer.street_address || ''); setEditLandmark(customer.landmark || ''); }}
+                <button onClick={() => setShowEdit(true)}
                   className="text-[10px] text-primary font-semibold bg-primary/10 px-2.5 py-1 rounded-lg">تعديل البيانات</button>
               )}
             </div>
@@ -830,43 +811,30 @@ export function CustomerProfilePage() {
           )}
 
           {showEdit && (
-            <div className="bg-white rounded-xl border border-border p-4 space-y-3">
-              <h2 className="text-sm font-bold">تعديل بيانات العميل</h2>
-              <input type="text" value={editName} onChange={(e) => setEditName(e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-sm" />
-              <input type="text" value={editResponsibleName} onChange={(e) => setEditResponsibleName(e.target.value)} placeholder="اسم المسؤول" className="w-full border border-border rounded-lg px-3 py-2 text-sm" />
-              <select value={editBusinessType} onChange={(e) => setEditBusinessType(e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-white">
-                <option value="">-- اختر نوع النشاط --</option>
-                {BUSINESS_TYPES.map((bt) => (
-                  <option key={bt.value} value={bt.value}>{bt.label}</option>
-                ))}
-              </select>
-              <input type="tel" value={editPhone} onChange={(e) => setEditPhone(e.target.value)} placeholder="رقم الهاتف" className="w-full border border-border rounded-lg px-3 py-2 text-sm" dir="ltr" />
-              <input type="number" value={editCreditLimit} onChange={(e) => setEditCreditLimit(e.target.value)} placeholder="الحد الائتماني" className="w-full border border-border rounded-lg px-3 py-2 text-sm" />
-              <input type="number" value={editCreditDays} onChange={(e) => setEditCreditDays(e.target.value)} placeholder="فترة الائتمان (أيام)" className="w-full border border-border rounded-lg px-3 py-2 text-sm" />
-              <div className="border-t border-border/50 pt-3 mt-1">
-                <p className="text-[10px] text-text-secondary mb-2 font-semibold">العنوان المسجل</p>
-                <div className="space-y-2">
-                  <SearchableSelect label="المحافظة" options={governorates.map(g => ({ value: g.id, label: g.name_ar }))} value={editGovernorateId} onChange={setEditGovernorateId} placeholder="اختر المحافظة..." />
-                  <SearchableSelect label="المدينة" options={cities.map(c => ({ value: c.id, label: c.name_ar }))} value={editCityId} onChange={setEditCityId} placeholder={editGovernorateId ? 'اختر المدينة...' : 'اختر المحافظة أولاً'} disabled={!editGovernorateId} />
-                  <input type="text" value={editStreet} onChange={(e) => setEditStreet(e.target.value)} placeholder="الشارع (اختياري)" className="w-full border border-border rounded-lg px-3 py-2 text-sm" />
-                  <input type="text" value={editLandmark} onChange={(e) => setEditLandmark(e.target.value)} placeholder="علامة مميزة (اختياري)" className="w-full border border-border rounded-lg px-3 py-2 text-sm" />
-                </div>
+            <div className="bg-white rounded-xl border border-border p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-sm font-bold">تعديل بيانات العميل</h2>
+                <button onClick={() => setShowEdit(false)} className="text-text-secondary text-lg leading-none">&times;</button>
               </div>
-              <div className="border-t border-border/50 pt-3 mt-1">
-                <p className="text-[10px] text-text-secondary mb-2 font-semibold">العنوان (وصف حر)</p>
-                <textarea value={editFormattedAddress} onChange={(e) => setEditFormattedAddress(e.target.value)} placeholder="العنوان" className="w-full border border-border rounded-lg px-3 py-2 text-sm resize-none" rows={2} />
-              </div>
-              <div className="border-t border-border/50 pt-3">
-                <p className="text-[10px] text-text-secondary mb-2 font-semibold">جهة الاتصال الأساسية</p>
-                <input type="text" value={editContactName} onChange={(e) => setEditContactName(e.target.value)} placeholder="الاسم" className="w-full border border-border rounded-lg px-3 py-2 text-sm" />
-                <input type="tel" value={editContactPhone} onChange={(e) => setEditContactPhone(e.target.value)} placeholder="رقم الهاتف" className="w-full border border-border rounded-lg px-3 py-2 text-sm mt-2" dir="ltr" />
-              </div>
-              <input type="password" value={editPassword} onChange={(e) => setEditPassword(e.target.value)} placeholder="كلمة المرور الجديدة (اختياري)" className="w-full border border-border rounded-lg px-3 py-2 text-sm" maxLength={6} />
-              <input type="password" value={editConfirmPassword} onChange={(e) => setEditConfirmPassword(e.target.value)} placeholder="تأكيد كلمة المرور الجديدة" className="w-full border border-border rounded-lg px-3 py-2 text-sm" maxLength={6} />
-              <div className="flex gap-2">
-                <button onClick={handleEdit} className="flex-1 bg-primary text-white text-xs py-2 rounded-lg">حفظ</button>
-                <button onClick={() => setShowEdit(false)} className="px-4 border border-border rounded-lg text-xs">إلغاء</button>
-              </div>
+              <CustomerForm
+                mode="internal"
+                editMode
+                compact
+                onSubmit={handleEdit}
+                onCancel={() => setShowEdit(false)}
+                initialData={{
+                  companyName: customer.company_name || '',
+                  phone: customer.phone || '',
+                  contactName: customer.responsible_name || '',
+                  businessType: customer.business_type || '',
+                  governorateId: customer.governorate_id || '',
+                  city: customer.city_name || '',
+                  streetAddress: customer.street_address || '',
+                  latitude: location?.latitude ?? null,
+                  longitude: location?.longitude ?? null,
+                  accuracyMeters: location?.accuracy_meters ?? null,
+                }}
+              />
             </div>
           )}
 
