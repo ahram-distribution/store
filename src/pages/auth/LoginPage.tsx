@@ -31,24 +31,11 @@ export function LoginPage() {
   const [phone, setPhone] = useState('')
   const [password, setPassword] = useState('')
   const [submitting, setSubmitting] = useState(false)
-  const [deferredPrompt, setDeferredPrompt] = useState<Event | null>(null)
   const [showContactSheet, setShowContactSheet] = useState(false)
   const [showInstallDialog, setShowInstallDialog] = useState(false)
   const phoneRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => { phoneRef.current?.focus() }, [])
-
-  useEffect(() => {
-    const handler = (e: Event) => { e.preventDefault(); setDeferredPrompt(e) }
-    window.addEventListener('beforeinstallprompt', handler)
-    return () => window.removeEventListener('beforeinstallprompt', handler)
-  }, [])
-
-  useEffect(() => {
-    const handler = () => setDeferredPrompt(null)
-    window.addEventListener('appinstalled', handler)
-    return () => window.removeEventListener('appinstalled', handler)
-  }, [])
 
   const { sessionExpired, clearSessionExpired } = useAuthStore()
   useEffect(() => {
@@ -59,12 +46,7 @@ export function LoginPage() {
   }, [sessionExpired, clearSessionExpired])
 
   const handleInstallClick = () => {
-    if (deferredPrompt) {
-      ;(deferredPrompt as any).prompt()
-      ;(deferredPrompt as any).userChoice.then(() => setDeferredPrompt(null))
-    } else {
-      setShowInstallDialog(true)
-    }
+    setShowInstallDialog(true)
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -326,14 +308,12 @@ export function LoginPage() {
             <div style={{ textAlign: 'center' }}>
               <div style={{ color: '#E0B85A', fontSize: 16, fontWeight: 700 }}>{'\u2B07'} تثبيت التطبيق</div>
               <div style={{ color: '#9ca3af', fontSize: 13, marginTop: 16, lineHeight: 1.6 }}>
-                {isAndroid && !deferredPrompt ? (
+                {isAndroid ? (
                   'افتح قائمة المتصفح ثم اختر\nإضافة إلى الشاشة الرئيسية'
                 ) : isIPhone ? (
                   'اضغط مشاركة\nثم إضافة إلى الشاشة الرئيسية'
-                ) : !deferredPrompt ? (
-                  'استخدم خيار\nInstall App أو Add To Desktop\nحسب إمكانيات المتصفح'
                 ) : (
-                  'يمكنك تثبيت التطبيق\nللوصول السريع من الشاشة الرئيسية'
+                  'استخدم خيار\nInstall App أو Add To Desktop\nحسب إمكانيات المتصفح'
                 )}
               </div>
               <button
