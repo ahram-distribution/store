@@ -373,7 +373,10 @@ self.addEventListener('fetch', (event) => {
           caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone))
         }
         return response
-      }).catch(() => cached || new Response('Offline', { status: 503 }))
+      }).catch(() => {
+        console.warn(`[SW] Offline: ${event.request.url}`);
+        return new Response(null, { status: 200 });
+      })
     })
   )
 })
