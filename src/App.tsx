@@ -5,7 +5,7 @@ import { AppRoutes } from './routes'
 import { AppLayout } from './layouts/AppLayout'
 import { useAuthStore } from './store/auth'
 import { SplashScreen } from './components/splash/SplashScreen'
-import { InstallBanner } from './components/splash/InstallBanner'
+
 import { OfflinePage } from './components/splash/OfflinePage'
 import { ThemeProvider } from './context/ThemeContext'
 import { notificationService } from './services/notificationService'
@@ -80,7 +80,6 @@ export function App() {
           </AppLayout>
         </ThemeProvider>
       )}
-      <InstallBanner />
       <OfflinePage />
       <Toaster
         position="top-center"
