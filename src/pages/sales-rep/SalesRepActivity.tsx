@@ -2,8 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../store/auth'
-
-type Period = 'day' | 'yesterday' | 'week' | 'month' | 'custom'
+import { salesRepRange, type SalesRepPeriod } from '../../lib/dateRange'
 
 function fmt(n: number | null | undefined): string {
   if (n == null) return '\u2014'
@@ -11,79 +10,61 @@ function fmt(n: number | null | undefined): string {
   return n.toLocaleString('ar-EG-u-nu-latn', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
+function getToken(): string | null {
+  try { return localStorage.getItem('session_token') } catch { return null }
+}
+
 export function SalesRepActivity() {
   const nav = useNavigate()
   const user = useAuthStore((s) => s.user)
-  const [period, setPeriod] = useState<Period>('day')
+  const [period, setPeriod] = useState<SalesRepPeriod>('day')
   const [customFrom, setCustomFrom] = useState('')
   const [customTo, setCustomTo] = useState('')
-  const [data, setData] = useState<any>(null)
+  const [data, setData] = useState<{ sales: number; orders: number; visits: number; customers: number } | null>(null)
   const [loading, setLoading] = useState(false)
-
-  function getRange(): { from: string; to: string } {
-    const now = new Date()
-    switch (period) {
-      case 'day':
-        return {
-          from: new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString(),
-          to: new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).toISOString(),
-        }
-      case 'yesterday': {
-        const yes = new Date(now)
-        yes.setDate(yes.getDate() - 1)
-        yes.setHours(0, 0, 0, 0)
-        const end = new Date(now)
-        end.setDate(end.getDate())
-        end.setHours(0, 0, 0, 0)
-        return { from: yes.toISOString(), to: end.toISOString() }
-      }
-      case 'week': {
-        const start = new Date(now)
-        start.setDate(start.getDate() - start.getDay() + 1)
-        start.setHours(0, 0, 0, 0)
-        const end = new Date(start)
-        end.setDate(end.getDate() + 7)
-        return { from: start.toISOString(), to: end.toISOString() }
-      }
-      case 'month':
-        return {
-          from: new Date(now.getFullYear(), now.getMonth(), 1).toISOString(),
-          to: new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString(),
-        }
-      case 'custom':
-        return { from: customFrom || new Date(0).toISOString(), to: customTo || now.toISOString() }
-    }
-  }
 
   useEffect(() => {
     const eid = user?.employee_id
     if (!eid) return
+    const tok = getToken()
+    if (!tok) return
     setLoading(true)
-    const { from, to } = getRange()
+    const { from, to } = salesRepRange(period, customFrom || undefined, customTo || undefined)
     supabase
-      .rpc('get_runtime_activity', {
+      .rpc('get_employee_detail_data', {
+        p_token: tok,
         p_employee_id: eid,
-        p_date_from: from,
-        p_date_to: to,
+        p_from: from,
+        p_to: to,
       })
       .then(({ data: d, error }) => {
         if (error) console.error(error)
-        else setData(d)
+        else if (d) {
+          const detail = d as any
+          const orders = Array.isArray(detail.orders) ? detail.orders : []
+          const visits = Array.isArray(detail.visits) ? detail.visits : []
+          const customers = Array.isArray(detail.customers) ? detail.customers : []
+          setData({
+            sales: orders.reduce((sum: number, o: any) => sum + (Number(o.total_amount) || 0), 0),
+            orders: orders.length,
+            visits: visits.length,
+            customers: customers.length,
+          })
+        }
       })
       .finally(() => setLoading(false))
   }, [period, customFrom, customTo, user?.employee_id])
 
-  const d = data as any
-  const items = d
+  const items = data
     ? [
-        { label: 'المبيعات المنشأة', value: d.created_sales, icon: '💰', isCurrency: true },
-        { label: 'الطلبات المنشأة', value: d.created_orders, icon: '📋' },
-        { label: 'الزيارات المكتملة', value: d.completed_visits, icon: '📍' },
-        { label: 'العملاء المسجلون', value: d.registered_customers, icon: '👤' },
+        { label: 'المبيعات المنشأة', value: data.sales, icon: '💰', isCurrency: true },
+        { label: 'الطلبات المنشأة', value: data.orders, icon: '📋' },
+        { label: 'الزيارات المكتملة', value: data.visits, icon: '📍' },
+        { label: 'العملاء المسجلون', value: data.customers, icon: '👤' },
       ]
     : []
 
-  const PERIODS: { key: Period; label: string }[] = [
+  const PERIODS: { key: SalesRepPeriod; label: string }[] = [
     { key: 'day', label: 'اليوم' },
     { key: 'yesterday', label: 'أمس' },
     { key: 'week', label: 'الأسبوع' },
@@ -152,7 +133,7 @@ export function SalesRepActivity() {
         )}
 
         {/* KPI Cards */}
-        {!loading && d && (
+        {!loading && data && (
           <div className="grid grid-cols-2 gap-4">
             {items.map((item: any) => (
               <div
@@ -166,37 +147,6 @@ export function SalesRepActivity() {
                 <div className="text-sm text-gray-500 mt-1">{item.label}</div>
               </div>
             ))}
-          </div>
-        )}
-
-        {/* Excluded events */}
-        {!loading && d?.excluded_events && (
-          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-amber-600 text-lg">⚠️</span>
-              <span className="font-semibold text-amber-800 text-sm">أحداث مستبعدة</span>
-            </div>
-            <div className="text-xs text-amber-700 space-y-1">
-              {Object.entries(d.excluded_events)
-                .filter(([_, v]) => (v as number) > 0)
-                .map(([key, val]) => (
-                  <div key={key} className="flex justify-between">
-                    <span>{key === 'order_delivered' ? 'طلبات مسلمة بدون تاريخ' : key}</span>
-                    <span className="font-bold">{fmt(val as number)}</span>
-                  </div>
-                ))}
-              {Object.values(d.excluded_events as Record<string, number>).every((v) => v === 0) && (
-                <span className="text-green-700">لا توجد أحداث مستبعدة ✅</span>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Source of truth note */}
-        {!loading && d && (
-          <div className="text-center text-[10px] text-gray-400">
-            المصدر: Runtime V2 — {d.meta?.source} | {d.meta?.date_from?.slice(0, 10)} →{' '}
-            {d.meta?.date_to?.slice(0, 10)}
           </div>
         )}
       </div>

@@ -42,7 +42,7 @@ export function DashboardPage() {
     return <WarehouseDashboard />
   }
 
-  if (empCode === 'REP-001') {
+  if (roles.includes('مشرف تنفيذي')) {
     return <ExecutiveOperationsWorkspace />
   }
 

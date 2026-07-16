@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { targetService } from '../../services/targets'
 import { attendanceService } from '../../services/attendance'
+import { computeDateRange as sharedComputeDateRange } from '../../lib/dateRange'
 
 import { KpiDrillDownModal } from '../../components/KpiDrillDownModal'
 import TrackingExplorerModal from '../../components/TrackingExplorerModal'
@@ -140,12 +141,23 @@ function getStatusLabel(pct: number | null | undefined): { label: string; color:
 }
 
 function getDateRange(period: PeriodType): { from: string; to: string } {
-  const now = new Date(); const y = now.getFullYear(); const m = now.getMonth(); const d = now.getDate()
   switch (period) {
-    case 'today': return { from: new Date(y, m, d).toISOString().slice(0, 10), to: new Date(y, m, d + 1).toISOString().slice(0, 10) }
-    case 'week': { const dow = now.getDay(); const sun = new Date(y, m, d - dow); const sat = new Date(y, m, d + (6 - dow)); return { from: sun.toISOString().slice(0, 10), to: new Date(sat.getFullYear(), sat.getMonth(), sat.getDate() + 1).toISOString().slice(0, 10) } }
-    case 'month': return { from: new Date(y, m, 1).toISOString().slice(0, 10), to: new Date(y, m + 1, 1).toISOString().slice(0, 10) }
-    case 'previous_month': { const pm = new Date(y, m - 1, 1); return { from: new Date(pm.getFullYear(), pm.getMonth(), 1).toISOString().slice(0, 10), to: new Date(y, m, 1).toISOString().slice(0, 10) } }
+    case 'today': {
+      const { dateFrom, dateTo } = sharedComputeDateRange('today')
+      return { from: dateFrom.slice(0, 10), to: dateTo.slice(0, 10) }
+    }
+    case 'week': {
+      const { dateFrom, dateTo } = sharedComputeDateRange('week')
+      return { from: dateFrom.slice(0, 10), to: dateTo.slice(0, 10) }
+    }
+    case 'month': {
+      const { dateFrom, dateTo } = sharedComputeDateRange('month')
+      return { from: dateFrom.slice(0, 10), to: dateTo.slice(0, 10) }
+    }
+    case 'previous_month': {
+      const { dateFrom, dateTo } = sharedComputeDateRange('prev_month')
+      return { from: dateFrom.slice(0, 10), to: dateTo.slice(0, 10) }
+    }
     default: return { from: '', to: '' }
   }
 }
@@ -1228,7 +1240,7 @@ ${getContent()}
           {(['today', 'week', 'month', 'previous_month', 'custom'] as PeriodType[]).map((p) => (
             <button key={p} onClick={() => setPeriod(p)}
               className={`flex-1 text-[11px] py-1.5 rounded-md font-semibold transition-colors ${period === p ? 'bg-primary text-white' : 'text-text-secondary hover:text-text'}`}>
-              {p === 'today' ? 'اليوم' : p === 'week' ? 'الأسبوع' : p === 'month' ? 'الشهر' : p === 'previous_month' ? 'الشهر الماضي' : 'مخصص'}
+              {p === 'today' ? 'اليوم' : p === 'week' ? 'الأسبوع الحالي' : p === 'month' ? 'الشهر الحالي' : p === 'previous_month' ? 'الشهر السابق' : 'فترة مخصصة'}
             </button>
           ))}
         </div>

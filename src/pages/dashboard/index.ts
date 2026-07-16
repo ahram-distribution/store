@@ -1,7 +1,4 @@
 export { DashboardPage } from './DashboardPage'
-export { AdminWorkspace } from './AdminWorkspace'
-export { SuperAdminWorkspace } from './SuperAdminWorkspace'
-export { ChairmanWorkspace } from './ChairmanWorkspace'
 export { SalesDirectorWorkspace } from './SalesDirectorWorkspace'
 export { AccountantWorkspace } from './AccountantWorkspace'
 export { WarehouseManagerWorkspace } from './WarehouseManagerWorkspace'

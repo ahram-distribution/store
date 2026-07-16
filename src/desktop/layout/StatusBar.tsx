@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react'
 import { useDesktopStore } from '../store/desktopStore'
+import { useAuthStore } from '../../store/auth'
 
 export function StatusBar() {
   const [clock, setClock] = useState(new Date())
   const selectedRows = useDesktopStore((s) => s.selectedRows)
   const activeTab = useDesktopStore((s) => s.activeTab)
   const wsState = useDesktopStore((s) => s.workspaceState)
+  const user = useAuthStore((s) => s.user)
 
   useEffect(() => {
     const timer = setInterval(() => setClock(new Date()), 30000)
@@ -80,7 +82,7 @@ export function StatusBar() {
         </span>
         <span style={{ opacity: 0.5 }}>|</span>
         <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-          REP-001
+          {user?.code || '---'}
         </span>
         <span style={{ opacity: 0.5 }}>|</span>
         <span>

@@ -10,6 +10,7 @@ import { lifeSignalService } from '../../services/lifeSignalService'
 import SmartFilterBar, { type FilterValues } from '../../components/SmartFilterBar'
 import toast from 'react-hot-toast'
 import { usePersistentViewState } from '../../hooks/usePersistentViewState'
+import { resolveDateRangeISO } from '../../lib/dateRange'
 
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
@@ -48,28 +49,8 @@ export function VisitsPage() {
 
   const resolveDateRange = (f: FilterValues): { from: string | null; to: string | null } => {
     if (f.datePreset === 'all') return { from: null, to: null }
-    const now = new Date()
-    const startOfDay = (d: Date) => { d.setHours(0, 0, 0, 0); return d.toISOString() }
-    const endOfDay = (d: Date) => { d.setHours(23, 59, 59, 999); return d.toISOString() }
-    switch (f.datePreset) {
-      case 'today': return { from: startOfDay(new Date()), to: endOfDay(new Date()) }
-      case 'yesterday': {
-        const y = new Date(); y.setDate(y.getDate() - 1)
-        return { from: startOfDay(y), to: endOfDay(y) }
-      }
-      case 'week': {
-        const wk = new Date(); wk.setDate(wk.getDate() - wk.getDay())
-        return { from: startOfDay(wk), to: endOfDay(new Date()) }
-      }
-      case 'month': return { from: startOfDay(new Date(now.getFullYear(), now.getMonth(), 1)), to: endOfDay(new Date()) }
-      case 'prev_month': {
-        const pm = new Date(now.getFullYear(), now.getMonth() - 1, 1)
-        const pe = new Date(now.getFullYear(), now.getMonth(), 0)
-        return { from: startOfDay(pm), to: endOfDay(pe) }
-      }
-      case 'custom': return { from: f.dateFrom ? startOfDay(new Date(f.dateFrom)) : null, to: f.dateTo ? endOfDay(new Date(f.dateTo)) : null }
-      default: return { from: null, to: null }
-    }
+    if (f.datePreset === 'custom') return resolveDateRangeISO('custom', f.dateFrom || undefined, f.dateTo || undefined)
+    return resolveDateRangeISO(f.datePreset as any)
   }
 
   const fetchVisits = async () => {

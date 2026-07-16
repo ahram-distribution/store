@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../store/auth'
+import { monthRange as bizMonthRange } from '../../lib/dateRange'
 
 const MONTHS = ['يناير', 'فبراير', 'مارس', 'إبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر']
 
@@ -47,12 +48,16 @@ function saveMonth(month: number, year: number) {
   try { sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ month, year })) } catch {}
 }
 
+function getToken(): string | null {
+  try { return localStorage.getItem('session_token') } catch { return null }
+}
+
 export function MonthlyActivity({ scope, managerEmployeeId }: MonthlyActivityProps) {
   const user = useAuthStore((s) => s.user)
   const saved = loadSavedMonth()
   const [month, setMonthState] = useState(saved.month)
   const [year, setYearState] = useState(saved.year)
-  const [data, setData] = useState<any>(null)
+  const [totals, setTotals] = useState({ sales: 0, orders: 0, visits: 0, customers: 0 })
   const [loading, setLoading] = useState(true)
 
   const now = new Date()
@@ -69,65 +74,99 @@ export function MonthlyActivity({ scope, managerEmployeeId }: MonthlyActivityPro
   for (let y = currentYear - 5; y <= currentYear; y++) yearOptions.push(y)
 
   function getDateRange() {
-    const from = new Date(year, month - 1, 1).toISOString()
-    const to = month === currentMonth && year === currentYear
-      ? now.toISOString()
-      : new Date(year, month, 1).toISOString()
-    return { from, to }
+    return bizMonthRange(month, year)
   }
 
   useEffect(() => {
     const { from, to } = getDateRange()
-    setLoading(true)
-    setData(null)
+    const tok = getToken()
+    if (!tok) { setLoading(false); return }
 
-    if (scope === 'personal') {
-      const eid = user?.employee_id
-      if (!eid) { setLoading(false); return }
-      supabase.rpc('get_runtime_activity', {
-        p_employee_id: eid,
-        p_date_from: from,
-        p_date_to: to,
-      }).then(({ data: d, error }) => {
-        if (!error && d) setData(d)
-      }).finally(() => setLoading(false))
-    } else {
-      const params: Record<string, any> = { p_date_from: from, p_date_to: to }
-      if (scope === 'company') {
-        params.p_manager_employee_id = null
+    setLoading(true)
+    setTotals({ sales: 0, orders: 0, visits: 0, customers: 0 })
+
+    let cancelled = false
+
+    async function fetch() {
+      if (scope === 'personal') {
+        const eid = user?.employee_id
+        if (!eid) { if (!cancelled) setLoading(false); return }
+        const { data: d, error } = await supabase.rpc('get_employee_detail_data', {
+          p_token: tok,
+          p_employee_id: eid,
+          p_from: from,
+          p_to: to,
+        })
+        if (cancelled) return
+        if (!error && d) {
+          const detail = d as any
+          const orders = Array.isArray(detail.orders) ? detail.orders : []
+          const visits = Array.isArray(detail.visits) ? detail.visits : []
+          const customers = Array.isArray(detail.customers) ? detail.customers : []
+          setTotals({
+            sales: orders.reduce((sum: number, o: any) => sum + (Number(o.total_amount) || 0), 0),
+            orders: orders.length,
+            visits: visits.length,
+            customers: customers.length,
+          })
+        }
       } else {
-        params.p_manager_employee_id = managerEmployeeId || user?.employee_id || null
+        const managerId = scope === 'company'
+          ? null
+          : (managerEmployeeId || user?.employee_id || null)
+
+        const { data: empData } = await supabase.rpc('get_governed_employees', { p_token: tok })
+        if (cancelled) return
+        if (!empData || !Array.isArray(empData)) { setLoading(false); return }
+
+        let employeeIds: string[]
+        if (scope === 'company') {
+          employeeIds = empData.map((e: any) => e.id as string)
+        } else {
+          const members = empData.filter((e: any) => e.manager_id === managerId)
+          employeeIds = members.map((e: any) => e.id as string)
+          if (managerId) employeeIds.push(managerId)
+        }
+
+        const results = await Promise.all(
+          employeeIds.map(async (eid) => {
+            const { data: d } = await supabase.rpc('get_employee_detail_data', {
+              p_token: tok,
+              p_employee_id: eid,
+              p_from: from,
+              p_to: to,
+            })
+            return d
+          })
+        )
+        if (cancelled) return
+
+        let totalSales = 0, totalOrders = 0, totalVisits = 0, totalCustomers = 0
+        for (const d of results) {
+          if (!d) continue
+          const detail = d as any
+          const orders = Array.isArray(detail.orders) ? detail.orders : []
+          const visits = Array.isArray(detail.visits) ? detail.visits : []
+          const customers = Array.isArray(detail.customers) ? detail.customers : []
+          totalSales += orders.reduce((sum: number, o: any) => sum + (Number(o.total_amount) || 0), 0)
+          totalOrders += orders.length
+          totalVisits += visits.length
+          totalCustomers += customers.length
+        }
+        setTotals({ sales: totalSales, orders: totalOrders, visits: totalVisits, customers: totalCustomers })
       }
-      supabase.rpc('get_runtime_team_activity', params).then(({ data: d, error }) => {
-        if (!error && d) setData(d)
-      }).finally(() => setLoading(false))
+      if (!cancelled) setLoading(false)
     }
+
+    fetch()
+    return () => { cancelled = true }
   }, [month, year, scope, managerEmployeeId, user?.employee_id])
 
-  let totalSales = 0
-  let totalVisits = 0
-  let totalOrders = 0
-  let totalCustomers = 0
-
-  if (scope === 'personal' && data) {
-    totalSales = data.created_sales || 0
-    totalOrders = data.created_orders || 0
-    totalVisits = data.completed_visits || 0
-    totalCustomers = data.registered_customers || 0
-  } else if (Array.isArray(data)) {
-    for (const m of data) {
-      totalSales += m.sales || 0
-      totalOrders += m.orders || 0
-      totalVisits += m.completed_visits || 0
-      totalCustomers += m.registered_customers || 0
-    }
-  }
-
   const formattedValues = [
-    fmt(Math.round(totalSales)),
-    fmt(totalVisits),
-    fmt(totalOrders),
-    fmt(totalCustomers),
+    fmt(Math.round(totals.sales)),
+    fmt(totals.visits),
+    fmt(totals.orders),
+    fmt(totals.customers),
   ]
 
   const KPIS = [

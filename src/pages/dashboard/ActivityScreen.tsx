@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../store/auth'
 import { getEffectiveRole, type EffectiveRole } from '../../utils/hierarchyFilter'
+import { monthRange as bizMonthRange } from '../../lib/dateRange'
 
 const MONTHS = ['يناير', 'فبراير', 'مارس', 'إبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر']
 
@@ -17,11 +18,19 @@ function fmtMoney(n: number | null | undefined): string {
   return Math.round(n).toLocaleString('ar-EG-u-nu-latn')
 }
 
-function monthRange(month: number, year: number) {
-  return {
-    from: new Date(year, month - 1, 1).toISOString(),
-    to: new Date(year, month, 1).toISOString(),
-  }
+function getToken(): string | null {
+  try { return localStorage.getItem('session_token') } catch { return null }
+}
+
+interface EmployeeRow {
+  employee_id: string
+  full_name: string
+  code: string
+  is_manager?: boolean
+  sales: number
+  orders: number
+  completed_visits: number
+  registered_customers: number
 }
 
 type ViewLevel = 'company' | 'managers' | 'team' | 'rep'
@@ -37,6 +46,31 @@ type Props = {
   month?: number
   year?: number
   embedded?: boolean
+}
+
+async function fetchDetailForEmployee(tok: string, eid: string, from: string, to: string): Promise<EmployeeRow | null> {
+  const { data: d } = await supabase.rpc('get_employee_detail_data', {
+    p_token: tok, p_employee_id: eid, p_from: from, p_to: to,
+  })
+  if (!d) return null
+  const detail = d as any
+  const orders = Array.isArray(detail.orders) ? detail.orders : []
+  const visits = Array.isArray(detail.visits) ? detail.visits : []
+  const customers = Array.isArray(detail.customers) ? detail.customers : []
+  return {
+    employee_id: eid,
+    full_name: detail.employee_name || '',
+    code: detail.employee_code || '',
+    sales: orders.reduce((sum: number, o: any) => sum + (Number(o.total_amount) || 0), 0),
+    orders: orders.length,
+    completed_visits: visits.length,
+    registered_customers: customers.length,
+  }
+}
+
+async function fetchGovernedEmployees(tok: string): Promise<any[]> {
+  const { data } = await supabase.rpc('get_governed_employees', { p_token: tok })
+  return Array.isArray(data) ? data : []
 }
 
 export default function ActivityScreen({ month: propMonth, year: propYear, embedded }: Props = {}) {
@@ -57,12 +91,12 @@ export default function ActivityScreen({ month: propMonth, year: propYear, embed
   const [viewRepId, setViewRepId] = useState<string | null>(null)
   const [viewRepName, setViewRepName] = useState('')
 
-  const [members, setMembers] = useState<any[]>([])
-  const [repData, setRepData] = useState<any>(null)
+  const [members, setMembers] = useState<EmployeeRow[]>([])
+  const [repData, setRepData] = useState<EmployeeRow | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  const { from, to } = monthRange(month, year)
+  const { from, to } = bizMonthRange(month, year)
 
   function getTitle(): string {
     if (role === 'rep' || viewLevel === 'rep') return `نشاط ${viewRepName || user?.full_name || ''}`
@@ -74,72 +108,69 @@ export default function ActivityScreen({ month: propMonth, year: propYear, embed
   useEffect(() => {
     const eid = user?.employee_id
     if (!eid) { setLoading(false); return }
+    const tok = getToken()
+    if (!tok) { setLoading(false); return }
 
     setLoading(true)
     setError('')
 
-    if (role === 'rep') {
-      supabase.rpc('get_runtime_activity', { p_employee_id: eid, p_date_from: from, p_date_to: to })
-        .then(({ data, error: err }) => {
-          if (err) { console.error(err); setError(err.message) } else setRepData(data)
-          setMembers([])
-        })
-        .finally(() => setLoading(false))
-    } else if (role === 'executive' && (viewLevel === 'company' || viewLevel === 'managers')) {
-      supabase.rpc('get_runtime_team_activity', { p_manager_employee_id: null, p_date_from: from, p_date_to: to })
-        .then(({ data, error: err }) => {
-          if (err) { console.error(err); setError(err.message) }
-          else setMembers((data as any[]) || [])
-          setRepData(null)
-        })
-        .finally(() => setLoading(false))
-    } else if ((role === 'executive' && viewLevel === 'team') || role === 'manager') {
-      const mgrId = viewMgrId || eid
-      const mgrName = viewMgrName || user?.full_name || ''
-      Promise.all([
-        supabase.rpc('get_runtime_team_activity', { p_manager_employee_id: mgrId, p_date_from: from, p_date_to: to }),
-        supabase.rpc('get_runtime_activity', { p_employee_id: mgrId, p_date_from: from, p_date_to: to }),
-      ]).then(([teamResult, mgrResult]) => {
-        if (teamResult.error) { console.error(teamResult.error); setError(teamResult.error.message) }
-        else {
-          const team = (teamResult.data as any[]) || []
-          const mgrData = mgrResult.data as any
-          if (mgrData) {
-            const mgrEntry = {
-              employee_id: mgrId,
-              full_name: mgrName,
-              code: '',
-              is_manager: true,
-              sales: mgrData.created_sales || 0,
-              orders: mgrData.created_orders || 0,
-              completed_visits: mgrData.completed_visits || 0,
-              registered_customers: mgrData.registered_customers || 0,
-            }
-            const filtered = team.filter((m: any) => m.employee_id !== mgrId)
-            setMembers([mgrEntry, ...filtered])
-          } else {
-            setMembers(team)
+    let cancelled = false
+
+    async function load() {
+      try {
+        if (role === 'rep') {
+          const row = await fetchDetailForEmployee(tok, eid, from, to)
+          if (!cancelled) { setRepData(row); setMembers([]) }
+        } else if (role === 'executive' && (viewLevel === 'company' || viewLevel === 'managers')) {
+          const governed = await fetchGovernedEmployees(tok)
+          if (cancelled) return
+          const results = await Promise.all(
+            governed.map(async (emp: any) => {
+              const row = await fetchDetailForEmployee(tok, emp.id, from, to)
+              if (row) { row.full_name = row.full_name || emp.full_name; row.code = row.code || emp.code }
+              return row
+            })
+          )
+          if (!cancelled) { setMembers(results.filter(Boolean) as EmployeeRow[]); setRepData(null) }
+        } else if ((role === 'executive' && viewLevel === 'team') || role === 'manager') {
+          const governed = await fetchGovernedEmployees(tok)
+          if (cancelled) return
+          const teamMembers = governed.filter((e: any) => e.manager_id === (viewMgrId || eid))
+          const results = await Promise.all(
+            teamMembers.map(async (emp: any) => {
+              const row = await fetchDetailForEmployee(tok, emp.id, from, to)
+              if (row) { row.full_name = row.full_name || emp.full_name; row.code = row.code || emp.code }
+              return row
+            })
+          )
+          const mgrRow = await fetchDetailForEmployee(tok, eid, from, to)
+          if (mgrRow) {
+            mgrRow.full_name = viewMgrName || user?.full_name || ''
+            mgrRow.is_manager = true
           }
+          if (!cancelled) {
+            const team = (results.filter(Boolean) as EmployeeRow[])
+            setMembers(mgrRow ? [mgrRow, ...team] : team)
+            setRepData(null)
+          }
+        } else if (viewLevel === 'rep') {
+          const row = await fetchDetailForEmployee(tok, viewRepId || eid, from, to)
+          if (!cancelled) { setRepData(row); setMembers([]) }
         }
-        setRepData(null)
-      })
-      .finally(() => setLoading(false))
-    } else if (viewLevel === 'rep') {
-      supabase.rpc('get_runtime_activity', { p_employee_id: viewRepId || eid, p_date_from: from, p_date_to: to })
-        .then(({ data, error: err }) => {
-          if (err) { console.error(err); setError(err.message) } else setRepData(data)
-          setMembers([])
-        })
-        .finally(() => setLoading(false))
-    } else {
-      setLoading(false)
+      } catch (e: any) {
+        if (!cancelled) setError(e.message || 'خطأ غير معروف')
+      }
+      if (!cancelled) setLoading(false)
     }
+
+    load()
+    return () => { cancelled = true }
   }, [month, year, user?.employee_id, viewLevel, viewMgrId, viewRepId])
 
   const companyTotals = useMemo(() => {
     if (viewLevel !== 'company') return null
     let sales = 0, orders = 0, completed_visits = 0, registered_customers = 0
-    members.forEach((m: any) => {
+    members.forEach((m) => {
       sales += m.sales || 0
       orders += m.orders || 0
       completed_visits += m.completed_visits || 0
@@ -151,17 +182,17 @@ export default function ActivityScreen({ month: propMonth, year: propYear, embed
   const managerRows = useMemo(() => {
     if ((viewLevel !== 'company' && viewLevel !== 'managers') || role !== 'executive') return []
     const mgrMap = new Map<string, { name: string; code: string }>()
-    members.forEach((m: any) => {
-      if (m.manager_id) mgrMap.set(m.manager_id, { name: m.manager_name || m.full_name, code: m.manager_code || '' })
+    members.forEach((m) => {
+      if (m.is_manager) mgrMap.set(m.employee_id, { name: m.full_name, code: m.code })
     })
 
     const rows: any[] = []
     for (const [mgrId, mgr] of mgrMap) {
-      const teamMembers = members.filter((m: any) => m.manager_id === mgrId)
+      const teamMembers = members.filter((m) => !m.is_manager)
       if (teamMembers.length === 0) continue
 
       let sales = 0, orders = 0, completed_visits = 0, registered_customers = 0
-      teamMembers.forEach((m: any) => {
+      teamMembers.forEach((m) => {
         sales += m.sales || 0
         orders += m.orders || 0
         completed_visits += m.completed_visits || 0
@@ -217,8 +248,6 @@ export default function ActivityScreen({ month: propMonth, year: propYear, embed
     }
   }
 
-  const d = repData as any
-
   function KpiValue({ value, money }: { value: number | null | undefined; money: boolean }) {
     return <span className="text-sm font-bold text-gray-700">{money ? fmtMoney(value) : fmt(value)}</span>
   }
@@ -261,10 +290,10 @@ export default function ActivityScreen({ month: propMonth, year: propYear, embed
       {loading && <div className="text-center py-12 text-gray-400 text-sm">جاري التحميل...</div>}
       {error && <div className="text-center py-4 text-red-500 text-sm">{error}</div>}
 
-      {!loading && (role === 'rep' || viewLevel === 'rep') && d && (
+      {!loading && (role === 'rep' || viewLevel === 'rep') && repData && (
         <div className="grid grid-cols-2 gap-4 max-w-2xl mx-auto">
           {KPI_LABELS.map((item) => {
-            const val = d[item.key === 'orders' ? 'created_orders' : item.key === 'sales' ? 'created_sales' : item.key]
+            const val = repData[item.key === 'orders' ? 'orders' : item.key === 'sales' ? 'sales' : item.key]
             return (
               <div key={item.key} className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
                 <div className="text-2xl font-bold text-gray-800 tracking-tight">
@@ -330,7 +359,7 @@ export default function ActivityScreen({ month: propMonth, year: propYear, embed
         <>
           <p className="text-xs text-gray-500">فريق {viewMgrName} — {members.length} عضو</p>
           <div className="space-y-2">
-            {members.length > 0 ? members.map((m: any) => (
+            {members.length > 0 ? members.map((m) => (
               <button key={m.employee_id} onClick={() => drillToRep(m.employee_id, m.full_name)}
                 className="w-full bg-white rounded-xl border border-gray-100 p-4 shadow-sm hover:shadow-md transition-all text-right">
                 <div className="flex items-center justify-between">
@@ -352,7 +381,7 @@ export default function ActivityScreen({ month: propMonth, year: propYear, embed
         </>
       )}
 
-      {!loading && d && (
+      {!loading && repData && (
         <div className="text-center text-[10px] text-gray-400">
           {MONTHS[month - 1]} {year}
         </div>

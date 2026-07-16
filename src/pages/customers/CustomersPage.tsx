@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../store/auth'
 import { useCapability } from '../../hooks/useCapability'
+import { computeDateRange, cairoMidnightISO, cairoDateComponents } from '../../lib/dateRange'
 import { usePersistentViewState } from '../../hooks/usePersistentViewState'
 import SmartFilterBar, { type FilterValues } from '../../components/SmartFilterBar'
 import { CustomerCard } from '../../components/customers/CustomerCard'
@@ -29,26 +30,43 @@ export function CustomersPage() {
 
   const resolveDateRange = (f: FilterValues): { from: string | null; to: string | null } => {
     if (f.datePreset === 'all') return { from: null, to: null }
-    const now = new Date()
-    const startOfDay = (d: Date) => { d.setHours(0, 0, 0, 0); return d.toISOString() }
-    const endOfDay = (d: Date) => { d.setHours(23, 59, 59, 999); return d.toISOString() }
+    const nowUtc = new Date()
+    const [y, m, d] = cairoDateComponents(nowUtc)
+    const pad = (n: number) => String(n).padStart(2, '0')
     switch (f.datePreset) {
-      case 'today': return { from: startOfDay(new Date()), to: endOfDay(new Date()) }
+      case 'today': {
+        const from = cairoMidnightISO(y, m, d)
+        return { from, to: nowUtc.toISOString() }
+      }
       case 'yesterday': {
-        const y = new Date(); y.setDate(y.getDate() - 1)
-        return { from: startOfDay(y), to: endOfDay(y) }
+        const yesterday = new Date(y, m - 1, d)
+        yesterday.setDate(yesterday.getDate() - 1)
+        const [yy, ym, yd] = cairoDateComponents(yesterday)
+        const from = cairoMidnightISO(yy, ym, yd)
+        const to = cairoMidnightISO(y, m, d)
+        return { from, to }
       }
       case 'week': {
-        const wk = new Date(); wk.setDate(wk.getDate() - wk.getDay())
-        return { from: startOfDay(wk), to: endOfDay(new Date()) }
+        const { dateFrom, dateTo } = computeDateRange('week')
+        return { from: dateFrom, to: dateTo }
       }
-      case 'month': return { from: startOfDay(new Date(now.getFullYear(), now.getMonth(), 1)), to: endOfDay(new Date()) }
+      case 'month': {
+        const { dateFrom, dateTo } = computeDateRange('month')
+        return { from: dateFrom, to: dateTo }
+      }
       case 'prev_month': {
-        const pm = new Date(now.getFullYear(), now.getMonth() - 1, 1)
-        const pe = new Date(now.getFullYear(), now.getMonth(), 0)
-        return { from: startOfDay(pm), to: endOfDay(pe) }
+        const prevMonth = m === 1 ? 12 : m - 1
+        const prevYear = m === 1 ? y - 1 : y
+        const from = cairoMidnightISO(prevYear, prevMonth, 1)
+        const to = cairoMidnightISO(y, m, 1)
+        return { from, to }
       }
-      case 'custom': return { from: f.dateFrom ? startOfDay(new Date(f.dateFrom)) : null, to: f.dateTo ? endOfDay(new Date(f.dateTo)) : null }
+      case 'custom': {
+        if (!f.dateFrom && !f.dateTo) return { from: null, to: null }
+        const from = f.dateFrom ? cairoMidnightISO(...f.dateFrom.split('-').map(Number) as [number, number, number]) : null
+        const to = f.dateTo ? (() => { const [ty, tm, td] = f.dateTo.split('-').map(Number); const d2 = new Date(cairoMidnightISO(ty, tm, td)); d2.setDate(d2.getDate() + 1); return d2.toISOString() })() : null
+        return { from, to }
+      }
       default: return { from: null, to: null }
     }
   }

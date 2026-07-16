@@ -1,6 +1,7 @@
 import { useState } from 'react'
+import { computeDateRange, cairoDateComponents, cairoMidnightISO } from '../lib/dateRange'
 
-export type PresetKey = 'today' | 'yesterday' | 'last_7' | 'last_30' | 'this_month' | 'prev_month' | 'custom'
+export type PresetKey = 'today' | 'yesterday' | 'week' | 'month' | 'prev_month' | 'custom'
 
 export interface TimeRange {
   from: string
@@ -16,47 +17,41 @@ interface PresetOption {
 const PRESETS: PresetOption[] = [
   { key: 'today', label: 'اليوم' },
   { key: 'yesterday', label: 'أمس' },
-  { key: 'last_7', label: 'آخر 7 أيام' },
-  { key: 'last_30', label: 'آخر 30 يوماً' },
-  { key: 'this_month', label: 'هذا الشهر' },
+  { key: 'week', label: 'الأسبوع الحالي' },
+  { key: 'month', label: 'الشهر الحالي' },
   { key: 'prev_month', label: 'الشهر السابق' },
-  { key: 'custom', label: 'نطاق مخصص' },
+  { key: 'custom', label: 'فترة مخصصة' },
 ]
 
 function computeRange(preset: PresetKey, customFrom: string, customTo: string): TimeRange {
-  const now = new Date()
-  const today = now.toISOString().slice(0, 10)
+  const nowUtc = new Date()
+  const [y, m, d] = cairoDateComponents(nowUtc)
 
   switch (preset) {
-    case 'today':
-      return { from: today, to: today, preset }
+    case 'today': {
+      const from = cairoMidnightISO(y, m, d)
+      return { from, to: from, preset }
+    }
     case 'yesterday': {
-      const d = new Date(); d.setDate(d.getDate() - 1)
-      const y = d.toISOString().slice(0, 10)
-      return { from: y, to: y, preset }
+      const yesterday = new Date(y, m - 1, d)
+      yesterday.setDate(yesterday.getDate() - 1)
+      const from = cairoMidnightISO(yesterday.getFullYear(), yesterday.getMonth() + 1, yesterday.getDate())
+      return { from, to: from, preset }
     }
-    case 'last_7': {
-      const d = new Date(); d.setDate(d.getDate() - 6)
-      return { from: d.toISOString().slice(0, 10), to: today, preset }
+    case 'week': {
+      const { dateFrom, dateTo } = computeDateRange('week')
+      return { from: dateFrom, to: dateTo, preset }
     }
-    case 'last_30': {
-      const d = new Date(); d.setDate(d.getDate() - 29)
-      return { from: d.toISOString().slice(0, 10), to: today, preset }
-    }
-    case 'this_month': {
-      const d = new Date()
-      const first = new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10)
-      return { from: first, to: today, preset }
+    case 'month': {
+      const { dateFrom, dateTo } = computeDateRange('month')
+      return { from: dateFrom, to: dateTo, preset }
     }
     case 'prev_month': {
-      const d = new Date()
-      const y = d.getFullYear(); const m = d.getMonth()
-      const first = new Date(y, m - 1, 1).toISOString().slice(0, 10)
-      const last = new Date(y, m, 0).toISOString().slice(0, 10)
-      return { from: first, to: last, preset }
+      const { dateFrom, dateTo } = computeDateRange('prev_month')
+      return { from: dateFrom, to: dateTo, preset }
     }
     case 'custom':
-      return { from: customFrom || today, to: customTo || today, preset }
+      return { from: customFrom || cairoMidnightISO(y, m, d), to: customTo || cairoMidnightISO(y, m, d), preset }
   }
 }
 
@@ -129,19 +124,13 @@ export default function TimeRangeFilter({ value, onChange }: TimeRangeFilterProp
 }
 
 export function todayRange(): TimeRange {
-  const t = new Date().toISOString().slice(0, 10)
-  return { from: t, to: t, preset: 'today' }
+  return computeRange('today', '', '')
 }
 
 export function thisMonthRange(): TimeRange {
-  const now = new Date()
-  const first = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10)
-  const today = now.toISOString().slice(0, 10)
-  return { from: first, to: today, preset: 'this_month' }
+  return computeRange('month', '', '')
 }
 
 export function last30Range(): TimeRange {
-  const now = new Date()
-  const d = new Date(); d.setDate(d.getDate() - 29)
-  return { from: d.toISOString().slice(0, 10), to: now.toISOString().slice(0, 10), preset: 'last_30' }
+  return computeRange('month', '', '')
 }

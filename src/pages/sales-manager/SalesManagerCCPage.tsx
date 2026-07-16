@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
-import { formatCurrencyShort } from '../../utils/format'
 import { MobileDialog } from '../../components/shared/MobileDialog'
 import { useAuthStore } from '../../store/auth'
 import { MonthlyActivity } from '../../components/activity/MonthlyActivity'
@@ -14,8 +13,6 @@ function getToken(): string | null {
 }
 
 const fmt = (n: number) => Number.isFinite(n) ? n.toLocaleString('ar-EG-u-nu-latn') : '0'
-const fmtPct = (n: number) => Number.isFinite(n) ? n.toFixed(1) + '%' : '0.0%'
-const pctColor = (pct: number) => pct >= 100 ? 'text-success' : pct >= 50 ? 'text-warning' : 'text-red-500'
 
 interface SalesManagerCC {
   team_overview: { member_count: number; active_today: number; customer_count: number }
@@ -36,6 +33,7 @@ interface SalesManagerCC {
 
 export default function SalesManagerCCPage() {
   const nav = useNavigate()
+  const [showReportsCenter, setShowReportsCenter] = useState(false)
   const [data, setData] = useState<SalesManagerCC | null>(null)
   const [loading, setLoading] = useState(true)
   const user = useAuthStore((s) => s.user)
@@ -80,8 +78,7 @@ export default function SalesManagerCCPage() {
   if (loading) return <div className="text-center py-12 text-text-secondary text-sm">جاري التحميل...</div>
   if (!data) return <div className="text-center py-12 text-text-secondary text-sm">لا توجد بيانات</div>
 
-  const { team_overview: tov, attendance: att, team_performance: tp } = data
-  const tt = tp?.team_targets
+  const { team_overview: tov, attendance: att } = data
 
   return (
     <div className="space-y-4">
@@ -104,59 +101,50 @@ export default function SalesManagerCCPage() {
       {/* Team Overview Cards */}
       <div className="grid grid-cols-3 gap-3">
         <OverviewCard label="أعضاء الفريق" value={fmt(tov?.member_count ?? 0)} icon="👥" onClick={() => nav('/sales-manager/targets')} />
-        <OverviewCard label="نشط اليوم" value={fmt(tov?.active_today ?? 0)} icon="✅" onClick={() => nav('/sales-manager/field')} />
+        <OverviewCard label="نشط اليوم" value={fmt(tov?.active_today ?? 0)} icon="✅" onClick={() => nav('/attendance/operations')} />
         <OverviewCard label="العملاء" value={fmt(tov?.customer_count ?? 0)} icon="👤" onClick={() => nav('/sales-manager/operations')} />
       </div>
 
-      {/* Team Targets Progress */}
-      {tt && (
-        <div className="bg-white rounded-xl border border-border p-4">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-bold text-text">أهداف الفريق</h3>
-            <button onClick={() => nav('/sales-manager/targets')} className="text-[10px] text-primary font-semibold">عرض التفاصيل</button>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <TargetMini label="المبيعات" target={tt.sales_target} actual={tt.sales_achievement} pct={tt.sales_achievement_pct} />
-            <TargetMini label="الزيارات" target={tt.visits_target} actual={tt.visits_achievement} pct={tt.visits_achievement_pct} />
-            <TargetMini label="الطلبات" target={tt.orders_target} actual={tt.orders_achievement} pct={tt.orders_achievement_pct} />
-            <TargetMini label="عملاء جدد" target={tt.new_customers_target} actual={tt.new_customers_achievement} pct={tt.new_customers_achievement_pct} />
-          </div>
-        </div>
-      )}
-
       <MonthlyActivity scope="team" managerEmployeeId={user?.employee_id} />
 
-      {/* Attendance Mini */}
-      <div className="bg-white rounded-xl border border-border p-4">
-        <h3 className="text-sm font-bold text-text mb-3">الحضور</h3>
+      {/* Attendance */}
+      <button onClick={() => nav('/attendance/operations')}
+        className="w-full bg-white rounded-xl border border-border p-4 text-right active:bg-surface transition-colors hover:shadow-sm hover:border-primary/20">
+        <h3 className="text-sm font-bold text-text mb-3">الحضور والانصراف</h3>
         <div className="grid grid-cols-4 gap-2 text-center">
           <MiniStat label="يعمل الآن" value={fmt(att?.active_count ?? 0)} color="text-blue-700" />
           <MiniStat label="في استراحة" value={fmt(att?.on_break_count ?? 0)} color="text-amber-700" />
           <MiniStat label="أنهوا اليوم" value={fmt(att?.ended_count ?? 0)} color="text-green-700" />
           <MiniStat label="لم يبدأوا" value={fmt(att?.no_start_count ?? 0)} color="text-gray-500" />
         </div>
-      </div>
-
-      {/* Sales Effort */}
-      <button onClick={() => nav('/sales-effort')}
-        className="w-full bg-gradient-to-l from-indigo-600 to-blue-700 text-white rounded-xl p-4 text-right active:scale-[0.98] transition-all hover:shadow-lg hover:shadow-indigo-200 flex items-center justify-between">
-        <div>
-          <div className="text-lg font-bold">مجهود المناديب</div>
-          <div className="text-xs text-indigo-100 mt-1">تحليل أداء فريق البيع — الحضور، المبيعات، الزيارات، العملاء الجدد</div>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-2xl">{'\u{1F4AA}'}</span>
-          <span className="text-indigo-200 text-lg">←</span>
-        </div>
       </button>
 
       {/* Navigation Grid */}
       <div className="grid grid-cols-2 gap-3">
-        <NavCard icon="🎯" label="المستهدفات والإنجاز" desc="أداء الفريق والأعضاء" onClick={() => nav('/sales-manager/targets')} />
         <NavCard icon="⚙️" label="العمليات التجارية" desc="الطلبات، الزيارات، العملاء" onClick={() => nav('/sales-manager/operations')} />
-        <NavCard icon="📍" label="النشاط الميداني" desc="الحضور، المراقبة الحية" onClick={() => nav('/sales-manager/field')} />
-        <NavCard icon="👤" label="بياناتي" desc="ملخصي الشخصي والإجراءات" onClick={() => nav('/sales-manager/personal')} />
+        <NavCard icon="📑" label="مركز التقارير" desc="تقارير النشاط والتارجت" onClick={() => setShowReportsCenter(true)} />
       </div>
+
+      {/* Reports Center Modal */}
+      {showReportsCenter && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => setShowReportsCenter(false)}>
+          <div className="bg-white rounded-2xl w-full max-w-sm p-5 space-y-3" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-base font-bold text-text text-center">📑 مركز التقارير</h3>
+            <button onClick={() => { setShowReportsCenter(false); nav('/reports/activity', { state: { scope: 'team' } }) }}
+              className="w-full bg-gradient-to-l from-blue-600 to-indigo-700 text-white rounded-xl py-3.5 text-center active:opacity-80 transition-opacity">
+              <div className="text-sm font-bold">تقارير النشاط</div>
+              <div className="text-[10px] opacity-80 mt-0.5">تقرير نشاط أعضاء الفريق</div>
+            </button>
+            <button disabled
+              className="w-full bg-gray-200 text-gray-400 rounded-xl py-3.5 text-center cursor-not-allowed">
+              <div className="text-sm font-bold">تقارير التارجت</div>
+              <div className="text-[10px] opacity-80 mt-0.5">قريباً</div>
+            </button>
+            <button onClick={() => setShowReportsCenter(false)}
+              className="w-full text-text-secondary text-xs py-2">إغلاق</button>
+          </div>
+        </div>
+      )}
 
       {/* Customer Picker Modal */}
       <MobileDialog
@@ -208,22 +196,6 @@ function OverviewCard({ label, value, icon, onClick }: { label: string; value: s
       </div>
       <p className="text-lg font-bold text-text">{value}</p>
     </button>
-  )
-}
-
-function TargetMini({ label, target, actual, pct }: { label: string; target: number; actual: number; pct: number }) {
-  return (
-    <div className="bg-surface rounded-xl p-3 border border-border/50">
-      <p className="text-[10px] text-text-secondary mb-1">{label}</p>
-      <p className="text-sm font-bold text-text">{formatCurrencyShort(target)}</p>
-      <div className="flex items-center gap-2 mt-1">
-        <div className="flex-1 h-1.5 bg-gray-200 rounded-full overflow-hidden">
-          <div className={`h-full rounded-full transition-all ${pct >= 100 ? 'bg-success' : pct >= 50 ? 'bg-warning' : 'bg-red-400'}`}
-            style={{ width: `${Math.min(pct, 100)}%` }} />
-        </div>
-        <span className={`text-[10px] font-bold ${pctColor(pct)}`}>{fmtPct(pct)}</span>
-      </div>
-    </div>
   )
 }
 

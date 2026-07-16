@@ -35,6 +35,7 @@ export function SalesRepWorkDay() {
   const navigate = useNavigate()
   const user = useAuthStore((s) => s.user)
   const canCreateCustomer = useCapability('customers.create')
+  const [showReportsCenter, setShowReportsCenter] = useState(false)
   const [orders, setOrders] = useState<any[]>([])
   const [visits, setVisits] = useState<any[]>([])
   const [customers, setCustomers] = useState<any[]>([])
@@ -225,8 +226,34 @@ export function SalesRepWorkDay() {
             <div className="text-sm font-bold">ماذا حققت؟</div>
             <div className="text-[10px] opacity-80 mt-0.5">إنجازي مع الهدف</div>
           </button>
+          <button onClick={() => setShowReportsCenter(true)}
+            className="bg-indigo-500 rounded-xl py-3 text-center text-white active:opacity-80 transition-opacity">
+            <div className="text-sm font-bold">مركز التقارير</div>
+            <div className="text-[10px] opacity-80 mt-0.5">تقارير نشاطي الشخصي</div>
+          </button>
         </div>
       </div>
+
+      {/* ── REPORTS CENTER ── */}
+      {showReportsCenter && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => setShowReportsCenter(false)}>
+          <div className="bg-white rounded-2xl w-full max-w-sm p-5 space-y-3" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-base font-bold text-text text-center">📑 مركز التقارير</h3>
+            <button onClick={() => { setShowReportsCenter(false); navigate('/reports/activity', { state: { scope: 'self' } }) }}
+              className="w-full bg-gradient-to-l from-blue-600 to-indigo-700 text-white rounded-xl py-3.5 text-center active:opacity-80 transition-opacity">
+              <div className="text-sm font-bold">تقارير النشاط</div>
+              <div className="text-[10px] opacity-80 mt-0.5">تقرير نشاطي الشخصي</div>
+            </button>
+            <button disabled
+              className="w-full bg-gray-200 text-gray-400 rounded-xl py-3.5 text-center cursor-not-allowed">
+              <div className="text-sm font-bold">تقارير التارجت</div>
+              <div className="text-[10px] opacity-80 mt-0.5">قريباً</div>
+            </button>
+            <button onClick={() => setShowReportsCenter(false)}
+              className="w-full text-text-secondary text-xs py-2">إغلاق</button>
+          </div>
+        </div>
+      )}
 
       {/* ── SALES OPPORTUNITIES ── */}
       <div>

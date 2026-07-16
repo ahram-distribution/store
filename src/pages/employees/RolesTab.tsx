@@ -7,7 +7,6 @@ function getToken(): string | null {
 }
 
 const ROLE_TEMPLATES: Record<string, string[]> = {
-  'سوبر أدمن': ['admin.*', 'orders.*', 'customers.*', 'collections.*', 'returns.*', 'visits.*', 'products.*', 'employees.*', 'reports.*', 'pricing.*', 'credit.*', 'warehouse.*', 'delivery.*', 'inventory.*', 'deals.*', 'tiers.*', 'attendance.*'],
   'مدير البيع': ['orders.create', 'orders.read', 'orders.update', 'orders.approve', 'customers.create', 'customers.read', 'customers.update', 'collections.create', 'collections.read', 'collections.update', 'returns.create', 'returns.read', 'returns.approve', 'visits.create', 'visits.read', 'visits.update', 'products.read', 'employees.read', 'reports.read', 'attendance.live_monitor', 'attendance.view_timeline', 'attendance.view_history', 'attendance.view_reports', 'attendance.view_alerts', 'attendance.view_team_map'],
   'سوبر فايزر': ['orders.create', 'orders.read', 'orders.update', 'customers.create', 'customers.read', 'customers.update', 'collections.create', 'collections.read', 'visits.create', 'visits.read', 'products.read', 'employees.read', 'attendance.live_monitor', 'attendance.view_alerts'],
 }
@@ -147,10 +146,10 @@ export function RolesTab() {
   }
 
   const roleGroups = [
-    { label: 'أدوار النظام', filter: (r: any) => ['الإدارة العليا', 'سوبر أدمن', 'رئيس مجلس الإدارة', 'أدمن'].includes(r.name) },
-    { label: 'أدوار الإدارة', filter: (r: any) => ['مدير البيع', 'مشرف مبيعات', 'مشرف تنفيذي', 'سوبر فايزر'].includes(r.name) },
+    { label: 'أدوار النظام', filter: (r: any) => ['الإدارة العليا'].includes(r.name) },
+    { label: 'أدوار الإدارة', filter: (r: any) => ['مدير البيع', 'مشرف تنفيذي', 'سوبر فايزر'].includes(r.name) },
     { label: 'أدوار البيع', filter: (r: any) => ['مندوب مبيعات'].includes(r.name) },
-    { label: 'أدوار أخرى', filter: (r: any) => !['الإدارة العليا', 'سوبر أدمن', 'رئيس مجلس الإدارة', 'أدمن', 'مدير البيع', 'مشرف مبيعات', 'مشرف تنفيذي', 'سوبر فايزر', 'مندوب مبيعات'].includes(r.name) },
+    { label: 'أدوار أخرى', filter: (r: any) => !['الإدارة العليا', 'مدير البيع', 'مشرف تنفيذي', 'سوبر فايزر', 'مندوب مبيعات'].includes(r.name) },
   ]
 
   if (loading) return <div className="text-center py-8 text-text-secondary text-sm">جاري التحميل...</div>
@@ -197,7 +196,7 @@ export function RolesTab() {
             <div className="space-y-2">
               {groupRoles.map((role: any) => {
                 const empCount = employeeCount(role.id)
-                const isSystem = ['الإدارة العليا', 'سوبر أدمن', 'رئيس مجلس الإدارة', 'أدمن'].includes(role.name)
+                const isSystem = ['الإدارة العليا'].includes(role.name)
                 return (
                   <div key={role.id} className="bg-white rounded-xl border border-border overflow-hidden">
                     <div className="p-3">

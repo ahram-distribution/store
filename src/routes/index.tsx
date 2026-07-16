@@ -40,6 +40,7 @@ import { EmployeesPage, EmployeeProfilePage, HierarchyPage, EmployeeManagementPa
 import { CompanyProfilePage } from '../pages/companies'
 import { ReportsPage } from '../pages/reports'
 const ManagerReportsPage = lazy(() => import('../pages/reports/ManagerReportsPage'))
+const ActivityReportsPage = lazy(() => import('../pages/reports/ActivityReportsPage').then(m => ({ default: m.ActivityReportsPage })))
 import { CompanyProfilePage as SettingsCompanyProfilePage } from '../pages/settings'
 import ActivityPage from '../pages/activity/ActivityPage'
 
@@ -162,6 +163,7 @@ export function AppRoutes() {
       <Route path="/companies/:id" element={<ProtectedRoute><CompanyProfilePage /></ProtectedRoute>} />
       <Route path="/reports" element={<ProtectedRoute employeeOnly><ReportsPage /></ProtectedRoute>} />
       <Route path="/reports/manager" element={<ProtectedRoute employeeOnly><Suspense fallback={<div className="text-center py-12 text-text-secondary text-sm">جاري التحميل...</div>}><ManagerReportsPage /></Suspense></ProtectedRoute>} />
+      <Route path="/reports/activity" element={<ProtectedRoute employeeOnly><Suspense fallback={<div className="text-center py-12 text-text-secondary text-sm">جاري التحميل...</div>}><ActivityReportsPage /></Suspense></ProtectedRoute>} />
       <Route path="/activity" element={<ProtectedRoute employeeOnly><ActivityPage /></ProtectedRoute>} />
       <Route path="/settings/company" element={<ProtectedRoute employeeOnly><SettingsCompanyProfilePage /></ProtectedRoute>} />
       <Route path="/launcher/:module" element={<ProtectedRoute employeeOnly><ModuleLauncherPage /></ProtectedRoute>} />

@@ -1,6 +1,5 @@
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '../../store/auth'
-import { GlobalSearch } from './GlobalSearch'
 
 export function TopBar() {
   const navigate = useNavigate()
@@ -9,7 +8,6 @@ export function TopBar() {
   const displayName = user?.full_name || 'الأهرام'
   const isStorefront = location.pathname.startsWith('/storefront')
   const isDashboard = location.pathname === '/dashboard'
-  const isEmployee = user?.identity_type === 'employee'
 
   const handleLogout = async () => {
     await logout()
@@ -23,7 +21,6 @@ export function TopBar() {
           <span className="font-semibold text-sm text-text">{displayName}</span>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          {isEmployee && <GlobalSearch />}
           {!isStorefront && (
             <button onClick={() => navigate('/storefront')}
               className="text-[10px] px-2.5 py-1 rounded-full transition-colors shrink-0 text-text-secondary border border-border">
@@ -37,7 +34,7 @@ export function TopBar() {
             </button>
           )}
           <span className="text-[10px] px-2 py-0.5 rounded-full bg-surface text-text-secondary">
-            {isEmployee ? 'موظف' : 'عميل'}
+            {user?.identity_type === 'employee' ? 'موظف' : 'عميل'}
           </span>
           <button onClick={handleLogout} className="text-xs px-2 py-1 text-text-secondary transition-colors">
             خروج

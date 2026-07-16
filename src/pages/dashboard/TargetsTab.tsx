@@ -120,7 +120,7 @@ export default function TargetsTab({ month: selMonth, year: selYear }: TargetsTa
       targetService.getEmployeeTargets(selMonth, selYear, token),
     ]).then(([empResult, companyResult, empTargetResult]) => {
       if (!empResult.error && empResult.data) {
-        setEmployees((empResult.data as any[]).filter(e => e.role_type !== 'سوبر أدمن' && e.role_type !== 'الإدارة العليا'))
+        setEmployees((empResult.data as any[]).filter(e => e.role_type !== 'الإدارة العليا'))
       }
       if (!companyResult.error && companyResult.data) {
         const ct = companyResult.data as any

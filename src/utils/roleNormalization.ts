@@ -21,7 +21,6 @@ const roleMapping: Record<string, TargetRole> = {
   'salesdirector': 'مدير بيع',
   'sales': 'مدير بيع',
   'supervisor': 'مدير بيع',
-  'مشرف مبيعات': 'مدير بيع',
   'سوبر فايزر': 'مدير بيع',
   'مشرف': 'مدير بيع',
   'SUPERVISOR': 'مدير بيع',

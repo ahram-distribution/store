@@ -34,7 +34,7 @@ export default function UpperManagementDashboard() {
   const user = useAuthStore((s) => s.user)
   const [achievementPct, setAchievementPct] = useState(0)
   const [dashMgmt, setDashMgmt] = useState<DashMgmt | null>(null)
-  const [searchQuery, setSearchQuery] = useState('')
+  const [showReportsCenter, setShowReportsCenter] = useState(false)
 
   useEffect(() => {
     const token = getToken()
@@ -68,6 +68,7 @@ export default function UpperManagementDashboard() {
     { icon: '📦', label: 'المخزون', path: '/launcher/inventory', isSubLauncher: true },
     { icon: '🏷️', label: 'الأقسام', path: '/launcher/deals', isSubLauncher: true },
     { icon: '📈', label: 'التقارير', path: '/launcher/reports', isSubLauncher: true },
+    { icon: '📑', label: 'مركز التقارير', path: '__reports_center__' },
     { icon: '⚙️', label: 'الإعدادات', path: '/launcher/settings', isSubLauncher: true },
     { icon: '📡', label: 'اختبار GPS والموقع', path: '/ops/gps-test' },
     { icon: '🗑️', label: 'مركز الحذف', path: '/data-center' },
@@ -89,24 +90,6 @@ export default function UpperManagementDashboard() {
   const operationalGroups = groups.filter(g => !adminPaths.includes(g.path))
   const adminGroups = groups.filter(g => adminPaths.includes(g.path))
 
-  const operationalFiltered = operationalGroups.filter((g) => {
-    if (!searchQuery.trim()) return true
-    const q = searchQuery.trim().toLowerCase()
-    return g.label.toLowerCase().includes(q)
-  })
-
-  const adminFiltered = adminGroups.filter((g) => {
-    if (!searchQuery.trim()) return true
-    const q = searchQuery.trim().toLowerCase()
-    return g.label.toLowerCase().includes(q)
-  })
-
-  const quickFiltered = quickIcons.filter((g) => {
-    if (!searchQuery.trim()) return true
-    const q = searchQuery.trim().toLowerCase()
-    return g.label.toLowerCase().includes(q)
-  })
-
   return (
     <div className="p-4 space-y-6" dir="rtl">
       {/* ===== 1. HEADER ===== */}
@@ -122,29 +105,21 @@ export default function UpperManagementDashboard() {
               <div className="text-xl font-bold text-gold-light mt-0.5">{achievementValue.toFixed(1)}%</div>
             </div>
           </div>
-          <div className="mt-4 relative">
-            <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="🔍  ابحث عن شاشة..."
-              className="w-full border border-white/20 rounded-xl px-4 py-3 pr-10 text-sm bg-white/15 text-white placeholder:text-white/40 outline-none focus:border-white/40 focus:bg-white/20 transition-all" />
-            {searchQuery && (
-              <button onClick={() => setSearchQuery('')} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/50 text-xs hover:text-white">✕</button>
-            )}
-          </div>
         </div>
       </div>
 
       <MonthlyActivity scope="company" />
 
       {/* ===== 3. OPERATIONAL MODULES ===== */}
-      {operationalFiltered.length > 0 && (
+      {operationalGroups.length > 0 && (
         <div className="bg-white rounded-2xl border border-border shadow-sm overflow-hidden">
           <div className="bg-gradient-to-l from-secondary to-blue-900 px-5 py-3.5">
             <h2 className="text-sm font-bold text-white">⚙️ الوحدات التشغيلية</h2>
           </div>
           <div className="p-5">
             <div className="grid grid-cols-3 gap-4 min-[430px]:grid-cols-4">
-              {operationalFiltered.map((g) => (
-                <button key={g.path} onClick={() => nav(g.path)}
+              {operationalGroups.map((g) => (
+                <button key={g.path} onClick={() => g.path === '__reports_center__' ? setShowReportsCenter(true) : nav(g.path)}
                   className="bg-white rounded-xl border border-border p-4 text-center active:bg-surface transition-all hover:shadow-md hover:border-primary/30 active:scale-95 relative">
                   <div className="text-3xl mb-2">{g.icon}</div>
                   <div className="text-xs font-semibold text-text leading-tight">{g.label}</div>
@@ -161,14 +136,14 @@ export default function UpperManagementDashboard() {
       )}
 
       {/* ===== 4. ADMIN MODULES ===== */}
-      {adminFiltered.length > 0 && (
+      {adminGroups.length > 0 && (
         <div className="bg-white rounded-2xl border border-border shadow-sm overflow-hidden">
           <div className="bg-gradient-to-l from-amber-600 to-amber-700 px-5 py-3.5">
             <h2 className="text-sm font-bold text-white">🛠️ الوحدات الإدارية</h2>
           </div>
           <div className="p-5">
             <div className="grid grid-cols-3 gap-4 min-[430px]:grid-cols-4">
-              {adminFiltered.map((g) => (
+              {adminGroups.map((g) => (
                 <button key={g.path} onClick={() => nav(g.path)}
                   className="bg-white rounded-xl border border-border p-4 text-center active:bg-surface transition-all hover:shadow-md hover:border-primary/30 active:scale-95 relative">
                   <div className="text-3xl mb-2">{g.icon}</div>
@@ -181,14 +156,14 @@ export default function UpperManagementDashboard() {
       )}
 
       {/* ===== 5. QUICK ACCESS ===== */}
-      {quickFiltered.length > 0 && (
+      {quickIcons.length > 0 && (
         <div className="bg-white rounded-2xl border border-border shadow-sm overflow-hidden">
           <div className="bg-gradient-to-l from-accent to-amber-500 px-5 py-3.5">
             <h2 className="text-sm font-bold text-white">⚡ الوصول السريع</h2>
           </div>
           <div className="p-5">
             <div className="grid grid-cols-3 gap-4 min-[430px]:grid-cols-4">
-              {quickFiltered.map((q) => (
+              {quickIcons.map((q) => (
                 <button key={q.path} onClick={() => nav(q.path)}
                   className="bg-white rounded-xl border border-border p-3.5 text-center active:bg-surface transition-all hover:shadow-md hover:border-primary/30 active:scale-95">
                   <div className="text-2xl mb-1.5">{q.icon}</div>
@@ -200,9 +175,26 @@ export default function UpperManagementDashboard() {
         </div>
       )}
 
-      {searchQuery && operationalFiltered.length === 0 && adminFiltered.length === 0 && quickFiltered.length === 0 && (
-        <div className="text-center py-12 text-text-secondary text-sm">لا توجد نتائج لـ "{searchQuery}"</div>
+      {showReportsCenter && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => setShowReportsCenter(false)}>
+          <div className="bg-white rounded-2xl w-full max-w-sm p-5 space-y-3" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-base font-bold text-text text-center">📑 مركز التقارير</h3>
+            <button onClick={() => { setShowReportsCenter(false); nav('/reports/activity', { state: { scope: 'company' } }) }}
+              className="w-full bg-gradient-to-l from-blue-600 to-indigo-700 text-white rounded-xl py-3.5 text-center active:opacity-80 transition-opacity">
+              <div className="text-sm font-bold">تقارير النشاط</div>
+              <div className="text-[10px] opacity-80 mt-0.5">تقرير شامل لكل الموظفين</div>
+            </button>
+            <button disabled
+              className="w-full bg-gray-200 text-gray-400 rounded-xl py-3.5 text-center cursor-not-allowed">
+              <div className="text-sm font-bold">تقارير التارجت</div>
+              <div className="text-[10px] opacity-80 mt-0.5">قريباً</div>
+            </button>
+            <button onClick={() => setShowReportsCenter(false)}
+              className="w-full text-text-secondary text-xs py-2">إغلاق</button>
+          </div>
+        </div>
       )}
+
     </div>
   )
 }

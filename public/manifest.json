@@ -1,0 +1,22 @@
+{
+  "name": "شركة الأهرام للتجارة والتوزيع",
+  "short_name": "الأهرام",
+  "description": "نظام تشغيل متكامل للتوزيع والمبيعات",
+  "start_url": "/store/",
+  "display": "standalone",
+  "background_color": "#0B3D91",
+  "theme_color": "#0B3D91",
+  "lang": "ar",
+  "dir": "rtl",
+  "scope": "/store/",
+  "orientation": "portrait",
+  "categories": ["business", "shopping"],
+  "prefer_related_applications": false,
+  "icons": [
+    { "src": "pwa/icons/icon-192x192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "pwa/icons/icon-512x512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "pwa/icons/maskable-192x192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "pwa/icons/maskable-512x512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "splash_pages": null
+}

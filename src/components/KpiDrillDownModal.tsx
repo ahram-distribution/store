@@ -1,4 +1,5 @@
 import type { EntityType } from '../modules/types'
+import { toCairoDate } from '../lib/dateRange'
 
 interface Props {
   open: boolean
@@ -72,7 +73,7 @@ export function KpiDrillDownModal({ open, title, recordType, records, loading, o
                   <td className="px-2 py-1.5">{r.customer_name}</td>
                   <td className="px-2 py-1.5 text-left font-semibold">{fmtMoney(r.total_amount)}</td>
                   <td className="px-2 py-1.5 text-center">{r.status}</td>
-                  <td className="px-2 py-1.5 text-center text-[10px]">{r.submitted_at?.slice(0, 10)}</td>
+                  <td className="px-2 py-1.5 text-center text-[10px]">{toCairoDate(r.submitted_at)}</td>
                 </tr>
               ))}
             </tbody>
@@ -97,7 +98,7 @@ export function KpiDrillDownModal({ open, title, recordType, records, loading, o
                   <td className="px-2 py-1.5">{r.code}</td>
                   <td className="px-2 py-1.5">{r.company_name}</td>
                   <td className="px-2 py-1.5">{r.responsible_name}</td>
-                  <td className="px-2 py-1.5 text-center text-[10px]">{r.created_at?.slice(0, 10)}</td>
+                  <td className="px-2 py-1.5 text-center text-[10px]">{toCairoDate(r.created_at)}</td>
                 </tr>
               ))}
             </tbody>
@@ -124,7 +125,7 @@ export function KpiDrillDownModal({ open, title, recordType, records, loading, o
                   <td className="px-2 py-1.5">{r.customer_name}</td>
                   <td className="px-2 py-1.5 text-center">{r.status}</td>
                   <td className="px-2 py-1.5 text-center">{r.visit_result}</td>
-                  <td className="px-2 py-1.5 text-center text-[10px]">{r.check_in_at?.slice(0, 10)}</td>
+                  <td className="px-2 py-1.5 text-center text-[10px]">{toCairoDate(r.check_in_at)}</td>
                 </tr>
               ))}
             </tbody>
@@ -151,7 +152,7 @@ export function KpiDrillDownModal({ open, title, recordType, records, loading, o
                   <td className="px-2 py-1.5">{r.customer_name}</td>
                   <td className="px-2 py-1.5 text-left font-semibold">{fmtMoney(r.amount)}</td>
                   <td className="px-2 py-1.5 text-center">{r.status}</td>
-                  <td className="px-2 py-1.5 text-center text-[10px]">{r.created_at?.slice(0, 10)}</td>
+                  <td className="px-2 py-1.5 text-center text-[10px]">{toCairoDate(r.created_at)}</td>
                 </tr>
               ))}
             </tbody>
