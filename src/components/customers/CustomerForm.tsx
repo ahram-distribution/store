@@ -309,30 +309,32 @@ export function CustomerForm({
         </div>
       </div>
 
-      {/* Location */}
-      <div>
-        <div className={sectionTitle}>الموقع الجغرافي</div>
-        {!compact && <div className="h-px bg-gradient-to-r from-primary/30 to-transparent mb-3" />}
-        {form.latitude ? (
-          <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 flex items-center justify-between">
-            <div>
-              <span className="text-xs text-green-700 font-semibold">✓ تم تحديد الموقع</span>
-              {form.accuracyMeters && <span className="text-[10px] text-green-600 mr-2">({form.accuracyMeters.toFixed(0)}م)</span>}
+      {/* Location — Create only, never in editMode */}
+      {!editMode && (
+        <div>
+          <div className={sectionTitle}>الموقع الجغرافي</div>
+          {!compact && <div className="h-px bg-gradient-to-r from-primary/30 to-transparent mb-3" />}
+          {form.latitude ? (
+            <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 flex items-center justify-between">
+              <div>
+                <span className="text-xs text-green-700 font-semibold">✓ تم تحديد الموقع</span>
+                {form.accuracyMeters && <span className="text-[10px] text-green-600 mr-2">({form.accuracyMeters.toFixed(0)}م)</span>}
+              </div>
+              <button type="button" onClick={() => { set('latitude', null); set('longitude', null); set('accuracyMeters', null) }}
+                className="text-xs text-primary font-semibold hover:underline">تغيير</button>
             </div>
-            <button type="button" onClick={() => { set('latitude', null); set('longitude', null); set('accuracyMeters', null) }}
-              className="text-xs text-primary font-semibold hover:underline">تغيير</button>
-          </div>
-        ) : (
-          <button type="button" onClick={handleCaptureLocation} disabled={locating}
-            className="w-full py-3 rounded-xl border-2 border-dashed border-primary/40 text-primary text-sm font-semibold hover:bg-primary/5 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
-            {locating ? (
-              <><span className="gold-spinner" style={{ width: 14, height: 14, borderWidth: 2 }} /> جاري التحديد...</>
-            ) : (
-              <><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg> تحديد الموقع الحالي</>
-            )}
-          </button>
-        )}
-      </div>
+          ) : (
+            <button type="button" onClick={handleCaptureLocation} disabled={locating}
+              className="w-full py-3 rounded-xl border-2 border-dashed border-primary/40 text-primary text-sm font-semibold hover:bg-primary/5 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+              {locating ? (
+                <><span className="gold-spinner" style={{ width: 14, height: 14, borderWidth: 2 }} /> جاري التحديد...</>
+              ) : (
+                <><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg> تحديد الموقع الحالي</>
+              )}
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Password — Edit mode ONLY */}
       {editMode && (

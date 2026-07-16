@@ -21,7 +21,7 @@ let _watchId: number | null = null
 let _watchCallbacks: GpsWatchCallbacks | null = null
 
 const CACHE_TTL = 10000
-const DEFAULT_MAX_WAIT = 30000
+const DEFAULT_MAX_WAIT = 15000
 const DEFAULT_MAX_ACCURACY = 100
 
 /**
@@ -30,7 +30,7 @@ const DEFAULT_MAX_ACCURACY = 100
  *  2. Uses watchPosition with enableHighAccuracy.
  *  3. Accepts fix immediately when accuracy ≤ maxAccuracy.
  *  4. Waits up to maxWaitMs total.
- *  5. Returns null if no acceptable fix within timeout.
+ *  5. On timeout, accepts BEST AVAILABLE fix (never fails on timeout).
  */
 export async function getCurrentLocation(options?: {
   maxWaitMs?: number
@@ -55,7 +55,6 @@ export async function getCurrentLocation(options?: {
   }
 
   return new Promise((resolve) => {
-    const startTs = Date.now()
     let watchId: number | null = null
     let timer: ReturnType<typeof setTimeout> | null = null
     let resolved = false
@@ -76,12 +75,12 @@ export async function getCurrentLocation(options?: {
       const best = fixes.length > 0
         ? fixes.reduce((a, b) => a.accuracy <= b.accuracy ? a : b)
         : null
-      if (best && best.accuracy <= maxAccuracy) {
+      if (best) {
         finish({ success: true, location: best })
       } else {
         finish({
           success: false, location: null,
-          error: { code: 'TIMEOUT', message: 'لم نتمكن من الحصول على موقع دقيق. يرجى المحاولة مرة أخرى.' },
+          error: { code: 'TIMEOUT', message: 'لم نتمكن من الحصول على موقع. يرجى المحاولة مرة أخرى.' },
         })
       }
     }, maxWaitMs)
@@ -101,7 +100,7 @@ export async function getCurrentLocation(options?: {
           }
         },
         () => {},
-        { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+        { enableHighAccuracy: true, timeout: maxWaitMs, maximumAge: 0 }
       )
     } catch {
       finish({

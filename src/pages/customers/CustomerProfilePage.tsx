@@ -570,9 +570,6 @@ export function CustomerProfilePage() {
       p_city_name: formData.city.trim() || null,
       p_street_address: formData.streetAddress.trim() || null,
       p_password: formData.password?.trim() || null,
-      p_latitude: formData.latitude,
-      p_longitude: formData.longitude,
-      p_accuracy_meters: formData.accuracyMeters,
     })
     if (error) { toast.error(error.message); return }
     const result = data as any
@@ -592,7 +589,7 @@ export function CustomerProfilePage() {
 
   async function handleUpdateLocation() {
     setLocating(true)
-    const result = await getCurrentLocation()
+    const result = await getCurrentLocation({ maxWaitMs: 12000 })
     setLocating(false)
     if (!result.success || !result.location) {
       toast.error(result.error?.message || 'تعذر الحصول على الموقع')
@@ -602,12 +599,11 @@ export function CustomerProfilePage() {
     const token = getToken()
     if (!token) { toast.error('جلسة منتهية'); return }
 
-    // Reverse geocode to get formatted_address before saving
     let formattedAddress: string | null = null
     try {
       const resp = await fetch(
         `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&accept-language=ar`,
-        { headers: { 'User-Agent': 'AhrmStore/1.0' } }
+        { headers: { 'User-Agent': 'AhrmStore/1.0' }, signal: AbortSignal.timeout(8000) }
       )
       if (resp.ok) {
         const geo = await resp.json()
@@ -625,27 +621,31 @@ export function CustomerProfilePage() {
     if (error) { toast.error(error.message); return }
     const r = data as any
     if (r?.error) { toast.error(r.error); return }
-    toast.success('تم تحديث الموقع (' + accuracy + 'م)')
-    // Re-fetch customer to get the (possibly new) location_id
+
+    const accLabel = accuracy <= 20 ? 'ممتازة' : accuracy <= 100 ? 'جيدة' : 'مقبولة'
+    toast.success('تم تحديث الموقع — الدقة: ' + accLabel + ' (' + accuracy + 'م)')
+
     const custRes = await supabase.rpc('get_governed_customer', { p_token: token, p_id: id })
     if (custRes.data) {
       setCustomer(custRes.data)
       const c = Array.isArray(custRes.data) ? custRes.data[0] : custRes.data
       if (c?.location_id) {
         const repo = getLocationRepo()
-        let loc = null
-        if (repo) { loc = await repo.fetchLocation(c.location_id); if (loc) setLocation(loc) }
-        if (loc?.latitude != null && loc?.longitude != null) {
-          LocationNormalizationService.enrichLocationIfNeeded(c.location_id)
-            .then(async (ok) => {
-              if (ok) {
-                const repo2 = getLocationRepo()
-                if (repo2) {
-                  const loc2 = await repo2.fetchLocation(c.location_id)
-                  if (loc2) setLocation(loc2)
+        if (repo) {
+          const loc = await repo.fetchLocation(c.location_id)
+          if (loc) setLocation(loc)
+          if (loc?.latitude != null && loc?.longitude != null) {
+            LocationNormalizationService.enrichLocationIfNeeded(c.location_id)
+              .then(async (ok) => {
+                if (ok) {
+                  const repo2 = getLocationRepo()
+                  if (repo2) {
+                    const loc2 = await repo2.fetchLocation(c.location_id)
+                    if (loc2) setLocation(loc2)
+                  }
                 }
-              }
-            })
+              })
+          }
         }
       }
     }
@@ -830,9 +830,6 @@ export function CustomerProfilePage() {
                   governorateId: customer.governorate_id || '',
                   city: customer.city_name || '',
                   streetAddress: customer.street_address || '',
-                  latitude: location?.latitude ?? null,
-                  longitude: location?.longitude ?? null,
-                  accuracyMeters: location?.accuracy_meters ?? null,
                 }}
               />
             </div>
