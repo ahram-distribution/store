@@ -355,8 +355,10 @@ self.addEventListener('fetch', (event) => {
   if (event.request.url.includes('/rest/v1/rpc/')) return
 
   // SPA navigation: network-first with cache fallback
-  // Network-first ensures fresh content after deployment while cache fallback provides offline support
-  if (event.request.mode === 'navigate') {
+  if (
+    event.request.mode === 'navigate' ||
+    event.request.destination === 'document'
+  ) {
     event.respondWith(
       fetch('/store/index.html').catch(() =>
         caches.match('/store/index.html')
@@ -364,6 +366,9 @@ self.addEventListener('fetch', (event) => {
     )
     return
   }
+
+  // Skip hash-fragment requests (React Router SPA routes)
+  if (event.request.url.includes('#')) return
 
   event.respondWith(
     caches.match(event.request).then((cached) => {
