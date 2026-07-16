@@ -228,7 +228,6 @@ async function flushQueue() {
 // ---- Install ----
 
 self.addEventListener('install', (event) => {
-  self.skipWaiting()
   const precacheUrls = self.__WB_MANIFEST?.map((e) => e.url) || []
   if (precacheUrls.length > 0) {
     event.waitUntil(
@@ -298,6 +297,10 @@ self.addEventListener('message', (event) => {
         })
         event.waitUntil(dbPromise)
       }
+      break
+
+    case 'SKIP_WAITING':
+      self.skipWaiting()
       break
   }
 })

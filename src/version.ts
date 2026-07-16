@@ -1,1 +1,1 @@
-export const BUILD_VERSION = '20260705-1050'
+export const BUILD_VERSION = __BUILD_ID__
