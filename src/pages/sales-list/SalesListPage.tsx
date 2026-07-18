@@ -5,8 +5,6 @@ import { useAuthStore } from '../../store/auth'
 import { normalizeEmployeeRole, type TargetRole } from '../../utils/roleNormalization'
 import { formatDateTime } from '../../utils/format'
 import { isProductSaleable } from '../../services/products'
-import jsPDF from 'jspdf'
-import { toCanvas } from 'html-to-image'
 
 const ALLOWED_ROLES: TargetRole[] = ['الإدارة العليا', 'مدير بيع', 'مندوب مبيعات']
 
@@ -36,8 +34,12 @@ interface UnitPriceInfo {
 
 function formatPrice(val: number): string {
   if (!Number.isFinite(val)) return '0'
-  const formatted = new Intl.NumberFormat('en-US', { style: 'decimal', minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(val)
-  return formatted.replace(/\.?0+$/, '') || '0'
+  const s = new Intl.NumberFormat('en-US', { style: 'decimal', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(val)
+  const dot = s.indexOf('.')
+  if (dot === -1) return s
+  const decimals = s.slice(dot + 1)
+  const stripped = decimals.replace(/0+$/, '')
+  return stripped ? s.slice(0, dot + 1) + stripped : s.slice(0, dot)
 }
 
 function computeUnitPrices(p: ProductRow): UnitPriceInfo[] {
@@ -87,7 +89,7 @@ function highlightText(text: string, query: string): string {
   return result
 }
 
-function generatePdfHtml(groups: CompanyGroup[], logoUrl: string): string {
+function generatePrintHtml(groups: CompanyGroup[], logoUrl: string): string {
   const now = new Date()
 
   function productRow(p: ProductRow, bgColor: string): string {
@@ -111,69 +113,75 @@ function generatePdfHtml(groups: CompanyGroup[], logoUrl: string): string {
     return header + body
   }
 
-  return `<div id="pdf-container" style="direction:rtl;font-family:'Tajawal','Cairo','Segoe UI',Tahoma,Arial,sans-serif;font-size:11px;color:#111827;line-height:1.5;padding:15px;background:#fff">
-<div style="display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #e2e8f0;padding-bottom:10px;margin-bottom:12px">
+  return `<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+<meta charset="UTF-8">
+<title>قائمة أسعار البيع</title>
+<style>
+  @page { size: A4; margin: 12mm 10mm }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Tahoma, Arial, sans-serif; font-size: 10px; color: #111827; line-height: 1.5; padding: 0; }
+  .top-bar { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px; margin-bottom: 10px; }
+  .brand { font-size: 13px; font-weight: 700; color: #003366; }
+  .contact { font-size: 8px; color: #6b7280; }
+  .logo { height: 40px; object-fit: contain; }
+  .doc-title { font-size: 18px; font-weight: 700; color: #003366; text-align: left; }
+  .doc-date { font-size: 8px; color: #9ca3af; text-align: left; margin-top: 2px; }
+  table { width: 100%; table-layout: fixed; border-collapse: collapse; margin-bottom: 6px; }
+  thead tr { background: #003366; color: #fff; }
+  th { width: 7%; padding: 4px 3px; text-align: center; font-weight: 600; font-size: 10px; border: 1px solid #003366; }
+  th:nth-child(2) { width: 40%; }
+  th:nth-child(3) { width: 18%; }
+  th:nth-child(4) { width: 18%; }
+  th:nth-child(5) { width: 17%; }
+  thead { display: table-header-group; }
+  tbody { display: table-row-group; }
+  tbody tr { page-break-inside: avoid; }
+  .footer { text-align: center; font-size: 7px; color: #d1d5db; border-top: 1px solid #f3f4f6; padding-top: 4px; margin-top: 6px; }
+  @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+</style>
+</head>
+<body>
+<div class="top-bar">
   <div style="flex:2;text-align:right">
-    <div style="font-size:13px;font-weight:700;color:#003366;line-height:1.4">شركة الأهرام للتجارة والتوزيع</div>
-    <div style="font-size:8px;color:#6b7280">كورنيش النيل - الوراق - جيزة | تليفون: 01040880002</div>
+    <div class="brand">شركة الأهرام للتجارة والتوزيع</div>
+    <div class="contact">كورنيش النيل - الوراق - جيزة | تليفون: 01040880002</div>
   </div>
   <div style="flex:3;text-align:center">
-    <img src="${esc(logoUrl)}" alt="الأهرام" style="height:45px;object-fit:contain" />
+    <img src="${esc(logoUrl)}" alt="الأهرام" class="logo" />
   </div>
-  <div style="flex:2;text-align:left">
-    <div style="font-size:18px;font-weight:700;color:#003366">قائمة أسعار البيع</div>
-    <div style="font-size:8px;color:#9ca3af;margin-top:2px">تاريخ الطباعة: ${formatDateTime(now)}</div>
+  <div style="flex:2">
+    <div class="doc-title">قائمة أسعار البيع</div>
+    <div class="doc-date">تاريخ الطباعة: ${formatDateTime(now)}</div>
   </div>
 </div>
-<table style="width:100%;table-layout:fixed;border-collapse:collapse;margin-bottom:8px">
+<table>
   <thead>
-    <tr style="background:#003366;color:#fff">
-      <th style="width:7%;padding:5px 3px;text-align:center;font-weight:600;font-size:10px;border:1px solid #003366">الكود</th>
-      <th style="width:40%;padding:5px 6px;text-align:center;font-weight:600;font-size:10px;border:1px solid #003366">اسم الصنف</th>
-      <th style="width:18%;padding:5px 3px;text-align:center;font-weight:600;font-size:10px;border:1px solid #003366">القطعة</th>
-      <th style="width:18%;padding:5px 3px;text-align:center;font-weight:600;font-size:10px;border:1px solid #003366">الدستة</th>
-      <th style="width:17%;padding:5px 3px;text-align:center;font-weight:600;font-size:10px;border:1px solid #003366">الكرتونة</th>
+    <tr>
+      <th>الكود</th>
+      <th>اسم الصنف</th>
+      <th>القطعة</th>
+      <th>الدستة</th>
+      <th>الكرتونة</th>
     </tr>
   </thead>
   <tbody>
     ${groups.map((g, i) => groupSection(g, i)).join('')}
   </tbody>
 </table>
-<div style="text-align:center;margin-top:8px;font-size:7px;color:#d1d5db;border-top:1px solid #f3f4f6;padding-top:4px">
-  <div>شركة الأهرام للتجارة والتوزيع — جميع الحقوق محفوظة</div>
-</div>
-</div>`
+<div class="footer">شركة الأهرام للتجارة والتوزيع — جميع الحقوق محفوظة</div>
+</body>
+</html>`
 }
 
-async function downloadPdf(groups: CompanyGroup[], logoUrl: string): Promise<void> {
-  const html = generatePdfHtml(groups, logoUrl)
-  const el = document.createElement('div')
-  el.innerHTML = html
-  el.style.cssText = 'position:fixed;left:0;top:0;width:210mm;background:#fff;z-index:99999;pointer-events:none'
-  document.body.appendChild(el)
-  await document.fonts.ready
-
-  try {
-    const canvas = await toCanvas(el, {
-      width: el.scrollWidth,
-      pixelRatio: 2,
-      cacheBust: true,
-    })
-
-    const imgData = canvas.toDataURL('image/jpeg', 0.95)
-    const pdf = new jsPDF('p', 'mm', 'a4')
-    const pw = pdf.internal.pageSize.getWidth()
-    const ph = pdf.internal.pageSize.getHeight()
-    const totalH = (canvas.height * pw) / canvas.width
-    const pages = Math.ceil(totalH / ph)
-    for (let i = 0; i < pages; i++) {
-      if (i > 0) pdf.addPage()
-      pdf.addImage(imgData, 'JPEG', 0, -i * ph, pw, totalH)
-    }
-    pdf.save('sales-list.pdf')
-  } finally {
-    document.body.removeChild(el)
-  }
+function printHtml(html: string): void {
+  const win = window.open('', '_blank')
+  if (!win) return
+  win.document.write(html)
+  win.document.close()
+  win.focus()
+  setTimeout(() => { try { win.print() } catch {} }, 500)
 }
 
 export default function SalesListPage() {
@@ -244,16 +252,15 @@ export default function SalesListPage() {
       .map(([companyName, prods]) => ({ companyName, products: prods }))
   }, [smartFiltered])
 
-  const handleDownloadPdf = useCallback(async () => {
+  const handleDownloadPdf = useCallback(() => {
     if (pdfLoading) return
     setPdfLoading(true)
     setPdfPhase('preparing')
     try {
       const logoUrl = window.location.origin + '/store/branding/ahram-logo.png'
-      await new Promise((r) => setTimeout(r, 50))
-      await downloadPdf(groupedProducts, logoUrl)
+      const html = generatePrintHtml(groupedProducts, logoUrl)
+      printHtml(html)
       setPdfPhase('done')
-      await new Promise((r) => setTimeout(r, 1500))
     } finally {
       setPdfLoading(false)
       setPdfPhase('idle')
