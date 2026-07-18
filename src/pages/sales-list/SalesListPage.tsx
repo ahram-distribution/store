@@ -34,15 +34,10 @@ interface UnitPriceInfo {
   price: number
 }
 
-const UNIT_LABELS: Record<string, string> = {
-  piece: 'قطعة',
-  dozen: 'دستة',
-  carton: 'كرتونة',
-}
-
 function formatPrice(val: number): string {
   if (!Number.isFinite(val)) return '0'
-  return new Intl.NumberFormat('en-US', { style: 'decimal', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(val)
+  const formatted = new Intl.NumberFormat('en-US', { style: 'decimal', minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(val)
+  return formatted.replace(/\.?0+$/, '') || '0'
 }
 
 function computeUnitPrices(p: ProductRow): UnitPriceInfo[] {
@@ -94,41 +89,40 @@ function highlightText(text: string, query: string): string {
 
 function generatePdfHtml(groups: CompanyGroup[], logoUrl: string): string {
   const now = new Date()
-  const totalCount = groups.reduce((s, g) => s + g.products.length, 0)
-  const companyCount = groups.length
 
-  function productRow(p: ProductRow): string {
+  function productRow(p: ProductRow, bgColor: string): string {
     const unitPrices = computeUnitPrices(p)
     const code = esc(p.legacy_code || '---')
     const name = esc(p.product_name)
+    const cellStyle = `border:1px solid #e2e8f0;padding:4px 3px;text-align:center;vertical-align:middle;background:${bgColor}`
     return `<tr>
-      <td style="width:7%;border:1px solid #d0d0d0;padding:4px 3px;text-align:center;vertical-align:middle;font-family:monospace;direction:ltr;font-size:10px;color:#333">${code}</td>
-      <td style="width:40%;border:1px solid #d0d0d0;padding:4px 6px;text-align:right;vertical-align:middle;font-size:11px;line-height:1.5;color:#222">${name}</td>
-      <td style="width:18%;border:1px solid #d0d0d0;padding:3px 6px;text-align:right;vertical-align:middle">${unitPrices.find((u) => u.unitType === 'piece') ? `<div style="display:flex;justify-content:space-between;direction:rtl"><span style="font-size:9px;color:#555">قطعة</span><span style="font-size:10px;font-weight:700;color:#111">${formatPrice(unitPrices.find((u) => u.unitType === 'piece')!.price)}</span></div>` : '<div style="color:#ccc;font-size:9px">—</div>'}</td>
-      <td style="width:18%;border:1px solid #d0d0d0;padding:3px 6px;text-align:right;vertical-align:middle">${unitPrices.find((u) => u.unitType === 'dozen') ? `<div style="display:flex;justify-content:space-between;direction:rtl"><span style="font-size:9px;color:#555">دستة</span><span style="font-size:10px;font-weight:700;color:#111">${formatPrice(unitPrices.find((u) => u.unitType === 'dozen')!.price)}</span></div>` : '<div style="color:#ccc;font-size:9px">—</div>'}</td>
-      <td style="width:17%;border:1px solid #d0d0d0;padding:3px 6px;text-align:right;vertical-align:middle">${unitPrices.find((u) => u.unitType === 'carton') ? `<div style="display:flex;justify-content:space-between;direction:rtl"><span style="font-size:9px;color:#555">كرتونة</span><span style="font-size:10px;font-weight:700;color:#111">${formatPrice(unitPrices.find((u) => u.unitType === 'carton')!.price)}</span></div>` : '<div style="color:#ccc;font-size:9px">—</div>'}</td>
+      <td style="width:7%;${cellStyle};font-family:monospace;direction:ltr;font-size:10px;color:#475569">${code}</td>
+      <td style="width:40%;${cellStyle};text-align:right;padding:4px 6px;font-size:11px;line-height:1.5;color:#111827">${name}</td>
+      <td style="width:18%;${cellStyle}">${unitPrices.find((u) => u.unitType === 'piece') ? `<div style="display:flex;justify-content:space-between;direction:rtl"><span style="font-size:9px;color:#6b7280">قطعة</span><span style="font-size:10px;font-weight:700;color:#111827">${formatPrice(unitPrices.find((u) => u.unitType === 'piece')!.price)}</span></div>` : '<div style="color:#d1d5db;font-size:9px">&mdash;</div>'}</td>
+      <td style="width:18%;${cellStyle}">${unitPrices.find((u) => u.unitType === 'dozen') ? `<div style="display:flex;justify-content:space-between;direction:rtl"><span style="font-size:9px;color:#6b7280">دستة</span><span style="font-size:10px;font-weight:700;color:#111827">${formatPrice(unitPrices.find((u) => u.unitType === 'dozen')!.price)}</span></div>` : '<div style="color:#d1d5db;font-size:9px">&mdash;</div>'}</td>
+      <td style="width:17%;${cellStyle}">${unitPrices.find((u) => u.unitType === 'carton') ? `<div style="display:flex;justify-content:space-between;direction:rtl"><span style="font-size:9px;color:#6b7280">كرتونة</span><span style="font-size:10px;font-weight:700;color:#111827">${formatPrice(unitPrices.find((u) => u.unitType === 'carton')!.price)}</span></div>` : '<div style="color:#d1d5db;font-size:9px">&mdash;</div>'}</td>
     </tr>`
   }
 
-  function groupSection(g: CompanyGroup): string {
-    const header = `<tr><td colspan="5" style="background:#e8f0fe;font-weight:700;color:#0d2b6b;font-size:11px;text-align:right;padding:6px 10px;border:1px solid #d0d0d0;border-bottom:2px solid #0052cc">${esc(g.companyName)} <span style="font-weight:400;color:#666;font-size:9px">(${g.products.length} منتج)</span></td></tr>`
-    const body = g.products.map(productRow).join('')
+  function groupSection(g: CompanyGroup, idx: number): string {
+    const bgColor = idx % 2 === 0 ? '#f8fafc' : '#f7faff'
+    const header = `<tr><td colspan="5" style="background:${bgColor};border-bottom:1px solid #e2e8f0;padding:5px 10px;border-left:1px solid #e2e8f0;border-right:1px solid #e2e8f0;border-top:none"><div style="display:flex;align-items:center;gap:6px"><span style="display:inline-block;width:6px;height:6px;border-radius:1px;background:rgba(0,82,204,0.6)"></span><span style="font-weight:700;color:#111827;font-size:11px">${esc(g.companyName)}</span><span style="font-weight:400;color:#6b7280;font-size:9px">${g.products.length} منتج</span></div></td></tr>`
+    const body = g.products.map((p) => productRow(p, bgColor)).join('')
     return header + body
   }
 
-  return `<div id="pdf-container" style="direction:rtl;font-family:'Tajawal','Cairo','Segoe UI',Tahoma,Arial,sans-serif;font-size:11px;color:#222;line-height:1.5;padding:15px;background:#fff">
-<div style="display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid #003366;padding-bottom:10px;margin-bottom:12px">
+  return `<div id="pdf-container" style="direction:rtl;font-family:'Tajawal','Cairo','Segoe UI',Tahoma,Arial,sans-serif;font-size:11px;color:#111827;line-height:1.5;padding:15px;background:#fff">
+<div style="display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #e2e8f0;padding-bottom:10px;margin-bottom:12px">
   <div style="flex:2;text-align:right">
     <div style="font-size:13px;font-weight:700;color:#003366;line-height:1.4">شركة الأهرام للتجارة والتوزيع</div>
-    <div style="font-size:8px;color:#666">كورنيش النيل - الوراق - جيزة | تليفون: 01040880002</div>
+    <div style="font-size:8px;color:#6b7280">كورنيش النيل - الوراق - جيزة | تليفون: 01040880002</div>
   </div>
   <div style="flex:3;text-align:center">
     <img src="${esc(logoUrl)}" alt="الأهرام" style="height:45px;object-fit:contain" />
   </div>
   <div style="flex:2;text-align:left">
     <div style="font-size:18px;font-weight:700;color:#003366">قائمة أسعار البيع</div>
-    <div style="font-size:9px;color:#666;margin-top:2px">${totalCount} منتج | ${companyCount} شركة</div>
-    <div style="font-size:8px;color:#999;margin-top:1px">تاريخ الطباعة: ${formatDateTime(now)}</div>
+    <div style="font-size:8px;color:#9ca3af;margin-top:2px">تاريخ الطباعة: ${formatDateTime(now)}</div>
   </div>
 </div>
 <table style="width:100%;table-layout:fixed;border-collapse:collapse;margin-bottom:8px">
@@ -142,10 +136,10 @@ function generatePdfHtml(groups: CompanyGroup[], logoUrl: string): string {
     </tr>
   </thead>
   <tbody>
-    ${groups.map(groupSection).join('')}
+    ${groups.map((g, i) => groupSection(g, i)).join('')}
   </tbody>
 </table>
-<div style="text-align:center;margin-top:8px;font-size:7px;color:#bbb;border-top:1px solid #eee;padding-top:4px">
+<div style="text-align:center;margin-top:8px;font-size:7px;color:#d1d5db;border-top:1px solid #f3f4f6;padding-top:4px">
   <div>شركة الأهرام للتجارة والتوزيع — جميع الحقوق محفوظة</div>
 </div>
 </div>`
@@ -209,15 +203,6 @@ export default function SalesListPage() {
   }, [hasAccess, authToken])
 
   const saleableProducts = useMemo(() => products.filter(isProductSaleable), [products])
-
-  const productCount = saleableProducts.length
-  const companyCount = useMemo(() => {
-    const names = new Set<string>()
-    for (const p of saleableProducts) {
-      if (p.company_name) names.add(p.company_name)
-    }
-    return names.size
-  }, [saleableProducts])
 
   const companyNames = useMemo(() => {
     const names = new Set<string>()
@@ -289,20 +274,7 @@ export default function SalesListPage() {
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
             <button onClick={() => navigate(-1)} className="text-text-muted hover:text-text text-lg transition-colors">&larr;</button>
-            <div>
-              <h1 className="text-lg font-bold text-text leading-tight">قائمة أسعار البيع</h1>
-              <div className="flex items-center gap-3 text-[11px] text-text-muted mt-0.5">
-                {!loading && (
-                  <>
-                    <span>{productCount} منتج</span>
-                    <span className="text-border">|</span>
-                    <span>{companyCount} شركة</span>
-                    <span className="text-border">|</span>
-                    <span>آخر تحديث: {formatDateTime(new Date())}</span>
-                  </>
-                )}
-              </div>
-            </div>
+            <h1 className="text-lg font-bold text-text leading-tight">قائمة أسعار البيع</h1>
           </div>
           <button
             onClick={handleDownloadPdf}
@@ -374,21 +346,23 @@ export default function SalesListPage() {
                 </tr>
               </thead>
               <tbody>
-                {groupedProducts.map((group) => (
+                {groupedProducts.map((group, groupIdx) => (
                   <Fragment key={group.companyName}>
                     <tr>
-                      <td colSpan={5} className="bg-primary/10 border-y border-primary/20 px-3 py-1.5">
+                      <td colSpan={5} className={`px-3 py-1.5 border-y border-border ${groupIdx % 2 === 0 ? 'bg-[#f8fafc]' : 'bg-[#f7faff]'}`}>
                         <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold text-primary">{group.companyName}</span>
-                          <span className="text-[10px] text-primary-light font-normal bg-primary/20 px-1.5 py-0.5 rounded-full">{group.products.length}</span>
+                          <span className="inline-block w-2 h-2 rounded-sm bg-primary/60" />
+                          <span className="text-xs font-bold text-text">{group.companyName}</span>
+                          <span className="text-[10px] text-text-muted font-normal">{group.products.length} منتج</span>
                         </div>
                       </td>
                     </tr>
                     {group.products.map((p) => {
                       const unitPrices = computeUnitPrices(p)
                       const priceByType = Object.fromEntries(unitPrices.map((up) => [up.unitType, up.price]))
+                      const rowBg = groupIdx % 2 === 0 ? 'bg-[#f8fafc]' : 'bg-[#f7faff]'
                       return (
-                        <tr key={p.id} className="border-b border-border-light hover:bg-surface transition-colors">
+                        <tr key={p.id} className={`border-b border-border/50 ${rowBg}`}>
                           <td className="px-2 py-1.5 text-center font-mono text-[10px] text-text-muted ltr align-middle">
                             {p.legacy_code || '---'}
                           </td>
@@ -397,21 +371,21 @@ export default function SalesListPage() {
                             {priceByType.piece != null ? (
                               <span className="text-xs font-bold text-text">{formatPrice(priceByType.piece)}</span>
                             ) : (
-                              <span className="text-text-muted text-[10px]">—</span>
+                              <span className="text-text-muted text-[10px]">&mdash;</span>
                             )}
                           </td>
                           <td className="px-2 py-1.5 text-center align-middle">
                             {priceByType.dozen != null ? (
                               <span className="text-xs font-bold text-text">{formatPrice(priceByType.dozen)}</span>
                             ) : (
-                              <span className="text-text-muted text-[10px]">—</span>
+                              <span className="text-text-muted text-[10px]">&mdash;</span>
                             )}
                           </td>
                           <td className="px-2 py-1.5 text-center align-middle">
                             {priceByType.carton != null ? (
                               <span className="text-xs font-bold text-text">{formatPrice(priceByType.carton)}</span>
                             ) : (
-                              <span className="text-text-muted text-[10px]">—</span>
+                              <span className="text-text-muted text-[10px]">&mdash;</span>
                             )}
                           </td>
                         </tr>
