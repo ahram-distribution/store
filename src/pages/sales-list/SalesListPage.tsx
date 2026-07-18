@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../store/auth'
 import { normalizeEmployeeRole, type TargetRole } from '../../utils/roleNormalization'
-import { formatDateTime } from '../../utils/format'
 import { isProductSaleable } from '../../services/products'
 
 const ALLOWED_ROLES: TargetRole[] = ['الإدارة العليا', 'مدير بيع', 'مندوب مبيعات']
@@ -91,6 +90,8 @@ function highlightText(text: string, query: string): string {
 
 function generatePrintHtml(groups: CompanyGroup[], logoUrl: string): string {
   const now = new Date()
+  const dateStr = now.toLocaleDateString('ar-EG', { day: '2-digit', month: '2-digit', year: 'numeric' })
+  const timeStr = now.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', hour12: false })
 
   function productRow(p: ProductRow, bgColor: string): string {
     const unitPrices = computeUnitPrices(p)
@@ -123,11 +124,12 @@ function generatePrintHtml(groups: CompanyGroup[], logoUrl: string): string {
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: 'Segoe UI', Tahoma, Arial, sans-serif; font-size: 10px; color: #111827; line-height: 1.5; padding: 0; }
   .top-bar { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px; margin-bottom: 10px; }
+  .top-bar-wrap { display: table-header-group; }
   .brand { font-size: 13px; font-weight: 700; color: #003366; }
   .contact { font-size: 8px; color: #6b7280; }
   .logo { height: 40px; object-fit: contain; }
   .doc-title { font-size: 18px; font-weight: 700; color: #003366; text-align: left; }
-  .doc-date { font-size: 8px; color: #9ca3af; text-align: left; margin-top: 2px; }
+  .doc-meta { font-size: 8px; color: #9ca3af; text-align: left; margin-top: 2px; line-height: 1.6; }
   table { width: 100%; table-layout: fixed; border-collapse: collapse; margin-bottom: 6px; }
   thead tr { background: #003366; color: #fff; }
   th { width: 7%; padding: 4px 3px; text-align: center; font-weight: 600; font-size: 10px; border: 1px solid #003366; }
@@ -143,6 +145,8 @@ function generatePrintHtml(groups: CompanyGroup[], logoUrl: string): string {
 </style>
 </head>
 <body>
+<thead class="top-bar-wrap">
+<tr><td>
 <div class="top-bar">
   <div style="flex:2;text-align:right">
     <div class="brand">شركة الأهرام للتجارة والتوزيع</div>
@@ -153,9 +157,11 @@ function generatePrintHtml(groups: CompanyGroup[], logoUrl: string): string {
   </div>
   <div style="flex:2">
     <div class="doc-title">قائمة أسعار البيع</div>
-    <div class="doc-date">تاريخ الطباعة: ${formatDateTime(now)}</div>
+    <div class="doc-meta">تاريخ الطباعة: ${dateStr}<br/>وقت الطباعة: ${timeStr}</div>
   </div>
 </div>
+</td></tr>
+</thead>
 <table>
   <thead>
     <tr>
@@ -301,7 +307,7 @@ export default function SalesListPage() {
                 <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
-                تحميل PDF
+                طباعة / حفظ PDF
               </>
             )}
           </button>
