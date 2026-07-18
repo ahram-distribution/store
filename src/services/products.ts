@@ -21,6 +21,18 @@ export interface ProductWithDetails {
   inventoryQuantity: number
 }
 
+export function isProductSaleable(row: any): boolean {
+  const productUnits = row.product_units ?? []
+  return (
+    !!row.is_active &&
+    row.is_visible !== false &&
+    !(row.is_out_of_stock === true && row.is_active !== false) &&
+    productUnits.filter((u: any) => u.is_active !== false).length > 0 &&
+    !!row.carton_price &&
+    Number(row.carton_price) > 0
+  )
+}
+
 function mapRow(row: any): ProductWithDetails {
   const productUnits = row.product_units ?? []
   const cartonPrice = Number(row.carton_price) || 0
@@ -37,7 +49,7 @@ function mapRow(row: any): ProductWithDetails {
     cartonQuantity,
     isActive: row.is_active,
     isOutOfStock: row.is_out_of_stock === true && row.is_active !== false,
-    salesBlocked: !row.is_active || (row.is_out_of_stock === true && row.is_active !== false) || productUnits.filter((u: any) => u.is_active !== false).length === 0 || !row.carton_price || Number(row.carton_price) <= 0,
+    salesBlocked: !isProductSaleable(row),
     imageUrl: row.image_url,
     availableUnits: productUnits.filter((u: any) => u.is_active !== false).map((u: any) => ({
       unitCode: u.unit_type,
