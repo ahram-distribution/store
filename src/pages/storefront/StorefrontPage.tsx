@@ -90,7 +90,7 @@ export function StorefrontPage() {
           isVisible: row.is_visible ?? true,
           imageUrl: row.image_url || undefined,
           companyId: row.company_id,
-          companyName: row.companies?.company_name ?? '',
+          companyName: row.company_name ?? '',
           unitPrices,
         }
       })
@@ -204,6 +204,7 @@ export function StorefrontPage() {
 
   const searchIndices = useMemo(() => {
     return products.map((p) => ({
+      id: p.id,
       product: p,
       index: buildSearchIndex({
         id: p.id,
@@ -411,13 +412,20 @@ export function StorefrontPage() {
       </div>
 
       {/* Search */}
-      <input
-        type="text"
-        value={searchQuery}
-        onChange={(e) => setSearchQuery(e.target.value)}
-        placeholder="ابحث عن منتج..."
-        className="w-full border border-border rounded-lg px-3 py-2.5 text-sm bg-white text-text placeholder:text-text-secondary"
-      />
+      <div className="relative">
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="ابحث عن منتج..."
+          className="w-full border border-border rounded-lg px-3 py-2.5 text-sm bg-white text-text placeholder:text-text-secondary"
+        />
+        {searchQuery.trim() && !loadingProducts && (
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-text-secondary">
+            {filteredProducts.length} نتيجة
+          </span>
+        )}
+      </div>
 
       {/* Tier Selector */}
       <TierSelector

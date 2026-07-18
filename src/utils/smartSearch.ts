@@ -27,10 +27,6 @@ export function normalizeArabic(text: string): string {
     .trim()
 }
 
-export function tokenize(text: string): string[] {
-  return normalizeArabic(text).split(' ').filter(Boolean)
-}
-
 export interface ProductSearchIndex {
   id: string
   code: string
@@ -39,8 +35,8 @@ export interface ProductSearchIndex {
   normalizedName: string
   normalizedCode: string
   normalizedCompany: string
-  tokens: string[]
-  tokenSet: Set<string>
+  codeTokens: string[]
+  nameTokens: string[]
 }
 
 export function buildSearchIndex(product: {
@@ -55,8 +51,8 @@ export function buildSearchIndex(product: {
   const normalizedName = normalizeArabic(name)
   const normalizedCode = normalizeArabic(code)
   const normalizedCompany = normalizeArabic(company)
-  const tokenStr = `${normalizedName} ${normalizedCode} ${normalizedCompany}`
-  const tokens = tokenStr.split(' ').filter(Boolean)
+  const codeTokens = normalizedCode ? normalizedCode.split(' ').filter(Boolean) : []
+  const nameTokens = normalizedName.split(' ').filter(Boolean)
   return {
     id: product.id,
     code,
@@ -65,8 +61,8 @@ export function buildSearchIndex(product: {
     normalizedName,
     normalizedCode,
     normalizedCompany,
-    tokens,
-    tokenSet: new Set(tokens),
+    codeTokens,
+    nameTokens,
   }
 }
 
@@ -74,37 +70,65 @@ const RANK = {
   CODE_EXACT: 0,
   CODE_STARTS: 1,
   CODE_PARTIAL: 2,
-  NAME_EXACT: 3,
-  NAME_STARTS: 4,
-  TOKEN_STARTS: 5,
-  NAME_PARTIAL: 6,
-  TOKEN_PARTIAL: 7,
+  CODE_TOKEN_EXACT: 3,
+  CODE_TOKEN_STARTS: 4,
+  CODE_TOKEN_PARTIAL: 5,
+  NAME_EXACT: 10,
+  NAME_STARTS: 11,
+  NAME_PARTIAL: 12,
+  TOKEN_STARTS: 13,
+  TOKEN_PARTIAL: 14,
+  COMPANY_EXACT: 20,
+  COMPANY_STARTS: 21,
+  COMPANY_PARTIAL: 22,
   NO_MATCH: 99,
 } as const
 
 function rankIndex(qNorm: string, qTokens: string[], idx: ProductSearchIndex): number {
+  // Level 1: Code (full query vs code)
   if (idx.normalizedCode === qNorm) return RANK.CODE_EXACT
   if (idx.normalizedCode.startsWith(qNorm)) return RANK.CODE_STARTS
   if (idx.normalizedCode.includes(qNorm)) return RANK.CODE_PARTIAL
 
+  // Level 2: Code tokens (each query token vs code tokens)
   for (const qt of qTokens) {
-    if (idx.normalizedCode === qt || idx.normalizedCode.includes(qt)) return RANK.CODE_PARTIAL
+    for (const ct of idx.codeTokens) {
+      if (ct === qt) return RANK.CODE_TOKEN_EXACT
+    }
+  }
+  for (const qt of qTokens) {
+    for (const ct of idx.codeTokens) {
+      if (ct.startsWith(qt)) return RANK.CODE_TOKEN_STARTS
+    }
+  }
+  for (const qt of qTokens) {
+    for (const ct of idx.codeTokens) {
+      if (ct.includes(qt)) return RANK.CODE_TOKEN_PARTIAL
+    }
   }
 
+  // Level 3: Name (full query vs name)
   if (idx.normalizedName === qNorm) return RANK.NAME_EXACT
   if (idx.normalizedName.startsWith(qNorm)) return RANK.NAME_STARTS
   if (idx.normalizedName.includes(qNorm)) return RANK.NAME_PARTIAL
 
+  // Level 4: Name tokens (each query token vs name tokens)
   for (const qt of qTokens) {
-    for (const t of idx.tokens) {
-      if (t.startsWith(qt)) return RANK.TOKEN_STARTS
+    for (const nt of idx.nameTokens) {
+      if (nt.startsWith(qt)) return RANK.TOKEN_STARTS
+    }
+  }
+  for (const qt of qTokens) {
+    for (const nt of idx.nameTokens) {
+      if (nt.includes(qt)) return RANK.TOKEN_PARTIAL
     }
   }
 
-  for (const qt of qTokens) {
-    for (const t of idx.tokens) {
-      if (t.includes(qt)) return RANK.TOKEN_PARTIAL
-    }
+  // Level 5: Company name
+  if (idx.normalizedCompany) {
+    if (idx.normalizedCompany === qNorm) return RANK.COMPANY_EXACT
+    if (idx.normalizedCompany.startsWith(qNorm)) return RANK.COMPANY_STARTS
+    if (idx.normalizedCompany.includes(qNorm)) return RANK.COMPANY_PARTIAL
   }
 
   return RANK.NO_MATCH
