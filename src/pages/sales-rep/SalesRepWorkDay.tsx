@@ -180,7 +180,7 @@ export function SalesRepWorkDay() {
         <div className="grid grid-cols-2 gap-2">
           <button onClick={() => navigate('/orders/new')}
             className="bg-primary rounded-xl py-3 text-center text-white active:opacity-80 transition-opacity">
-            <div className="text-sm font-bold">أمر جديد</div>
+            <div className="text-sm font-bold">طلب جديد</div>
             <div className="text-[10px] opacity-80 mt-0.5">إنشاء طلب جديد</div>
           </button>
           <button onClick={() => navigate('/visits/screen')}
@@ -190,29 +190,24 @@ export function SalesRepWorkDay() {
           </button>
           <button onClick={() => navigate('/customers')}
             className="bg-primary-dark rounded-xl py-3 text-center text-white active:opacity-80 transition-opacity">
-            <div className="text-sm font-bold">عملاء</div>
+            <div className="text-sm font-bold">عملائى</div>
             <div className="text-[10px] opacity-80 mt-0.5">قائمة العملاء</div>
           </button>
           {canCreateCustomer && (
             <button onClick={() => navigate('/customers/new')}
               className="bg-primary rounded-xl py-3 text-center text-white active:opacity-80 transition-opacity">
-              <div className="text-sm font-bold">إضافة عميل</div>
+              <div className="text-sm font-bold">عميل جديد</div>
               <div className="text-[10px] opacity-80 mt-0.5">تسجيل عميل جديد</div>
             </button>
           )}
-          <button onClick={() => navigate('/collections')}
-            className="bg-emerald-600 rounded-xl py-3 text-center text-white active:opacity-80 transition-opacity">
-            <div className="text-sm font-bold">تحصيلات</div>
-            <div className="text-[10px] opacity-80 mt-0.5">المدفوعات والتحصيل</div>
-          </button>
           <button onClick={() => navigate('/orders')}
             className="bg-indigo-600 rounded-xl py-3 text-center text-white active:opacity-80 transition-opacity">
-            <div className="text-sm font-bold">فواتيري</div>
+            <div className="text-sm font-bold">الفواتير</div>
             <div className="text-[10px] opacity-80 mt-0.5">فواتير وطلبات</div>
           </button>
           <button onClick={() => navigate('/visits')}
             className="bg-success/80 rounded-xl py-3 text-center text-white active:opacity-80 transition-opacity">
-            <div className="text-sm font-bold">زياراتي</div>
+            <div className="text-sm font-bold">سجل الزيارات</div>
             <div className="text-[10px] opacity-80 mt-0.5">جميع الزيارات</div>
           </button>
           <button onClick={() => navigate('/analytics/customers/intelligence')}
@@ -221,14 +216,9 @@ export function SalesRepWorkDay() {
             <div className="text-[10px] opacity-80 mt-0.5">تحليلات العملاء</div>
           </button>
 
-          <button onClick={() => navigate('/runtime/achievement')}
-            className="bg-rose-600 rounded-xl py-3 text-center text-white active:opacity-80 transition-opacity">
-            <div className="text-sm font-bold">ماذا حققت؟</div>
-            <div className="text-[10px] opacity-80 mt-0.5">إنجازي مع الهدف</div>
-          </button>
           <button onClick={() => setShowReportsCenter(true)}
             className="bg-indigo-500 rounded-xl py-3 text-center text-white active:opacity-80 transition-opacity">
-            <div className="text-sm font-bold">مركز التقارير</div>
+            <div className="text-sm font-bold">تقاريرى</div>
             <div className="text-[10px] opacity-80 mt-0.5">تقارير نشاطي الشخصي</div>
           </button>
         </div>

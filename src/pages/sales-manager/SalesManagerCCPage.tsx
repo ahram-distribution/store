@@ -100,7 +100,7 @@ export default function SalesManagerCCPage() {
 
       {/* Team Overview Cards */}
       <div className="grid grid-cols-3 gap-3">
-        <OverviewCard label="أعضاء الفريق" value={fmt(tov?.member_count ?? 0)} icon="👥" onClick={() => nav('/sales-manager/targets')} />
+        <OverviewCard label="أعضاء الفريق" value={fmt(tov?.member_count ?? 0)} icon="👥" />
         <OverviewCard label="نشط اليوم" value={fmt(tov?.active_today ?? 0)} icon="✅" onClick={() => nav('/attendance/operations')} />
         <OverviewCard label="العملاء" value={fmt(tov?.customer_count ?? 0)} icon="👤" onClick={() => nav('/sales-manager/operations')} />
       </div>

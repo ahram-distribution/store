@@ -57,10 +57,8 @@ export default function UpperManagementDashboard() {
   const achievementValue = achievementPct
 
   const groups: LauncherGroup[] = [
-    { icon: '📊', label: 'النشاط والتارجت', path: '/dashboard/activity-target' },
     { icon: '📋', label: 'الطلبات', path: '/launcher/orders', isSubLauncher: true, badge: dashMgmt?.pending_orders },
     { icon: '📍', label: 'الانتشار', path: '/coverage-map' },
-    { icon: '⚡', label: 'مركز النشاط اللحظي', path: '/command-center/live' },
     { icon: '📍', label: 'الزيارات', path: '/launcher/visits', isSubLauncher: true, badge: dashMgmt?.active_visits },
     { icon: '👥', label: 'العملاء', path: '/launcher/customers', isSubLauncher: true, badge: dashMgmt?.total_customers },
     { icon: '👤', label: 'الموظفون', path: '/launcher/employees', isSubLauncher: true },
@@ -70,7 +68,6 @@ export default function UpperManagementDashboard() {
     { icon: '📈', label: 'التقارير', path: '/launcher/reports', isSubLauncher: true },
     { icon: '📑', label: 'مركز التقارير', path: '__reports_center__' },
     { icon: '⚙️', label: 'الإعدادات', path: '/launcher/settings', isSubLauncher: true },
-    { icon: '📡', label: 'اختبار GPS والموقع', path: '/ops/gps-test' },
     { icon: '🗑️', label: 'مركز الحذف', path: '/data-center' },
   ]
 

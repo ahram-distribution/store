@@ -373,12 +373,6 @@ export function CommandCenterPage() {
                   <div className="text-[10px] font-semibold text-text">مشغل التقارير</div>
                   <div className="text-[8px] text-text-secondary">Launcher</div>
                 </button>
-                <button onClick={() => nav('/sales-effort')}
-                  className="bg-surface rounded-xl p-3 text-center active:scale-95 transition-transform hover:shadow-sm">
-                  <div className="text-xl mb-1">{'\u{1F4AA}'}</div>
-                  <div className="text-[10px] font-semibold text-text">مجهود المناديب</div>
-                  <div className="text-[8px] text-text-secondary">تحليلات</div>
-                </button>
               </div>
             </div>
           </div>

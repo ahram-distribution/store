@@ -54,8 +54,7 @@ import {
 import { AttendanceRuntimePage } from '../pages/attendance/runtime'
 import { AttendanceRouter } from '../components/attendance/AttendanceRouter'
 import { OperationsCenterPage } from '../pages/operations-center'
-import { SalesManagerCCPage, SalesManagerTargets, SalesManagerOperations, SalesManagerField, SalesManagerPersonal, SalesManagerVisitsList, SalesManagerCustomersList, SalesManagerOrdersList } from '../pages/sales-manager'
-import { SalesEffortPage } from '../pages/sales-effort'
+import { SalesManagerCCPage, SalesManagerOperations, SalesManagerField, SalesManagerPersonal, SalesManagerVisitsList, SalesManagerCustomersList, SalesManagerOrdersList } from '../pages/sales-manager'
 import { SalesListPage } from '../pages/sales-list'
 
 import { GpsTestPage } from '../pages/diagnostics'
@@ -162,7 +161,7 @@ export function AppRoutes() {
       <Route path="/targets/hierarchy" element={<ProtectedRoute employeeOnly><HierarchyTargetPage /></ProtectedRoute>} />
       <Route path="/companies/:id" element={<ProtectedRoute><CompanyProfilePage /></ProtectedRoute>} />
       <Route path="/reports" element={<ProtectedRoute employeeOnly><ReportsPage /></ProtectedRoute>} />
-      <Route path="/reports/manager" element={<ProtectedRoute employeeOnly><Suspense fallback={<div className="text-center py-12 text-text-secondary text-sm">جاري التحميل...</div>}><ManagerReportsPage /></Suspense></ProtectedRoute>} />
+      <Route path="/reports/manager" element={<Navigate to="/launcher/reports" replace />} />
       <Route path="/reports/activity" element={<ProtectedRoute employeeOnly><Suspense fallback={<div className="text-center py-12 text-text-secondary text-sm">جاري التحميل...</div>}><ActivityReportsPage /></Suspense></ProtectedRoute>} />
       <Route path="/activity" element={<ProtectedRoute employeeOnly><ActivityPage /></ProtectedRoute>} />
       <Route path="/settings/company" element={<ProtectedRoute employeeOnly><SettingsCompanyProfilePage /></ProtectedRoute>} />
@@ -185,14 +184,13 @@ export function AppRoutes() {
       <Route path="/attendance/operations" element={<ProtectedRoute employeeOnly requireCapability="attendance.live_monitor"><OperationsCenterPage /></ProtectedRoute>} />
 
       <Route path="/sales-manager-cc" element={<ProtectedRoute employeeOnly><SalesManagerCCPage /></ProtectedRoute>} />
-      <Route path="/sales-manager/targets" element={<ProtectedRoute employeeOnly><SalesManagerTargets /></ProtectedRoute>} />
       <Route path="/sales-manager/operations" element={<ProtectedRoute employeeOnly><SalesManagerOperations /></ProtectedRoute>} />
       <Route path="/sales-manager/field" element={<ProtectedRoute employeeOnly><SalesManagerField /></ProtectedRoute>} />
       <Route path="/sales-manager/personal" element={<ProtectedRoute employeeOnly><SalesManagerPersonal /></ProtectedRoute>} />
       <Route path="/sales-manager/visits-list" element={<ProtectedRoute employeeOnly><SalesManagerVisitsList /></ProtectedRoute>} />
       <Route path="/sales-manager/customers-list" element={<ProtectedRoute employeeOnly><SalesManagerCustomersList /></ProtectedRoute>} />
       <Route path="/sales-manager/orders-list" element={<ProtectedRoute employeeOnly><SalesManagerOrdersList /></ProtectedRoute>} />
-      <Route path="/sales-effort" element={<ProtectedRoute employeeOnly><SalesEffortPage /></ProtectedRoute>} />
+      <Route path="/sales-effort" element={<Navigate to="/launcher/reports" replace />} />
       <Route path="/sales-list" element={<ProtectedRoute employeeOnly><SalesListPage /></ProtectedRoute>} />
 
 

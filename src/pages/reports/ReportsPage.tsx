@@ -8,7 +8,7 @@ function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
 }
 
-type ReportSection = 'sales_rep' | 'sales_manager' | 'sales_customer' | 'sales_product' | 'sales_company' | 'sales_time' | 'orders' | 'collections' | 'visits' | 'sales_effort'
+type ReportSection = 'sales_rep' | 'sales_manager' | 'sales_customer' | 'sales_product' | 'sales_company' | 'sales_time' | 'orders' | 'collections' | 'visits'
 
 const SECTIONS: { key: ReportSection; label: string }[] = [
   { key: 'sales_rep', label: 'المبيعات حسب المندوب' },
@@ -20,7 +20,6 @@ const SECTIONS: { key: ReportSection; label: string }[] = [
   { key: 'orders', label: 'تقرير الطلبات' },
   { key: 'collections', label: 'تقرير التحصيلات' },
   { key: 'visits', label: 'تقرير الزيارات' },
-  { key: 'sales_effort', label: 'مجهود المناديب' },
 ]
 
 export function ReportsPage() {
@@ -111,7 +110,7 @@ export function ReportsPage() {
 
       <div className="flex gap-1 bg-white rounded-lg border border-border p-1 overflow-x-auto">
         {SECTIONS.map((s) => (
-          <button key={s.key} onClick={() => s.key === 'sales_effort' ? navigate('/sales-effort') : setActiveSection(s.key)}
+          <button key={s.key} onClick={() => setActiveSection(s.key)}
             className={`whitespace-nowrap text-[10px] px-2 py-1.5 rounded-md font-semibold transition-colors ${activeSection === s.key ? 'bg-primary text-white' : 'text-text-secondary'}`}>
             {s.label}
           </button>

@@ -68,19 +68,6 @@ export default function SalesManagerField() {
         <NavCard icon="🔴" label="المراقبة الحية" desc="نشاط الفريق المباشر" onClick={() => nav('/command-center/live')} />
       </div>
 
-      {/* Sales Effort */}
-      <button onClick={() => nav('/sales-effort')}
-        className="w-full bg-gradient-to-l from-indigo-600 to-blue-700 text-white rounded-xl p-4 text-right active:scale-[0.98] transition-all hover:shadow-lg hover:shadow-indigo-200 flex items-center justify-between">
-        <div>
-          <div className="text-lg font-bold">مجهود المناديب</div>
-          <div className="text-xs text-indigo-100 mt-1">تحليل أداء فريق البيع — الحضور، المبيعات، الزيارات، العملاء الجدد</div>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-2xl">{'\u{1F4AA}'}</span>
-          <span className="text-indigo-200 text-lg">←</span>
-        </div>
-      </button>
-
       {/* Attendance Summary */}
       <div className="bg-white rounded-xl border border-border p-4">
         <h3 className="text-sm font-bold text-text mb-3">ملخص الحضور</h3>
