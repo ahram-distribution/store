@@ -150,7 +150,7 @@ function generatePrintHtml(groups: CompanyGroup[], logoUrl: string): string {
 <div class="top-bar">
   <div style="flex:2;text-align:right">
     <div class="brand">شركة الأهرام للتجارة والتوزيع</div>
-    <div class="contact">كورنيش النيل - الوراق - جيزة | تليفون: 01040880002</div>
+    <div class="contact">الوراق - الجيزة | تليفون: 01040880002</div>
   </div>
   <div style="flex:3;text-align:center">
     <img src="${esc(logoUrl)}" alt="الأهرام" class="logo" />
