@@ -23,7 +23,7 @@ export class LegacyCustomerProvider implements ICustomerProvider {
       p_business_type: (customer.customerType === 'retail' ? 'retail' : 'wholesaler') as any,
       p_street_address: customer.address.street || null,
       p_landmark: customer.address.district || null,
-      p_city_name: null,
+      p_city: null,
       p_governorate_id: null,
     })
     if (error) throw new ProviderException(error.message, PROVIDER_NAME, error)

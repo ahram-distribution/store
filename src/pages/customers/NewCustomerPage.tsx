@@ -36,7 +36,6 @@ export default function NewCustomerPage() {
       p_accuracy_meters: formData.accuracyMeters,
       p_governorate_id: formData.governorateId || null,
       p_city: formData.city.trim() || null,
-      p_city_name: formData.city.trim() || null,
       p_street_address: formData.streetAddress.trim() || null,
     })
 
