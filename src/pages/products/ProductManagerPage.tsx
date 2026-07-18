@@ -6,6 +6,7 @@ import { useCapability } from '../../hooks/useCapability'
 import { ProductCard } from '../../components/products/ProductCard'
 import { formatCurrencyShort } from '../../utils/format'
 import { UNIT_LABELS } from '../../types/order-display'
+import { buildSearchIndex, searchProducts } from '../../utils/smartSearch'
 import toast from 'react-hot-toast'
 import { usePersistentViewState } from '../../hooks/usePersistentViewState'
 
@@ -47,23 +48,35 @@ export function ProductManagerPage() {
   }, [products])
 
   // Filtered products
+  const searchIndices = useMemo(() => {
+    return products.map((p: any) => ({
+      id: p.id,
+      product: p,
+      index: buildSearchIndex({
+        id: p.id,
+        legacyCode: p.legacy_code,
+        productName: p.product_name,
+        companyName: p.company_name,
+      }),
+    }))
+  }, [products])
+
   const filtered = useMemo(() => {
     let list = products
     if (statusFilter === 'active') list = list.filter((p: any) => p.is_active && !(p.is_out_of_stock === true))
     if (statusFilter === 'out_of_stock') list = list.filter((p: any) => p.is_out_of_stock === true && p.is_active !== false)
     if (statusFilter === 'inactive') list = list.filter((p: any) => (!p.is_active || !p.is_visible) && (p.carton_price && Number(p.carton_price) > 0))
     if (statusFilter === 'no_price') list = list.filter((p: any) => !p.carton_price || Number(p.carton_price) <= 0)
-    if (companyFilter) list = list.filter((p: any) => p.company_name === companyFilter)
-    const q = searchQuery.trim().toLowerCase()
+    const q = searchQuery.trim()
     if (q) {
-      list = list.filter((p: any) =>
-        (p.product_name || '').toLowerCase().includes(q) ||
-        (p.legacy_code || '').toLowerCase().includes(q) ||
-        (p.company_name || '').toLowerCase().includes(q)
-      )
+      const indices = searchIndices.filter((si) => list.includes(si.product))
+      list = searchProducts(q, indices, (si) => si.index).map((si) => si.product)
+    } else {
+      if (companyFilter) list = list.filter((p: any) => p.company_name === companyFilter)
+      list = [...list].sort((a: any, b: any) => (a.product_name || '').localeCompare(b.product_name || ''))
     }
     return list
-  }, [products, searchQuery, companyFilter, statusFilter])
+  }, [products, searchQuery, companyFilter, statusFilter, searchIndices])
 
   // ── Load data ──
   async function loadData() {

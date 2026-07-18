@@ -8,6 +8,7 @@ import { computeProductPrices, computePieceQuantity, computeCartTotals } from '.
 import { formatCurrencyShort } from '../../utils/format'
 import { dailyDealService } from '../../services/dailyDeals'
 import { flashOfferService } from '../../services/flashOffers'
+import { buildSearchIndex, searchProducts } from '../../utils/smartSearch'
 import type { ProductWithPrice, ProductUnitPrice, UnitType, DailyDealRecord, FlashOfferRecord, CartTotals, TierConfig } from '../../types/storefront'
 import toast from 'react-hot-toast'
 
@@ -187,16 +188,32 @@ export function OrderEditPage() {
     })
   }, [id, token])
 
+  const searchIndices = useMemo(() => {
+    return products.map((p) => ({
+      id: p.id,
+      product: p,
+      index: buildSearchIndex({
+        id: p.id,
+        legacyCode: p.legacyCode,
+        productName: p.productName,
+        companyName: p.companyName,
+      }),
+    }))
+  }, [products])
+
   const filteredProducts = useMemo(() => {
+    if (searchQuery.trim()) {
+      const indices = searchIndices.filter((si) => si.product.isActive !== false)
+      return searchProducts(searchQuery, indices, (si) => si.index).map((si) => si.product)
+    }
     let list = selectedCompanyId ? products.filter((p) => p.companyId === selectedCompanyId) : []
-    if (searchQuery.trim()) list = list.filter((p) => p.productName.includes(searchQuery))
     return [...list].sort((a, b) => {
       const aAvail = !a.salesBlocked ? 0 : 1
       const bAvail = !b.salesBlocked ? 0 : 1
       if (aAvail !== bAvail) return aAvail - bAvail
       return a.productName.localeCompare(b.productName, 'ar')
     })
-  }, [products, selectedCompanyId, searchQuery])
+  }, [products, selectedCompanyId, searchQuery, searchIndices])
 
   const cartTotal = useMemo(() => {
     const itemCount = cartItems.length + dealItems.length + flashOfferItems.length

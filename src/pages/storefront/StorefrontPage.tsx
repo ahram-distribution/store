@@ -217,13 +217,13 @@ export function StorefrontPage() {
 
   const filteredProducts = useMemo(() => {
     let list = products.filter((p) => p.isActive && p.isVisible)
-    if (companyId) {
-      list = list.filter((p) => p.companyId === companyId)
-    }
     if (searchQuery.trim()) {
       const indices = searchIndices.filter((si) => list.includes(si.product))
       list = searchProducts(searchQuery, indices, (si) => si.index).map((si) => si.product)
     } else {
+      if (companyId) {
+        list = list.filter((p) => p.companyId === companyId)
+      }
       list = [...list].sort((a, b) => a.productName.localeCompare(b.productName, 'ar'))
     }
     return list

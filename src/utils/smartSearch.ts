@@ -76,13 +76,33 @@ const RANK = {
   NAME_EXACT: 10,
   NAME_STARTS: 11,
   NAME_PARTIAL: 12,
-  TOKEN_STARTS: 13,
-  TOKEN_PARTIAL: 14,
-  COMPANY_EXACT: 20,
-  COMPANY_STARTS: 21,
-  COMPANY_PARTIAL: 22,
+  ALL_TOKENS_EXACT: 20,
+  ALL_TOKENS_STARTS: 21,
+  TOKEN_STARTS: 30,
+  TOKEN_PARTIAL: 31,
+  COMPANY_EXACT: 40,
+  COMPANY_STARTS: 41,
+  COMPANY_PARTIAL: 42,
   NO_MATCH: 99,
 } as const
+
+function allTokensMatch(
+  qTokens: string[],
+  targetTokens: string[],
+  mode: 'exact' | 'starts' | 'partial',
+): boolean {
+  if (qTokens.length === 0) return false
+  for (const qt of qTokens) {
+    let found = false
+    for (const tt of targetTokens) {
+      if (mode === 'exact' && tt === qt) { found = true; break }
+      if (mode === 'starts' && tt.startsWith(qt)) { found = true; break }
+      if (mode === 'partial' && tt.includes(qt)) { found = true; break }
+    }
+    if (!found) return false
+  }
+  return true
+}
 
 function rankIndex(qNorm: string, qTokens: string[], idx: ProductSearchIndex): number {
   // Level 1: Code (full query vs code)
@@ -90,7 +110,7 @@ function rankIndex(qNorm: string, qTokens: string[], idx: ProductSearchIndex): n
   if (idx.normalizedCode.startsWith(qNorm)) return RANK.CODE_STARTS
   if (idx.normalizedCode.includes(qNorm)) return RANK.CODE_PARTIAL
 
-  // Level 2: Code tokens (each query token vs code tokens)
+  // Level 2: Code tokens
   for (const qt of qTokens) {
     for (const ct of idx.codeTokens) {
       if (ct === qt) return RANK.CODE_TOKEN_EXACT
@@ -112,7 +132,11 @@ function rankIndex(qNorm: string, qTokens: string[], idx: ProductSearchIndex): n
   if (idx.normalizedName.startsWith(qNorm)) return RANK.NAME_STARTS
   if (idx.normalizedName.includes(qNorm)) return RANK.NAME_PARTIAL
 
-  // Level 4: Name tokens (each query token vs name tokens)
+  // Level 4: ALL query tokens found in name tokens
+  if (allTokensMatch(qTokens, idx.nameTokens, 'exact')) return RANK.ALL_TOKENS_EXACT
+  if (allTokensMatch(qTokens, idx.nameTokens, 'starts')) return RANK.ALL_TOKENS_STARTS
+
+  // Level 5: Single token matches
   for (const qt of qTokens) {
     for (const nt of idx.nameTokens) {
       if (nt.startsWith(qt)) return RANK.TOKEN_STARTS
@@ -124,7 +148,7 @@ function rankIndex(qNorm: string, qTokens: string[], idx: ProductSearchIndex): n
     }
   }
 
-  // Level 5: Company name
+  // Level 6: Company name
   if (idx.normalizedCompany) {
     if (idx.normalizedCompany === qNorm) return RANK.COMPANY_EXACT
     if (idx.normalizedCompany.startsWith(qNorm)) return RANK.COMPANY_STARTS
@@ -132,6 +156,16 @@ function rankIndex(qNorm: string, qTokens: string[], idx: ProductSearchIndex): n
   }
 
   return RANK.NO_MATCH
+}
+
+function countExactTokenMatches(qTokens: string[], nameTokens: string[]): number {
+  let count = 0
+  for (const qt of qTokens) {
+    for (const nt of nameTokens) {
+      if (nt === qt) { count++; break }
+    }
+  }
+  return count
 }
 
 export function searchProducts<T extends { id: string }>(
@@ -145,13 +179,18 @@ export function searchProducts<T extends { id: string }>(
   const qNorm = normalizeArabic(q)
   const qTokens = q.split(/\s+/).filter(Boolean).map(normalizeArabic)
 
-  const scored: { item: T; rank: number }[] = []
+  const scored: { item: T; rank: number; exactMatches: number }[] = []
   for (const item of items) {
     const idx = getIndex(item)
     const rank = rankIndex(qNorm, qTokens, idx)
-    if (rank < RANK.NO_MATCH) scored.push({ item, rank })
+    if (rank < RANK.NO_MATCH) {
+      scored.push({ item, rank, exactMatches: countExactTokenMatches(qTokens, idx.nameTokens) })
+    }
   }
 
-  scored.sort((a, b) => a.rank - b.rank)
+  scored.sort((a, b) => {
+    if (a.rank !== b.rank) return a.rank - b.rank
+    return b.exactMatches - a.exactMatches
+  })
   return scored.map((s) => s.item)
 }

@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../store/auth'
 import { normalizeEmployeeRole, type TargetRole } from '../../utils/roleNormalization'
 import { isProductSaleable } from '../../services/products'
+import { buildSearchIndex, searchProducts, type ProductSearchIndex } from '../../utils/smartSearch'
 
 const ALLOWED_ROLES: TargetRole[] = ['الإدارة العليا', 'مدير بيع', 'مندوب مبيعات']
 
@@ -226,37 +227,50 @@ export default function SalesListPage() {
     return Array.from(names).sort((a, b) => a.localeCompare(b))
   }, [saleableProducts])
 
+  const searchIndices = useMemo(() => {
+    return saleableProducts.map((p) => ({
+      id: p.id,
+      product: p,
+      index: buildSearchIndex({
+        id: p.id,
+        legacyCode: p.legacy_code,
+        productName: p.product_name,
+        companyName: p.company_name,
+      }),
+    }))
+  }, [saleableProducts])
+
   const smartFiltered = useMemo(() => {
     let list = saleableProducts
-    if (companyFilter) {
-      list = list.filter((p) => p.company_name === companyFilter)
-    }
     if (search.trim()) {
-      const terms = search.trim().toLowerCase().split(/\s+/).filter(Boolean)
-      list = list.filter((p) => {
-        const name = p.product_name.toLowerCase()
-        const code = (p.legacy_code || '').toLowerCase()
-        const company = (p.company_name || '').toLowerCase()
-        return terms.every((t) => name.includes(t) || code.includes(t) || company.includes(t))
-      })
+      const indices = searchIndices.filter((si) => list.includes(si.product))
+      list = searchProducts(search, indices, (si) => si.index).map((si) => si.product)
+    } else {
+      if (companyFilter) {
+        list = list.filter((p) => p.company_name === companyFilter)
+      }
+      list = [...list].sort((a, b) => a.product_name.localeCompare(b.product_name))
     }
     return list
-  }, [saleableProducts, search, companyFilter])
+  }, [saleableProducts, search, companyFilter, searchIndices])
 
   const groupedProducts = useMemo((): CompanyGroup[] => {
+    const isSearching = search.trim().length > 0
     const map: Record<string, ProductRow[]> = {}
     for (const p of smartFiltered) {
       const key = p.company_name || 'غير مصنف'
       if (!map[key]) map[key] = []
       map[key].push(p)
     }
-    for (const key of Object.keys(map)) {
-      map[key].sort((a, b) => a.product_name.localeCompare(b.product_name))
+    if (!isSearching) {
+      for (const key of Object.keys(map)) {
+        map[key].sort((a, b) => a.product_name.localeCompare(b.product_name))
+      }
     }
     return Object.entries(map)
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([companyName, prods]) => ({ companyName, products: prods }))
-  }, [smartFiltered])
+  }, [smartFiltered, search])
 
   const handleDownloadPdf = useCallback(() => {
     if (pdfLoading) return
