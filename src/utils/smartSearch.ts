@@ -72,45 +72,42 @@ export function buildSearchIndex(product: {
 
 const RANK = {
   CODE_EXACT: 0,
-  NAME_EXACT: 1,
-  CODE_STARTS: 2,
-  NAME_STARTS: 3,
-  TOKEN_STARTS: 4,
-  CODE_PARTIAL: 5,
+  CODE_STARTS: 1,
+  CODE_PARTIAL: 2,
+  NAME_EXACT: 3,
+  NAME_STARTS: 4,
+  TOKEN_STARTS: 5,
   NAME_PARTIAL: 6,
   TOKEN_PARTIAL: 7,
   NO_MATCH: 99,
 } as const
 
 function rankIndex(qNorm: string, qTokens: string[], idx: ProductSearchIndex): number {
-  let best = RANK.NO_MATCH
-
   if (idx.normalizedCode === qNorm) return RANK.CODE_EXACT
+  if (idx.normalizedCode.startsWith(qNorm)) return RANK.CODE_STARTS
+  if (idx.normalizedCode.includes(qNorm)) return RANK.CODE_PARTIAL
+
+  for (const qt of qTokens) {
+    if (idx.normalizedCode === qt || idx.normalizedCode.includes(qt)) return RANK.CODE_PARTIAL
+  }
+
   if (idx.normalizedName === qNorm) return RANK.NAME_EXACT
-
-  if (idx.normalizedCode.startsWith(qNorm)) best = Math.min(best, RANK.CODE_STARTS)
-  if (idx.normalizedName.startsWith(qNorm)) best = Math.min(best, RANK.NAME_STARTS)
+  if (idx.normalizedName.startsWith(qNorm)) return RANK.NAME_STARTS
+  if (idx.normalizedName.includes(qNorm)) return RANK.NAME_PARTIAL
 
   for (const qt of qTokens) {
-    if (best <= RANK.TOKEN_STARTS) break
     for (const t of idx.tokens) {
-      if (t.startsWith(qt)) { best = Math.min(best, RANK.TOKEN_STARTS); break }
+      if (t.startsWith(qt)) return RANK.TOKEN_STARTS
     }
   }
 
-  if (best <= RANK.CODE_PARTIAL) return best
-  if (idx.normalizedCode.includes(qNorm)) best = Math.min(best, RANK.CODE_PARTIAL)
-  if (idx.normalizedName.includes(qNorm)) best = Math.min(best, RANK.NAME_PARTIAL)
-
-  if (best <= RANK.TOKEN_PARTIAL) return best
   for (const qt of qTokens) {
-    if (best <= RANK.TOKEN_PARTIAL) break
     for (const t of idx.tokens) {
-      if (t.includes(qt)) { best = Math.min(best, RANK.TOKEN_PARTIAL); break }
+      if (t.includes(qt)) return RANK.TOKEN_PARTIAL
     }
   }
 
-  return best
+  return RANK.NO_MATCH
 }
 
 export function searchProducts<T extends { id: string }>(
