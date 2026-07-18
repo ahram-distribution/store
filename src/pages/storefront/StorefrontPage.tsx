@@ -8,6 +8,7 @@ import { StorefrontBanner, StorefrontFooter } from '../../components/storefront/
 import { TierSelector } from '../../components/storefront/TierSelector'
 import { computeProductPrices } from '../../engine/pricing'
 import { formatCurrencyShort } from '../../utils/format'
+import { buildSearchIndex, searchProducts, type ProductSearchIndex } from '../../utils/smartSearch'
 import type { ProductWithPrice, ProductUnitPrice, TierConfig, UnitType } from '../../types/storefront'
 
 export function StorefrontPage() {
@@ -201,18 +202,31 @@ export function StorefrontPage() {
     return keys
   }, [items])
 
+  const searchIndices = useMemo(() => {
+    return products.map((p) => ({
+      product: p,
+      index: buildSearchIndex({
+        id: p.id,
+        legacyCode: p.legacyCode,
+        productName: p.productName,
+        companyName: p.companyName,
+      }),
+    }))
+  }, [products])
+
   const filteredProducts = useMemo(() => {
     let list = products.filter((p) => p.isActive && p.isVisible)
     if (companyId) {
       list = list.filter((p) => p.companyId === companyId)
     }
     if (searchQuery.trim()) {
-      list = list.filter((p) => p.productName.includes(searchQuery))
+      const indices = searchIndices.filter((si) => list.includes(si.product))
+      list = searchProducts(searchQuery, indices, (si) => si.index).map((si) => si.product)
+    } else {
+      list = [...list].sort((a, b) => a.productName.localeCompare(b.productName, 'ar'))
     }
-    return [...list].sort((a, b) =>
-      a.productName.localeCompare(b.productName, 'ar')
-    )
-  }, [products, searchQuery, companyId])
+    return list
+  }, [products, searchQuery, companyId, searchIndices])
 
   const handleAddToCart = (product: ProductWithPrice, unitType: UnitType, quantity: number) => {
     if (needsCustomer) {
