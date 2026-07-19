@@ -37,6 +37,8 @@ export interface ResultsSummaryProps {
   title?: string
   unit?: string
   valueLabel?: string
+  onReset?: () => void
+  resetLabel?: string
 }
 
 export interface PaginationFooterProps {

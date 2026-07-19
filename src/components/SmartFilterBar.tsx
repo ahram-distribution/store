@@ -86,7 +86,7 @@ export default function SmartFilterBar({ searchPlaceholder, employees, employeeL
           value={employeeId}
           onChange={(id) => { setEmployeeId(id); emit({ employeeId: id }) }}
           placeholder={employeeLabel || 'كل المناديب'}
-          className="w-[160px] shrink-0"
+          className="w-[240px] shrink-0"
         />
       </div>
     </div>

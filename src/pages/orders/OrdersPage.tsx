@@ -224,6 +224,13 @@ export function OrdersPage() {
     ? (filters.dateFrom || '...') + ' → ' + (filters.dateTo || '...')
     : (filters.datePreset !== 'all' ? datePresetLabels[filters.datePreset] : undefined)
 
+  const hasActiveFilters = tab !== 'all' || !!statusFilter || !!orderTypeFilter || !!customerFilter || !!filters.search || filters.datePreset !== 'all' || !!filters.employeeId
+
+  const handleResetAll = useCallback(() => {
+    resetViewState()
+    setSfResetKey(k => k + 1)
+  }, [resetViewState])
+
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3">
@@ -237,7 +244,6 @@ export function OrdersPage() {
           <button onClick={() => setViewState({ tab: 'all' })} className={'flex-1 text-xs py-1.5 rounded-md font-semibold transition-colors ' + (tab === 'all' ? 'bg-primary text-white' : 'text-text-secondary')}>الكل</button>
           <button onClick={() => setViewState({ tab: 'my_orders' })} className={'flex-1 text-xs py-1.5 rounded-md font-semibold transition-colors ' + (tab === 'my_orders' ? 'bg-primary text-white' : 'text-text-secondary')}>طلباتي</button>
           <button onClick={() => setViewState({ tab: 'my_invoices' })} className={'flex-1 text-xs py-1.5 rounded-md font-semibold transition-colors ' + (tab === 'my_invoices' ? 'bg-primary text-white' : 'text-text-secondary')}>فواتيري</button>
-          <button onClick={() => { resetViewState(); setSfResetKey(k => k + 1) }} className="text-[10px] px-2 py-1 mr-auto text-danger font-semibold">إعادة تعيين</button>
         </div>
       )}
 
@@ -271,6 +277,8 @@ export function OrdersPage() {
         title="إجمالي الطلبات"
         unit="طلب"
         valueLabel="إجمالي القيمة"
+        onReset={hasActiveFilters ? handleResetAll : undefined}
+        resetLabel="إعادة تعيين الفلاتر لعرض الكل"
       />
 
       <ActiveFilters filters={activeFilterItems} />
