@@ -1,7 +1,9 @@
 import { type ResultsSummaryProps } from '../../types/data-list'
+import { formatCurrencyShort } from '../../utils/format'
 
 export function ResultsSummary({
   total,
+  totalValue,
   filters,
   onRefresh,
   refreshState,
@@ -12,8 +14,10 @@ export function ResultsSummary({
   serverSource,
   title,
   unit,
+  valueLabel,
 }: ResultsSummaryProps) {
   const dateRangeActive = dateFrom || dateTo
+  const hasValue = totalValue != null && totalValue > 0
 
   return (
     <div className="bg-white rounded-xl border border-border p-3.5 space-y-2">
@@ -25,6 +29,11 @@ export function ResultsSummary({
               <p className="text-lg font-bold text-text mt-0.5">
                 {total.toLocaleString('ar-EG')}{unit ? ' ' + unit : ''}
               </p>
+              {hasValue && (
+                <p className="text-xs text-text-secondary mt-0.5">
+                  {valueLabel || 'إجمالي القيمة'}: <span className="font-semibold text-text">{formatCurrencyShort(totalValue!)}</span>
+                </p>
+              )}
             </>
           ) : (
             <p className="text-sm font-bold text-text">

@@ -137,6 +137,10 @@ export function OrdersPage() {
     return [...list].sort((a: any, b: any) => ((b.created_at || '') > (a.created_at || '') ? 1 : -1))
   }, [orders, tab, currentUserId, orderTypeFilter])
 
+  const sortedTotalValue = useMemo(() => {
+    return sorted.reduce((sum: number, o: any) => sum + (Number(o.total_amount) || 0), 0)
+  }, [sorted])
+
   const tabLabel = tab === 'all' ? 'الطلبات' : tab === 'my_orders' ? 'طلباتي' : 'فواتيري'
 
   const handleRefresh = useCallback(() => {
@@ -259,12 +263,14 @@ export function OrdersPage() {
 
       <ResultsSummary
         total={sorted.length}
+        totalValue={sortedTotalValue}
         dateFrom={dateRangeStr}
         filters={[]}
         onRefresh={handleRefresh}
         refreshState={loading ? 'loading' : 'idle'}
         title="إجمالي الطلبات"
         unit="طلب"
+        valueLabel="إجمالي القيمة"
       />
 
       <ActiveFilters filters={activeFilterItems} />

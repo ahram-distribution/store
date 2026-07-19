@@ -25,6 +25,7 @@ export type RefreshState = 'idle' | 'loading' | 'error'
 
 export interface ResultsSummaryProps {
   total: number
+  totalValue?: number
   filters: ActiveFilterItem[]
   onRefresh?: () => void
   refreshState?: RefreshState
@@ -35,6 +36,7 @@ export interface ResultsSummaryProps {
   serverSource?: string
   title?: string
   unit?: string
+  valueLabel?: string
 }
 
 export interface PaginationFooterProps {
