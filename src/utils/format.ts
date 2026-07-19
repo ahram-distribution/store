@@ -16,6 +16,15 @@ export function formatCurrencyShort(amount: number): string {
   return formatted.replace(/\.00$/, '') + ' ج.م'
 }
 
+export function formatCurrencyWhole(amount: number): string {
+  if (!Number.isFinite(amount)) return '0 ج.م'
+  const rounded = Math.round(amount)
+  return new Intl.NumberFormat('en-US', {
+    style: 'decimal',
+    maximumFractionDigits: 0,
+  }).format(rounded) + ' ج.م'
+}
+
 export function toEnglishDigits(str: string): string {
   return str.replace(/[\u0660-\u0669]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0x0660 + 0x0030))
 }

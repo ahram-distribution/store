@@ -1,5 +1,5 @@
 import { type ResultsSummaryProps } from '../../types/data-list'
-import { formatCurrencyShort } from '../../utils/format'
+import { formatCurrencyWhole } from '../../utils/format'
 
 export function ResultsSummary({
   total,
@@ -15,6 +15,8 @@ export function ResultsSummary({
   title,
   unit,
   valueLabel,
+  onReset,
+  resetLabel,
 }: ResultsSummaryProps) {
   const dateRangeActive = dateFrom || dateTo
   const hasValue = totalValue != null && totalValue > 0
@@ -30,8 +32,8 @@ export function ResultsSummary({
                 {total.toLocaleString('ar-EG')}{unit ? ' ' + unit : ''}
               </p>
               {hasValue && (
-                <p className="text-xs text-text-secondary mt-0.5">
-                  {valueLabel || 'إجمالي القيمة'}: <span className="font-semibold text-text">{formatCurrencyShort(totalValue!)}</span>
+                <p className="text-sm font-semibold text-text mt-0.5">
+                  {valueLabel || 'إجمالي القيمة'}: <span className="font-bold text-primary">{formatCurrencyWhole(totalValue!)}</span>
                 </p>
               )}
             </>
@@ -48,18 +50,28 @@ export function ResultsSummary({
             </p>
           )}
         </div>
-        {onRefresh && (
-          <button
-            onClick={onRefresh}
-            disabled={refreshState === 'loading'}
-            className="bg-primary text-white rounded-lg px-3 py-2 text-xs font-semibold shadow-sm active:opacity-90 transition-opacity disabled:opacity-50 flex items-center gap-1.5"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
-            {refreshState === 'loading' ? 'جاري التحديث...' : 'تحديث'}
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {onReset && (
+            <button
+              onClick={onReset}
+              className="text-[11px] px-2.5 py-1.5 rounded-lg border border-danger/30 text-danger bg-danger/5 font-semibold active:bg-danger/10 transition-colors"
+            >
+              {resetLabel || 'إعادة تعيين الفلاتر لعرض الكل'}
+            </button>
+          )}
+          {onRefresh && (
+            <button
+              onClick={onRefresh}
+              disabled={refreshState === 'loading'}
+              className="bg-primary text-white rounded-lg px-3 py-2 text-xs font-semibold shadow-sm active:opacity-90 transition-opacity disabled:opacity-50 flex items-center gap-1.5"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              {refreshState === 'loading' ? 'جاري التحديث...' : 'تحديث'}
+            </button>
+          )}
+        </div>
       </div>
 
       {filters.length > 0 && (
