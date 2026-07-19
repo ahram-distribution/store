@@ -39,7 +39,7 @@ export function OrderReviewPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const orderType = useCartStore((s) => s.orderType)
-  const { items, dealItems, flashOfferItems, products, getSelectedTier, getTotals, clearCart, selectedCustomer, editingOrderId, setEditingOrder } = useCartStore()
+  const { items, dealItems, flashOfferItems, products, getSelectedTier, getTotals, resetOrderContext, selectedCustomer, editingOrderId } = useCartStore()
   const user = useAuthStore((s) => s.user)
   const [submitting, setSubmitting] = useState(false)
 
@@ -202,8 +202,7 @@ export function OrderReviewPage() {
     } catch (e) { console.error('WHATSAPP_OPEN_FAILED', e) }
 
     setSubmitting(false)
-    clearCart()
-    setEditingOrder(null)
+    resetOrderContext()
     navigate('/orders')
   }
 

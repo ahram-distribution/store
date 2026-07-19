@@ -12,7 +12,7 @@ import type { OrderRecord, OrderItemRecord, OrderStatus } from '../../types/stor
 
 export function CheckoutPage() {
   const navigate = useNavigate()
-  const { items, products, getSelectedTier, getTotals, clearCart } = useCartStore()
+  const { items, products, getSelectedTier, getTotals, resetOrderContext } = useCartStore()
   const { addresses, defaultAddressId } = useAccountStore()
   const { addOrder } = useOrdersStore()
   const [notes, setNotes] = useState('')
@@ -97,7 +97,7 @@ export function CheckoutPage() {
     }
     sessionStorage.setItem('lastOrder', JSON.stringify(state))
 
-    clearCart()
+    resetOrderContext()
     toast.success('تم إرسال الطلب بنجاح!')
     navigate('/order-success')
   }

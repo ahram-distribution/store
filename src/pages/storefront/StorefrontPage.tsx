@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, useCallback } from 'react'
+import { useMemo, useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../store/auth'
@@ -33,6 +33,7 @@ export function StorefrontPage() {
     getSelectedTier,
     getTotals,
     selectedCustomer,
+    editingOrderId,
     setSelectedCustomer,
     setEditingOrder,
     setOrderType,
@@ -44,6 +45,9 @@ export function StorefrontPage() {
   const [customers, setCustomers] = useState<any[]>([])
   const [customerPickerOpen, setCustomerPickerOpen] = useState(false)
   const [customerSearch, setCustomerSearch] = useState('')
+  const [showInitModal, setShowInitModal] = useState(false)
+  const [initStep, setInitStep] = useState<'type' | 'customer'>('type')
+  const pendingAddRef = useRef<{ product: ProductWithPrice; unitType: UnitType; quantity: number; scrollY: number } | null>(null)
 
   const fetchProducts = useCallback(async () => {
     setLoadingProducts(true)
@@ -100,34 +104,36 @@ export function StorefrontPage() {
   }, [setProducts, companyId, authToken])
 
   const fetchTiers = useCallback(async () => {
-    const now = new Date().toISOString()
-    const { data } = await supabase
-      .from('tiers')
-      .select('*')
-      .eq('is_active', true)
-      .eq('is_visible', true)
-      .or(`starts_at.is.null,starts_at.lte.${now}`)
-      .or(`ends_at.is.null,ends_at.gte.${now}`)
-      .order('sort_order', { ascending: true })
+    if (!authToken) return
+    const { data } = await supabase.rpc('get_governed_tiers', { p_token: authToken })
 
-    if (data) {
-      const mapped: TierConfig[] = data.map((t: any) => ({
-        id: t.id,
-        name: t.name,
-        description: t.description,
-        discountPercent: Number(t.discount_percent),
-        minimumOrderAmount: Number(t.minimum_order_amount),
-        iconUrl: t.icon_url,
-        color: t.color,
-        sortOrder: t.sort_order,
-        isActive: t.is_active,
-        isVisible: t.is_visible,
-        startsAt: t.starts_at,
-        endsAt: t.ends_at,
-      }))
+    if (Array.isArray(data)) {
+      const now = new Date()
+      const mapped: TierConfig[] = data
+        .filter((t: any) =>
+          t.is_active &&
+          t.is_visible &&
+          (!t.starts_at || new Date(t.starts_at) <= now) &&
+          (!t.ends_at || new Date(t.ends_at) >= now)
+        )
+        .sort((a: any, b: any) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+        .map((t: any) => ({
+          id: t.id,
+          name: t.name,
+          description: t.description,
+          discountPercent: Number(t.discount_percent),
+          minimumOrderAmount: Number(t.minimum_order_amount),
+          iconUrl: t.icon_url,
+          color: t.color,
+          sortOrder: t.sort_order,
+          isActive: t.is_active,
+          isVisible: t.is_visible,
+          startsAt: t.starts_at,
+          endsAt: t.ends_at,
+        }))
       setTiers(mapped)
     }
-  }, [setTiers])
+  }, [setTiers, authToken])
 
   const fetchCustomers = useCallback(async () => {
     if (!authToken || user?.identity_type !== 'employee') return
@@ -161,12 +167,13 @@ export function StorefrontPage() {
 
   useEffect(() => {
     if (!customerParam || !authToken) return
+    if (!editingOrderId && items.length === 0) return
     supabase.rpc('get_governed_customer', { p_token: authToken, p_id: customerParam }).then(({ data }) => {
       if (!data) return
       const c = Array.isArray(data) ? data[0] : data
       setSelectedCustomer({ id: c.id, name: c.company_name || '', phone: c.phone || '', code: c.code || '' })
     })
-  }, [customerParam, authToken])
+  }, [customerParam, authToken, editingOrderId, items.length])
 
   useEffect(() => {
     if (!companyId) {
@@ -230,6 +237,12 @@ export function StorefrontPage() {
   }, [products, searchQuery, companyId, searchIndices])
 
   const handleAddToCart = (product: ProductWithPrice, unitType: UnitType, quantity: number) => {
+    if (!selectedCustomer && !editingOrderId) {
+      pendingAddRef.current = { product, unitType, quantity, scrollY: window.scrollY }
+      setInitStep('type')
+      setShowInitModal(true)
+      return
+    }
     if (needsCustomer) {
       setCustomerPickerOpen(true)
       return
@@ -239,6 +252,17 @@ export function StorefrontPage() {
 
   const handleRemoveFromCart = (productId: string, unitType: UnitType) => {
     removeItem(productId, unitType)
+  }
+
+  const handleInitComplete = () => {
+    const pending = pendingAddRef.current
+    if (!pending) return
+    requestAnimationFrame(() => {
+      window.scrollTo(0, pending.scrollY)
+    })
+    addItem(pending.product, pending.unitType, pending.quantity)
+    pendingAddRef.current = null
+    setShowInitModal(false)
   }
 
   const selectedCompanyName = companyId ? filteredProducts[0]?.companyName : null
@@ -323,13 +347,13 @@ export function StorefrontPage() {
                 .filter((c: any) => {
                   if (!customerSearch.trim()) return true
                   const q = customerSearch.trim().toLowerCase()
-                  return (c.customer_name?.toLowerCase().includes(q) || c.phone?.includes(q))
+                  return (c.company_name?.toLowerCase().includes(q) || c.phone?.includes(q))
                 })
                 .map((c: any) => (
                   <button
                     key={c.id}
                     onClick={() => {
-                      setSelectedCustomer({ id: c.id, name: c.customer_name || 'غير متوفر', phone: c.phone || '', code: c.code || '', address: '' })
+                      setSelectedCustomer({ id: c.id, name: c.company_name || '', phone: c.phone || '', code: c.code || '', address: '' })
                       setCustomerPickerOpen(false)
                       setCustomerSearch('')
                     }}
@@ -338,7 +362,7 @@ export function StorefrontPage() {
                     }`}
                   >
                     <div className="min-w-0 flex-1">
-                      <div className="text-sm font-semibold text-text">{c.customer_name || 'غير متوفر'}</div>
+                      <div className="text-sm font-semibold text-text">{c.company_name || ''}</div>
                       <div className="text-xs text-text-secondary ltr">{c.phone || ''}</div>
                     </div>
                     {selectedCustomer?.id === c.id && (
@@ -347,6 +371,80 @@ export function StorefrontPage() {
                   </button>
                 ))}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Order Initialization Modal */}
+      {showInitModal && (
+        <div className="fixed inset-0 z-[60] bg-black/40 flex items-center justify-center">
+          <div className="bg-white w-full max-h-[calc(100dvh-6rem)] rounded-2xl overflow-hidden flex flex-col mx-4">
+            {initStep === 'type' ? (
+              <>
+                <div className="px-4 py-3 border-b border-border">
+                  <h3 className="text-base font-bold text-text">نوع الطلب</h3>
+                </div>
+                <div className="p-4 space-y-2">
+                  <button
+                    onClick={() => { setOrderType('cash'); setInitStep('customer') }}
+                    className="w-full text-right px-4 py-3 rounded-lg border border-border hover:bg-surface transition-colors"
+                  >
+                    <span className="text-sm font-semibold text-text">نقداً</span>
+                  </button>
+                  <button
+                    onClick={() => { setOrderType('credit'); setInitStep('customer') }}
+                    className="w-full text-right px-4 py-3 rounded-lg border border-border hover:bg-surface transition-colors"
+                  >
+                    <span className="text-sm font-semibold text-text">آجل</span>
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => setInitStep('type')} className="text-text-secondary text-lg">&rarr;</button>
+                    <h3 className="text-base font-bold text-text">اختر العميل</h3>
+                  </div>
+                  <button onClick={() => { setShowInitModal(false); pendingAddRef.current = null }} className="text-text-secondary text-lg">&times;</button>
+                </div>
+                <div className="px-4 py-2">
+                  <input
+                    type="text"
+                    value={customerSearch}
+                    onChange={(e) => setCustomerSearch(e.target.value)}
+                    placeholder="ابحث عن عميل..."
+                    className="w-full border border-border rounded-lg px-3 py-2 text-sm text-text placeholder:text-text-secondary"
+                    autoFocus
+                  />
+                </div>
+                <div className="flex-1 overflow-y-auto px-4 pb-4">
+                  {customers.length === 0 && (
+                    <div className="text-center text-text-secondary text-sm py-8">لا يوجد عملاء</div>
+                  )}
+                  {customers
+                    .filter((c: any) => {
+                      if (!customerSearch.trim()) return true
+                      const q = customerSearch.trim().toLowerCase()
+                      return (c.company_name?.toLowerCase().includes(q) || c.phone?.includes(q))
+                    })
+                    .map((c: any) => (
+                      <button
+                        key={c.id}
+                        onClick={() => {
+                          setSelectedCustomer({ id: c.id, name: c.company_name || '', phone: c.phone || '', code: c.code || '', address: '' })
+                          setCustomerSearch('')
+                          setTimeout(() => handleInitComplete(), 0)
+                        }}
+                        className="w-full text-right px-3 py-3 rounded-lg transition-colors hover:bg-surface"
+                      >
+                        <div className="text-sm font-semibold text-text">{c.company_name || ''}</div>
+                        <div className="text-xs text-text-secondary ltr">{c.phone || ''}</div>
+                      </button>
+                    ))}
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

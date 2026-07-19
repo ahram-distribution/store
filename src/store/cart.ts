@@ -36,6 +36,7 @@ interface CartState {
   getDealItems: () => CartDealItem[]
   getFlashOfferItems: () => CartDealItem[]
   clearCart: () => void
+  resetOrderContext: () => void
   getTotals: () => CartTotals
   getSelectedTier: () => TierConfig | null
   getEffectivePrice: (product: ProductWithPrice, unitType: UnitType) => number
@@ -48,7 +49,22 @@ interface CartState {
 
 export const useCartStore = create(
   persist(
-    (set, get) => ({
+    (set, get) => {
+      /**
+       * Cart Invariant (enforced after every mutation that can empty the cart):
+       * If the effective cart is empty (items + dealItems + flashOfferItems === 0),
+       * then selectedCustomer, orderType, and selectedTierId must be cleared.
+       * Called from: removeItem, removeDeal, removeFlashOffer, clearCart.
+       */
+      const enforceCartInvariant = () => {
+        const s = get()
+        const cartEmpty = s.items.length === 0 && s.dealItems.length === 0 && s.flashOfferItems.length === 0
+        if (cartEmpty && (s.selectedCustomer || s.orderType || s.selectedTierId)) {
+          set({ selectedCustomer: null, orderType: '', selectedTierId: null, editingOrderId: null })
+        }
+      }
+
+      return {
       items: [],
       dealItems: [],
       flashOfferItems: [],
@@ -57,7 +73,7 @@ export const useCartStore = create(
       products: [],
       selectedCustomer: null,
       editingOrderId: null,
-      orderType: 'cash',
+      orderType: '',
 
       setTiers: (tiers) => set({ tiers }),
 
@@ -122,6 +138,7 @@ export const useCartStore = create(
 
       removeItem: (productId, unitType) => {
         set({ items: get().items.filter((i) => !(i.productId === productId && i.unitType === unitType)) })
+        enforceCartInvariant()
         toast.success('تمت الإزالة من السلة')
       },
 
@@ -177,6 +194,7 @@ export const useCartStore = create(
 
       removeDeal: (dealId) => {
         set({ dealItems: get().dealItems.filter((d) => d.dealId !== dealId) })
+        enforceCartInvariant()
       },
 
       addFlashOffer: (offer) => {
@@ -201,9 +219,36 @@ export const useCartStore = create(
 
       removeFlashOffer: (offerId) => {
         set({ flashOfferItems: get().flashOfferItems.filter((d) => d.dealId !== offerId) })
+        enforceCartInvariant()
       },
 
-      clearCart: () => set({ items: [], dealItems: [], flashOfferItems: [] }),
+      /**
+       * clearCart()
+       * Purpose: Removes products from the current order.
+       * Keeps the current order context (customer, order type, editing state, tier).
+       * Used for recovery and continuing the same order after accidental refresh.
+       */
+      clearCart: () => {
+        set({ items: [], dealItems: [], flashOfferItems: [] })
+        enforceCartInvariant()
+      },
+
+      /**
+       * resetOrderContext()
+       * Purpose: Ends the current order session. Starts a brand new order.
+       * Clears customer, order type, editing state, tier, and all cart items.
+       * This is the ONLY official API that ends an order session.
+       * Call after order submission or when explicitly starting a new order.
+       */
+      resetOrderContext: () => set({
+        items: [],
+        dealItems: [],
+        flashOfferItems: [],
+        selectedCustomer: null,
+        orderType: '',
+        selectedTierId: null,
+        editingOrderId: null,
+      }),
 
       getTotals: () => {
         const state = get()
@@ -274,7 +319,8 @@ export const useCartStore = create(
 
       getDealItems: () => get().dealItems,
       getFlashOfferItems: () => get().flashOfferItems,
-    }),
+      }
+    },
     { name: 'ahram-cart' }
   )
 )

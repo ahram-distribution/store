@@ -1,11 +1,14 @@
 import { useNavigate } from 'react-router-dom'
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useCallback } from 'react'
 import { useCartStore } from '../../store/cart'
+import { useAuthStore } from '../../store/auth'
 import { TierSelector } from '../../components/storefront/TierSelector'
 import { TierMinimumNotice } from '../../components/storefront/TierMinimumNotice'
 import { EmptyCart } from '../../components/storefront/EmptyCart'
+import { SearchableSelect } from '../../components/shared/SearchableSelect'
 import { formatCurrencyShort } from '../../utils/format'
 import { UNIT_LABELS } from '../../types/order-display'
+import { supabase } from '../../lib/supabase'
 import toast from 'react-hot-toast'
 import type { CartItem as CartItemType } from '../../types/storefront'
 
@@ -32,6 +35,10 @@ function hashId(id: string): number {
 export function CartPage() {
   const navigate = useNavigate()
   const [hydrated, setHydrated] = useState(false)
+  const { token: authToken } = useAuthStore()
+  const [editingOrderType, setEditingOrderType] = useState(false)
+  const [editingCustomer, setEditingCustomer] = useState(false)
+  const [customers, setCustomers] = useState<any[]>([])
 
   useEffect(() => {
     const s = useCartStore as unknown as { persist: { hasHydrated: () => boolean; onFinishHydration: (fn: () => void) => () => void } }
@@ -42,6 +49,12 @@ export function CartPage() {
       return unsub
     }
   }, [])
+
+  const fetchCustomers = useCallback(async () => {
+    if (!authToken || customers.length > 0) return
+    const { data } = await supabase.rpc('get_governed_customers', { p_token: authToken })
+    if (Array.isArray(data)) setCustomers(data)
+  }, [authToken, customers.length])
 
   const {
     items,
@@ -57,6 +70,10 @@ export function CartPage() {
     removeFlashOffer,
     getSelectedTier,
     getTotals,
+    selectedCustomer,
+    orderType,
+    setSelectedCustomer,
+    setOrderType,
   } = useCartStore()
 
   const selectedTier = getSelectedTier()
@@ -132,6 +149,69 @@ export function CartPage() {
         </div>
         <span className="text-xs text-text-secondary">{items.length} منتج</span>
       </div>
+
+      {/* Order Context Card */}
+      {items.length > 0 && (
+        <div className="bg-white rounded-xl border border-border p-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-xs text-text-secondary">نوع الطلب</div>
+              {editingOrderType ? (
+                <div className="flex gap-2 mt-1">
+                  <button
+                    onClick={() => { setOrderType('cash'); setEditingOrderType(false) }}
+                    className={`text-xs px-3 py-1 rounded-lg border transition-colors ${
+                      orderType === 'cash' ? 'bg-primary text-white border-primary' : 'border-border hover:bg-surface'
+                    }`}
+                  >
+                    نقداً
+                  </button>
+                  <button
+                    onClick={() => { setOrderType('credit'); setEditingOrderType(false) }}
+                    className={`text-xs px-3 py-1 rounded-lg border transition-colors ${
+                      orderType === 'credit' ? 'bg-primary text-white border-primary' : 'border-border hover:bg-surface'
+                    }`}
+                  >
+                    آجل
+                  </button>
+                </div>
+              ) : (
+                <div className="text-sm font-semibold text-text">{orderType === 'credit' ? 'آجل' : orderType === 'cash' ? 'نقداً' : 'غير محدد'}</div>
+              )}
+            </div>
+            {!editingOrderType && (
+              <button onClick={() => setEditingOrderType(true)} className="text-xs text-primary font-semibold">تغيير</button>
+            )}
+          </div>
+
+          <hr className="border-border" />
+
+          <div className="flex items-center justify-between">
+            <div className="flex-1 min-w-0">
+              <div className="text-xs text-text-secondary">العميل</div>
+              {editingCustomer ? (
+                <SearchableSelect
+                  items={customers.map((c: any) => ({ id: c.id, name: c.company_name || '' }))}
+                  value={selectedCustomer?.id || ''}
+                  onChange={(id) => {
+                    const c = customers.find((c: any) => c.id === id)
+                    if (c) {
+                      setSelectedCustomer({ id: c.id, name: c.company_name || '', phone: c.phone || '', code: c.code || '' })
+                    }
+                    setEditingCustomer(false)
+                  }}
+                  placeholder="اختر العميل"
+                />
+              ) : (
+                <div className="text-sm font-semibold text-text truncate">{selectedCustomer?.name || 'غير محدد'}</div>
+              )}
+            </div>
+            {!editingCustomer && (
+              <button onClick={() => { setEditingCustomer(true); fetchCustomers() }} className="text-xs text-primary font-semibold shrink-0 ml-3">تغيير</button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Tier Selector */}
       <TierSelector
