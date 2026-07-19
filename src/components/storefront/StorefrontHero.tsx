@@ -52,14 +52,7 @@ export function StorefrontHero() {
   const navigate = useNavigate()
   const { data, loading } = useCompanyProfile()
   const { token } = useAuthStore()
-  const [search, setSearch] = useState('')
   const [themeOpen, setThemeOpen] = useState(false)
-
-  const handleSearch = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && search.trim()) {
-      navigate(`/storefront/products?q=${encodeURIComponent(search.trim())}`)
-    }
-  }
 
   return (
     <>
@@ -81,30 +74,7 @@ export function StorefrontHero() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2" style={{ padding: '0 16px 14px' }}>
-          <div className="flex-1 relative">
-            <span className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: 'rgba(255,255,255,.35)', fontSize: 15, lineHeight: 1 }}>🔍</span>
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              onKeyDown={handleSearch}
-              placeholder="ابحث عن منتج..."
-              style={{
-                width: '100%',
-                height: 36,
-                paddingRight: 34,
-                paddingLeft: 10,
-                borderRadius: 999,
-                background: 'rgba(255,255,255,.08)',
-                border: '1px solid rgba(var(--theme-accent-rgb), .15)',
-                color: '#fff',
-                fontSize: 13,
-                outline: 'none',
-              }}
-              className="storefront-search-input"
-            />
-          </div>
+        <div className="flex items-center justify-end gap-2" style={{ padding: '0 16px 14px' }}>
           <button
             onClick={() => navigate(token ? '/account' : '/login')}
             className="shrink-0 flex items-center justify-center active:opacity-80 transition-opacity"
