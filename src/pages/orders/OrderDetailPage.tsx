@@ -10,6 +10,7 @@ import { formatCurrencyShort } from '../../utils/format'
 import { UNIT_LABELS } from '../../types/order-display'
 import { computeProductPrices, computePieceQuantity } from '../../engine/pricing'
 import { buildSearchIndex, searchProducts } from '../../utils/smartSearch'
+import { SearchHighlight } from '../../components/shared/SearchHighlight'
 import toast from 'react-hot-toast'
 import type { UnifiedOrder, UnifiedOrderItem } from '../../types/unified-order'
 import type { ProductWithPrice, UnitType } from '../../types/storefront'
@@ -344,7 +345,9 @@ export function OrderDetailPage() {
                       <img src={product.imageUrl} alt="" className="w-10 h-10 rounded-lg object-contain bg-[#F9FAFB] shrink-0" />
                     )}
                     <div className="min-w-0">
-                      <p className="text-xs font-semibold text-[#111827] truncate">{product.productName}</p>
+                      <p className="text-xs font-semibold text-[#111827] truncate">
+                        <SearchHighlight text={product.productName} query={searchQuery} />
+                      </p>
                       <p className="text-[10px] text-[#6B7280]">{product.companyName}</p>
                     </div>
                   </div>

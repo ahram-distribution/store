@@ -7,6 +7,8 @@ import { ProductCard } from '../../components/products/ProductCard'
 import { formatCurrencyShort } from '../../utils/format'
 import { UNIT_LABELS } from '../../types/order-display'
 import { buildSearchIndex, searchProducts } from '../../utils/smartSearch'
+import { SearchHighlight } from '../../components/shared/SearchHighlight'
+import { SearchableSelect } from '../../components/shared/SearchableSelect'
 import toast from 'react-hot-toast'
 import { usePersistentViewState } from '../../hooks/usePersistentViewState'
 
@@ -398,7 +400,7 @@ export function ProductManagerPage() {
         )}
       </div>
 
-      <div className="px-3 py-4 space-y-4">
+      <div className="px-4 py-4 space-y-4">
         {/* ── Filters (always visible) ── */}
         <div className="bg-white rounded-xl border border-border p-3 space-y-2">
           <div className="flex gap-2">
@@ -473,6 +475,7 @@ export function ProductManagerPage() {
                 onToggleActive={() => handleToggleActive(product)}
                 onDelete={() => handleDeletePreview(product)}
                 onViewDetails={() => nav(`/products/${product.id}`)}
+                searchQuery={searchQuery}
               />
             ))}
           </div>
@@ -531,13 +534,12 @@ export function ProductManagerPage() {
                   </button>
                 </div>
               )}
-              <select
-                value={addCompanyId} onChange={(e) => setAddCompanyId(e.target.value)}
-                className="w-full border border-border rounded-lg px-3 py-2.5 text-sm bg-surface" required
-              >
-                <option value="">اختر الشركة *</option>
-                {companies.map((c: any) => <option key={c.id} value={c.id}>{c.company_name}</option>)}
-              </select>
+              <SearchableSelect
+                items={companies.map((c: any) => ({ id: c.id, name: c.company_name }))}
+                value={addCompanyId}
+                onChange={setAddCompanyId}
+                placeholder="اختر الشركة *"
+              />
               <div className="grid grid-cols-2 gap-2">
                 <input
                   type="number" value={addCartonQty} onChange={(e) => setAddCartonQty(e.target.value)}
@@ -612,12 +614,13 @@ export function ProductManagerPage() {
               {/* Company */}
               <div className="space-y-3">
                 <h4 className="text-xs font-bold text-text-secondary">الشركة</h4>
-                <select value={editForm.company_id}
-                  onChange={(e) => setEditForm((p: any) => ({ ...p, company_id: e.target.value }))}
-                  disabled={!canManage} className="w-full border border-border rounded-lg px-3 py-2.5 text-sm bg-surface">
-                  <option value="">اختر شركة...</option>
-                  {companies.map((c: any) => <option key={c.id} value={c.id}>{c.company_name}</option>)}
-                </select>
+                <SearchableSelect
+                  items={companies.map((c: any) => ({ id: c.id, name: c.company_name }))}
+                  value={editForm.company_id}
+                  onChange={(val) => setEditForm((p: any) => ({ ...p, company_id: val }))}
+                  placeholder="اختر شركة..."
+                  disabled={!canManage}
+                />
               </div>
 
               {/* Image */}

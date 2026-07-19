@@ -88,7 +88,7 @@ export default function UpperManagementDashboard() {
   const adminGroups = groups.filter(g => adminPaths.includes(g.path))
 
   return (
-    <div className="p-4 space-y-6" dir="rtl">
+    <div className="space-y-4" dir="rtl">
       {/* ===== 1. HEADER ===== */}
       <div className="bg-gradient-to-br from-primary to-primary-dark rounded-2xl shadow-lg overflow-hidden">
         <div className="p-5">

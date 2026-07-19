@@ -7,6 +7,7 @@ import { useAuthStore } from '../../store/auth'
 import { StorefrontFooter } from '../../components/storefront/CompanyInfoSection'
 import { StorefrontHero } from '../../components/storefront/StorefrontHero'
 import { BusinessShortcuts } from '../../components/storefront/BusinessShortcuts'
+import { SearchHighlight } from '../../components/shared/SearchHighlight'
 import { buildSearchIndex, searchProducts as smartSearchProducts, type ProductSearchIndex } from '../../utils/smartSearch'
 import type { ProductWithPrice, ProductUnitPrice } from '../../types/storefront'
 
@@ -152,7 +153,7 @@ export function CompaniesPage() {
         <StorefrontHero />
       </div>
 
-      <div className="space-y-2" style={{ marginTop: 12 }}>
+      <div className="space-y-4" style={{ marginTop: 12 }}>
         <BusinessShortcuts />
 
         {/* Global Search */}
@@ -200,8 +201,12 @@ export function CompaniesPage() {
                         </div>
                       )}
                       <div className="min-w-0 flex-1">
-                        <div className="text-sm font-semibold text-text truncate">{product.productName}</div>
-                        <div className="text-xs text-text-secondary">{product.companyName}</div>
+                        <div className="text-sm font-semibold text-text truncate">
+                          <SearchHighlight text={product.productName} query={globalSearch} />
+                        </div>
+                        <div className="text-xs text-text-secondary">
+                          <SearchHighlight text={product.companyName} query={globalSearch} />
+                        </div>
                         {product.legacyCode && (
                           <div className="text-[11px] text-text-secondary ltr">{product.legacyCode}</div>
                         )}

@@ -288,7 +288,7 @@ export function CustomerForm({
           <div>
             <label className={labelClass}>المحافظة *</label>
             <SearchableSelect
-              options={governorates.map(g => ({ value: g.id, label: g.name_ar }))}
+              items={governorates.map(g => ({ id: g.id, name: g.name_ar }))}
               value={form.governorateId}
               onChange={v => set('governorateId', v)}
               placeholder="اختر المحافظة..."

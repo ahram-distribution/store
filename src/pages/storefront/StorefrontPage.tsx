@@ -460,6 +460,7 @@ export function StorefrontPage() {
                 onAddToCart={handleAddToCart}
                 onRemoveFromCart={handleRemoveFromCart}
                 cartItemKeys={cartItemKeys}
+                searchQuery={searchQuery}
               />
             </div>
           ))}

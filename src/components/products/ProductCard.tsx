@@ -1,5 +1,6 @@
 import { Edit3, Eye, Power, Trash2, Star, Package, Building2, Calendar } from 'lucide-react'
 import { formatCurrencyShort } from '../../utils/format'
+import { SearchHighlight } from '../shared/SearchHighlight'
 
 interface ProductCardProps {
   product: any
@@ -7,6 +8,7 @@ interface ProductCardProps {
   onToggleActive: () => void
   onDelete: () => void
   onViewDetails: () => void
+  searchQuery?: string
 }
 
 const UNIT_LABELS: Record<string, string> = {
@@ -15,7 +17,7 @@ const UNIT_LABELS: Record<string, string> = {
   carton: 'كرتونة',
 }
 
-export function ProductCard({ product, onEdit, onToggleActive, onDelete, onViewDetails }: ProductCardProps) {
+export function ProductCard({ product, onEdit, onToggleActive, onDelete, onViewDetails, searchQuery }: ProductCardProps) {
   const isOutOfStock = product.is_out_of_stock === true && product.is_active !== false
   const units = (product.product_units || []).filter((u: any) => u.is_active !== false)
   const unitNames = units.map((u: any) => UNIT_LABELS[u.unit_type] || u.unit_type).join(' - ')
@@ -64,7 +66,9 @@ export function ProductCard({ product, onEdit, onToggleActive, onDelete, onViewD
         {/* Name + code */}
         <div>
           <div className="flex items-start justify-between gap-1">
-            <h3 className="text-sm font-bold text-text leading-tight line-clamp-2">{product.product_name}</h3>
+            <h3 className="text-sm font-bold text-text leading-tight line-clamp-2">
+              <SearchHighlight text={product.product_name} query={searchQuery || ''} />
+            </h3>
           </div>
           <p className="text-[10px] text-text-secondary font-mono mt-0.5" dir="ltr">{product.legacy_code || '—'}</p>
         </div>

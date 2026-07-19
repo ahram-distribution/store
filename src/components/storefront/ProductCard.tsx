@@ -3,6 +3,7 @@ import type { ProductWithPrice, ComputedPrices } from '../../types/storefront'
 import type { UnitType } from '../../types/storefront'
 import { formatCurrencyShort } from '../../utils/format'
 import { UNIT_LABELS } from '../../types/order-display'
+import { SearchHighlight } from '../shared/SearchHighlight'
 
 interface ProductCardProps {
   product: ProductWithPrice
@@ -12,9 +13,10 @@ interface ProductCardProps {
   onAddToCart: (product: ProductWithPrice, unitType: UnitType, quantity: number) => void
   onRemoveFromCart?: (productId: string, unitType: UnitType) => void
   cartItemKeys?: Set<string>
+  searchQuery?: string
 }
 
-export function ProductCard({ product, prices, hasTier, tierName, onAddToCart, onRemoveFromCart, cartItemKeys }: ProductCardProps) {
+export function ProductCard({ product, prices, hasTier, tierName, onAddToCart, onRemoveFromCart, cartItemKeys, searchQuery }: ProductCardProps) {
   const availableOptions = product.unitPrices.map((up) => ({
     value: up.unitType,
     label: UNIT_LABELS[up.unitType],
@@ -59,11 +61,11 @@ export function ProductCard({ product, prices, hasTier, tierName, onAddToCart, o
 
       {/* Code + Company */}
       <div className="flex items-center gap-1 text-[10px] text-text-secondary">
-        <span>كود: {product.legacyCode}</span>
+        <span>كود: <SearchHighlight text={product.legacyCode || ''} query={searchQuery || ''} /></span>
         {product.companyName && (
           <>
             <span>|</span>
-            <span>{product.companyName}</span>
+            <span><SearchHighlight text={product.companyName} query={searchQuery || ''} /></span>
           </>
         )}
         {isInCart && (
@@ -73,7 +75,9 @@ export function ProductCard({ product, prices, hasTier, tierName, onAddToCart, o
 
       {/* Product Name + Status */}
       <div className="flex items-start justify-between">
-        <h3 className="font-medium text-sm text-text flex-1">{product.productName}</h3>
+        <h3 className="font-medium text-sm text-text flex-1">
+          <SearchHighlight text={product.productName} query={searchQuery || ''} />
+        </h3>
         {isBlocked && (
           <span className={`text-xs px-2 py-0.5 rounded shrink-0 ${
             product.isOutOfStock ? 'bg-warning/10 text-warning' : 'bg-red-50 text-danger'

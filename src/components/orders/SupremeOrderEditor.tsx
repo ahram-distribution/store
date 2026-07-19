@@ -4,6 +4,7 @@ import { UNIT_LABELS } from '../../types/order-display'
 import { computeProductPrices, computePieceQuantity } from '../../engine/pricing'
 import { formatCurrencyShort } from '../../utils/format'
 import { buildSearchIndex, searchProducts } from '../../utils/smartSearch'
+import { SearchHighlight } from '../shared/SearchHighlight'
 import type { UnitType, ProductWithPrice } from '../../types/storefront'
 import type { UnifiedOrderItem } from '../../types/unified-order'
 import toast from 'react-hot-toast'
@@ -340,7 +341,9 @@ export function SupremeOrderEditor({ orderId, initialItems, initialNotes, initia
                         <img src={product.imageUrl} alt="" className="w-10 h-10 rounded-lg object-contain bg-surface shrink-0" />
                       )}
                       <div className="min-w-0">
-                        <p className="text-xs font-semibold text-text truncate">{product.productName}</p>
+                        <p className="text-xs font-semibold text-text truncate">
+                          <SearchHighlight text={product.productName} query={searchQuery} />
+                        </p>
                         <p className="text-[10px] text-text-secondary">{product.companyName}</p>
                       </div>
                     </div>

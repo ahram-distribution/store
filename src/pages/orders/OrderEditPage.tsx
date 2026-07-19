@@ -603,6 +603,7 @@ export function OrderEditPage() {
                     onAddToCart={handleAddToCart}
                     onRemoveFromCart={handleRemoveItem}
                     cartItemKeys={cartItemKeys}
+                    searchQuery={searchQuery}
                   />
                 ))}
               </div>

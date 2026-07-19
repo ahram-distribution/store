@@ -5,6 +5,7 @@ import { useAuthStore } from '../../store/auth'
 import { normalizeEmployeeRole, type TargetRole } from '../../utils/roleNormalization'
 import { isProductSaleable } from '../../services/products'
 import { buildSearchIndex, searchProducts, type ProductSearchIndex } from '../../utils/smartSearch'
+import { SearchHighlight } from '../../components/shared/SearchHighlight'
 
 const ALLOWED_ROLES: TargetRole[] = ['الإدارة العليا', 'مدير بيع', 'مندوب مبيعات']
 
@@ -72,21 +73,6 @@ function esc(s: string | null | undefined): string {
   const d = document.createElement('div')
   d.textContent = s
   return d.innerHTML
-}
-
-function escapeRegex(s: string): string {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-}
-
-function highlightText(text: string, query: string): string {
-  if (!query.trim()) return esc(text)
-  const terms = query.trim().split(/\s+/).filter(Boolean)
-  let result = esc(text)
-  for (const term of terms) {
-    const re = new RegExp(`(${escapeRegex(term)})`, 'gi')
-    result = result.replace(re, '<mark class="bg-yellow-200 rounded px-0.5">$1</mark>')
-  }
-  return result
 }
 
 function generatePrintHtml(groups: CompanyGroup[], logoUrl: string): string {
@@ -393,7 +379,9 @@ export default function SalesListPage() {
                           <td className="px-2 py-1.5 text-center font-mono text-[10px] text-text-muted ltr align-middle">
                             {p.legacy_code || '---'}
                           </td>
-                          <td className="px-3 py-1.5 text-right text-xs text-text align-middle" dangerouslySetInnerHTML={{ __html: highlightText(p.product_name, search) }} />
+                          <td className="px-3 py-1.5 text-right text-xs text-text align-middle">
+                            <SearchHighlight text={p.product_name} query={search} />
+                          </td>
                           <td className="px-2 py-1.5 text-center align-middle">
                             {priceByType.piece != null ? (
                               <span className="text-xs font-bold text-text">{formatPrice(priceByType.piece)}</span>

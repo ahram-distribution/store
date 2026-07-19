@@ -3,6 +3,7 @@ import { usePersistentViewState } from '../../hooks/usePersistentViewState'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../store/auth'
+import { SearchableSelect } from '../../components/shared/SearchableSelect'
 import toast from 'react-hot-toast'
 
 function getToken(): string | null {
@@ -223,14 +224,18 @@ export function EmployeesPage({ embedded }: { embedded?: boolean }) {
           <input type="text" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="كلمة المرور (افتراضي: رقم الهاتف)" className="w-full border border-border rounded-lg px-3 py-2 text-sm" dir="ltr" />
           <input type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} placeholder="البريد الإلكتروني" className="w-full border border-border rounded-lg px-3 py-2 text-sm" dir="ltr" />
           <textarea value={newAddress} onChange={(e) => setNewAddress(e.target.value)} placeholder="العنوان" className="w-full border border-border rounded-lg px-3 py-2 text-sm resize-none" rows={2} />
-          <select value={newRoleId} onChange={(e) => setNewRoleId(e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-white">
-            <option value="">اختر الصلاحية</option>
-            {roles.map((r: any) => <option key={r.id} value={r.id}>{r.name}</option>)}
-          </select>
-          <select value={newManagerId} onChange={(e) => setNewManagerId(e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-white">
-            <option value="">المدير المباشر</option>
-            {employees.filter((e: any) => e.is_active).map((e: any) => <option key={e.id} value={e.id}>{e.full_name}</option>)}
-          </select>
+          <SearchableSelect
+            items={roles.map((r: any) => ({ id: r.id, name: r.name }))}
+            value={newRoleId}
+            onChange={setNewRoleId}
+            placeholder="اختر الصلاحية"
+          />
+          <SearchableSelect
+            items={employees.filter((e: any) => e.is_active).map((e: any) => ({ id: e.id, name: e.full_name }))}
+            value={newManagerId}
+            onChange={setNewManagerId}
+            placeholder="المدير المباشر"
+          />
           <div className="flex gap-2">
             <button type="submit" disabled={submitting} className="flex-1 bg-primary text-white text-xs py-2 rounded-lg font-semibold">
               {submitting ? 'جاري الإضافة...' : 'إضافة'}
@@ -292,24 +297,24 @@ export function EmployeesPage({ embedded }: { embedded?: boolean }) {
 
               {showManagerPicker === emp.id && (
                 <div className="mt-3 border-t border-border pt-3">
-                  <select onChange={(e) => { if (e.target.value) handleChangeManager(emp.id, e.target.value) }}
-                    className="w-full border border-border rounded-lg px-3 py-1.5 text-xs bg-white">
-                    <option value="">اختر المدير الجديد</option>
-                    {employees.filter((e: any) => e.id !== emp.id && e.is_active).map((e: any) => (
-                      <option key={e.id} value={e.id}>{e.full_name}</option>
-                    ))}
-                  </select>
+                  <SearchableSelect
+                    items={employees.filter((e: any) => e.id !== emp.id && e.is_active).map((e: any) => ({ id: e.id, name: e.full_name }))}
+                    value=""
+                    onChange={(val) => { if (val) handleChangeManager(emp.id, val) }}
+                    placeholder="اختر المدير الجديد"
+                  />
                   <button onClick={() => setShowManagerPicker(null)} className="text-xs text-text-secondary mt-1">إلغاء</button>
                 </div>
               )}
 
               {showRolePicker === emp.id && (
                 <div className="mt-3 border-t border-border pt-3">
-                  <select onChange={(e) => { if (e.target.value) handleChangeRole(emp.id, e.target.value) }}
-                    className="w-full border border-border rounded-lg px-3 py-1.5 text-xs bg-white">
-                    <option value="">اختر الصلاحية الجديدة</option>
-                    {roles.map((r: any) => <option key={r.id} value={r.id}>{r.name}</option>)}
-                  </select>
+                  <SearchableSelect
+                    items={roles.map((r: any) => ({ id: r.id, name: r.name }))}
+                    value=""
+                    onChange={(val) => { if (val) handleChangeRole(emp.id, val) }}
+                    placeholder="اختر الصلاحية الجديدة"
+                  />
                   <button onClick={() => setShowRolePicker(null)} className="text-xs text-text-secondary mt-1">إلغاء</button>
                 </div>
               )}

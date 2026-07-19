@@ -9,6 +9,7 @@ import { getCurrentLocation } from '../../services/gpsService'
 import { CustomerForm } from '../../components/customers/CustomerForm'
 import type { CustomerFormData } from '../../components/customers/CustomerForm'
 import { CustomerAddressCard } from '../../components/customers/CustomerAddressCard'
+import { SearchableSelect } from '../../components/shared/SearchableSelect'
 import toast from 'react-hot-toast'
 
 const BUSINESS_TYPES: { value: string; label: string }[] = [
@@ -838,12 +839,12 @@ export function CustomerProfilePage() {
           {showOwnership && (
             <div className="bg-white rounded-xl border border-border p-4 space-y-3">
               <h2 className="text-sm font-bold">نقل ملكية العميل</h2>
-              <select value={newOwnerId} onChange={(e) => setNewOwnerId(e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-white">
-                <option value="">اختر الموظف الجديد</option>
-                {employees.filter((e: any) => e.is_active).map((e: any) => (
-                  <option key={e.id} value={e.id}>{e.full_name} ({e.code})</option>
-                ))}
-              </select>
+              <SearchableSelect
+                items={employees.filter((e: any) => e.is_active).map((e: any) => ({ id: e.id, name: `${e.full_name} (${e.code})` }))}
+                value={newOwnerId}
+                onChange={setNewOwnerId}
+                placeholder="اختر الموظف الجديد"
+              />
               <textarea value={reason} onChange={(e) => setReason(e.target.value)} placeholder="سبب النقل" className="w-full border border-border rounded-lg px-3 py-2 text-sm" rows={2} />
               <div className="flex gap-2">
                 <button onClick={handleChangeOwnership} className="flex-1 bg-accent text-white text-xs py-2 rounded-lg">تأكيد النقل</button>

@@ -13,9 +13,10 @@ interface SearchableSelectProps {
   placeholder?: string
   label?: string
   className?: string
+  disabled?: boolean
 }
 
-export function SearchableSelect({ items, value, onChange, placeholder, label, className = '' }: SearchableSelectProps) {
+export function SearchableSelect({ items, value, onChange, placeholder, label, className = '', disabled }: SearchableSelectProps) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [highlightIndex, setHighlightIndex] = useState(-1)
@@ -120,8 +121,9 @@ export function SearchableSelect({ items, value, onChange, placeholder, label, c
       )}
       <button
         type="button"
-        onClick={() => setOpen(prev => !prev)}
-        className="w-full flex items-center justify-between gap-2 text-xs px-2 py-2 rounded-lg border border-border bg-surface focus:outline-none focus:border-primary transition-colors text-right"
+        onClick={() => { if (!disabled) setOpen(prev => !prev) }}
+        disabled={disabled}
+        className="w-full flex items-center justify-between gap-2 text-xs px-2 py-2 rounded-lg border border-border bg-surface focus:outline-none focus:border-primary transition-colors text-right disabled:opacity-50 disabled:cursor-not-allowed"
       >
         <span className={selectedItem ? 'text-text' : 'text-text-secondary'}>
           {selectedItem ? selectedItem.name : (placeholder || 'اختر...')}
