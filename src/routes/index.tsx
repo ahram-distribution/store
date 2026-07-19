@@ -24,7 +24,7 @@ import { FlashOffersPage, FlashOfferDetailPage, FlashOffersManagementPage } from
 import { TierSystemPage, TiersManagerPage } from '../pages/tiers'
 import { AuctionsPage, AuctionDetailPage, AuctionsManagerPage } from '../pages/auctions'
 import { CustomersPage, CustomerProfilePage, NewCustomerPage } from '../pages/customers'
-import { DashboardPage } from '../pages/dashboard'
+import { DashboardPage, ExecutiveOperationsWorkspace } from '../pages/dashboard'
 import PerformanceAnalysisPage from '../pages/dashboard/PerformanceAnalysisPage'
 import EmployeeAnalysisPage from '../pages/dashboard/EmployeeAnalysisPage'
 import ActivityScreen from '../pages/dashboard/ActivityScreen'
@@ -34,7 +34,7 @@ import { AnalyticsListPage } from '../pages/analytics/AnalyticsListPage'
 import { CustomerAnalyticsPage } from '../pages/analytics/CustomerAnalyticsPage'
 import CustomerIntelligenceOverviewPage from '../pages/analytics/CustomerIntelligenceOverviewPage'
 import { CreditProgramsPage, CreditProgramsManagerPage, CreditApplicationsPage, CreditReviewPage, CustomerCreditPage, CreditManagementPage } from '../pages/credit'
-import { DeliveryPage, DeliveryDetailPage, CollectionFollowupPage } from '../pages/delivery'
+import { DeliveryDetailPage, CollectionFollowupPage } from '../pages/delivery'
 import { WarehousePage, WarehouseReviewPage, WarehousePrepDetail } from '../pages/warehouse'
 import { EmployeesPage, EmployeeProfilePage, HierarchyPage, EmployeeManagementPage } from '../pages/employees'
 import { CompanyProfilePage } from '../pages/companies'
@@ -151,7 +151,7 @@ export function AppRoutes() {
       <Route path="/warehouse" element={<ProtectedRoute requireCapability="warehouse.prepare"><WarehousePage /></ProtectedRoute>} />
       <Route path="/warehouse/review" element={<ProtectedRoute requireCapability="warehouse.prepare"><WarehouseReviewPage /></ProtectedRoute>} />
       <Route path="/warehouse/prep/:id" element={<ProtectedRoute requireCapability="warehouse.prepare"><WarehousePrepDetail /></ProtectedRoute>} />
-      <Route path="/delivery" element={<ProtectedRoute requireCapability="delivery.dispatch"><DeliveryPage /></ProtectedRoute>} />
+      <Route path="/delivery" element={<ProtectedRoute employeeOnly><ExecutiveOperationsWorkspace /></ProtectedRoute>} />
       <Route path="/delivery/:id" element={<ProtectedRoute requireCapability="delivery.deliver"><DeliveryDetailPage /></ProtectedRoute>} />
       <Route path="/collections/followup" element={<ProtectedRoute requireCapability="collections.read"><CollectionFollowupPage /></ProtectedRoute>} />
 
