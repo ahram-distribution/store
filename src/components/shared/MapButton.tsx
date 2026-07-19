@@ -1,4 +1,5 @@
 import toast from 'react-hot-toast'
+import { copyToClipboard } from '../../utils/safeClipboard'
 
 interface MapButtonProps {
   latitude: number
@@ -32,8 +33,8 @@ export function MapButton({ latitude, longitude, size = 'md', showCopyLink = tru
   const icn = iconSize[size]
 
   function handleCopy() {
-    navigator.clipboard.writeText(url).then(() => {
-      toast.success('تم نسخ رابط الخريطة')
+    copyToClipboard(url).then((ok) => {
+      if (ok) toast.success('تم نسخ رابط الخريطة')
     })
   }
 

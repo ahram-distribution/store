@@ -10,6 +10,7 @@ import { CustomerForm } from '../../components/customers/CustomerForm'
 import type { CustomerFormData } from '../../components/customers/CustomerForm'
 import { CustomerAddressCard } from '../../components/customers/CustomerAddressCard'
 import { SearchableSelect } from '../../components/shared/SearchableSelect'
+import { copyToClipboard } from '../../utils/safeClipboard'
 import toast from 'react-hot-toast'
 
 const BUSINESS_TYPES: { value: string; label: string }[] = [
@@ -771,7 +772,7 @@ export function CustomerProfilePage() {
                       <div className="flex gap-1">
                         <a href={`tel:${c.phone}`} className="text-[9px] text-primary bg-primary/10 px-1.5 py-0.5 rounded">اتصال</a>
                         <a href={`https://wa.me/${c.phone.replace(/^\+/, '')}`} target="_blank" rel="noopener noreferrer" className="text-[9px] text-success bg-success/10 px-1.5 py-0.5 rounded">واتساب</a>
-                        <button onClick={() => { navigator.clipboard.writeText(c.phone); toast.success('تم نسخ الرقم') }} className="text-[9px] text-accent bg-accent/10 px-1.5 py-0.5 rounded">نسخ</button>
+                        <button onClick={() => { copyToClipboard(c.phone).then((ok) => { if (ok) toast.success('تم نسخ الرقم') }) }} className="text-[9px] text-accent bg-accent/10 px-1.5 py-0.5 rounded">نسخ</button>
                       </div>
                     </div>
                   </div>

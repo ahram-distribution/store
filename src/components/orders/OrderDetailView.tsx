@@ -15,6 +15,7 @@ import { CustomerAddressCard } from '../customers/CustomerAddressCard'
 import { ORDER_STATUS_LABELS } from '../../types/order-display'
 import { renderDeliveryPermitHtml, printInvoice } from './order-printing'
 import { buildTimelineEvents } from './order-detail.utils'
+import { copyToClipboard } from '../../utils/safeClipboard'
 import type { UnifiedOrder, UnifiedOrderItem } from '../../types/unified-order'
 
 interface OrderDetailViewProps {
@@ -225,7 +226,7 @@ export function OrderDetailView({ data, actions, onBack, editMode, editItems, on
                   <svg className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
                   فتح
                 </a>
-                <button onClick={() => { navigator.clipboard.writeText(data.last_visit.maps_url); window.alert('تم نسخ الرابط')}}
+                <button onClick={() => { copyToClipboard(data.last_visit.maps_url).then((ok) => { if (ok) window.alert('تم نسخ الرابط') }) }}
                   className="flex items-center justify-center gap-1 text-xs text-[#2563EB] bg-[#EFF6FF] hover:bg-[#DBEAFE] px-2 py-1.5 rounded-lg transition-colors font-medium h-[30px]">
                   <svg className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/></svg>
                   نسخ

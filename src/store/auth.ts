@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { authService, type RegisterParams } from '../services/auth'
+import { storageRead, storageWrite, storageRemove } from '../utils/safeStorage'
 
 export interface SessionUser {
   identity_id: string
@@ -37,7 +38,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
 
     const token = result.token!
-    localStorage.setItem('session_token', token)
+    storageWrite('session_token', token)
 
     const user: SessionUser = {
       identity_id: '',
@@ -66,7 +67,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
 
     const token = result.token!
-    localStorage.setItem('session_token', token)
+    storageWrite('session_token', token)
 
     const user: SessionUser = {
       identity_id: '',
@@ -89,7 +90,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (token) {
       try { await authService.logout(token) } catch { /* ignore */ }
     }
-    localStorage.removeItem('session_token')
+    storageRemove('session_token')
     set({ user: null, token: null, sessionExpired: false })
   },
 
@@ -98,7 +99,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   restoreSession: async () => {
-    const token = localStorage.getItem('session_token')
+    const token = storageRead('session_token')
     if (!token) {
       set({ loading: false })
       return
@@ -107,7 +108,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       const result = await authService.validateSession(token)
       if (!result.valid) {
-        localStorage.removeItem('session_token')
+        storageRemove('session_token')
         set({ user: null, token: null, loading: false, sessionExpired: true })
         return
       }
@@ -130,7 +131,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       set({ user, token, loading: false })
     } catch {
-      localStorage.removeItem('session_token')
+      storageRemove('session_token')
       set({ user: null, token: null, loading: false, sessionExpired: true })
     }
   },

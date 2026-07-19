@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getFullAddress } from './order-detail.utils'
 import { formatCurrencyShort, formatDate } from '../../utils/format'
+import { copyToClipboard } from '../../utils/safeClipboard'
 import toast from 'react-hot-toast'
 import type { UnifiedCustomerSummary, UnifiedOrderHeader, UnifiedOrder } from '../../types/unified-order'
 
@@ -13,20 +14,22 @@ interface OrderCustomerSectionProps {
 
 function LocationActionButtons({ url, lat, lng }: { url: string; lat: number; lng: number }) {
   function handleCopy() {
-    navigator.clipboard.writeText(url).then(() => {
-      toast.success('تم نسخ رابط الموقع')
+    copyToClipboard(url).then((ok) => {
+      if (ok) toast.success('تم نسخ رابط الموقع')
     })
   }
 
   function handleShare() {
     if (navigator.share) {
       navigator.share({ title: 'الموقع', text: url, url }).catch(() => {
-        navigator.clipboard.writeText(url)
-        toast.success('تم نسخ رابط الموقع')
+        copyToClipboard(url).then((ok) => {
+          if (ok) toast.success('تم نسخ رابط الموقع')
+        })
       })
     } else {
-      navigator.clipboard.writeText(url)
-      toast.success('تم نسخ رابط الموقع')
+      copyToClipboard(url).then((ok) => {
+        if (ok) toast.success('تم نسخ رابط الموقع')
+      })
     }
   }
 

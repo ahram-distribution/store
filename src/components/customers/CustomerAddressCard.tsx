@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { copyToClipboard } from '../../utils/safeClipboard'
 
 interface ManualAddress {
   governorate: string | null
@@ -125,7 +126,7 @@ export function CustomerAddressCard({ type, manualData, gpsData, onUpdateLocatio
 
       {isManual && (hasStructuredAddr || hasLegacyAddr) && (
         <div className="flex flex-wrap gap-2">
-          <button onClick={() => { navigator.clipboard.writeText(manualFullAddress); alert('تم نسخ العنوان') }}
+          <button onClick={() => { copyToClipboard(manualFullAddress).then((ok) => { if (ok) alert('تم نسخ العنوان') }) }}
             className="flex-1 text-xs py-1.5 rounded-lg font-semibold text-center"
             style={{ backgroundColor: '#EFF6FF', color: '#2563EB' }}>
             نسخ العنوان
@@ -138,7 +139,7 @@ export function CustomerAddressCard({ type, manualData, gpsData, onUpdateLocatio
             </a>
           )}
           {mapsUrl && (
-            <button onClick={() => { navigator.clipboard.writeText(mapsUrl); alert('تم نسخ الرابط') }}
+            <button onClick={() => { copyToClipboard(mapsUrl).then((ok) => { if (ok) alert('تم نسخ الرابط') }) }}
               className="flex-1 text-xs py-1.5 rounded-lg font-semibold text-center"
               style={{ backgroundColor: '#FEF3C7', color: '#D97706' }}>
               نسخ الرابط
@@ -184,7 +185,7 @@ export function CustomerAddressCard({ type, manualData, gpsData, onUpdateLocatio
                 style={{ backgroundColor: '#ECFDF5', color: '#059669' }}>
                 فتح على الخرائط
               </a>
-              <button onClick={() => { navigator.clipboard.writeText(mapsUrl || ''); alert('تم نسخ الرابط') }}
+              <button onClick={() => { copyToClipboard(mapsUrl || '').then((ok) => { if (ok) alert('تم نسخ الرابط') }) }}
                 className="flex-1 text-xs py-1.5 rounded-lg font-semibold text-center"
                 style={{ backgroundColor: '#FEF3C7', color: '#D97706' }}>
                 نسخ الرابط
@@ -249,7 +250,7 @@ export function CustomerAddressCard({ type, manualData, gpsData, onUpdateLocatio
               </a>
             )}
             {mapsUrl && (
-              <button onClick={() => { navigator.clipboard.writeText(mapsUrl || ''); alert('تم نسخ الرابط') }}
+              <button onClick={() => { copyToClipboard(mapsUrl || '').then((ok) => { if (ok) alert('تم نسخ الرابط') }) }}
                 className="flex-1 text-xs py-1.5 rounded-lg font-semibold text-center"
                 style={{ backgroundColor: '#FEF3C7', color: '#D97706' }}>
                 نسخ الرابط

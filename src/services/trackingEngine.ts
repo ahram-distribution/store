@@ -140,6 +140,7 @@ class TrackingEngine {
 
   private async _registerBackgroundSync() {
     try {
+      if (!('serviceWorker' in navigator)) return
       const reg = await navigator.serviceWorker.ready
       if ('sync' in reg) {
         await (reg as any).sync.register('sync-tracking-points')

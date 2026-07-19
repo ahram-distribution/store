@@ -1,5 +1,6 @@
 import type { OrderDisplayData, OrderDisplayItem } from '../types/order-display'
 import toast from 'react-hot-toast'
+import { copyToClipboard } from '../utils/safeClipboard'
 
 function normalizeWhatsAppNumber(raw: string): string {
   const digits = raw.replace(/[^\d]/g, '')
@@ -115,10 +116,9 @@ export function sendWhatsAppFromDisplay(display: OrderDisplayData) {
 
 export function copyWhatsAppFromDisplay(display: OrderDisplayData) {
   const msg = buildWhatsAppMessageFromDisplay(display)
-  navigator.clipboard.writeText(msg).then(() => {
-    toast.success('تم نسخ نص الرسالة')
-  }).catch(() => {
-    toast.error('فشل نسخ النص')
+  copyToClipboard(msg).then((ok) => {
+    if (ok) toast.success('تم نسخ نص الرسالة')
+    else toast.error('فشل نسخ النص')
   })
 }
 
