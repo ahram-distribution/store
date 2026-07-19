@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { SearchableSelect } from './shared/SearchableSelect'
 
 export interface FilterValues {
   datePreset: string
@@ -80,13 +81,13 @@ export default function SmartFilterBar({ searchPlaceholder, employees, employeeL
         <input type="text" value={search} onChange={e => { setSearch(e.target.value); emit({ search: e.target.value }) }}
           placeholder={searchPlaceholder || 'بحث بالاسم أو الكود...'}
           className="flex-1 text-xs px-3 py-2 rounded-lg border border-border bg-surface focus:outline-none focus:border-primary transition-colors" />
-        <select value={employeeId} onChange={e => { setEmployeeId(e.target.value); emit({ employeeId: e.target.value }) }}
-          className="shrink-0 text-xs px-2 py-2 rounded-lg border border-border bg-surface focus:outline-none focus:border-primary">
-          <option value="">{employeeLabel || 'كل المناديب'}</option>
-          {employees.map(emp => (
-            <option key={emp.id} value={emp.id}>{emp.name}</option>
-          ))}
-        </select>
+        <SearchableSelect
+          items={employees}
+          value={employeeId}
+          onChange={(id) => { setEmployeeId(id); emit({ employeeId: id }) }}
+          placeholder={employeeLabel || 'كل المناديب'}
+          className="w-[160px] shrink-0"
+        />
       </div>
     </div>
   )
