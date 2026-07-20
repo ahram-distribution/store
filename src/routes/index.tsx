@@ -13,6 +13,8 @@ import { UserProfilePage } from '../pages/account/UserProfilePage'
 import { UserPermissionsPage } from '../pages/account/UserPermissionsPage'
 import { ProductManagerPage } from '../pages/products/ProductManagerPage'
 import { CompanyManagerPage } from '../pages/companies/CompanyManagerPage'
+import { CompanyCreatePage } from '../pages/companies/CompanyCreatePage'
+import { CompanyEditPage } from '../pages/companies/CompanyEditPage'
 import { VisitsPage, VisitDetailPage, VisitScreen, NewVisitPage } from '../pages/visits'
 import { CollectionsPage, NewCollectionPage } from '../pages/collections'
 import { ReturnsPage, ReturnDetailPage, ReturnNewPage } from '../pages/returns'
@@ -169,6 +171,8 @@ export function AppRoutes() {
       <Route path="/account/profile" element={<ProtectedRoute employeeOnly><UserProfilePage /></ProtectedRoute>} />
       <Route path="/account/permissions" element={<ProtectedRoute employeeOnly><UserPermissionsPage /></ProtectedRoute>} />
       <Route path="/products/manage" element={<ProtectedRoute employeeOnly><ProductManagerPage /></ProtectedRoute>} />
+      <Route path="/companies/manage/new" element={<ProtectedRoute employeeOnly><CompanyCreatePage /></ProtectedRoute>} />
+      <Route path="/companies/manage/:id/edit" element={<ProtectedRoute employeeOnly><CompanyEditPage /></ProtectedRoute>} />
       <Route path="/companies/manage" element={<ProtectedRoute employeeOnly><CompanyManagerPage /></ProtectedRoute>} />
 
       <Route path="/command-center" element={<ProtectedRoute employeeOnly><CommandCenterPage /></ProtectedRoute>} />

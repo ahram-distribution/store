@@ -39,9 +39,9 @@ export function CompaniesPage() {
   useEffect(() => {
     supabase
       .from('companies')
-      .select('id, company_name, logo_url')
+      .select('id, company_name, logo_url, display_order')
       .eq('is_visible', true)
-      .order('company_name')
+      .order('display_order')
       .then(({ data, error }) => {
         if (!error && data) {
           setCompanies(
