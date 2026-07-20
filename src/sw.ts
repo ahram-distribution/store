@@ -351,10 +351,29 @@ self.addEventListener('notificationclick', (event) => {
 
 // ---- Fetch (precache + offline + SPA navigation) ----
 
+const isDev = BUILD_ID === 'dev'
+
 self.addEventListener('fetch', (event) => {
+  // Skip non-app origins (extensions, third-party APIs, devtools, etc.)
+  try {
+    if (new URL(event.request.url).origin !== self.location.origin) return
+  } catch { return }
+
+  // Skip hash-fragment requests (React Router SPA routes)
+  if (event.request.url.includes('#')) return
+
+  // DEV: network-first for everything, never cache permanently
+  if (isDev) {
+    event.respondWith(
+      fetch(event.request).catch(() => caches.match(event.request))
+    )
+    return
+  }
+
+  // PRODUCTION: skip RPC calls
   if (event.request.url.includes('/rest/v1/rpc/')) return
 
-  // SPA navigation: network-first with cache fallback
+  // PRODUCTION: SPA navigation — network-first with cache fallback
   if (
     event.request.mode === 'navigate' ||
     event.request.destination === 'document'
@@ -367,9 +386,7 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
-  // Skip hash-fragment requests (React Router SPA routes)
-  if (event.request.url.includes('#')) return
-
+  // PRODUCTION: cache-first for static assets
   event.respondWith(
     caches.match(event.request).then((cached) => {
       return cached || fetch(event.request).then((response) => {
@@ -379,7 +396,6 @@ self.addEventListener('fetch', (event) => {
         }
         return response
       }).catch(() => {
-        console.warn(`[SW] Offline: ${event.request.url}`);
         return new Response(null, { status: 200 });
       })
     })

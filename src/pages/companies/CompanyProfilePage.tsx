@@ -43,7 +43,7 @@ export function CompanyProfilePage() {
       <div className="flex items-center gap-3">
         <button onClick={() => navigate('/companies/manage')} className="text-text-secondary text-lg">&larr;</button>
         <h1 className="text-lg font-bold text-text">{company.company_name}</h1>
-        {!company.is_active && <span className="text-[10px] bg-danger/10 text-danger px-2 py-0.5 rounded">غير نشط</span>}
+        {company.is_visible === false && <span className="text-[10px] bg-warning/10 text-warning px-2 py-0.5 rounded">مخفي</span>}
       </div>
 
       {analytics && (

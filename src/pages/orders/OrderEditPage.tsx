@@ -140,11 +140,8 @@ export function OrderEditPage() {
       setProducts(allProds)
 
       // Companies
-      if (compRes.data && allProds.length > 0) {
-        const companyHasSellable = new Set(allProds.filter(p => !p.salesBlocked).map(p => p.companyId))
-        setCompanies(compRes.data.filter((c: any) => c.is_visible !== false && companyHasSellable.has(c.id)))
-      } else if (compRes.data) {
-        setCompanies(compRes.data)
+      if (compRes.data) {
+        setCompanies(compRes.data.filter((c: any) => c.is_visible !== false))
       }
 
       // Tiers

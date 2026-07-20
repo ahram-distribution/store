@@ -40,7 +40,6 @@ export function CompaniesPage() {
     supabase
       .from('companies')
       .select('id, company_name, logo_url')
-      .eq('is_active', true)
       .eq('is_visible', true)
       .order('company_name')
       .then(({ data, error }) => {
