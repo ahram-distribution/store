@@ -22,9 +22,7 @@ export function ProductCard({ product, onEdit, onToggleActive, onDelete, onViewD
   const units = (product.product_units || []).filter((u: any) => u.is_active !== false)
   const unitNames = units.map((u: any) => UNIT_LABELS[u.unit_type] || u.unit_type).join(' - ')
 
-  const piecePrice = product.carton_price > 0 && product.carton_quantity > 0
-    ? Math.round(product.carton_price / product.carton_quantity * 100) / 100
-    : 0
+  const piecePrice = product.piece_price || 0
 
   const createdDate = product.created_at
     ? new Date(product.created_at).toLocaleDateString('ar-EG-u-nu-latn', { year: 'numeric', month: 'short', day: 'numeric' })

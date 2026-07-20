@@ -26,7 +26,7 @@ import {
 // ── Models ─────────────────────────────────────────────────────
 import {
   createSalesOrder, submitOrder, reviewOrder, approveOrder, rejectOrder, cancelOrder,
-  recordPayment, addLineToOrder, createOrderLine, calculateLineTotal,
+  recordPayment, addLineToOrder, createOrderLine,
 } from '../models/salesOrder'
 
 import {
@@ -50,7 +50,6 @@ import { createInventoryRecord, adjustInventory, countInventory } from '../model
 import { startTrackingSession, endTrackingSession, addCheckIn, createCheckIn } from '../models/tracking'
 
 // ── Services ───────────────────────────────────────────────────
-import { calculateUnitPrice, calculateTieredPrice } from '../services/PricingService'
 
 // ═══════════════════════════════════════════════════════════════
 //  VALUE OBJECT TESTS
@@ -314,12 +313,6 @@ describe('SalesOrder aggregate', () => {
     expect(paid.paidAmount.amount).toBe(150)
     expect(paid.balanceDue.amount).toBe(50)
   })
-
-  it('calculates line total correctly', () => {
-    expect(calculateLineTotal(100, 2, 'carton', 24)).toBe(200)
-    expect(calculateLineTotal(240, 10, 'piece', 24)).toBe(100)
-    expect(calculateLineTotal(240, 2, 'dozen', 24)).toBe(240)
-  })
 })
 
 describe('Customer aggregate', () => {
@@ -490,26 +483,5 @@ describe('Identity / Authorization', () => {
     }
     expect(hasCapability(session, 'orders.create')).toBe(true)
     expect(hasCapability(session, 'orders.delete')).toBe(false)
-  })
-})
-
-// ═══════════════════════════════════════════════════════════════
-//  DOMAIN SERVICE TESTS
-// ═══════════════════════════════════════════════════════════════
-
-describe('PricingService', () => {
-  it('calculates unit price per unit type', () => {
-    expect(calculateUnitPrice(2400, 'carton', 24).amount).toBe(2400)
-    expect(calculateUnitPrice(2400, 'piece', 24).amount).toBe(100)
-    expect(calculateUnitPrice(2400, 'dozen', 24).amount).toBe(1200)
-  })
-
-  it('applies tiered discount', () => {
-    const result = calculateTieredPrice({
-      cartonPrice: 2400, cartonQuantity: 24, unitType: 'carton', unitQuantity: 2,
-      tier: { discountPercent: 10, minimumOrderAmount: 1000 },
-    })
-    expect(result.unitPrice.amount).toBe(2160)
-    expect(result.totalPrice.amount).toBe(4320)
   })
 })

@@ -9,9 +9,9 @@ export interface Database {
         Update: { company_name?: string; legacy_code?: string; is_active?: boolean }
       }
       products: {
-        Row: { id: string; company_id: string; product_name: string; legacy_code: string; description: string | null; carton_quantity: number; carton_price: number; is_active: boolean; is_out_of_stock: boolean; image_url: string | null; created_at: string; updated_at: string }
-        Insert: { id?: string; company_id: string; product_name: string; legacy_code: string; description?: string | null; carton_quantity: number; carton_price: number; is_active?: boolean; is_out_of_stock?: boolean; image_url?: string | null }
-        Update: { company_id?: string; product_name?: string; legacy_code?: string; description?: string | null; carton_quantity?: number; carton_price?: number; is_active?: boolean; is_out_of_stock?: boolean; image_url?: string | null }
+        Row: { id: string; company_id: string; product_name: string; legacy_code: string; description: string | null; carton_quantity: number; carton_price: number; piece_price: number; dozen_price: number; is_active: boolean; is_out_of_stock: boolean; image_url: string | null; created_at: string; updated_at: string }
+        Insert: { id?: string; company_id: string; product_name: string; legacy_code: string; description?: string | null; carton_quantity: number; carton_price: number; piece_price?: number; dozen_price?: number; is_active?: boolean; is_out_of_stock?: boolean; image_url?: string | null }
+        Update: { company_id?: string; product_name?: string; legacy_code?: string; description?: string | null; carton_quantity?: number; carton_price?: number; piece_price?: number; dozen_price?: number; is_active?: boolean; is_out_of_stock?: boolean; image_url?: string | null }
       }
       product_units: {
         Row: { id: string; product_id: string; unit_type: string; is_active: boolean; created_at: string }

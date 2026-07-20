@@ -53,6 +53,8 @@ export interface ProductWithPrice {
   legacyCode: string
   cartonPrice: number
   cartonQuantity: number
+  piecePrice: number
+  dozenPrice: number
   isActive: boolean
   isOutOfStock: boolean
   isVisible: boolean
@@ -60,6 +62,7 @@ export interface ProductWithPrice {
   companyId: string
   companyName: string
   unitPrices: ProductUnitPrice[]
+  availableUnitTypes: UnitType[]
 }
 
 export interface ComputedPrices {

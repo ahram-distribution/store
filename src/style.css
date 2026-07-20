@@ -21,6 +21,7 @@
   --color-card: #ffffff;
   --color-gold: #C9A227;
   --color-gold-light: #E0B85A;
+  --breakpoint-wd: 1200px;
 }
 
 :root {

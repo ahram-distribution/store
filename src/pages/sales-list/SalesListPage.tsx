@@ -20,6 +20,8 @@ interface ProductRow {
   is_out_of_stock: boolean
   carton_price: number
   carton_quantity: number
+  piece_price: number
+  dozen_price: number
   product_units: { id: string; unit_type: string; is_active: boolean }[]
 }
 
@@ -44,26 +46,15 @@ function formatPrice(val: number): string {
 }
 
 function computeUnitPrices(p: ProductRow): UnitPriceInfo[] {
+  const piecePrice = Number(p.piece_price) || 0
+  const dozenPrice = Number(p.dozen_price) || 0
   const cartonPrice = Number(p.carton_price) || 0
-  const cartonQuantity = Number(p.carton_quantity) || 0
   const activeUnitTypes = (p.product_units || []).filter((u) => u.is_active !== false).map((u) => u.unit_type)
-  const hasCarton = activeUnitTypes.includes('carton')
-  const rawPrices: UnitPriceInfo[] = []
-
-  if (hasCarton) {
-    if (cartonPrice > 0) {
-      if (cartonQuantity >= 24) {
-        rawPrices.push({ unitType: 'dozen', price: (cartonPrice / cartonQuantity) * 12 })
-      }
-      rawPrices.push({ unitType: 'carton', price: cartonPrice })
-    }
-  } else {
-    const piecePrice = cartonPrice > 0 && cartonQuantity > 0 ? cartonPrice / cartonQuantity : 0
-    if (piecePrice > 0) {
-      rawPrices.push({ unitType: 'piece', price: piecePrice })
-      rawPrices.push({ unitType: 'dozen', price: piecePrice * 12 })
-    }
-  }
+  const rawPrices: UnitPriceInfo[] = [
+    { unitType: 'piece', price: piecePrice },
+    { unitType: 'dozen', price: dozenPrice },
+    { unitType: 'carton', price: cartonPrice },
+  ]
 
   return rawPrices.filter((up) => activeUnitTypes.includes(up.unitType))
 }

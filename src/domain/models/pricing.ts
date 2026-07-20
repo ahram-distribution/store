@@ -45,13 +45,4 @@ export function createCustomerPrice(
   return { id, customerId, productId, price, unitType }
 }
 
-export function calculateUnitPrice(
-  basePrice: number,
-  unitType: UnitType,
-  cartonQuantity: number,
-): number {
-  if (unitType === 'carton') return basePrice
-  if (unitType === 'piece') return basePrice / cartonQuantity
-  if (unitType === 'dozen') return (basePrice / cartonQuantity) * 12
-  return basePrice
-}
+

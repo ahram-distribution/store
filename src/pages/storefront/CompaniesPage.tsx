@@ -9,7 +9,7 @@ import { StorefrontHero } from '../../components/storefront/StorefrontHero'
 import { BusinessShortcuts } from '../../components/storefront/BusinessShortcuts'
 import { SearchHighlight } from '../../components/shared/SearchHighlight'
 import { buildSearchIndex, searchProducts as smartSearchProducts, type ProductSearchIndex } from '../../utils/smartSearch'
-import type { ProductWithPrice, ProductUnitPrice } from '../../types/storefront'
+import type { ProductWithPrice, ProductUnitPrice, UnitType } from '../../types/storefront'
 
 interface CompanyItem {
   id: string
@@ -69,31 +69,24 @@ export function CompaniesPage() {
       const mapped: ProductWithPrice[] = arr.map((row: any) => {
         const cartonPrice = Number(row.carton_price) || 0
         const cartonQuantity = Number(row.carton_quantity) || 0
+        const piecePrice = Number(row.piece_price) || 0
+        const dozenPrice = Number(row.dozen_price) || 0
         const activeUnits = (row.product_units ?? []).filter((u: any) => u.is_active !== false)
-        const activeUnitTypes = activeUnits.map((u: any) => u.unit_type)
-        const hasCarton = activeUnitTypes.includes('carton')
-        const rawPrices: ProductUnitPrice[] = []
-        if (hasCarton) {
-          if (cartonPrice > 0) {
-            if (cartonQuantity >= 24) {
-              rawPrices.push({ unitType: 'dozen', price: (cartonPrice / cartonQuantity) * 12 })
-            }
-            rawPrices.push({ unitType: 'carton', price: cartonPrice })
-          }
-        } else {
-          const piecePrice = cartonPrice > 0 && cartonQuantity > 0 ? cartonPrice / cartonQuantity : 0
-          if (piecePrice > 0) {
-            rawPrices.push({ unitType: 'piece', price: piecePrice })
-            rawPrices.push({ unitType: 'dozen', price: piecePrice * 12 })
-          }
-        }
-        const unitPrices = rawPrices.filter(up => activeUnitTypes.includes(up.unitType))
+        const activeUnitTypes: UnitType[] = activeUnits.map((u: any) => u.unit_type)
+        const allUnitPrices: ProductUnitPrice[] = [
+          { unitType: 'piece', price: piecePrice },
+          { unitType: 'dozen', price: dozenPrice },
+          { unitType: 'carton', price: cartonPrice },
+        ]
+        const unitPrices = allUnitPrices.filter((up) => activeUnitTypes.includes(up.unitType))
         return {
           id: row.id,
           productName: row.product_name,
           legacyCode: row.legacy_code || '',
           cartonPrice,
           cartonQuantity,
+          piecePrice,
+          dozenPrice,
           isActive: row.is_active ?? true,
           isOutOfStock: row.is_out_of_stock === true,
           isVisible: row.is_visible ?? true,
@@ -101,6 +94,7 @@ export function CompaniesPage() {
           companyId: row.company_id,
           companyName: row.company_name ?? '',
           unitPrices,
+          availableUnitTypes: activeUnitTypes,
         }
       })
       setSearchProducts(mapped)
@@ -226,7 +220,7 @@ export function CompaniesPage() {
               <p className="text-xs mt-0.5" style={{ color: 'rgba(15, 43, 91, .45)' }}>اختر الشركة التي تريد التسوق منها</p>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 md:grid-cols-5 gap-3">
               {companies.map((company) => (
                 <button
                   key={company.id}

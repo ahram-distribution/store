@@ -93,9 +93,9 @@ export function ProductProfilePage() {
                     {isCarton && product.carton_price > 0 && (
                       <span className="text-xs text-text-secondary">السعر: {formatCurrencyShort(product.carton_price)}</span>
                     )}
-                    {!isCarton && product.carton_price > 0 && product.carton_quantity > 0 && (
+                    {!isCarton && (
                       <span className="text-xs text-text-secondary">
-                        السعر: {formatCurrencyShort(Math.round(product.carton_price / product.carton_quantity * (u.unit_type === 'dozen' ? 12 : 1) * 100) / 100)}
+                        السعر: {formatCurrencyShort(u.unit_type === 'dozen' ? (product.dozen_price || 0) : (product.piece_price || 0))}
                       </span>
                     )}
                   </div>
@@ -120,11 +120,11 @@ export function ProductProfilePage() {
             </div>
             <div className="flex justify-between py-1.5">
               <span className="text-xs text-text-secondary">سعر القطعة</span>
-              <span className="text-sm font-semibold">{formatCurrencyShort(Math.round(product.carton_price / product.carton_quantity * 100) / 100)}</span>
+              <span className="text-sm font-semibold">{formatCurrencyShort(product.piece_price || 0)}</span>
             </div>
             <div className="flex justify-between py-1.5">
               <span className="text-xs text-text-secondary">سعر الدستة</span>
-              <span className="text-sm font-semibold">{formatCurrencyShort(Math.round(product.carton_price / product.carton_quantity * 12 * 100) / 100)}</span>
+              <span className="text-sm font-semibold">{formatCurrencyShort(product.dozen_price || 0)}</span>
             </div>
           </div>
         </div>

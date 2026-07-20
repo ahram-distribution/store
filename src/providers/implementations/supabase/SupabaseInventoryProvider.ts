@@ -32,13 +32,11 @@ export class SupabaseInventoryProvider implements IInventoryProvider {
   }
 
   async adjustInventory(productId: string, quantity: number, reason: string): Promise<InventoryRecord> {
-    const { error } = await supabase
-      .from('inventory')
-      .upsert({
-        product_id: productId,
-        quantity,
-        notes: reason ?? null,
-      }, { onConflict: 'product_id' })
+    const { error } = await supabase.rpc('governed_update_product_inventory', {
+      p_token: this.context.token,
+      p_id: productId,
+      p_quantity: quantity,
+    })
     if (error) throw new ProviderException(error.message, PROVIDER_NAME, error)
     const current = await this.getInventoryLevel(productId)
     return current ?? {

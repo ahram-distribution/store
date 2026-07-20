@@ -141,10 +141,3 @@ export function addLineToOrder(order: SalesOrder, line: OrderLine): SalesOrder {
   const balanceDue = subtractMoney(grandTotal, order.paidAmount)
   return { ...order, lines: newLines, subtotal, grandTotal, balanceDue, updatedAt: new Date() }
 }
-
-export function calculateLineTotal(price: number, quantity: number, unitType: UnitType, cartonQuantity: number): number {
-  if (unitType === 'carton') return price * quantity
-  if (unitType === 'piece') return (price / cartonQuantity) * quantity
-  if (unitType === 'dozen') return ((price / cartonQuantity) * 12) * quantity
-  return price * quantity
-}

@@ -5,7 +5,6 @@ import { useAuthStore } from '../../store/auth'
 import { useCartStore } from '../../store/cart'
 import { ProductCard } from '../../components/storefront/ProductCard'
 import { StorefrontBanner, StorefrontFooter } from '../../components/storefront/CompanyInfoSection'
-import { TierSelector } from '../../components/storefront/TierSelector'
 import { computeProductPrices } from '../../engine/pricing'
 import { formatCurrencyShort } from '../../utils/format'
 import { buildSearchIndex, searchProducts, type ProductSearchIndex } from '../../utils/smartSearch'
@@ -64,31 +63,24 @@ export function StorefrontPage() {
       const mapped: ProductWithPrice[] = arr.map((row: any) => {
         const cartonPrice = Number(row.carton_price) || 0
         const cartonQuantity = Number(row.carton_quantity) || 0
+        const piecePrice = Number(row.piece_price) || 0
+        const dozenPrice = Number(row.dozen_price) || 0
         const activeUnits = (row.product_units ?? []).filter((u: any) => u.is_active !== false)
-        const activeUnitTypes = activeUnits.map((u: any) => u.unit_type)
-        const hasCarton = activeUnitTypes.includes('carton')
-        const rawPrices: ProductUnitPrice[] = []
-        if (hasCarton) {
-          if (cartonPrice > 0) {
-            if (cartonQuantity >= 24) {
-              rawPrices.push({ unitType: 'dozen', price: (cartonPrice / cartonQuantity) * 12 })
-            }
-            rawPrices.push({ unitType: 'carton', price: cartonPrice })
-          }
-        } else {
-          const piecePrice = cartonPrice > 0 && cartonQuantity > 0 ? cartonPrice / cartonQuantity : 0
-          if (piecePrice > 0) {
-            rawPrices.push({ unitType: 'piece', price: piecePrice })
-            rawPrices.push({ unitType: 'dozen', price: piecePrice * 12 })
-          }
-        }
-        const unitPrices = rawPrices.filter(up => activeUnitTypes.includes(up.unitType))
+        const availableUnitTypes: UnitType[] = activeUnits.map((u: any) => u.unit_type)
+        const allUnitPrices: ProductUnitPrice[] = [
+          { unitType: 'piece', price: piecePrice },
+          { unitType: 'dozen', price: dozenPrice },
+          { unitType: 'carton', price: cartonPrice },
+        ]
+        const unitPrices = allUnitPrices.filter((up) => availableUnitTypes.includes(up.unitType))
         return {
           id: row.id,
           productName: row.product_name,
           legacyCode: row.legacy_code || '',
           cartonPrice,
           cartonQuantity,
+          piecePrice,
+          dozenPrice,
           isActive: row.is_active ?? true,
           isOutOfStock: row.is_out_of_stock === true,
           isVisible: row.is_visible ?? true,
@@ -96,6 +88,7 @@ export function StorefrontPage() {
           companyId: row.company_id,
           companyName: row.company_name ?? '',
           unitPrices,
+          availableUnitTypes,
         }
       })
       setProducts(mapped)
@@ -483,30 +476,30 @@ export function StorefrontPage() {
 
       {/* Header */}
       <div className="flex items-center justify-between">
+        <h1 className="text-lg font-bold text-text">
+          {selectedCompanyName || 'المنتجات'}
+        </h1>
         <div className="flex items-center gap-2">
           {companyId && (
             <button
               onClick={() => navigate(customerParam ? `/storefront?customer=${customerParam}` : '/storefront')}
-              className="text-sm text-primary"
+              className="bg-primary text-white text-sm font-semibold px-4 py-2 rounded-lg active:bg-primary-dark transition-colors"
             >
-              ← الشركات
+              الرجوع للشركات
             </button>
           )}
-          <h1 className="text-lg font-bold text-text">
-            {selectedCompanyName || 'المنتجات'}
-          </h1>
+          <button
+            onClick={() => navigate('/cart')}
+            className="relative bg-white border border-border rounded-lg px-3 py-2 text-sm"
+          >
+            🛒 السلة
+            {cartItemCount > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 bg-danger text-white text-[10px] w-5 h-5 rounded-full flex items-center justify-center">
+                {cartItemCount}
+              </span>
+            )}
+          </button>
         </div>
-        <button
-          onClick={() => navigate('/cart')}
-          className="relative bg-white border border-border rounded-lg px-3 py-2 text-sm"
-        >
-          🛒 السلة
-          {cartItemCount > 0 && (
-            <span className="absolute -top-1.5 -right-1.5 bg-danger text-white text-[10px] w-5 h-5 rounded-full flex items-center justify-center">
-              {cartItemCount}
-            </span>
-          )}
-        </button>
       </div>
 
       {/* Search */}
@@ -525,20 +518,6 @@ export function StorefrontPage() {
         )}
       </div>
 
-      {/* Tier Selector */}
-      <TierSelector
-        tiers={tiers}
-        selectedTierId={selectedTierId}
-        onSelect={selectTier}
-        cartTotal={totals.netTotal}
-      />
-
-      {selectedTier && (
-        <div className="text-xs text-text-secondary bg-blue-50 rounded-lg px-3 py-2">
-          يتم عرض أسعار شريحة <strong>{selectedTier.name}</strong> — خصم يصل إلى {Math.ceil(selectedTier.discountPercent)}%
-        </div>
-      )}
-
       {/* Product Grid */}
       {loadingProducts && (
         <div className="text-center py-12 text-text-secondary text-sm">
@@ -547,7 +526,7 @@ export function StorefrontPage() {
       )}
 
       {!loadingProducts && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 items-stretch">
           {filteredProducts.map((product) => (
             <div key={product.id} id={'product-' + product.id} className="rounded-xl transition-all duration-500">
               <ProductCard

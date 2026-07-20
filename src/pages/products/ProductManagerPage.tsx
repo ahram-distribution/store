@@ -195,6 +195,7 @@ export function ProductManagerPage() {
       p_carton_quantity: addCartonQty ? parseInt(addCartonQty) : null,
       p_carton_price: addCartonPrice ? parseFloat(addCartonPrice) : null,
       p_units: addUnits,
+      p_image_url: addImageUrl || null,
     })
     if (error) { toast.error(error.message); setAddSubmitting(false); return }
     const result = data as any

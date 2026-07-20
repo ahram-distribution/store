@@ -41,29 +41,23 @@ interface CartDealItem {
 function mapProduct(row: any): ProductWithPrice {
   const cartonPrice = Number(row.carton_price) || 0
   const cartonQuantity = Number(row.carton_quantity) || 0
+  const piecePrice = Number(row.piece_price) || 0
+  const dozenPrice = Number(row.dozen_price) || 0
   const activeUnits = (row.product_units ?? []).filter((u: any) => u.is_active !== false)
   const activeUnitTypes = activeUnits.map((u: any) => u.unit_type)
-  const hasCarton = activeUnitTypes.includes('carton')
-  const rawPrices: ProductUnitPrice[] = []
-  if (hasCarton) {
-    if (cartonPrice > 0) {
-      if (cartonQuantity >= 24) rawPrices.push({ unitType: 'dozen', price: (cartonPrice / cartonQuantity) * 12 })
-      rawPrices.push({ unitType: 'carton', price: cartonPrice })
-    }
-  } else {
-    const piecePrice = cartonPrice > 0 && cartonQuantity > 0 ? cartonPrice / cartonQuantity : 0
-    if (piecePrice > 0) {
-      rawPrices.push({ unitType: 'piece', price: piecePrice })
-      rawPrices.push({ unitType: 'dozen', price: piecePrice * 12 })
-    }
-  }
-  const unitPrices = rawPrices.filter(up => activeUnitTypes.includes(up.unitType))
+  const unitPrices: ProductUnitPrice[] = [
+    { unitType: 'piece', price: piecePrice },
+    { unitType: 'dozen', price: dozenPrice },
+    { unitType: 'carton', price: cartonPrice },
+  ]
   return {
     id: row.id,
     productName: row.product_name,
     legacyCode: row.legacy_code,
     cartonPrice,
     cartonQuantity,
+    piecePrice,
+    dozenPrice,
     isActive: row.is_active ?? true,
     salesBlocked: unitPrices.length === 0,
     outOfStock: false,
@@ -71,6 +65,7 @@ function mapProduct(row: any): ProductWithPrice {
     companyId: row.company_id,
     companyName: row.company_name ?? '',
     unitPrices,
+    availableUnitTypes: activeUnitTypes,
   }
 }
 

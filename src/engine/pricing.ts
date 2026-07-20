@@ -1,25 +1,5 @@
 import type { ComputedPrices, ProductWithPrice, TierConfig, UnitType, CartItem, CartDealItem, CartTotals, TierExceptionLookup } from '../types/storefront'
 
-export function computePiecePrice(cartonPrice: number, cartonQuantity: number): number {
-  if (!cartonQuantity || cartonQuantity <= 0) return 0
-  return cartonPrice / cartonQuantity
-}
-
-export function computeDozenPrice(cartonPrice: number, cartonQuantity: number): number {
-  return computePiecePrice(cartonPrice, cartonQuantity) * 12
-}
-
-export function getUnitPrice(cartonPrice: number, cartonQuantity: number, unitType: UnitType): number {
-  switch (unitType) {
-    case 'piece':
-      return computePiecePrice(cartonPrice, cartonQuantity)
-    case 'dozen':
-      return computeDozenPrice(cartonPrice, cartonQuantity)
-    case 'carton':
-      return cartonPrice
-  }
-}
-
 export function computePieceQuantity(unitQuantity: number, unitType: UnitType, cartonQuantity: number): number {
   const multiplier = unitType === 'piece' ? 1 : unitType === 'dozen' ? 12 : cartonQuantity
   return unitQuantity * multiplier
@@ -59,8 +39,8 @@ export function computeProductPrices(
   tier: TierConfig | null,
   exceptionLookup?: TierExceptionLookup | null
 ): ComputedPrices {
-  const piecePrice = computePiecePrice(product.cartonPrice, product.cartonQuantity)
-  const dozenPrice = computeDozenPrice(product.cartonPrice, product.cartonQuantity)
+  const piecePrice = product.piecePrice
+  const dozenPrice = product.dozenPrice
   const cartonPrice = product.cartonPrice
   const effectiveDiscount = computeEffectiveDiscountPercent(tier, exceptionLookup)
   const effectiveTier = tier ? { ...tier, discountPercent: effectiveDiscount } : null
