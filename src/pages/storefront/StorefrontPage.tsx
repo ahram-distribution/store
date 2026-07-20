@@ -10,6 +10,8 @@ import { formatCurrencyShort } from '../../utils/format'
 import { buildSearchIndex, searchProducts, type ProductSearchIndex } from '../../utils/smartSearch'
 import type { ProductWithPrice, ProductUnitPrice, TierConfig, UnitType } from '../../types/storefront'
 
+const UNIT_PRIORITY: UnitType[] = ['carton', 'dozen', 'piece']
+
 export function StorefrontPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
@@ -47,6 +49,10 @@ export function StorefrontPage() {
   const [showInitModal, setShowInitModal] = useState(false)
   const [initStep, setInitStep] = useState<'type' | 'customer'>('type')
   const pendingAddRef = useRef<{ product: ProductWithPrice; unitType: UnitType; quantity: number; scrollY: number } | null>(null)
+
+  const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [expandedUnit, setExpandedUnit] = useState<UnitType>('piece')
+  const [expandedQty, setExpandedQty] = useState(0)
 
   const fetchProducts = useCallback(async () => {
     setLoadingProducts(true)
@@ -187,6 +193,28 @@ export function StorefrontPage() {
     return () => clearTimeout(timer)
   }, [highlightId, loadingProducts])
 
+  // ── Expanded card: Escape key + scroll lock ──
+  useEffect(() => {
+    if (!expandedId) return
+    const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setExpandedId(null) }
+    document.addEventListener('keydown', handleKey)
+    return () => document.removeEventListener('keydown', handleKey)
+  }, [expandedId])
+
+  useEffect(() => {
+    if (!expandedId) return
+    const scrollY = window.scrollY
+    document.body.style.position = 'fixed'
+    document.body.style.top = `-${scrollY}px`
+    document.body.style.width = '100%'
+    return () => {
+      document.body.style.position = ''
+      document.body.style.top = ''
+      document.body.style.width = ''
+      window.scrollTo(0, scrollY)
+    }
+  }, [expandedId])
+
   const isEmployee = user?.identity_type === 'employee'
   const needsCustomer = isEmployee && !selectedCustomer
 
@@ -229,6 +257,8 @@ export function StorefrontPage() {
     return list
   }, [products, searchQuery, companyId, searchIndices])
 
+  const expandedProduct = expandedId ? filteredProducts.find((p) => p.id === expandedId) ?? null : null
+
   const handleAddToCart = (product: ProductWithPrice, unitType: UnitType, quantity: number) => {
     if (!selectedCustomer && !editingOrderId) {
       pendingAddRef.current = { product, unitType, quantity, scrollY: window.scrollY }
@@ -245,6 +275,13 @@ export function StorefrontPage() {
 
   const handleRemoveFromCart = (productId: string, unitType: UnitType) => {
     removeItem(productId, unitType)
+  }
+
+  const handleImageClick = (product: ProductWithPrice) => {
+    const defaultUnit = UNIT_PRIORITY.find((u) => product.availableUnitTypes.includes(u)) ?? product.availableUnitTypes[0] ?? 'piece'
+    setExpandedUnit(defaultUnit)
+    setExpandedQty(0)
+    setExpandedId(product.id)
   }
 
   const handleInitComplete = () => {
@@ -538,6 +575,7 @@ export function StorefrontPage() {
                 onRemoveFromCart={handleRemoveFromCart}
                 cartItemKeys={cartItemKeys}
                 searchQuery={searchQuery}
+                onImageClick={() => handleImageClick(product)}
               />
             </div>
           ))}
@@ -551,6 +589,34 @@ export function StorefrontPage() {
       )}
 
       <StorefrontFooter />
+
+      {/* Expanded Product Card Modal */}
+      {expandedProduct && (
+        <div
+          className="fixed inset-0 z-[70] flex items-center justify-center p-4 animate-fade-in"
+          style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)' }}
+          onClick={(e) => { if (e.target === e.currentTarget) setExpandedId(null) }}
+        >
+          <div className="relative w-full max-w-md max-h-[92vh] overflow-y-auto rounded-2xl shadow-2xl animate-zoom-in">
+            <ProductCard
+              product={expandedProduct}
+              prices={computeProductPrices(expandedProduct, selectedTier)}
+              hasTier={selectedTier !== null}
+              tierName={selectedTier?.name ?? null}
+              onAddToCart={handleAddToCart}
+              onRemoveFromCart={handleRemoveFromCart}
+              cartItemKeys={cartItemKeys}
+              searchQuery={searchQuery}
+              expanded
+              onClose={() => setExpandedId(null)}
+              selectedUnit={expandedUnit}
+              onUnitChange={setExpandedUnit}
+              quantity={expandedQty}
+              onQuantityChange={setExpandedQty}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Sticky Cart Bar */}
       {cartItemCount > 0 && (
