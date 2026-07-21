@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
-import { computeDateRange } from '../../lib/dateRange'
+import { resolveDateRangeISO } from '../../lib/dateRange'
+import { filterDelivered, deliveredTotalAmount, deliveredOrderCount, deliveredNewCustomerCount } from '../../lib/deliveredOrders'
 
 const MONTHS = ['يناير', 'فبراير', 'مارس', 'إبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر']
 
@@ -23,14 +24,6 @@ function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
 }
 
-function isDelivered(o: any): boolean {
-  return o.status === 'delivered' && !!o.delivered_at
-}
-
-function isInRange(iso: string, from: string, to: string): boolean {
-  return iso >= from && iso < to
-}
-
 export function DeliveredOrdersKPI() {
   const [totals, setTotals] = useState({ amount: 0, count: 0, newCustomers: 0 })
   const [loading, setLoading] = useState(true)
@@ -47,42 +40,30 @@ export function DeliveredOrdersKPI() {
     setLoading(true)
     let cancelled = false
 
-    const { dateFrom, dateTo } = computeDateRange('month')
+    const { from: dateFrom, to: dateTo } = resolveDateRangeISO('month')
 
     async function fetch() {
-      const { data, error } = await supabase.rpc('get_unified_orders', { p_token: tok })
+      if (!dateFrom || !dateTo) { setLoading(false); return }
+
+      const rpcParams: Record<string, string> = { p_token: tok }
+      rpcParams.p_date_from = dateFrom
+      rpcParams.p_date_to = dateTo
+
+      const { data, error } = await supabase.rpc('get_unified_orders', rpcParams)
       if (cancelled) return
       if (error || !data || !Array.isArray(data)) { setLoading(false); return }
 
-      const allDelivered = data.filter(isDelivered)
+      const delivered = filterDelivered(data)
+      const amount = deliveredTotalAmount(delivered)
+      const count = deliveredOrderCount(delivered)
 
-      let totalAmount = 0
-      let orderCount = 0
-      const customerFirstDelivery = new Map<string, string>()
-
-      for (const o of allDelivered) {
-        const deliveredAt = o.delivered_at as string
-        const customerId = o.customer_id as string
-
-        if (!customerFirstDelivery.has(customerId) || deliveredAt < customerFirstDelivery.get(customerId)!) {
-          customerFirstDelivery.set(customerId, deliveredAt)
-        }
-
-        if (isInRange(deliveredAt, dateFrom, dateTo)) {
-          totalAmount += Number(o.total_amount) || 0
-          orderCount++
-        }
-      }
-
-      let newCustomerCount = 0
-      for (const firstDate of customerFirstDelivery.values()) {
-        if (isInRange(firstDate, dateFrom, dateTo)) {
-          newCustomerCount++
-        }
-      }
+      const { data: allData } = await supabase.rpc('get_unified_orders', { p_token: tok })
+      if (cancelled) return
+      const allDelivered = allData && Array.isArray(allData) ? filterDelivered(allData) : delivered
+      const newCustomers = deliveredNewCustomerCount(allDelivered, dateFrom, dateTo)
 
       if (!cancelled) {
-        setTotals({ amount: totalAmount, count: orderCount, newCustomers: newCustomerCount })
+        setTotals({ amount, count, newCustomers })
         setLoading(false)
       }
     }

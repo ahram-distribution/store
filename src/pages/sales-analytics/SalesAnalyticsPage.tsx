@@ -5,6 +5,7 @@ import { UnifiedFilterBar } from '../../components/shared/UnifiedFilterBar'
 import { useAuthStore } from '../../store/auth'
 import { resolveDateRangeISO } from '../../lib/dateRange'
 import { supabase } from '../../lib/supabase'
+import { filterDelivered as filterDeliveredOrders, isDelivered } from '../../lib/deliveredOrders'
 import type { FilterState } from '../../types/filters'
 
 function formatNumber(n: number): string {
@@ -55,7 +56,7 @@ interface DrillDownProps {
 
 function DrillDownModal({ type, entityName, orders, orderItems, filterDelivered, onClose, onNavigate }: DrillDownProps) {
   const sourceOrders = useMemo(() => {
-    const filtered = filterDelivered ? orders.filter((o: any) => o.status === 'delivered') : orders
+    const filtered = filterDelivered ? filterDeliveredOrders(orders) : orders
     const map = new Map<string, DrillDownSourceOrder>()
 
     if (type === 'customer') {
@@ -405,7 +406,7 @@ export function SalesAnalyticsPage() {
 
   /* ── Delivered datasets (target = delivered orders only) ── */
   const deliveredOrderIds = useMemo(() => {
-    return new Set(orders.filter((o: any) => o.status === 'delivered').map((o: any) => o.id))
+    return new Set(filterDeliveredOrders(orders).map((o: any) => o.id))
   }, [orders])
 
   const deliveredOrderItems = useMemo(() => {
@@ -421,7 +422,7 @@ export function SalesAnalyticsPage() {
       const entry = map.get(name) || { activity: 0, target: 0, orderCount: 0 }
       entry.activity += amount
       entry.orderCount += 1
-      if (order.status === 'delivered') entry.target += amount
+      if (isDelivered(order)) entry.target += amount
       map.set(name, entry)
     }
     return Array.from(map.entries())
