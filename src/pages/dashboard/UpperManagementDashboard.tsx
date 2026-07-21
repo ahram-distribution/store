@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase'
 import { targetService } from '../../services/targets'
 import { useAuthStore } from '../../store/auth'
 import { MonthlyActivity } from '../../components/activity/MonthlyActivity'
+import { DeliveredOrdersKPI } from '../../components/activity/DeliveredOrdersKPI'
 
 interface DashMgmt {
   total_orders: number; pending_orders: number; approved_orders: number
@@ -108,6 +109,8 @@ export default function UpperManagementDashboard() {
       </div>
 
       <MonthlyActivity scope="company" />
+
+      <DeliveredOrdersKPI />
 
       {/* ===== 3. OPERATIONAL MODULES ===== */}
       {operationalGroups.length > 0 && (

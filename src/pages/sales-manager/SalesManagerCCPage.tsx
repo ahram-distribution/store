@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase'
 import { MobileDialog } from '../../components/shared/MobileDialog'
 import { useAuthStore } from '../../store/auth'
 import { MonthlyActivity } from '../../components/activity/MonthlyActivity'
+import { DeliveredOrdersKPI } from '../../components/activity/DeliveredOrdersKPI'
 import toast from 'react-hot-toast'
 
 const POLLING_INTERVAL = 30000
@@ -106,6 +107,8 @@ export default function SalesManagerCCPage() {
       </div>
 
       <MonthlyActivity scope="team" managerEmployeeId={user?.employee_id} />
+
+      <DeliveredOrdersKPI />
 
       {/* Attendance */}
       <button onClick={() => nav('/attendance/operations')}

@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../store/auth'
 import { useCapability } from '../../hooks/useCapability'
 import { MonthlyActivity } from '../../components/activity/MonthlyActivity'
+import { DeliveredOrdersKPI } from '../../components/activity/DeliveredOrdersKPI'
 
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
@@ -166,6 +167,8 @@ export function SalesRepWorkDay() {
       </div>
 
       <MonthlyActivity scope="personal" />
+
+      <DeliveredOrdersKPI />
 
       {/* ── ATTENDANCE ── */}
       <button onClick={() => navigate('/attendance/runtime')}
