@@ -344,11 +344,11 @@ BEGIN
     modified_by, reason, modified_at
   ) VALUES (
     p_order_id,
-    COALESCE(v_order.revision_number, 0),
+    GREATEST(COALESCE(v_order.revision_number, 1), 1),
     'OWNER_TRANSFER',
     v_old_owner_name,
     v_new_owner_name,
-    v_session.employee_id,
+    v_session.identity_id,
     COALESCE(p_reason, 'نقل ملكية الطلب'),
     now()
   );
