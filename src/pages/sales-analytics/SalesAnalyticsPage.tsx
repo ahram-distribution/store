@@ -289,13 +289,13 @@ export function SalesAnalyticsPage() {
 
   const initialFilter = useMemo<FilterState>(() => {
     if (scope === 'self') {
-      return { datePreset: 'month', dateFrom: '', dateTo: '', search: '', managerId: null, employeeId: user?.identity_id || null }
+      return { datePreset: 'month', dateFrom: '', dateTo: '', search: '', managerId: null, employeeId: user?.employee_id || null }
     }
     if (scope === 'team') {
       return { datePreset: 'month', dateFrom: '', dateTo: '', search: '', managerId: user?.employee_id || null, employeeId: null }
     }
     return { datePreset: 'month', dateFrom: '', dateTo: '', search: '', managerId: null, employeeId: null }
-  }, [scope, user?.employee_id, user?.identity_id])
+  }, [scope, user?.employee_id])
 
   const [filters, setFilters] = useState<FilterState>(initialFilter)
 
@@ -317,21 +317,20 @@ export function SalesAnalyticsPage() {
   }, [employees, scope, user?.employee_id])
 
   const employeeOptions = useMemo(() => {
-    const toOpt = (e: any) => ({ value: e.identity_id || e.id, label: e.full_name || e.code || e.id })
+    const toOpt = (e: any) => ({ value: e.id, label: e.full_name || e.code || e.id })
     if (scope === 'team') {
-      const myIdentityId = user?.identity_id
-      const meOption = myIdentityId ? [{ value: myIdentityId, label: 'أنا (مدير البيع)' }] : []
+      const myEmployeeId = user?.employee_id
+      const meOption = myEmployeeId ? [{ value: myEmployeeId, label: 'أنا (مدير البيع)' }] : []
       const directReports = employees
-        .filter((e: any) => e.manager_id === user?.employee_id && (e.identity_id || e.id) !== myIdentityId)
+        .filter((e: any) => e.manager_id === user?.employee_id && e.id !== myEmployeeId)
         .map(toOpt)
       return [...meOption, ...directReports]
     }
     if (scope === 'company' && filters.managerId) {
       const manager = employees.find((e: any) => e.id === filters.managerId)
-      const managerIdentityId = manager ? (manager.identity_id || manager.id) : null
-      const managerOption = manager ? [{ value: managerIdentityId, label: 'المدير نفسه' }] : []
+      const managerOption = manager ? [{ value: manager.id, label: 'المدير نفسه' }] : []
       const directReports = employees
-        .filter((e: any) => e.manager_id === filters.managerId && (e.identity_id || e.id) !== managerIdentityId)
+        .filter((e: any) => e.manager_id === filters.managerId && e.id !== filters.managerId)
         .map(toOpt)
       return [...managerOption, ...directReports]
     }
@@ -339,21 +338,20 @@ export function SalesAnalyticsPage() {
       return employees.filter((e: any) => e.manager_id === filters.managerId).map(toOpt)
     }
     return employees.map(toOpt)
-  }, [employees, scope, user?.employee_id, user?.identity_id, filters.managerId])
+  }, [employees, scope, user?.employee_id, filters.managerId])
 
-  const managerTeamIdentityIds = useMemo(() => {
+  const managerTeamEmployeeIds = useMemo(() => {
     if (!filters.managerId) return null
     const teamMembers = employees.filter((e: any) => e.manager_id === filters.managerId)
-    const ids = new Set(teamMembers.map((e: any) => (e.identity_id || e.id) as string))
-    if (scope === 'team' && user?.identity_id) {
-      ids.add(user.identity_id)
+    const ids = new Set(teamMembers.map((e: any) => e.id as string))
+    if (scope === 'team' && user?.employee_id) {
+      ids.add(user.employee_id)
     }
     if (scope === 'company') {
-      const manager = employees.find((e: any) => e.id === filters.managerId)
-      if (manager) ids.add(manager.identity_id || manager.id)
+      ids.add(filters.managerId)
     }
     return ids
-  }, [employees, filters.managerId, scope, user?.identity_id])
+  }, [employees, filters.managerId, scope, user?.employee_id])
 
   const resolveDateRange = (f: FilterState): { from: string | null; to: string | null } => {
     if (f.datePreset === 'all') return { from: null, to: null }
@@ -368,15 +366,15 @@ export function SalesAnalyticsPage() {
     const range = resolveDateRange(filters)
     const rpcParams: any = { p_token: token.trim() }
     if (filters.search) rpcParams.p_search = filters.search
-    if (filters.employeeId) rpcParams.p_created_by = filters.employeeId
+    if (filters.employeeId) rpcParams.p_owner_id = filters.employeeId
     if (range.from) rpcParams.p_date_from = range.from
     if (range.to) rpcParams.p_date_to = range.to
 
-    const { data } = await supabase.rpc('get_unified_orders', rpcParams)
+    const { data } = await supabase.rpc('get_statistical_orders', rpcParams)
     let orderList = data && Array.isArray(data) ? data : []
 
-    if (!filters.employeeId && managerTeamIdentityIds) {
-      orderList = orderList.filter((o: any) => managerTeamIdentityIds.has(o.created_by))
+    if (!filters.employeeId && managerTeamEmployeeIds) {
+      orderList = orderList.filter((o: any) => managerTeamEmployeeIds.has(o.owner_id))
     }
 
     setOrders(orderList)
@@ -392,7 +390,7 @@ export function SalesAnalyticsPage() {
     setOrderItems(allItems)
 
     setLoading(false)
-  }, [filters, managerTeamIdentityIds])
+  }, [filters, managerTeamEmployeeIds])
 
   useEffect(() => { fetchData() }, [fetchData])
 

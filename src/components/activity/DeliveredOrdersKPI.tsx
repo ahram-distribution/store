@@ -65,8 +65,8 @@ export function DeliveredOrdersKPI({ onKPIClick }: DeliveredOrdersKPIProps) {
       rpcParams.p_date_to = dateTo
 
       const [monthResult, allResult] = await Promise.all([
-        supabase.rpc('get_unified_orders', rpcParams),
-        supabase.rpc('get_unified_orders', { p_token: token }),
+        supabase.rpc('get_statistical_orders', rpcParams),
+        supabase.rpc('get_statistical_orders', { p_token: token }),
       ])
       if (cancelled) return
 

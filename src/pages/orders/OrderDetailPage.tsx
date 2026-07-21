@@ -11,6 +11,7 @@ import { UNIT_LABELS } from '../../types/order-display'
 import { computeProductPrices, computePieceQuantity } from '../../engine/pricing'
 import { buildSearchIndex, searchProducts } from '../../utils/smartSearch'
 import { SearchHighlight } from '../../components/shared/SearchHighlight'
+import { SearchableSelect } from '../../components/shared/SearchableSelect'
 import toast from 'react-hot-toast'
 import type { UnifiedOrder, UnifiedOrderItem } from '../../types/unified-order'
 import type { ProductWithPrice, ProductUnitPrice, UnitType } from '../../types/storefront'
@@ -62,6 +63,7 @@ function mapProduct(row: any): ProductWithPrice {
 export function OrderDetailPage() {
   const navigate = useNavigate()
   const { id } = useParams()
+  const user = useAuthStore((s) => s.user)
   const [data, setData] = useState<UnifiedOrder | null>(null)
   const [loading, setLoading] = useState(true)
   const [editMode, setEditMode] = useState(false)
@@ -75,6 +77,12 @@ export function OrderDetailPage() {
 
   const isSupreme = isSupremeManagementUser()
 
+  const canTransfer = useMemo(() => {
+    if (isSupreme || canManage) return true
+    if (!data?.order?.owner_id || !user?.employee_id) return false
+    return data.order.owner_id === user.employee_id
+  }, [isSupreme, canManage, data?.order?.owner_id, user?.employee_id])
+
   const [editItems, setEditItems] = useState<UnifiedOrderItem[]>([])
   const [editNotes, setEditNotes] = useState<string>('')
   const [editOrderType, setEditOrderType] = useState<string>('cash')
@@ -84,6 +92,11 @@ export function OrderDetailPage() {
   const [showProductSearch, setShowProductSearch] = useState(false)
   const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const [transferMode, setTransferMode] = useState(false)
+  const [transferTarget, setTransferTarget] = useState<string | null>(null)
+  const [transferReason, setTransferReason] = useState('')
+  const [transferEmployees, setTransferEmployees] = useState<any[]>([])
+  const [transferring, setTransferring] = useState(false)
 
   function loadOrder() {
     if (!id) return
@@ -120,6 +133,15 @@ export function OrderDetailPage() {
     })
   }, [editMode, id])
 
+  useEffect(() => {
+    if (!transferMode) return
+    const token = getToken()
+    if (!token) return
+    supabase.rpc('get_governed_employees', { p_token: token }).then(({ data }) => {
+      if (data && Array.isArray(data)) setTransferEmployees(data)
+    })
+  }, [transferMode])
+
   function handleStatusSuccess(newStatus: string) {
     toast.success(`تم تغيير الحالة إلى ${newStatus}`)
     loadOrder()
@@ -155,6 +177,31 @@ export function OrderDetailPage() {
       }
       toast.success('تم حذف الطلب نهائياً')
       navigate('/orders')
+    })
+  }
+
+  function handleTransferOwner() {
+    if (!id || !transferTarget) return
+    setTransferring(true)
+    const token = getToken()
+    if (!token) { setTransferring(false); return }
+
+    supabase.rpc('governed_transfer_order_owner', {
+      p_token: token,
+      p_order_id: id,
+      p_new_owner_id: transferTarget,
+      p_reason: transferReason || 'نقل ملكية الطلب',
+    }).then(({ data, error }) => {
+      setTransferring(false)
+      if (error) { toast.error('فشل نقل الملكية: ' + error.message); return }
+      if (data && typeof data === 'object' && 'error' in data && data.error) {
+        toast.error(String((data as any).detail || (data as any).error)); return
+      }
+      toast.success('تم نقل ملكية الطلب بنجاح')
+      setTransferMode(false)
+      setTransferTarget(null)
+      setTransferReason('')
+      loadOrder()
     })
   }
 
@@ -461,6 +508,40 @@ export function OrderDetailPage() {
               </button>
               <button onClick={() => setDeleteConfirm(false)}
                 className="bg-surface text-text-secondary text-xs px-3 py-2 rounded-lg active:opacity-90">
+                إلغاء
+              </button>
+            </div>
+          )}
+          {canTransfer && !transferMode && (
+            <button onClick={() => setTransferMode(true)}
+              className="inline-flex items-center gap-1 bg-white border border-border text-text-secondary text-xs px-3 py-2.5 rounded-lg active:opacity-90 shrink-0 hover:bg-surface transition-colors">
+              نقل ملكية الطلب
+            </button>
+          )}
+          {canTransfer && transferMode && (
+            <div className="flex items-stretch gap-2 flex-wrap w-full">
+              <div className="flex-1 min-w-[200px]">
+                <SearchableSelect
+                  items={transferEmployees.map((e: any) => ({ id: e.id, name: e.full_name || e.code || e.id }))}
+                  value={transferTarget || ''}
+                  onChange={(id) => setTransferTarget(id || null)}
+                  placeholder="اختر المنديب الجديد..."
+                  resetLabel="إلغاء التحديد"
+                />
+              </div>
+              <input
+                type="text"
+                value={transferReason}
+                onChange={(e) => setTransferReason(e.target.value)}
+                placeholder="السبب (اختياري)"
+                className="flex-1 min-w-[150px] text-xs px-3 py-2 rounded-lg border border-border bg-white"
+              />
+              <button onClick={handleTransferOwner} disabled={!transferTarget || transferring}
+                className="bg-primary text-white text-xs px-4 py-2 rounded-lg active:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap">
+                {transferring ? 'جاري...' : 'تأكيد النقل'}
+              </button>
+              <button onClick={() => { setTransferMode(false); setTransferTarget(null); setTransferReason('') }}
+                className="bg-surface text-text-secondary text-xs px-3 py-2 rounded-lg active:opacity-90 whitespace-nowrap">
                 إلغاء
               </button>
             </div>
