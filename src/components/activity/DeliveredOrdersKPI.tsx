@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
+import { useAuthStore } from '../../store/auth'
 import { resolveDateRangeISO } from '../../lib/dateRange'
 import { filterDelivered, deliveredTotalAmount, deliveredOrderCount, deliveredNewCustomerCount } from '../../lib/deliveredOrders'
 
@@ -20,10 +21,6 @@ function kpiFontClass(formatted: string): string {
   return 'text-sm sm:text-base'
 }
 
-function getToken(): string | null {
-  try { return localStorage.getItem('session_token') } catch { return null }
-}
-
 function SkeletonCard() {
   return (
     <div className="rounded-xl p-4 text-center border border-border shadow-sm overflow-hidden bg-gradient-to-br from-gray-50 to-gray-100/60">
@@ -34,13 +31,18 @@ function SkeletonCard() {
   )
 }
 
+const MAX_RETRIES = 3
+const RETRY_DELAYS_MS = [1000, 2000, 4000]
+
 interface DeliveredOrdersKPIProps {
   onKPIClick?: () => void
 }
 
 export function DeliveredOrdersKPI({ onKPIClick }: DeliveredOrdersKPIProps) {
+  const token = useAuthStore((s) => s.token)
   const [totals, setTotals] = useState({ amount: 0, count: 0, newCustomers: 0 })
   const [loading, setLoading] = useState(true)
+  const retryTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const now = new Date()
   const currentMonth = now.getMonth() + 1
@@ -48,29 +50,36 @@ export function DeliveredOrdersKPI({ onKPIClick }: DeliveredOrdersKPIProps) {
   const label = MONTHS[currentMonth - 1] + ' ' + currentYear
 
   useEffect(() => {
-    const tok = getToken()
-    if (!tok) { setLoading(false); return }
+    if (!token) { setLoading(true); return }
 
-    setLoading(true)
     let cancelled = false
+    let attempt = 0
 
     const { from: dateFrom, to: dateTo } = resolveDateRangeISO('month')
 
     async function fetch() {
-      if (!dateFrom || !dateTo) { setLoading(false); return }
+      if (!dateFrom || !dateTo || cancelled) return
 
-      const rpcParams: Record<string, string> = { p_token: tok }
+      const rpcParams: Record<string, string> = { p_token: token }
       rpcParams.p_date_from = dateFrom
       rpcParams.p_date_to = dateTo
 
       const [monthResult, allResult] = await Promise.all([
         supabase.rpc('get_unified_orders', rpcParams),
-        supabase.rpc('get_unified_orders', { p_token: tok }),
+        supabase.rpc('get_unified_orders', { p_token: token }),
       ])
       if (cancelled) return
 
       const { data, error } = monthResult
-      if (error || !data || !Array.isArray(data)) { setLoading(false); return }
+      if (error || !data || !Array.isArray(data)) {
+        if (attempt < MAX_RETRIES) {
+          attempt++
+          retryTimer.current = setTimeout(fetch, RETRY_DELAYS_MS[attempt - 1])
+          return
+        }
+        setLoading(false)
+        return
+      }
 
       const delivered = filterDelivered(data)
       const amount = deliveredTotalAmount(delivered)
@@ -87,8 +96,11 @@ export function DeliveredOrdersKPI({ onKPIClick }: DeliveredOrdersKPIProps) {
     }
 
     fetch()
-    return () => { cancelled = true }
-  }, [])
+    return () => {
+      cancelled = true
+      if (retryTimer.current) clearTimeout(retryTimer.current)
+    }
+  }, [token])
 
   const formattedValues = [
     fmt(Math.round(totals.amount)),
