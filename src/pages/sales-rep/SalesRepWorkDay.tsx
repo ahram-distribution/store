@@ -166,9 +166,9 @@ export function SalesRepWorkDay() {
         </div>
       </div>
 
-      <MonthlyActivity scope="personal" />
+      <MonthlyActivity scope="personal" onKPIClick={() => navigate('/reports/activity', { state: { scope: 'self' } })} />
 
-      <DeliveredOrdersKPI />
+      <DeliveredOrdersKPI onKPIClick={() => navigate('/sales-analytics', { state: { scope: 'self' } })} />
 
       {/* ── ATTENDANCE ── */}
       <button onClick={() => navigate('/attendance/runtime')}

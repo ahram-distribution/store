@@ -108,9 +108,9 @@ export default function UpperManagementDashboard() {
         </div>
       </div>
 
-      <MonthlyActivity scope="company" />
+      <MonthlyActivity scope="company" onKPIClick={() => nav('/reports/activity', { state: { scope: 'company' } })} />
 
-      <DeliveredOrdersKPI />
+      <DeliveredOrdersKPI onKPIClick={() => nav('/sales-analytics', { state: { scope: 'company' } })} />
 
       {/* ===== 3. OPERATIONAL MODULES ===== */}
       {operationalGroups.length > 0 && (

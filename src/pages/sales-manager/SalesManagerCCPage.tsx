@@ -106,9 +106,9 @@ export default function SalesManagerCCPage() {
         <OverviewCard label="العملاء" value={fmt(tov?.customer_count ?? 0)} icon="👤" onClick={() => nav('/sales-manager/operations')} />
       </div>
 
-      <MonthlyActivity scope="team" managerEmployeeId={user?.employee_id} />
+      <MonthlyActivity scope="team" managerEmployeeId={user?.employee_id} onKPIClick={() => nav('/reports/activity', { state: { scope: 'team' } })} />
 
-      <DeliveredOrdersKPI />
+      <DeliveredOrdersKPI onKPIClick={() => nav('/sales-analytics', { state: { scope: 'team' } })} />
 
       {/* Attendance */}
       <button onClick={() => nav('/attendance/operations')}

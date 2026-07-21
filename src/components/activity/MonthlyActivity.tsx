@@ -10,6 +10,7 @@ const STORAGE_KEY = 'monthly_activity_month'
 interface MonthlyActivityProps {
   scope: 'company' | 'team' | 'personal'
   managerEmployeeId?: string | null
+  onKPIClick?: () => void
 }
 
 function fmt(n: number | null | undefined): string {
@@ -52,7 +53,7 @@ function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
 }
 
-export function MonthlyActivity({ scope, managerEmployeeId }: MonthlyActivityProps) {
+export function MonthlyActivity({ scope, managerEmployeeId, onKPIClick }: MonthlyActivityProps) {
   const user = useAuthStore((s) => s.user)
   const saved = loadSavedMonth()
   const [month, setMonthState] = useState(saved.month)
@@ -211,8 +212,9 @@ export function MonthlyActivity({ scope, managerEmployeeId }: MonthlyActivityPro
             {KPIS.map((kpi, idx) => {
               const formatted = formattedValues[idx]
               return (
-                <div key={kpi.label} className={
-                  'rounded-xl p-4 text-center border shadow-sm overflow-hidden ' +
+                <button key={kpi.label} onClick={onKPIClick} disabled={!onKPIClick} className={
+                  'rounded-xl p-4 text-center border shadow-sm overflow-hidden transition-all ' +
+                  (onKPIClick ? 'cursor-pointer hover:shadow-md active:scale-[0.97] ' : '') +
                   (idx === 0 ? 'bg-gradient-to-br from-emerald-50 to-green-100/60 border-emerald-200/50' :
                    idx === 1 ? 'bg-gradient-to-br from-amber-50 to-yellow-100/60 border-amber-200/50' :
                    idx === 2 ? 'bg-gradient-to-br from-blue-50 to-indigo-100/60 border-blue-200/50' :
@@ -226,7 +228,7 @@ export function MonthlyActivity({ scope, managerEmployeeId }: MonthlyActivityPro
                     {formatted}
                   </div>
                   <div className="text-[11px] text-text-secondary mt-1 font-medium">{kpi.label}</div>
-                </div>
+                </button>
               )
             })}
           </div>

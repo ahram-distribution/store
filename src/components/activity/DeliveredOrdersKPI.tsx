@@ -24,7 +24,11 @@ function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
 }
 
-export function DeliveredOrdersKPI() {
+interface DeliveredOrdersKPIProps {
+  onKPIClick?: () => void
+}
+
+export function DeliveredOrdersKPI({ onKPIClick }: DeliveredOrdersKPIProps) {
   const [totals, setTotals] = useState({ amount: 0, count: 0, newCustomers: 0 })
   const [loading, setLoading] = useState(true)
 
@@ -100,8 +104,9 @@ export function DeliveredOrdersKPI() {
             {KPIS.map((kpi, idx) => {
               const formatted = formattedValues[idx]
               return (
-                <div key={kpi.label} className={
-                  'rounded-xl p-4 text-center border shadow-sm overflow-hidden ' +
+                <button key={kpi.label} onClick={onKPIClick} disabled={!onKPIClick} className={
+                  'rounded-xl p-4 text-center border shadow-sm overflow-hidden transition-all ' +
+                  (onKPIClick ? 'cursor-pointer hover:shadow-md active:scale-[0.97] ' : '') +
                   (idx === 0 ? 'bg-gradient-to-br from-emerald-50 to-green-100/60 border-emerald-200/50' :
                    idx === 1 ? 'bg-gradient-to-br from-blue-50 to-indigo-100/60 border-blue-200/50' :
                    'bg-gradient-to-br from-violet-50 to-purple-100/60 border-violet-200/50')
@@ -114,7 +119,7 @@ export function DeliveredOrdersKPI() {
                     {formatted}
                   </div>
                   <div className="text-[11px] text-text-secondary mt-1 font-medium">{kpi.label}</div>
-                </div>
+                </button>
               )
             })}
           </div>
