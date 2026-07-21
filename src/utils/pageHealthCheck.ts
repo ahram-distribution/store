@@ -226,6 +226,7 @@ export const ROUTE_MANIFEST = {
       '/attendance/employee/:employeeId/:date',
       '/attendance/operations',
       '/sales-manager-cc',
+      '/sales-analytics',
       '/ops/gps-test',
     ],
     customer: [

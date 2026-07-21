@@ -17,6 +17,7 @@ interface LauncherGroup {
   path: string
   isSubLauncher?: boolean
   badge?: string | number
+  navState?: Record<string, unknown>
 }
 
 const now = new Date()
@@ -66,6 +67,7 @@ export default function UpperManagementDashboard() {
     { icon: '📦', label: 'المخزون', path: '/launcher/inventory', isSubLauncher: true },
     { icon: '🏷️', label: 'الأقسام', path: '/launcher/deals', isSubLauncher: true },
     { icon: '📈', label: 'التقارير', path: '/launcher/reports', isSubLauncher: true },
+    { icon: '📊', label: 'تحليل المبيعات', path: '/sales-analytics', navState: { scope: 'company' } },
     { icon: '📑', label: 'مركز التقارير', path: '__reports_center__' },
     { icon: '⚙️', label: 'الإعدادات', path: '/launcher/settings', isSubLauncher: true },
     { icon: '🗑️', label: 'مركز الحذف', path: '/data-center' },
@@ -116,7 +118,7 @@ export default function UpperManagementDashboard() {
           <div className="p-5">
             <div className="grid grid-cols-3 gap-4 min-[430px]:grid-cols-4">
               {operationalGroups.map((g) => (
-                <button key={g.path} onClick={() => g.path === '__reports_center__' ? setShowReportsCenter(true) : nav(g.path)}
+                <button key={g.path} onClick={() => g.path === '__reports_center__' ? setShowReportsCenter(true) : nav(g.path, g.navState ? { state: g.navState } : undefined)}
                   className="bg-white rounded-xl border border-border p-4 text-center active:bg-surface transition-all hover:shadow-md hover:border-primary/30 active:scale-95 relative">
                   <div className="text-3xl mb-2">{g.icon}</div>
                   <div className="text-xs font-semibold text-text leading-tight">{g.label}</div>

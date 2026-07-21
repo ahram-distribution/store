@@ -18,6 +18,7 @@ const searchIndex: SearchItem[] = [
   { workspaceType: 'collections', label: 'التحصيل', category: 'المالية', keywords: ['collections', 'تحصيل', 'قبض'] },
   { workspaceType: 'visits', label: 'الزيارات', category: 'المبيعات', keywords: ['visits', 'زيارات', 'متابعة'] },
   { workspaceType: 'reports', label: 'التقارير', category: 'التقارير', keywords: ['reports', 'تقارير'] },
+  { workspaceType: 'sales-analytics', label: 'تحليل المبيعات', category: 'التقارير', keywords: ['sales-analytics', 'تحليل', 'مبيعات', 'عملاء', 'شركات', 'أصناف'] },
   { workspaceType: 'analytics', label: 'التحليلات', category: 'التقارير', keywords: ['analytics', 'تحليلات', 'احصائيات'] },
   { workspaceType: 'attendance', label: 'الحضور', category: 'الموارد البشرية', keywords: ['attendance', 'حضور', 'دوام'] },
   { workspaceType: 'employees', label: 'الموظفين', category: 'الموارد البشرية', keywords: ['employees', 'موظفين'] },

@@ -80,6 +80,7 @@ const MODULE_ICONS: Record<string, { title: string; icons: LauncherIcon[] }> = {
     title: 'التقارير والتحليلات',
     icons: [
       { icon: '📈', label: 'التقارير', path: '/reports' },
+      { icon: '📊', label: 'تحليل المبيعات', path: '/sales-analytics' },
       { icon: '📊', label: 'تقارير العملاء', path: '/analytics/customers' },
       { icon: '💳', label: 'إدارة برامج الائتمان', path: '/credit/programs/manage' },
       { icon: '💳', label: 'تقارير الائتمان', path: '/credit/manage' },

@@ -215,6 +215,11 @@ export function SalesRepWorkDay() {
             <div className="text-sm font-bold">تحليلات</div>
             <div className="text-[10px] opacity-80 mt-0.5">تحليلات العملاء</div>
           </button>
+          <button onClick={() => navigate('/sales-analytics', { state: { scope: 'self' } })}
+            className="bg-blue-600 rounded-xl py-3 text-center text-white active:opacity-80 transition-opacity">
+            <div className="text-sm font-bold">تحليل المبيعات</div>
+            <div className="text-[10px] opacity-80 mt-0.5">تحليل مبيعاتي</div>
+          </button>
 
           <button onClick={() => setShowReportsCenter(true)}
             className="bg-indigo-500 rounded-xl py-3 text-center text-white active:opacity-80 transition-opacity">

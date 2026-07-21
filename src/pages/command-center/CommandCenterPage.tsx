@@ -60,6 +60,7 @@ const MODULE_ROUTES: Record<string, string> = {
   collections: '/command-center/modules/collections',
   delivery: '/command-center/modules/delivery',
   reports: '/command-center/modules/reports',
+  'sales-analytics': '/sales-analytics',
   warehouse: '/command-center/modules/warehouse',
   targets: '/command-center/modules/employees',
   permissions: '/account/permissions',
@@ -82,6 +83,7 @@ const MODULE_EMOJI: Record<string, string> = {
   collections: '💰',
   delivery: '🚚',
   reports: '📊',
+  'sales-analytics': '📊',
   targets: '🎯',
   permissions: '🔐',
   auctions: '🔨',
@@ -95,7 +97,7 @@ const MODULE_EMOJI: Record<string, string> = {
 
 const MODULE_TIERS = {
   primary: ['orders', 'customers', 'visits', 'credit', 'inventory', 'employees', 'attendance'],
-  secondary: ['returns', 'collections', 'delivery', 'reports', 'warehouse'],
+  secondary: ['returns', 'collections', 'delivery', 'reports', 'sales-analytics', 'warehouse'],
   technical: ['targets', 'permissions', 'auctions', 'daily-deals', 'flash-offers', 'tiers', 'deals'],
 }
 

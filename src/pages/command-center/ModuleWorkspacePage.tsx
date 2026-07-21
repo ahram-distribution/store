@@ -109,6 +109,7 @@ const MODULE_CONFIGS: Record<string, ModuleConfig> = {
     icon: '\u{1F4CA}',
     operations: [
       { icon: '\u{1F4CA}', label: 'التقارير', path: '/reports' },
+      { icon: '\u{1F4CA}', label: 'تحليل المبيعات', path: '/sales-analytics' },
       { icon: '\u{1F4CA}', label: 'تقارير العملاء', path: '/analytics/customers' },
       { icon: '\u{1F504}', label: 'النشاط الموحد', path: '/activity' },
     ],

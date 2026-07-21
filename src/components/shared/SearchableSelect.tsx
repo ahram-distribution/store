@@ -11,12 +11,13 @@ interface SearchableSelectProps {
   value: string
   onChange: (id: string) => void
   placeholder?: string
+  resetLabel?: string
   label?: string
   className?: string
   disabled?: boolean
 }
 
-export function SearchableSelect({ items, value, onChange, placeholder, label, className = '', disabled }: SearchableSelectProps) {
+export function SearchableSelect({ items, value, onChange, placeholder, resetLabel, label, className = '', disabled }: SearchableSelectProps) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [highlightIndex, setHighlightIndex] = useState(-1)
@@ -30,14 +31,18 @@ export function SearchableSelect({ items, value, onChange, placeholder, label, c
     return [...items].sort((a, b) => a.name.localeCompare(b.name, 'ar'))
   }, [items])
 
+  const resetItem = useMemo<SearchableSelectItem | null>(() => resetLabel ? { id: '', name: resetLabel } : null, [resetLabel])
+
   const filteredItems = useMemo(() => {
-    if (!query.trim()) return sortedItems
+    const base = resetItem ? [resetItem, ...sortedItems] : sortedItems
+    if (!query.trim()) return base
     const q = normalizeArabic(query)
-    return sortedItems.filter(item => {
+    const filtered = sortedItems.filter(item => {
       const normalizedName = normalizeArabic(item.name)
       return normalizedName.includes(q)
     })
-  }, [sortedItems, query])
+    return resetItem ? [resetItem, ...filtered] : filtered
+  }, [sortedItems, query, resetItem])
 
   useEffect(() => {
     setHighlightIndex(-1)

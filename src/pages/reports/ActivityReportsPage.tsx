@@ -2,12 +2,14 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../store/auth'
-import { ReportIdentity, ReportFilters, monthFilter, computeDateRange } from '../../components/reports'
+import { ReportIdentity, monthFilter, computeDateRange } from '../../components/reports'
+import { UnifiedFilterBar } from '../../components/shared/UnifiedFilterBar'
 import { KpiDrillDownModal } from '../../components/KpiDrillDownModal'
 import { EmployeeActivitySummary } from '../../components/reports/EmployeeActivitySummary'
 import { exportToExcel, type ExportColumn } from '../../services/excelExporter'
 import { exportToPdf, tableToHtml, kpiGridToHtml } from '../../services/pdfExporter'
-import type { ReportFilters as FilterState, ReportIdentity as IdentityData, KpiCardData } from '../../types/reports'
+import type { FilterState } from '../../types/filters'
+import type { ReportIdentity as IdentityData, KpiCardData } from '../../types/reports'
 import type { EntityType } from '../../modules/types'
 import type { ActivityViewModel, ActivityDailyRow, DayDetailData } from '../../types/reports'
 import { cairoDateComponents, toCairoDate } from '../../lib/dateRange'
@@ -412,16 +414,6 @@ export function ActivityReportsPage() {
       loadData(filters)
     }
   }, [filters, loadData, employeeTreeLoaded])
-
-  const prevManagerIdRef = useRef(filters.managerId)
-  useEffect(() => {
-    if (prevManagerIdRef.current !== filters.managerId) {
-      prevManagerIdRef.current = filters.managerId
-      if (filters.employeeId) {
-        setFilters((prev) => ({ ...prev, employeeId: null }))
-      }
-    }
-  }, [filters.managerId, filters.employeeId])
 
   useEffect(() => {
     if (view !== 'employee' || !selectedEmployee) {
@@ -911,10 +903,13 @@ useEffect(() => {
       </div>
 
       <div className="bg-white rounded-xl border border-border p-4 space-y-3">
-        <ReportFilters
+        <UnifiedFilterBar
           value={filters}
           onChange={setFilters}
-          scope={scope}
+          showMonthSelector
+          showDateRange
+          showManagerFilter={scope === 'company'}
+          showEmployeeFilter={scope !== 'self'}
           managerOptions={managerOptions}
           employeeOptions={employeeOptions}
         />
