@@ -50,11 +50,11 @@ export function OrderProductsSection({ items, order, mode = 'view', onQuantityCh
           <table className="w-full text-[12px]">
             <thead>
               <tr className="border-b border-[#E5E7EB] bg-[#F3F4F6] text-[#6B7280]">
-                <th className="px-3 py-3 text-right w-10 font-semibold"></th>
-                <th className="px-3 py-3 text-right font-semibold">الصنف</th>
+                <th className="px-3 py-3 text-right font-semibold">كود الصنف</th>
+                <th className="px-3 py-3 text-right font-semibold">اسم الصنف</th>
                 <th className="px-3 py-3 text-center font-semibold">الوحدة</th>
                 <th className="px-3 py-3 text-center font-semibold">الكمية</th>
-                <th className="px-3 py-3 text-left font-semibold">السعر</th>
+                <th className="px-3 py-3 text-left font-semibold">سعر الوحدة</th>
                 <th className="px-3 py-3 text-left font-semibold">الإجمالي</th>
                 {isEdit && <th className="px-2 py-3 text-center font-semibold w-10"></th>}
               </tr>
@@ -83,16 +83,11 @@ export function OrderProductsSection({ items, order, mode = 'view', onQuantityCh
                     const lineTotal = qty * price
                     return (
                       <tr key={item.id || idx} className="border-b border-[#E5E7EB] last:border-0 hover:bg-[#F9FAFB] transition-colors">
-                        <td className="px-2 py-3">
-                          {item.image_url ? (
-                            <img src={item.image_url} alt="" className="w-8 h-8 rounded-lg object-contain bg-[#F9FAFB] border border-[#E5E7EB]" />
-                          ) : (
-                            <div className="w-8 h-8 rounded-lg bg-[#F9FAFB] border border-[#E5E7EB] flex items-center justify-center text-[#9CA3AF] text-[9px]">—</div>
-                          )}
+                        <td className="px-3 py-3">
+                          <span className="text-[15px] font-bold text-blue-600 font-mono" dir="ltr">{item.legacy_code || '—'}</span>
                         </td>
                         <td className="px-3 py-3">
                           <p className="font-semibold text-[#111827]">{item.product_name || 'غير متوفر'}</p>
-                          {item.legacy_code && <p className="text-[10px] text-[#9CA3AF] font-mono mt-0.5" dir="ltr">{item.legacy_code}</p>}
                         </td>
                         <td className="px-3 py-3 text-center text-[#6B7280]">{UNIT_LABELS[item.unit_type] || item.unit_type}</td>
                         <td className="px-3 py-3 text-center">

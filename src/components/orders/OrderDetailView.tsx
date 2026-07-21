@@ -98,15 +98,14 @@ export function OrderDetailView({ data, actions, onBack, editMode, editItems, on
               <button onClick={onBack} className="text-[#6B7280] text-lg hover:text-[#111827] transition-colors shrink-0 leading-none">&larr;</button>
             )}
             <h1 className="text-[18px] font-bold text-[#111827] truncate leading-tight">{order.order_number}</h1>
-            <StatusBadge status={order.status} size="sm" />
             {overLimit && (
               <span className="text-[10px] bg-[#FEF2F2] text-[#DC2626] px-2 py-0.5 rounded-full border border-[#FECACA] shrink-0 font-medium">
                 تجاوز الحد
               </span>
             )}
-            <div className="mr-auto flex items-center gap-2">
-              {actions}
-            </div>
+          </div>
+          <div className="mt-2">
+            <StatusBadge status={order.status} size="md" />
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-1 mt-2 text-[12px]">
             <div className="flex items-center gap-1.5">
@@ -133,10 +132,6 @@ export function OrderDetailView({ data, actions, onBack, editMode, editItems, on
             <div className="flex items-center gap-1.5">
               <span style={{color:'#9CA3AF'}}>آخر تحديث:</span>
               <span className="font-medium text-[#111827]">{formatDateTime(order.updated_at)}</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span style={{color:'#9CA3AF'}}>طريقة الدفع:</span>
-              <span className="font-medium text-[#111827]">{order.payment_method === 'credit' ? 'آجل' : 'نقدي'}</span>
             </div>
             <div className="flex items-center gap-1.5">
               <span style={{color:'#9CA3AF'}}>نوع الطلب:</span>
@@ -169,7 +164,7 @@ export function OrderDetailView({ data, actions, onBack, editMode, editItems, on
 
       <div className="bg-white rounded-lg border border-[#E5E7EB] shadow-sm p-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1 text-[13px]">
-          <div><span style={{color:'#9CA3AF'}}>اسم العميل:</span> <span className="font-semibold text-primary cursor-pointer hover:text-primary/70 underline decoration-transparent hover:decoration-primary/30 transition-all" onClick={() => customer?.id && navigate(`/customers/${customer.id}`)}>{customer?.company_name || order.snapshot_customer_name || 'غير متوفر'}</span></div>
+          <div><span style={{color:'#9CA3AF'}}>اسم العميل:</span> <span className="font-semibold text-[26px] text-primary cursor-pointer hover:text-primary/70 underline decoration-transparent hover:decoration-primary/30 transition-all" onClick={() => customer?.id && navigate(`/customers/${customer.id}`)}>{customer?.company_name || order.snapshot_customer_name || 'غير متوفر'}</span></div>
           <div><span style={{color:'#9CA3AF'}}>الكود:</span> <span className="font-semibold text-[#111827]">{customer?.code || '—'}</span></div>
           <div><span style={{color:'#9CA3AF'}}>الهاتف:</span> <span className="font-semibold text-[#111827] font-mono">{customer?.phone || order.snapshot_customer_phone || 'غير متوفر'}</span></div>
           <div><span style={{color:'#9CA3AF'}}>المندوب:</span> <span className="font-semibold text-[#111827]">{order.customer_owner_name || '—'}</span></div>
@@ -308,6 +303,14 @@ export function OrderDetailView({ data, actions, onBack, editMode, editItems, on
         />
       )}
       <OrderTimelineSection timelineEvents={timelineEvents} />
+
+      {actions && (
+        <div className="bg-white rounded-lg border border-[#E5E7EB] shadow-sm p-4">
+          <div className="flex items-stretch gap-2 flex-wrap">
+            {actions}
+          </div>
+        </div>
+      )}
 
       <div className="bg-white rounded-lg border border-[#E5E7EB] shadow-sm p-4">
         <p className="text-[13px] font-bold text-[#111827] mb-3">إجراءات</p>
