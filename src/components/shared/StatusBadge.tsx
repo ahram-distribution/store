@@ -1,3 +1,5 @@
+import { memo } from 'react'
+
 interface StatusBadgeProps {
   status: string
   size?: 'sm' | 'md'
@@ -25,7 +27,7 @@ const statusConfig: Record<string, { bg: string; text: string; label: string }> 
   awarded: { bg: 'bg-emerald-50', text: 'text-emerald-600', label: 'تم الترسية' },
 }
 
-export function StatusBadge({ status, size = 'sm' }: StatusBadgeProps) {
+export const StatusBadge = memo(function StatusBadge({ status, size = 'sm' }: StatusBadgeProps) {
   const config = statusConfig[status] || { bg: 'bg-gray-100', text: 'text-gray-600', label: status }
   const sizeClass = size === 'sm' ? 'text-[10px] px-2 py-0.5' : 'text-xs px-3 py-1'
 
@@ -34,4 +36,4 @@ export function StatusBadge({ status, size = 'sm' }: StatusBadgeProps) {
       {config.label}
     </span>
   )
-}
+})

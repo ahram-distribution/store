@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, memo } from 'react'
 import { SearchableSelect } from './shared/SearchableSelect'
 
 export interface FilterValues {
@@ -29,7 +29,7 @@ const DATE_PRESETS = [
   { key: 'custom', label: 'فترة' },
 ]
 
-export default function SmartFilterBar({ searchPlaceholder, employees, employeeLabel, onFilterChange, initialFilters, collapsible = true }: SmartFilterBarProps) {
+export default memo(function SmartFilterBar({ searchPlaceholder, employees, employeeLabel, onFilterChange, initialFilters, collapsible = true }: SmartFilterBarProps) {
   const [datePreset, setDatePreset] = useState(initialFilters?.datePreset ?? 'month')
   const [dateFrom, setDateFrom] = useState(initialFilters?.dateFrom ?? '')
   const [dateTo, setDateTo] = useState(initialFilters?.dateTo ?? '')
@@ -91,4 +91,4 @@ export default function SmartFilterBar({ searchPlaceholder, employees, employeeL
       </div>
     </div>
   )
-}
+})

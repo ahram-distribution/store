@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import { formatCurrencyShort, formatDate } from '../../utils/format'
 import { StatusBadge } from '../shared/StatusBadge'
 
@@ -51,7 +52,7 @@ const cardAccent: Record<string, string> = {
 
 
 
-export function OrderCard({ order, onClick }: OrderCardProps) {
+export const OrderCard = memo(function OrderCard({ order, onClick }: OrderCardProps) {
   const dt = order.created_at ? new Date(order.created_at) : null
   const dateStr = dt ? formatDate(dt) : ''
   const timeStr = dt ? dt.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }) : ''
@@ -173,4 +174,4 @@ export function OrderCard({ order, onClick }: OrderCardProps) {
       <p className="text-[11px] text-text-secondary mt-1">{dateStr} {timeStr}</p>
     </div>
   )
-}
+})

@@ -76,6 +76,7 @@ export function OrdersPage() {
   const [customers, setCustomers] = useState<any[]>([])
   const [employees, setEmployees] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [initialLoaded, setInitialLoaded] = useState(false)
   const params = new URLSearchParams(window.location.search)
   const [viewState, setViewState, resetViewState] = usePersistentViewState('orders-list', {
     tab: (params.get('my') === '1' ? 'my_orders' : 'all') as Tab,
@@ -87,15 +88,20 @@ export function OrdersPage() {
   const { tab, statusFilter, customerFilter, orderTypeFilter, filters } = viewState
   const [sfResetKey, setSfResetKey] = useState(0)
 
+  const smartFilterEmployees = useMemo(
+    () => employees.map(e => ({ id: e.identity_id || e.id, name: e.full_name })),
+    [employees]
+  )
+
   const resolveDateRange = (f: FilterValues): { from: string | null; to: string | null } => {
     if (f.datePreset === 'all') return { from: null, to: null }
     if (f.datePreset === 'custom') return resolveDateRangeISO('custom', f.dateFrom || undefined, f.dateTo || undefined)
     return resolveDateRangeISO(f.datePreset as any)
   }
 
-  const fetchOrders = async () => {
+  const fetchOrders = useCallback(async () => {
     const token = getToken()
-    if (!token) { setLoading(false); return }
+    if (!token) { setLoading(false); setInitialLoaded(true); return }
     setLoading(true)
     const range = resolveDateRange(filters)
     const rpcParams: any = { p_token: token.trim() }
@@ -110,7 +116,8 @@ export function OrdersPage() {
     const { data } = await supabase.rpc('get_unified_orders', rpcParams)
     if (data) setOrders(Array.isArray(data) ? data : [])
     setLoading(false)
-  }
+    setInitialLoaded(true)
+  }, [filters, statusFilter, customerFilter, tab, currentUserId])
 
   useEffect(() => { fetchOrders() }, [filters, statusFilter, customerFilter, tab])
 
@@ -145,7 +152,7 @@ export function OrdersPage() {
 
   const handleRefresh = useCallback(() => {
     fetchOrders()
-  }, [])
+  }, [fetchOrders])
 
   const handleStatusToggle = useCallback((status: string) => {
     setViewState((prev: any) => ({ statusFilter: prev.statusFilter === status ? '' : status }))
@@ -250,7 +257,7 @@ export function OrdersPage() {
       <SmartFilterBar
         key={sfResetKey}
         searchPlaceholder="بحث برقم الطلب أو اسم العميل..."
-        employees={employees.map(e => ({ id: e.identity_id || e.id, name: e.full_name }))}
+        employees={smartFilterEmployees}
         employeeLabel="المسؤول"
         initialFilters={filters}
         onFilterChange={(f) => setViewState({ filters: f })}
@@ -287,8 +294,27 @@ export function OrdersPage() {
         <StatusKpiBar chips={kpiChips} selectedId={statusFilter} onToggle={handleStatusToggle} />
       )}
 
-      {loading ? (
-        <div className="text-center py-12 text-text-secondary text-sm">جاري التحميل...</div>
+      {!initialLoaded ? (
+        <CardGrid>
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className="rounded-xl border border-border border-r-4 bg-white p-3.5 space-y-3 animate-pulse">
+              <div className="h-4 bg-gray-200 rounded w-3/4" />
+              <div className="flex items-center justify-between">
+                <div className="h-5 bg-gray-100 rounded-full w-16" />
+                <div className="h-3 bg-gray-100 rounded w-20" />
+              </div>
+              <div className="flex items-baseline gap-1.5">
+                <div className="h-3 bg-gray-100 rounded w-12" />
+                <div className="h-5 bg-gray-200 rounded w-24" />
+              </div>
+              <div className="h-3 bg-gray-100 rounded w-28" />
+              <div className="flex gap-2 pt-2 border-t border-border/50">
+                <div className="h-4 bg-gray-100 rounded w-12" />
+                <div className="h-4 bg-gray-100 rounded w-14" />
+              </div>
+            </div>
+          ))}
+        </CardGrid>
       ) : sorted.length === 0 ? (
         <EmptyState
           message={tab === 'my_orders' ? 'لا توجد طلبات لك' : tab === 'my_invoices' ? 'لا توجد فواتير لك' : undefined}
