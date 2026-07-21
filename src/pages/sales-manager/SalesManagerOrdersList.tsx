@@ -5,6 +5,7 @@ import { formatCurrencyShort } from '../../utils/format'
 import SmartFilterBar, { type FilterValues } from '../../components/SmartFilterBar'
 import { resolveDateRangeISO } from '../../lib/dateRange'
 import { usePersistentViewState } from '../../hooks/usePersistentViewState'
+import { OrderOwnershipInfo } from '../../components/orders/OrderOwnershipInfo'
 
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
@@ -102,7 +103,14 @@ export default function SalesManagerOrdersList() {
                 </span>
               </div>
               <p className="text-sm font-bold text-text mb-1">{o.customer_name}</p>
-              <p className="text-xs text-text-secondary mb-2">{o.created_by_name}</p>
+              <OrderOwnershipInfo
+                creatorName={o.created_by_name}
+                creatorId={o.created_by_id}
+                ownerId={o.owner_id}
+                currentOwnerName={o.owner_name}
+                label="المنشئ:"
+                compact
+              />
               <div className="flex items-center justify-between text-xs">
                 <span className="font-bold text-primary">{formatCurrencyShort(o.total_amount)}</span>
                 <span className="text-text-secondary">{o.item_count ?? 0} صنف</span>

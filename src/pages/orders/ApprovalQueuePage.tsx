@@ -5,6 +5,7 @@ import { OrderStatusManager } from '../../components/orders/OrderStatusManager'
 import { useCapability } from '../../hooks/useCapability'
 import toast from 'react-hot-toast'
 import { formatCurrencyShort } from '../../utils/format'
+import { OrderOwnershipInfo } from '../../components/orders/OrderOwnershipInfo'
 
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
@@ -71,7 +72,16 @@ export function ApprovalQueuePage() {
               <div className="flex items-center justify-between text-xs text-text-secondary mb-2">
                 <div className="flex flex-col gap-0.5">
                   {o.customer_owner_name && <span>التابع لـ: {o.customer_owner_name}{o.customer_owner_role ? ` (${o.customer_owner_role})` : ''}</span>}
-                  {o.created_by_name && <span>منشئ الطلب: {o.created_by_name}</span>}
+                  {o.created_by_name && (
+                    <OrderOwnershipInfo
+                      creatorName={o.created_by_name}
+                      creatorId={o.created_by_id}
+                      ownerId={o.owner_id}
+                      currentOwnerName={o.owner_name}
+                      label="منشئ الطلب:"
+                      compact
+                    />
+                  )}
                   {!o.customer_owner_name && !o.created_by_name && <span>غير متوفر</span>}
                 </div>
                 <span className="font-semibold text-text">{formatCurrencyShort(Number(o.total_amount || 0))}</span>

@@ -16,6 +16,7 @@ import { ORDER_STATUS_LABELS } from '../../types/order-display'
 import { renderDeliveryPermitHtml, printInvoice } from './order-printing'
 import { buildTimelineEvents } from './order-detail.utils'
 import { copyToClipboard } from '../../utils/safeClipboard'
+import { OrderOwnershipInfo } from './OrderOwnershipInfo'
 import type { UnifiedOrder, UnifiedOrderItem } from '../../types/unified-order'
 
 interface OrderDetailViewProps {
@@ -81,34 +82,6 @@ export function OrderDetailView({ data, actions, onBack, editMode, editItems, on
     copyWhatsAppFromDisplay(display)
   }
 
-  const ownershipTransferred = useMemo(
-    () => !!(order.order_creator_id && order.owner_id && order.order_creator_id !== order.owner_id),
-    [order.order_creator_id, order.owner_id]
-  )
-
-  function renderCreator() {
-    const name = order.order_creator_name
-    const role = order.order_creator_role || 'عميل'
-    if (!name) return <span className="text-[#6B7280]">—</span>
-    const target = order.order_creator_type === 'customer'
-      ? `/customers/${order.order_creator_id}`
-      : `/employees/${order.order_creator_id}`
-    if (!order.order_creator_id) return <span>{name}<span className="text-[#6B7280]"> — {role}</span></span>
-    const creatorNode = (
-      <span className="cursor-pointer hover:opacity-70 transition-opacity" onClick={() => navigate(target)}>
-        {name}
-        <span className="text-[#6B7280]"> — {role}</span>
-      </span>
-    )
-    if (!ownershipTransferred) return creatorNode
-    return (
-      <span className="inline-flex flex-col">
-        <span className="line-through text-[#9CA3AF]">{creatorNode}</span>
-        <span className="text-[11px] text-[#059669] font-medium">✓ المالك الحالى: {order.current_owner_name}</span>
-      </span>
-    )
-  }
-
   const revisionCount = order.revision_number
   const totalEditCount = modification_history?.filter(e => e.field_name === 'REVISION_SNAPSHOT').length || 0
   const lastRevision = modification_history?.filter(e => e.field_name === 'REVISION_SNAPSHOT').sort((a, b) =>
@@ -142,7 +115,16 @@ export function OrderDetailView({ data, actions, onBack, editMode, editItems, on
             </div>
             <div className="flex items-center gap-1.5">
               <span style={{color:'#9CA3AF'}}>المنشئ:</span>
-              <span className="font-medium text-[#111827]">{renderCreator()}</span>
+              <span className="font-medium text-[#111827]">
+                <OrderOwnershipInfo
+                  creatorName={order.order_creator_name}
+                  creatorId={order.order_creator_id}
+                  creatorType={order.order_creator_type}
+                  creatorRole={order.order_creator_role}
+                  ownerId={order.owner_id}
+                  currentOwnerName={order.current_owner_name}
+                />
+              </span>
             </div>
             <div className="flex items-center gap-1.5">
               <span style={{color:'#9CA3AF'}}>تاريخ الإنشاء:</span>

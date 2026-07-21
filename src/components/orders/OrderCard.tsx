@@ -1,6 +1,7 @@
 import { memo } from 'react'
 import { formatCurrencyShort, formatDate } from '../../utils/format'
 import { StatusBadge } from '../shared/StatusBadge'
+import { OrderOwnershipInfo } from './OrderOwnershipInfo'
 
 interface OrderCardProps {
   order: {
@@ -12,9 +13,11 @@ interface OrderCardProps {
     owner_phone?: string
     creator_name?: string
     created_by_name?: string
+    created_by_id?: string | null
     creator_phone?: string
     customer_owner_name?: string
     customer_owner_role?: string
+    owner_id?: string | null
     total_amount: number | string
     status: string
     created_at: string
@@ -91,18 +94,21 @@ export const OrderCard = memo(function OrderCard({ order, onClick }: OrderCardPr
         <span className="text-lg font-bold text-text">{formatCurrencyShort(Number(order.total_amount) || 0)}</span>
       </div>
 
-      {order.created_by_name && (
-        <p className="text-[11px] text-text-secondary mb-0.5">
-          <span className="text-text-muted">المسؤول: </span>
-          <span className="text-primary/80 font-medium">{order.created_by_name}</span>
-        </p>
-      )}
-      {!order.created_by_name && order.customer_owner_name && (
+      {order.created_by_name ? (
+        <OrderOwnershipInfo
+          creatorName={order.created_by_name}
+          creatorId={order.created_by_id}
+          ownerId={order.owner_id}
+          currentOwnerName={order.owner_name}
+          label="المسؤول:"
+          compact
+        />
+      ) : order.customer_owner_name ? (
         <p className="text-[11px] text-text-secondary mb-0.5">
           <span className="text-text-muted">المسؤول: </span>
           <span className="text-text font-medium">{order.customer_owner_name}</span>
         </p>
-      )}
+      ) : null}
 
       {order.previous_order_count != null && order.previous_order_count > 0 ? (
         <>

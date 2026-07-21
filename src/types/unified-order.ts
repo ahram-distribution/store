@@ -262,4 +262,5 @@ export interface UnifiedOrderListItem {
   customer_owner_id: string | null
   created_by_id: string | null
   created_by_type: string | null
+  owner_id: string | null
 }

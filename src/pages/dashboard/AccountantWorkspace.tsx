@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { formatCurrencyShort } from '../../utils/format'
+import { OrderOwnershipInfo } from '../../components/orders/OrderOwnershipInfo'
 
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
@@ -72,7 +73,18 @@ export function AccountantWorkspace() {
                 </div>
                 <div className="text-[10px] text-text-secondary mt-0.5">
                   {o.customer_name && <span>{o.customer_name}</span>}
-                  {o.created_by_name && <span className="mr-2">| منشئ: {o.created_by_name}</span>}
+                  {o.created_by_name && (
+                    <span className="mr-2">
+                      <OrderOwnershipInfo
+                        creatorName={o.created_by_name}
+                        creatorId={o.created_by_id}
+                        ownerId={o.owner_id}
+                        currentOwnerName={o.owner_name}
+                        label="| منشئ:"
+                        compact
+                      />
+                    </span>
+                  )}
                 </div>
               </button>
             ))}
