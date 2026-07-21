@@ -322,7 +322,7 @@ export function OrdersPage() {
       ) : (
         <CardGrid>
           {sorted.map((order: any) => (
-            <OrderCard key={order.id} order={order} onClick={() => navigate(`/orders/${order.id}`)} />
+            <OrderCard key={order.id} order={order} orderId={order.id} />
           ))}
         </CardGrid>
       )}

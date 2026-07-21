@@ -1,4 +1,5 @@
 import { memo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { formatCurrencyShort, formatDate } from '../../utils/format'
 import { StatusBadge } from '../shared/StatusBadge'
 import { OrderOwnershipInfo } from './OrderOwnershipInfo'
@@ -35,6 +36,7 @@ interface OrderCardProps {
     collection_badge?: { label: string; className: string }
   }
   onClick?: () => void
+  orderId?: string
 }
 
 const cardAccent: Record<string, string> = {
@@ -55,7 +57,9 @@ const cardAccent: Record<string, string> = {
 
 
 
-export const OrderCard = memo(function OrderCard({ order, onClick }: OrderCardProps) {
+export const OrderCard = memo(function OrderCard({ order, onClick, orderId }: OrderCardProps) {
+  const navigate = useNavigate()
+  const handleClick = onClick || (orderId ? () => navigate(`/orders/${orderId}`) : undefined)
   const dt = order.created_at ? new Date(order.created_at) : null
   const dateStr = dt ? formatDate(dt) : ''
   const timeStr = dt ? dt.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }) : ''
@@ -66,7 +70,7 @@ export const OrderCard = memo(function OrderCard({ order, onClick }: OrderCardPr
 
   return (
     <div
-      onClick={onClick}
+      onClick={handleClick}
       className={'h-full rounded-xl border border-border border-r-4 bg-white p-3.5 cursor-pointer active:scale-[0.98] transition-all flex flex-col ' + accent}
     >
       <p className="text-base font-bold text-text mb-1 leading-snug">

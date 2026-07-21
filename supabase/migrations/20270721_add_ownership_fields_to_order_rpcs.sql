@@ -1,9 +1,11 @@
 -- =============================================================================
--- Migration 20270721: owner_name canonical fix + ownership fields
+-- Migration 20270721: owner_name canonical fix + ownership fields + perf optimization
 -- =============================================================================
 -- Canonical rule: owner_name = employees.full_name via orders.owner_id ONLY.
 -- No snapshot fallback. No cached value. Live JOIN always.
 -- Also adds owner_id / created_by_id for OrderOwnershipInfo transfer detection.
+-- Performance: removed items, approved_at, notes, created_by_type from
+-- get_unified_orders (confirmed unused by all 9 consumers of the plural RPC).
 -- =============================================================================
 
 -- 1. get_unified_orders: add owner_id (JOIN e already exists)
@@ -54,29 +56,7 @@ BEGIN
         'created_at', o.created_at,
         'updated_at', o.updated_at,
         'submitted_at', o.submitted_at,
-        'approved_at', o.approved_at,
-        'notes', o.notes,
         'item_count', (SELECT count(*) FROM public.order_items oi WHERE oi.order_id = o.id),
-        'items', COALESCE((
-          SELECT jsonb_agg(jsonb_build_object(
-            'id', oi.id,
-            'product_id', oi.product_id,
-            'product_name', p.product_name,
-            'legacy_code', p.legacy_code,
-            'image_url', p.image_url,
-            'company_id', p.company_id,
-            'company_name', comp.company_name,
-            'unit_type', oi.unit_type,
-            'unit_quantity', oi.unit_quantity,
-            'piece_quantity', oi.piece_quantity,
-            'unit_price', oi.unit_price,
-            'total_price', oi.total_price
-          ) ORDER BY oi.id)
-          FROM public.order_items oi
-          LEFT JOIN public.products p ON p.id = oi.product_id
-          LEFT JOIN public.companies comp ON comp.id = p.company_id
-          WHERE oi.order_id = o.id
-        ), '[]'::jsonb),
         'current_delivery_status', (
           SELECT dt.status FROM public.delivery_tracking dt
           WHERE dt.order_id = o.id AND dt.is_active = true LIMIT 1
@@ -93,7 +73,6 @@ BEGIN
           WHEN oc_i.identity_type = 'customer' THEN oc_cust.id
           ELSE NULL
         END,
-        'created_by_type', oc_i.identity_type,
         'customer_display_address',
           COALESCE(
             NULLIF(concat_ws(' - ', ca.address_line1, ca.city, ca.governorate), ''),
