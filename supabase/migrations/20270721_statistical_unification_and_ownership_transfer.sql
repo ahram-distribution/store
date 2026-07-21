@@ -10,17 +10,17 @@
 -- ============================================================================
 -- 1. CANONICAL STATISTICAL RULE FUNCTION
 --    Answers: "Should this order participate in statistical calculations?"
---    Orders with status draft or cancelled are NEVER counted.
+--    Orders with status draft, submitted, or cancelled are NEVER counted.
 -- ============================================================================
 CREATE OR REPLACE FUNCTION public.is_order_in_statistics(p_status text)
 RETURNS boolean
 LANGUAGE sql
 IMMUTABLE
 AS $$
-  SELECT p_status NOT IN ('draft', 'cancelled')
+  SELECT p_status NOT IN ('draft', 'submitted', 'cancelled')
 $$;
 
-COMMENT ON FUNCTION public.is_order_in_statistics IS 'Canonical statistical rule: determines whether an order participates in statistical calculations. Draft and cancelled orders are excluded. Every statistical module must use this function.';
+COMMENT ON FUNCTION public.is_order_in_statistics IS 'Canonical statistical rule: determines whether an order participates in statistical calculations. Draft, submitted, and cancelled orders are excluded. Every statistical module must use this function.';
 
 -- ============================================================================
 -- 2. GET_STATISTICAL_ORDERS — bulk statistical source
