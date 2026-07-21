@@ -24,6 +24,16 @@ function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
 }
 
+function SkeletonCard() {
+  return (
+    <div className="rounded-xl p-4 text-center border border-border shadow-sm overflow-hidden bg-gradient-to-br from-gray-50 to-gray-100/60">
+      <div className="text-2xl mb-1 opacity-0">_</div>
+      <div className="h-6 bg-gray-200/60 rounded mx-auto w-16 animate-pulse" />
+      <div className="text-[11px] h-3 bg-gray-200/60 rounded mx-auto w-20 mt-2 animate-pulse" />
+    </div>
+  )
+}
+
 interface DeliveredOrdersKPIProps {
   onKPIClick?: () => void
 }
@@ -53,16 +63,20 @@ export function DeliveredOrdersKPI({ onKPIClick }: DeliveredOrdersKPIProps) {
       rpcParams.p_date_from = dateFrom
       rpcParams.p_date_to = dateTo
 
-      const { data, error } = await supabase.rpc('get_unified_orders', rpcParams)
+      const [monthResult, allResult] = await Promise.all([
+        supabase.rpc('get_unified_orders', rpcParams),
+        supabase.rpc('get_unified_orders', { p_token: tok }),
+      ])
       if (cancelled) return
+
+      const { data, error } = monthResult
       if (error || !data || !Array.isArray(data)) { setLoading(false); return }
 
       const delivered = filterDelivered(data)
       const amount = deliveredTotalAmount(delivered)
       const count = deliveredOrderCount(delivered)
 
-      const { data: allData } = await supabase.rpc('get_unified_orders', { p_token: tok })
-      if (cancelled) return
+      const { data: allData } = allResult
       const allDelivered = allData && Array.isArray(allData) ? filterDelivered(allData) : delivered
       const newCustomers = deliveredNewCustomerCount(allDelivered, dateFrom, dateTo)
 
@@ -98,9 +112,14 @@ export function DeliveredOrdersKPI({ onKPIClick }: DeliveredOrdersKPIProps) {
         </div>
       </div>
       <div className="p-5">
-        {loading && <div className="text-center py-6 text-text-secondary text-sm">جاري التحميل...</div>}
-        {!loading && (
-          <div className="grid grid-cols-3 gap-4">
+        {loading ? (
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+            <SkeletonCard />
+            <SkeletonCard />
+            <SkeletonCard />
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
             {KPIS.map((kpi, idx) => {
               const formatted = formattedValues[idx]
               return (
