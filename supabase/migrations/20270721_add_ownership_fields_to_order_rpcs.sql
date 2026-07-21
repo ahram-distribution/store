@@ -1,9 +1,9 @@
 -- =============================================================================
--- Migration 20270721: Add ownership fields for OrderOwnershipInfo component
+-- Migration 20270721: owner_name canonical fix + ownership fields
 -- =============================================================================
--- Exposes owner_id / created_by_id so the frontend can detect ownership transfer
--- by comparing creator entity UUID with current owner employee UUID.
--- No business logic or permission changes. Purely additive field exposure.
+-- Canonical rule: owner_name = employees.full_name via orders.owner_id ONLY.
+-- No snapshot fallback. No cached value. Live JOIN always.
+-- Also adds owner_id / created_by_id for OrderOwnershipInfo transfer detection.
 -- =============================================================================
 
 -- 1. get_unified_orders: add owner_id (JOIN e already exists)
@@ -47,7 +47,7 @@ BEGIN
         'customer_name', COALESCE(o.snapshot_customer_name, c.company_name),
         'customer_code', o.snapshot_customer_code,
         'customer_phone', COALESCE(o.snapshot_customer_phone, ci.phone),
-        'owner_name', COALESCE(o.snapshot_owner_name, e.full_name),
+        'owner_name', e.full_name,
         'owner_id', o.owner_id,
         'created_by', o.created_by,
         'created_by_name', COALESCE(o.snapshot_sender_name, oc_emp.full_name, oc_cust.company_name, ''),
@@ -140,7 +140,7 @@ BEGIN
 END;
 $function$;
 
--- 2. get_governed_orders: add created_by_id + identity JOINs in all 3 branches
+-- 2. get_governed_orders: add created_by_id + identity JOINs + live owner_name (all 3 branches)
 CREATE OR REPLACE FUNCTION public.get_governed_orders(
   p_token uuid, p_search text DEFAULT NULL, p_status varchar DEFAULT NULL,
   p_customer_id uuid DEFAULT NULL, p_employee_id uuid DEFAULT NULL,
@@ -162,7 +162,7 @@ BEGIN
       'customer_phone', COALESCE(o.snapshot_customer_phone, ''),
       'customer_address', COALESCE(o.snapshot_customer_address, ''),
       'customer_maps_url', '', 'owner_type', o.owner_type, 'owner_id', o.owner_id,
-      'owner_name', COALESCE(o.snapshot_owner_name, ''),
+      'owner_name', e.full_name,
       'owner_phone', COALESCE(o.snapshot_owner_phone, ''),
       'owner_address', COALESCE(o.snapshot_owner_address, ''),
       'status', o.status, 'subtotal', o.subtotal, 'discount_amount', o.discount_amount,
@@ -180,6 +180,7 @@ BEGIN
       'item_count', (SELECT COUNT(*) FROM order_items oi WHERE oi.order_id = o.id)
     ) ORDER BY o.created_at DESC) INTO v_result
     FROM orders o
+    LEFT JOIN public.employees e ON e.id = o.owner_id
     LEFT JOIN public.identities oc_i ON oc_i.id = o.created_by
     LEFT JOIN public.employees oc_emp ON oc_emp.identity_id = oc_i.id AND oc_i.identity_type = 'employee'
     LEFT JOIN public.customers oc_cust ON oc_cust.identity_id = oc_i.id AND oc_i.identity_type = 'customer'
@@ -201,7 +202,7 @@ BEGIN
       'customer_phone', COALESCE(o.snapshot_customer_phone, ''),
       'customer_address', COALESCE(o.snapshot_customer_address, ''),
       'customer_maps_url', '', 'owner_type', o.owner_type, 'owner_id', o.owner_id,
-      'owner_name', COALESCE(o.snapshot_owner_name, ''),
+      'owner_name', e.full_name,
       'owner_phone', COALESCE(o.snapshot_owner_phone, ''),
       'owner_address', COALESCE(o.snapshot_owner_address, ''),
       'status', o.status, 'subtotal', o.subtotal, 'discount_amount', o.discount_amount,
@@ -219,6 +220,7 @@ BEGIN
       'item_count', (SELECT COUNT(*) FROM order_items oi WHERE oi.order_id = o.id)
     ) ORDER BY o.created_at DESC) INTO v_result
     FROM orders o
+    LEFT JOIN public.employees e ON e.id = o.owner_id
     LEFT JOIN public.identities oc_i ON oc_i.id = o.created_by
     LEFT JOIN public.employees oc_emp ON oc_emp.identity_id = oc_i.id AND oc_i.identity_type = 'employee'
     LEFT JOIN public.customers oc_cust ON oc_cust.identity_id = oc_i.id AND oc_i.identity_type = 'customer'
@@ -241,7 +243,7 @@ BEGIN
     'customer_phone', COALESCE(o.snapshot_customer_phone, ''),
     'customer_address', COALESCE(o.snapshot_customer_address, ''),
     'customer_maps_url', '', 'owner_type', o.owner_type, 'owner_id', o.owner_id,
-    'owner_name', COALESCE(o.snapshot_owner_name, ''),
+    'owner_name', e.full_name,
     'owner_phone', COALESCE(o.snapshot_owner_phone, ''),
     'owner_address', COALESCE(o.snapshot_owner_address, ''),
     'status', o.status, 'subtotal', o.subtotal, 'discount_amount', o.discount_amount,
@@ -259,6 +261,7 @@ BEGIN
     'item_count', (SELECT COUNT(*) FROM order_items oi WHERE oi.order_id = o.id)
   ) ORDER BY o.created_at DESC) INTO v_result
   FROM orders o
+  LEFT JOIN public.employees e ON e.id = o.owner_id
   LEFT JOIN public.identities oc_i ON oc_i.id = o.created_by
   LEFT JOIN public.employees oc_emp ON oc_emp.identity_id = oc_i.id AND oc_i.identity_type = 'employee'
   LEFT JOIN public.customers oc_cust ON oc_cust.identity_id = oc_i.id AND oc_i.identity_type = 'customer'
@@ -318,7 +321,7 @@ BEGIN
         'customer_code', o.snapshot_customer_code,
         'customer_phone', COALESCE(o.snapshot_customer_phone, ci.phone),
         'governorate', ca.governorate,
-        'owner_name', COALESCE(o.snapshot_owner_name, e.full_name),
+        'owner_name', e.full_name,
         'owner_id', o.owner_id,
         'created_by_name', COALESCE(o.snapshot_sender_name, oc_emp.full_name, oc_cust.company_name, ''),
         'created_by_id', CASE

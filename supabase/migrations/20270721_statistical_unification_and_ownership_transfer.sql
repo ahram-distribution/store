@@ -72,7 +72,7 @@ BEGIN
         'customer_name', COALESCE(o.snapshot_customer_name, c.company_name),
         'customer_code', o.snapshot_customer_code,
         'customer_phone', COALESCE(o.snapshot_customer_phone, ci.phone),
-        'owner_name', COALESCE(o.snapshot_owner_name, e.full_name),
+        'owner_name', e.full_name,
         'owner_id', o.owner_id,
         'created_by', o.created_by,
         'created_by_name', COALESCE(o.snapshot_sender_name, oc_emp.full_name, oc_cust.company_name, ''),

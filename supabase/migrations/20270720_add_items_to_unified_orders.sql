@@ -84,7 +84,7 @@ BEGIN
         'customer_owner_name', COALESCE(co_emp.full_name, ''),
         'customer_owner_role', COALESCE((SELECT r.name FROM public.employee_roles er2 JOIN public.roles r ON r.id = er2.role_id WHERE er2.employee_id = c.owner_id LIMIT 1), ''),
         'customer_owner_id', c.owner_id,
-        'owner_name', COALESCE(o.snapshot_owner_name, e.full_name),
+        'owner_name', e.full_name,
         'created_by_id', CASE
           WHEN oc_i.identity_type = 'employee' THEN oc_emp.id
           WHEN oc_i.identity_type = 'customer' THEN oc_cust.id
@@ -146,7 +146,7 @@ BEGIN
         'customer_name', COALESCE(o.snapshot_customer_name, c.company_name),
         'customer_code', o.snapshot_customer_code,
         'customer_phone', COALESCE(o.snapshot_customer_phone, ci.phone),
-        'owner_name', COALESCE(o.snapshot_owner_name, e.full_name),
+        'owner_name', e.full_name,
         'created_by', o.created_by,
         'created_by_name', COALESCE(o.snapshot_sender_name, oc_emp.full_name, oc_cust.company_name, ''),
         'created_at', o.created_at,
