@@ -81,6 +81,11 @@ export function OrderDetailView({ data, actions, onBack, editMode, editItems, on
     copyWhatsAppFromDisplay(display)
   }
 
+  const ownershipTransferred = useMemo(
+    () => !!(order.order_creator_id && order.owner_id && order.order_creator_id !== order.owner_id),
+    [order.order_creator_id, order.owner_id]
+  )
+
   function renderCreator() {
     const name = order.order_creator_name
     const role = order.order_creator_role || 'عميل'
@@ -89,10 +94,17 @@ export function OrderDetailView({ data, actions, onBack, editMode, editItems, on
       ? `/customers/${order.order_creator_id}`
       : `/employees/${order.order_creator_id}`
     if (!order.order_creator_id) return <span>{name}<span className="text-[#6B7280]"> — {role}</span></span>
-    return (
+    const creatorNode = (
       <span className="cursor-pointer hover:opacity-70 transition-opacity" onClick={() => navigate(target)}>
         {name}
         <span className="text-[#6B7280]"> — {role}</span>
+      </span>
+    )
+    if (!ownershipTransferred) return creatorNode
+    return (
+      <span className="inline-flex flex-col">
+        <span className="line-through text-[#9CA3AF]">{creatorNode}</span>
+        <span className="text-[11px] text-[#059669] font-medium">✓ المالك الحالى: {order.current_owner_name}</span>
       </span>
     )
   }
