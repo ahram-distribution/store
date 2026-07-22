@@ -85,17 +85,17 @@ BEGIN
   END IF;
 
   RETURN (
-    WITH order_data AS (
+    WITH     order_data AS (
       SELECT
-        resolve_employee_id(o.owner_id) AS eid,
+        o.owner_id AS eid,
         COUNT(*)::int AS order_count,
         COALESCE(SUM(o.total_amount), 0) AS sales_total
       FROM public.orders o
-      WHERE resolve_employee_id(o.owner_id) = ANY(v_effective_ids)
+      WHERE o.owner_id = ANY(v_effective_ids)
         AND o.created_at::date >= p_from
         AND o.created_at::date <= p_to
         AND public.is_order_in_statistics(o.status)
-      GROUP BY resolve_employee_id(o.owner_id)
+      GROUP BY o.owner_id
     ),
     visit_data AS (
       SELECT
@@ -109,13 +109,13 @@ BEGIN
     ),
     customer_data AS (
       SELECT
-        resolve_employee_id(c.owner_id) AS eid,
+        c.owner_id AS eid,
         COUNT(*)::int AS customer_count
       FROM public.customers c
-      WHERE resolve_employee_id(c.owner_id) = ANY(v_effective_ids)
+      WHERE c.owner_id = ANY(v_effective_ids)
         AND c.created_at::date >= p_from
         AND c.created_at::date <= p_to
-      GROUP BY resolve_employee_id(c.owner_id)
+      GROUP BY c.owner_id
     )
     SELECT COALESCE(jsonb_agg(
       jsonb_build_object(
