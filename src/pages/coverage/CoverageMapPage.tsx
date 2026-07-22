@@ -32,12 +32,9 @@ const fmtDuration = (min?: number) => {
 
 function customerIcon(source: string | null): L.DivIcon {
   const colors: Record<string, string> = {
-    gps: '#22c55e',
+    customer_location: '#22c55e',
     visit_gps: '#0ea5e9',
     address_geocoded: '#eab308',
-    manual: '#f97316',
-    city_center: '#3b82f6',
-    governorate_center: '#8b5cf6',
     unknown: '#9ca3af',
   }
   const fill = source && colors[source] ? colors[source] : '#3b82f6'
@@ -154,16 +151,14 @@ export default function CoverageMapPage() {
               <Popup>
                 <div className="text-right text-xs leading-relaxed min-w-[220px]" dir="rtl">
                   <div className="font-bold text-sm mb-1.5 border-b pb-1" style={{
-                    color: c.location_source === 'gps' ? '#22c55e' : c.location_source === 'visit_gps' ? '#0ea5e9' : c.location_source === 'address_geocoded' ? '#eab308' : c.location_source === 'city_center' ? '#3b82f6' : c.location_source === 'governorate_center' ? '#8b5cf6' : '#9ca3af'
+                    color: c.location_source === 'customer_location' ? '#22c55e' : c.location_source === 'visit_gps' ? '#0ea5e9' : c.location_source === 'address_geocoded' ? '#eab308' : '#9ca3af'
                   }}>
                     {c.name || c.responsible_name}
                   </div>
                   <div className="mb-1 text-[10px] font-semibold">
-                    {c.location_source === 'gps' ? '🟢 دقة GPS' :
+                    {c.location_source === 'customer_location' ? '🟢 موقع العميل' :
                      c.location_source === 'visit_gps' ? '🔷 موقع الزيارة' :
                      c.location_source === 'address_geocoded' ? '🟡 مستخرج من العنوان' :
-                     c.location_source === 'city_center' ? '🔵 مركز المدينة' :
-                     c.location_source === 'governorate_center' ? '🟣 مركز المحافظة' :
                      c.location_source === 'unknown' ? '⚪ غير معروف' : ''}
                   </div>
                   {c.phone && <div className="mb-0.5"><span className="text-text-secondary">📞 </span>{c.phone}</div>}

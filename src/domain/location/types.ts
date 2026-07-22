@@ -176,21 +176,15 @@ export interface CoverageMapData {
 
 // ---- Location Source Priority ----
 export const LOCATION_SOURCE_PRIORITY: Record<string, number> = {
-  gps: 5,
-  visit_gps: 4,
-  manual: 4,
-  address_geocoded: 3,
-  city_center: 2,
-  governorate_center: 1,
+  customer_location: 3,
+  visit_gps: 2,
+  address_geocoded: 1,
   unknown: 0,
 }
 
 export const LOCATION_SOURCE_LABELS: Record<string, string> = {
-  gps: 'GPS',
+  customer_location: 'موقع العميل',
   visit_gps: 'زيارة GPS',
-  manual: 'إدخال يدوي',
   address_geocoded: 'ترميز جغرافي',
-  city_center: 'مركز المدينة',
-  governorate_center: 'مركز المحافظة',
   unknown: 'غير معروف',
 }
