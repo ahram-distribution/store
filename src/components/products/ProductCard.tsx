@@ -46,15 +46,15 @@ export const ProductCard = memo(function ProductCard({ product, onEdit, onToggle
           </div>
         )}
         {isOutOfStock ? (
-          <div className="absolute top-2 right-2 bg-warning/90 text-white text-[9px] px-2 py-0.5 rounded-full font-semibold">
+          <div className="absolute top-2 right-2 bg-warning/90 text-white text-[10px] px-2 py-0.5 rounded-full font-semibold">
             نفذت الكمية
           </div>
         ) : (!product.is_active || !product.is_visible) && (!product.carton_price || Number(product.carton_price) <= 0) ? (
-          <div className="absolute top-2 right-2 bg-accent/90 text-white text-[9px] px-2 py-0.5 rounded-full font-semibold">
+          <div className="absolute top-2 right-2 bg-accent/90 text-white text-[10px] px-2 py-0.5 rounded-full font-semibold">
             موقوف - السعر غير محدد
           </div>
         ) : !product.is_active ? (
-          <div className="absolute top-2 right-2 bg-danger/90 text-white text-[9px] px-2 py-0.5 rounded-full font-semibold">
+          <div className="absolute top-2 right-2 bg-danger/90 text-white text-[10px] px-2 py-0.5 rounded-full font-semibold">
             موقوف
           </div>
         ) : null}
@@ -65,22 +65,22 @@ export const ProductCard = memo(function ProductCard({ product, onEdit, onToggle
         {/* Name + code */}
         <div>
           <div className="flex items-start justify-between gap-1">
-            <h3 className="text-sm font-bold text-text leading-tight line-clamp-2">
+            <h3 className="text-[15px] font-extrabold text-text leading-tight line-clamp-2">
               <SearchHighlight text={product.product_name} query={searchQuery || ''} />
             </h3>
           </div>
-          <p className="text-[10px] text-text-secondary font-mono mt-0.5" dir="ltr">{product.legacy_code || '—'}</p>
+          <p className="text-[44px] text-black font-bold font-mono mt-0.5" dir="ltr">{product.legacy_code || '—'}</p>
         </div>
 
         {/* Company */}
-        <div className="flex items-center gap-1.5 text-[11px] text-text-secondary">
+        <div className="flex items-center gap-1.5 text-[12px] text-text-secondary">
           <Building2 className="w-3 h-3 shrink-0" />
           <span className="truncate">{product.company_name || '—'}</span>
         </div>
 
         {/* Units */}
         {unitNames && (
-          <div className="flex items-center gap-1.5 text-[11px] text-text-secondary">
+          <div className="flex items-center gap-1.5 text-[13px] text-text-secondary">
             <Star className="w-3 h-3 shrink-0" />
             <span>{unitNames}</span>
           </div>
@@ -90,19 +90,19 @@ export const ProductCard = memo(function ProductCard({ product, onEdit, onToggle
         <div className="flex items-center gap-2 flex-wrap">
           {product.carton_price > 0 ? (
             <>
-              <span className="text-xs font-bold text-primary">{formatCurrencyShort(product.carton_price)} <span className="text-[9px] font-normal text-text-secondary">كرتونة</span></span>
+              <span className="text-[29px] font-bold text-primary">{formatCurrencyShort(product.carton_price)} <span className="text-[22px] font-normal text-text-secondary">كرتونة</span></span>
               {piecePrice > 0 && (
-                <span className="text-[10px] text-text-secondary">| {formatCurrencyShort(piecePrice)} <span className="text-[9px]">قطعة</span></span>
+                <span className="text-[24px] text-text-secondary font-bold">| {formatCurrencyShort(piecePrice)} <span className="text-[22px] font-bold">قطعة</span></span>
               )}
             </>
           ) : (
-            <span className="text-[10px] text-danger">السعر غير محدد</span>
+            <span className="text-[24px] text-danger font-bold">السعر غير محدد</span>
           )}
         </div>
 
         {/* Date */}
         {createdDate && (
-          <div className="flex items-center gap-1.5 text-[10px] text-text-secondary">
+          <div className="flex items-center gap-1.5 text-[11px] text-text-secondary">
             <Calendar className="w-3 h-3 shrink-0" />
             <span>{createdDate}</span>
           </div>
@@ -111,19 +111,19 @@ export const ProductCard = memo(function ProductCard({ product, onEdit, onToggle
 
       {/* Actions */}
       <div className="flex border-t border-border divide-x divide-border">
-        <button onClick={onViewDetails} className="flex-1 flex items-center justify-center gap-1 py-2.5 text-[10px] text-text-secondary hover:bg-surface transition-colors">
+        <button onClick={onViewDetails} className="flex-1 flex items-center justify-center gap-1 py-2.5 text-[11px] text-text-secondary hover:bg-surface transition-colors">
           <Eye className="w-3.5 h-3.5" />
           عرض
         </button>
-        <button onClick={onEdit} className="flex-1 flex items-center justify-center gap-1 py-2.5 text-[10px] text-primary hover:bg-surface transition-colors">
+        <button onClick={onEdit} className="flex-1 flex items-center justify-center gap-1 py-2.5 text-[11px] text-primary hover:bg-surface transition-colors">
           <Edit3 className="w-3.5 h-3.5" />
           تعديل
         </button>
-        <button onClick={onToggleActive} className={`flex-1 flex items-center justify-center gap-1 py-2.5 text-[10px] transition-colors hover:bg-surface ${isOutOfStock ? 'text-success' : product.is_active ? 'text-warning' : 'text-success'}`}>
+        <button onClick={onToggleActive} className={`flex-1 flex items-center justify-center gap-1 py-2.5 text-[11px] transition-colors hover:bg-surface ${isOutOfStock ? 'text-success' : product.is_active ? 'text-warning' : 'text-success'}`}>
           <Power className="w-3.5 h-3.5" />
           {isOutOfStock ? 'تفعيل' : product.is_active ? 'إيقاف' : 'تفعيل'}
         </button>
-        <button onClick={onDelete} className="flex-1 flex items-center justify-center gap-1 py-2.5 text-[10px] text-danger hover:bg-surface transition-colors">
+        <button onClick={onDelete} className="flex-1 flex items-center justify-center gap-1 py-2.5 text-[11px] text-danger hover:bg-surface transition-colors">
           <Trash2 className="w-3.5 h-3.5" />
           حذف
         </button>
