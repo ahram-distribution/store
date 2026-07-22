@@ -566,8 +566,8 @@ GRANT EXECUTE ON FUNCTION public.get_live_workday_overview TO authenticated;
 
 -- =============================================================
 -- 4. grant for get_team_map (Phase A used last_activity, verified)
--- 5. grant for get_coverage_map (Phase A, verified)
--- لا تغيير مطلوب — Phase A صحيح وموجود بالفعل
+-- 5. grant for get_coverage_map — 5-tier priority:
+--    gps → visit_gps → address_geocoded → city_center → governorate_center
 -- =============================================================
 
 -- =============================================================
