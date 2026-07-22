@@ -99,7 +99,7 @@ export class LocationRepository {
   async getCoverageMap(): Promise<CoverageMapData> {
     const { data } = await supabase.rpc('get_coverage_map', { p_token: this.token })
     const result = data as any
-    if (result?.error) return { summary: { total_customers: 0, active_employees: 0, covered_governorates: 0, visited_customers_today: 0, today_orders: 0, today_sales: 0 }, customers: [], employees: [] }
+    if (result?.error) return { summary: { total_customers: 0, active_employees: 0, covered_governorates: 0, visited_customers_today: 0, today_orders: 0, today_sales: 0 }, customers: [], employees: [], governorate_stats: [] }
     return result as CoverageMapData
   }
 }

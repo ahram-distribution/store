@@ -16,6 +16,7 @@ export type {
   NominatimAddress,
   GeocodeResult,
   CoverageSummary,
+  CoverageGovernorateStat,
   CoverageCustomer,
   CoverageEmployee,
   CoverageMapData,

@@ -121,6 +121,12 @@ export interface CoverageSummary {
   today_sales: number
 }
 
+export interface CoverageGovernorateStat {
+  governorate: string
+  customer_count: number
+  employee_count: number
+}
+
 export interface CoverageCustomer {
   id: string
   code: string
@@ -154,6 +160,9 @@ export interface CoverageEmployee {
   role_name: string
   status: string
   connection_status: string
+  governorate: string
+  city: string
+  location_source: string | null
   latitude: number | null
   longitude: number | null
   accuracy_meters: number | null
@@ -172,6 +181,7 @@ export interface CoverageMapData {
   summary: CoverageSummary
   customers: CoverageCustomer[]
   employees: CoverageEmployee[]
+  governorate_stats: CoverageGovernorateStat[]
 }
 
 // ---- Location Source Priority ----
