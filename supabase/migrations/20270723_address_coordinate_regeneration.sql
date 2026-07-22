@@ -1,22 +1,25 @@
--- ============================================================================
--- FIX: Regex operator precedence + enrichment exception protection
+-- ================================================================
+-- Address coordinate regeneration from reference geography
 --
--- Problem:
---   PostgreSQL `~*` and `||` share the same operator-precedence group.
---   `WHERE v_fmt ~* '\m' || rc.name_ar || '\M'`
---   was evaluated as `(v_fmt ~* '\m') || rc.name_ar || '\M'`
---   → boolean || text → "argument of WHERE must be type boolean, not type text"
+-- Changes:
+--   1. fn_enrich_customer_location — when no GPS coordinates are
+--      available, use coordinates from reference_cities or
+--      reference_governorates as address_geocoded fallback.
 --
--- Fix:
---   1. Wrap all regex concatenation in parentheses:
---      `WHERE v_fmt ~* ('\m' || rc.name_ar || '\M')`
---   2. Enrichment runs inside a BEGIN/EXCEPTION block in
---      governed_checkout_visit so a failure never kills the visit.
--- ============================================================================
+--   2. One-time backfill: update customer_addresses coordinates
+--      for all existing customers that have a city/governorate
+--      lookup but NULL lat/lng.
+--
+-- Business impact:
+--   - Address changes (Cairo → Giza) now auto-generate coordinates
+--     from reference geography data
+--   - Customers who lost city_center/governorate_center locations
+--     regain map visibility via address_geocoded source
+-- ================================================================
 
--- ============================================================================
--- 1. fn_enrich_customer_location — fix regex parens
--- ============================================================================
+-- ================================================================
+-- 1. Updated fn_enrich_customer_location with reference coordinate fallback
+-- ================================================================
 
 CREATE OR REPLACE FUNCTION public.fn_enrich_customer_location(
   p_customer_id  uuid,
@@ -201,65 +204,34 @@ BEGIN
 END;
 $$;
 
--- ============================================================================
--- 2. governed_checkout_visit — enrichment wrapped in BEGIN/EXCEPTION
--- ============================================================================
+COMMENT ON FUNCTION public.fn_enrich_customer_location IS
+  'إثراء بيانات العميل (الموقع GPS والمحافظة والمدينة والإحداثيات) من بيانات متاحة — يدعم الإحداثيات المرجعية كبديل عند عدم وجود GPS';
 
-CREATE OR REPLACE FUNCTION public.governed_checkout_visit(
-  p_token uuid,
-  p_visit_id uuid,
-  p_visit_result varchar DEFAULT NULL,
-  p_notes text DEFAULT NULL,
-  p_end_location_id uuid DEFAULT NULL,
-  p_latitude decimal DEFAULT NULL,
-  p_longitude decimal DEFAULT NULL
-)
-RETURNS jsonb
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public, extensions
-AS $$
-DECLARE
-  v_session app.sessions;
-  v_visit_status varchar(20);
-  v_customer_id uuid;
-  v_formatted_address text;
-BEGIN
-  SELECT * INTO v_session FROM app.sessions WHERE token = p_token AND expires_at > now();
-  IF NOT FOUND THEN RETURN jsonb_build_object('error', 'INVALID_SESSION'); END IF;
+-- ================================================================
+-- 2. One-time backfill: populate customer_addresses coordinates
+--    from reference geography for existing customers
+-- ================================================================
 
-  SELECT status, customer_id INTO v_visit_status, v_customer_id FROM visits WHERE id = p_visit_id;
-  IF v_visit_status IS NULL THEN RETURN jsonb_build_object('error', 'NOT_FOUND'); END IF;
-  IF v_visit_status != 'active' THEN RETURN jsonb_build_object('error', 'INVALID_STATE'); END IF;
-
-  UPDATE public.visits
-  SET
-    status = 'completed',
-    check_out_at = now(),
-    end_location_id = COALESCE(p_end_location_id, end_location_id),
-    check_out_latitude = COALESCE(p_latitude, check_out_latitude),
-    check_out_longitude = COALESCE(p_longitude, check_out_longitude),
-    visit_result = COALESCE(p_visit_result, visit_result),
-    notes = COALESCE(p_notes, notes),
-    updated_at = now()
-  WHERE id = p_visit_id;
-
-  -- Enrich customer using shared service (best-effort, must never fail visit)
-  BEGIN
-    SELECT formatted_address INTO v_formatted_address
-    FROM unified_locations WHERE id = p_end_location_id;
-
-    PERFORM fn_enrich_customer_location(
-      p_customer_id        := v_customer_id,
-      p_latitude           := p_latitude,
-      p_longitude          := p_longitude,
-      p_formatted_address  := v_formatted_address,
-      p_accuracy_level     := 'GPS'
-    );
-  EXCEPTION WHEN OTHERS THEN
-    RAISE WARNING 'governed_checkout_visit: enrichment failed for visit % (customer %): %', p_visit_id, v_customer_id, SQLERRM;
-  END;
-
-  RETURN jsonb_build_object('success', true);
-END;
-$$;
+UPDATE customer_addresses ca
+SET
+  latitude = COALESCE(ca.latitude, rc.latitude, rg.latitude),
+  longitude = COALESCE(ca.longitude, rc.longitude, rg.longitude),
+  address_source = CASE
+    WHEN ca.latitude IS NULL AND ca.longitude IS NULL AND (rc.latitude IS NOT NULL OR rg.latitude IS NOT NULL)
+    THEN 'mixed'::address_source_type
+    ELSE ca.address_source
+  END,
+  location_accuracy = CASE
+    WHEN ca.latitude IS NULL AND ca.longitude IS NULL AND (rc.latitude IS NOT NULL OR rg.latitude IS NOT NULL)
+    THEN 'GEOCODED'::location_accuracy_level
+    ELSE ca.location_accuracy
+  END,
+  address_updated_at = now()
+FROM customers c
+LEFT JOIN reference_cities rc ON rc.id = ca.city_id
+LEFT JOIN reference_governorates rg ON rg.id = ca.governorate_id
+WHERE ca.customer_id = c.id
+  AND c.is_active = true
+  AND ca.is_default = true
+  AND (ca.latitude IS NULL OR ca.longitude IS NULL)
+  AND (rc.latitude IS NOT NULL OR rg.latitude IS NOT NULL);
