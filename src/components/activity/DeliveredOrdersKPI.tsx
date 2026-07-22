@@ -3,8 +3,13 @@ import { supabase } from '../../lib/supabase'
 import { resolveDateRangeISO } from '../../lib/dateRange'
 import { filterDelivered, deliveredTotalAmount, deliveredOrderCount } from '../../lib/deliveredOrders'
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 function getToken(): string | null {
-  try { return localStorage.getItem('session_token') } catch { return null }
+  try {
+    const t = localStorage.getItem('session_token')
+    if (t && UUID_RE.test(t.trim())) return t.trim()
+    return null
+  } catch { return null }
 }
 
 const MONTHS = ['يناير', 'فبراير', 'مارس', 'إبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر']
@@ -81,7 +86,9 @@ export function DeliveredOrdersKPI({ onKPIClick }: DeliveredOrdersKPIProps) {
       // Compute new customers from lightweight first-deliveries data
       let newCustomers = 0
       const fd = firstDeliveriesResult.data
-      if (fd && Array.isArray(fd)) {
+      if (firstDeliveriesResult.error) {
+        console.error('get_customer_first_deliveries failed:', firstDeliveriesResult.error)
+      } else if (fd && Array.isArray(fd)) {
         for (const row of fd) {
           const d = row.first_delivery_at as string
           if (d && d >= dateFrom && d < dateTo) newCustomers++
