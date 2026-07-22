@@ -129,30 +129,25 @@ export function MonthlyActivity({ scope, managerEmployeeId, onKPIClick }: Monthl
           if (managerId) employeeIds.push(managerId)
         }
 
-        const results = await Promise.all(
-          employeeIds.map(async (eid) => {
-            const { data: d } = await supabase.rpc('get_employee_detail_data', {
-              p_token: tok,
-              p_employee_id: eid,
-              p_from: from,
-              p_to: to,
-            })
-            return d
-          })
-        )
+        if (employeeIds.length === 0) { if (!cancelled) { setLoading(false); setTotals({ sales: 0, orders: 0, visits: 0, customers: 0 }) }; return }
+
+        // Batch: single RPC call for all employees instead of N individual calls
+        const { data: batchData } = await supabase.rpc('get_employee_activity_summary_batch', {
+          p_token: tok,
+          p_employee_ids: employeeIds,
+          p_from: from,
+          p_to: to,
+        })
         if (cancelled) return
 
         let totalSales = 0, totalOrders = 0, totalVisits = 0, totalCustomers = 0
-        for (const d of results) {
-          if (!d) continue
-          const detail = d as any
-          const orders = Array.isArray(detail.orders) ? detail.orders : []
-          const visits = Array.isArray(detail.visits) ? detail.visits : []
-          const customers = Array.isArray(detail.customers) ? detail.customers : []
-          totalSales += orders.reduce((sum: number, o: any) => sum + (Number(o.total_amount) || 0), 0)
-          totalOrders += orders.length
-          totalVisits += visits.length
-          totalCustomers += customers.length
+        if (batchData && Array.isArray(batchData)) {
+          for (const row of batchData) {
+            totalSales += Number(row.sales) || 0
+            totalOrders += Number(row.orders) || 0
+            totalVisits += Number(row.visits) || 0
+            totalCustomers += Number(row.customers) || 0
+          }
         }
         setTotals({ sales: totalSales, orders: totalOrders, visits: totalVisits, customers: totalCustomers })
       }

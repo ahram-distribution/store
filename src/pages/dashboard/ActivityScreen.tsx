@@ -48,29 +48,31 @@ type Props = {
   embedded?: boolean
 }
 
-async function fetchDetailForEmployee(tok: string, eid: string, from: string, to: string): Promise<EmployeeRow | null> {
-  const { data: d } = await supabase.rpc('get_employee_detail_data', {
-    p_token: tok, p_employee_id: eid, p_from: from, p_to: to,
-  })
-  if (!d) return null
-  const detail = d as any
-  const orders = Array.isArray(detail.orders) ? detail.orders : []
-  const visits = Array.isArray(detail.visits) ? detail.visits : []
-  const customers = Array.isArray(detail.customers) ? detail.customers : []
-  return {
-    employee_id: eid,
-    full_name: detail.employee_name || '',
-    code: detail.employee_code || '',
-    sales: orders.reduce((sum: number, o: any) => sum + (Number(o.total_amount) || 0), 0),
-    orders: orders.length,
-    completed_visits: visits.length,
-    registered_customers: customers.length,
-  }
-}
-
 async function fetchGovernedEmployees(tok: string): Promise<any[]> {
   const { data } = await supabase.rpc('get_governed_employees', { p_token: tok })
   return Array.isArray(data) ? data : []
+}
+
+async function fetchBatchActivitySummaries(tok: string, employeeIds: string[], from: string, to: string): Promise<Map<string, EmployeeRow>> {
+  const { data: batchData } = await supabase.rpc('get_employee_activity_summary_batch', {
+    p_token: tok, p_employee_ids: employeeIds, p_from: from, p_to: to,
+  })
+  const map = new Map<string, EmployeeRow>()
+  if (batchData && Array.isArray(batchData)) {
+    for (const row of batchData) {
+      const eid = row.employee_id as string
+      map.set(eid, {
+        employee_id: eid,
+        full_name: '',
+        code: '',
+        sales: Number(row.sales) || 0,
+        orders: Number(row.orders) || 0,
+        completed_visits: Number(row.visits) || 0,
+        registered_customers: Number(row.customers) || 0,
+      })
+    }
+  }
+  return map
 }
 
 export default function ActivityScreen({ month: propMonth, year: propYear, embedded }: Props = {}) {
@@ -119,43 +121,93 @@ export default function ActivityScreen({ month: propMonth, year: propYear, embed
     async function load() {
       try {
         if (role === 'rep') {
-          const row = await fetchDetailForEmployee(tok, eid, from, to)
-          if (!cancelled) { setRepData(row); setMembers([]) }
+          const { data: d } = await supabase.rpc('get_employee_detail_data', {
+            p_token: tok, p_employee_id: eid, p_from: from, p_to: to,
+          })
+          if (!cancelled) {
+            if (d) {
+              const detail = d as any
+              const orders = Array.isArray(detail.orders) ? detail.orders : []
+              const visits = Array.isArray(detail.visits) ? detail.visits : []
+              const customers = Array.isArray(detail.customers) ? detail.customers : []
+              setRepData({
+                employee_id: eid,
+                full_name: user?.full_name || '',
+                code: user?.code || '',
+                sales: orders.reduce((sum: number, o: any) => sum + (Number(o.total_amount) || 0), 0),
+                orders: orders.length,
+                completed_visits: visits.length,
+                registered_customers: customers.length,
+              })
+            }
+            setMembers([])
+          }
         } else if (role === 'executive' && (viewLevel === 'company' || viewLevel === 'managers')) {
           const governed = await fetchGovernedEmployees(tok)
           if (cancelled) return
-          const results = await Promise.all(
-            governed.map(async (emp: any) => {
-              const row = await fetchDetailForEmployee(tok, emp.id, from, to)
-              if (row) { row.full_name = row.full_name || emp.full_name; row.code = row.code || emp.code }
-              return row
-            })
-          )
-          if (!cancelled) { setMembers(results.filter(Boolean) as EmployeeRow[]); setRepData(null) }
+          const ids = governed.map((e: any) => e.id as string)
+          const summaryMap = ids.length > 0 ? await fetchBatchActivitySummaries(tok, ids, from, to) : new Map()
+          if (cancelled) return
+          const results: EmployeeRow[] = ids.map((id: string) => {
+            const existing = summaryMap.get(id)
+            const emp = governed.find((e: any) => e.id === id)
+            return {
+              employee_id: id,
+              full_name: emp?.full_name || existing?.full_name || '',
+              code: emp?.code || existing?.code || '',
+              sales: existing?.sales || 0,
+              orders: existing?.orders || 0,
+              completed_visits: existing?.completed_visits || 0,
+              registered_customers: existing?.registered_customers || 0,
+            }
+          })
+          if (!cancelled) { setMembers(results); setRepData(null) }
         } else if ((role === 'executive' && viewLevel === 'team') || role === 'manager') {
           const governed = await fetchGovernedEmployees(tok)
           if (cancelled) return
           const teamMembers = governed.filter((e: any) => e.manager_id === (viewMgrId || eid))
-          const results = await Promise.all(
-            teamMembers.map(async (emp: any) => {
-              const row = await fetchDetailForEmployee(tok, emp.id, from, to)
-              if (row) { row.full_name = row.full_name || emp.full_name; row.code = row.code || emp.code }
-              return row
-            })
-          )
-          const mgrRow = await fetchDetailForEmployee(tok, eid, from, to)
-          if (mgrRow) {
-            mgrRow.full_name = viewMgrName || user?.full_name || ''
-            mgrRow.is_manager = true
-          }
-          if (!cancelled) {
-            const team = (results.filter(Boolean) as EmployeeRow[])
-            setMembers(mgrRow ? [mgrRow, ...team] : team)
-            setRepData(null)
-          }
+          const teamIds = teamMembers.map((e: any) => e.id as string)
+          if (eid && !teamIds.includes(eid)) teamIds.push(eid)
+          const summaryMap = teamIds.length > 0 ? await fetchBatchActivitySummaries(tok, teamIds, from, to) : new Map()
+          if (cancelled) return
+          const results: EmployeeRow[] = teamIds.map((id: string) => {
+            const existing = summaryMap.get(id)
+            const emp = governed.find((e: any) => e.id === id)
+            const isMgr = id === eid
+            return {
+              employee_id: id,
+              full_name: isMgr ? (viewMgrName || user?.full_name || '') : (emp?.full_name || existing?.full_name || ''),
+              code: emp?.code || existing?.code || '',
+              is_manager: isMgr,
+              sales: existing?.sales || 0,
+              orders: existing?.orders || 0,
+              completed_visits: existing?.completed_visits || 0,
+              registered_customers: existing?.registered_customers || 0,
+            }
+          })
+          if (!cancelled) { setMembers(results); setRepData(null) }
         } else if (viewLevel === 'rep') {
-          const row = await fetchDetailForEmployee(tok, viewRepId || eid, from, to)
-          if (!cancelled) { setRepData(row); setMembers([]) }
+          const { data: d } = await supabase.rpc('get_employee_detail_data', {
+            p_token: tok, p_employee_id: viewRepId || eid, p_from: from, p_to: to,
+          })
+          if (!cancelled) {
+            if (d) {
+              const detail = d as any
+              const orders = Array.isArray(detail.orders) ? detail.orders : []
+              const visits = Array.isArray(detail.visits) ? detail.visits : []
+              const customers = Array.isArray(detail.customers) ? detail.customers : []
+              setRepData({
+                employee_id: viewRepId || eid,
+                full_name: viewRepName || '',
+                code: detail.employee_code || '',
+                sales: orders.reduce((sum: number, o: any) => sum + (Number(o.total_amount) || 0), 0),
+                orders: orders.length,
+                completed_visits: visits.length,
+                registered_customers: customers.length,
+              })
+            }
+            setMembers([])
+          }
         }
       } catch (e: any) {
         if (!cancelled) setError(e.message || 'خطأ غير معروف')
