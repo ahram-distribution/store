@@ -177,6 +177,7 @@ export interface CoverageMapData {
 // ---- Location Source Priority ----
 export const LOCATION_SOURCE_PRIORITY: Record<string, number> = {
   gps: 5,
+  visit_gps: 4,
   manual: 4,
   address_geocoded: 3,
   city_center: 2,
@@ -186,6 +187,7 @@ export const LOCATION_SOURCE_PRIORITY: Record<string, number> = {
 
 export const LOCATION_SOURCE_LABELS: Record<string, string> = {
   gps: 'GPS',
+  visit_gps: 'زيارة GPS',
   manual: 'إدخال يدوي',
   address_geocoded: 'ترميز جغرافي',
   city_center: 'مركز المدينة',

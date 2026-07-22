@@ -19,6 +19,7 @@ export function getLocationAccuracyLabel(accuracy: number | null | undefined): s
 
 export const ACCURACY_COLORS: Record<string, string> = {
   GPS: 'text-success',
+  VISIT_GPS: 'text-primary',
   GEOCODED: 'text-accent',
   CITY_CENTER: 'text-warning',
   GOVERNORATE_CENTER: 'text-warning/70',

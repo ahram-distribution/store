@@ -686,21 +686,44 @@ BEGIN
     active_breaks AS (
         SELECT wb.session_id, wb.employee_id FROM public.workday_breaks wb WHERE wb.break_end IS NULL
     ),
+    -- ============================================================
+    -- CUSTOMER LOCATIONS — modified with priority logic + new fields
+    -- ============================================================
     customer_locations AS (
         SELECT
-            c.id, c.code, COALESCE(c.company_name, c.responsible_name, '') AS customer_name,
+            c.id, c.code,
+            COALESCE(c.company_name, c.responsible_name, '') AS customer_name,
             c.responsible_name, c.owner_id,
             COALESCE(cc.phone, '') AS phone,
-            COALESCE(ca.governorate, '') AS governorate,
-            COALESCE(ca.city, '') AS city,
+            COALESCE(gov.name_ar, ca_legacy.governorate, '') AS governorate,
+            COALESCE(ct.name_ar, ca_legacy.city, '') AS city,
+            caddr.street_address,
+            caddr.landmark,
+            caddr.governorate_id,
+            caddr.city_id,
             COALESCE(ul.formatted_address, '') AS formatted_address,
-            COALESCE(ul.latitude, lo.latitude) AS latitude,
-            COALESCE(ul.longitude, lo.longitude) AS longitude,
+            -- Priority location logic:
+            -- 1. GPS from unified_locations
+            -- 2. Geocoded coords from customer_addresses
+            -- 3. City center from reference_cities
+            -- 4. Governorate center from reference_governorates
+            COALESCE(ul.latitude, caddr.latitude, ct.latitude, gov.latitude) AS latitude,
+            COALESCE(ul.longitude, caddr.longitude, ct.longitude, gov.longitude) AS longitude,
             CASE
                 WHEN ul.latitude IS NOT NULL THEN 'gps'
-                WHEN lo.source = 'manual' THEN 'manual'
-                WHEN lo.source = 'address_geocoded' THEN 'address_geocoded'
+                WHEN caddr.latitude IS NOT NULL THEN 'address_geocoded'
+                WHEN ct.latitude IS NOT NULL THEN 'city_center'
+                WHEN gov.latitude IS NOT NULL THEN 'governorate_center'
+                ELSE 'unknown'
             END AS location_source,
+            CASE
+                WHEN ul.latitude IS NOT NULL THEN 'GPS'
+                WHEN caddr.latitude IS NOT NULL AND caddr.location_accuracy IS NOT NULL THEN caddr.location_accuracy::text
+                WHEN caddr.latitude IS NOT NULL THEN 'GEOCODED'
+                WHEN ct.latitude IS NOT NULL THEN 'CITY_CENTER'
+                WHEN gov.latitude IS NOT NULL THEN 'GOVERNORATE_CENTER'
+                ELSE 'UNKNOWN'
+            END AS location_accuracy,
             e.code AS owner_code, e.full_name AS owner_name,
             c.created_at,
             (SELECT COUNT(*)::int FROM public.orders o WHERE o.customer_id = c.id) AS total_orders,
@@ -709,18 +732,20 @@ BEGIN
             (SELECT MAX(v.check_in_at) FROM public.visits v WHERE v.customer_id = c.id) AS last_visit_at
         FROM public.customers c
         LEFT JOIN public.unified_locations ul ON ul.id = c.location_id
-        LEFT JOIN public.location_overrides lo ON lo.location_id = c.location_id
+        LEFT JOIN LATERAL fn_customer_default_address(c.id) caddr ON true
+        LEFT JOIN reference_governorates gov ON gov.id = caddr.governorate_id
+        LEFT JOIN reference_cities ct ON ct.id = caddr.city_id
+        LEFT JOIN LATERAL (
+            SELECT governorate, city FROM public.customer_addresses
+            WHERE customer_id = c.id AND is_default = true LIMIT 1
+        ) ca_legacy ON true
         LEFT JOIN LATERAL (
             SELECT phone FROM public.customer_contacts
             WHERE customer_id = c.id AND is_primary = true LIMIT 1
         ) cc ON true
-        LEFT JOIN LATERAL (
-            SELECT governorate, city FROM public.customer_addresses
-            WHERE customer_id = c.id AND is_default = true LIMIT 1
-        ) ca ON true
         LEFT JOIN public.employees e ON e.id = c.owner_id
-        WHERE COALESCE(ul.latitude, lo.latitude) IS NOT NULL
-        AND (v_subtree_ids IS NULL OR c.owner_id = ANY(v_subtree_ids) OR c.owner_id IS NULL)
+        WHERE c.is_active = true
+          AND (v_subtree_ids IS NULL OR c.owner_id = ANY(v_subtree_ids) OR c.owner_id IS NULL)
     ),
     visited_customers_today AS (
         SELECT COUNT(DISTINCT v.customer_id)::int AS cnt FROM public.visits v
@@ -730,7 +755,10 @@ BEGIN
         'summary', jsonb_build_object(
             'total_customers', (SELECT COUNT(*) FROM customer_locations),
             'active_employees', (SELECT COUNT(*) FROM active_sessions),
-            'covered_governorates', (SELECT COUNT(DISTINCT ca.governorate) FROM public.customer_addresses ca WHERE ca.governorate IS NOT NULL AND ca.governorate != ''),
+            'covered_governorates', (SELECT COUNT(DISTINCT COALESCE(gov.name_ar, ca_legacy2.governorate)) FROM customer_locations cl2
+              LEFT JOIN reference_governorates gov ON gov.id = cl2.governorate_id
+              LEFT JOIN LATERAL (SELECT governorate FROM public.customer_addresses WHERE customer_id = cl2.id AND is_default = true LIMIT 1) ca_legacy2 ON true
+              WHERE cl2.governorate != ''),
             'visited_customers_today', COALESCE((SELECT cnt FROM visited_customers_today), 0),
             'today_orders', COALESCE((SELECT SUM(order_count) FROM today_orders), 0),
             'today_sales', COALESCE((SELECT SUM(sales_value) FROM today_orders), 0)
@@ -739,8 +767,11 @@ BEGIN
             'id', cl.id, 'code', cl.code, 'name', cl.customer_name,
             'responsible_name', cl.responsible_name, 'phone', cl.phone,
             'governorate', cl.governorate, 'city', cl.city,
+            'governorate_id', cl.governorate_id, 'city_id', cl.city_id,
+            'street_address', cl.street_address, 'landmark', cl.landmark,
             'formatted_address', cl.formatted_address,
             'location_source', cl.location_source,
+            'location_accuracy', cl.location_accuracy,
             'latitude', cl.latitude, 'longitude', cl.longitude,
             'owner_code', cl.owner_code, 'owner_name', cl.owner_name,
             'created_at', cl.created_at,
@@ -796,6 +827,6 @@ GRANT EXECUTE ON FUNCTION public.get_coverage_map TO anon;
 GRANT EXECUTE ON FUNCTION public.get_coverage_map TO authenticated;
 
 COMMENT ON FUNCTION public.get_coverage_map IS
-  'خريطة التغطية — حالة الاتصال تعتمد على last_activity_at (وليس tracking_points فقط). last_activity يشمل: heartbeat, GPS, visits, orders, collections.';
+  'خريطة التغطية — 4 مستويات: GPS ← ترميز جغرافي ← مركز مدينة ← مركز محافظة. حالة الاتصال تعتمد على last_activity_at.';
 
 NOTIFY pgrst, 'reload schema';
