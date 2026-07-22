@@ -63,6 +63,8 @@ export function CompaniesPage() {
     const { data, error } = await supabase.rpc('get_governed_products', {
       p_token: authToken,
       p_company_id: null,
+      p_active_only: true,
+      p_visible_only: true,
     })
     if (!error && data) {
       const arr = Array.isArray(data) ? data : []

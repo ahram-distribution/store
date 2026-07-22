@@ -186,7 +186,7 @@ export default function SalesListPage() {
     if (!hasAccess) return
     if (!authToken) { setLoading(false); return }
     setLoading(true)
-    supabase.rpc('get_governed_products', { p_token: authToken })
+    supabase.rpc('get_governed_products', { p_token: authToken, p_active_only: true, p_visible_only: true })
       .then(({ data }) => {
         const arr = Array.isArray(data) ? data : []
         setProducts(arr)

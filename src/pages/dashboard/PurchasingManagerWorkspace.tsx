@@ -14,7 +14,7 @@ export function PurchasingManagerWorkspace() {
   useEffect(() => {
     const token = getToken()
     if (!token) { setLoading(false); return }
-    supabase.rpc('get_governed_products', { p_token: token }).then(({ data }) => {
+    supabase.rpc('get_governed_products', { p_token: token, p_active_only: false, p_visible_only: false }).then(({ data }) => {
       if (data) setProducts(Array.isArray(data) ? data : [])
       setLoading(false)
     })

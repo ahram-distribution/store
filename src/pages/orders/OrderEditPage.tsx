@@ -111,7 +111,7 @@ export function OrderEditPage() {
 
     Promise.all([
       supabase.rpc('get_unified_order', { p_token: token, p_id: id }),
-      supabase.rpc('get_governed_products', { p_token: token }),
+      supabase.rpc('get_governed_products', { p_token: token, p_active_only: true, p_visible_only: true }),
       supabase.rpc('get_governed_companies', { p_token: token }),
       supabase.rpc('get_governed_tiers', { p_token: token }),
       dailyDealService.getActive().catch(() => [] as DailyDealRecord[]),

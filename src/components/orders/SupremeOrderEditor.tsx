@@ -93,7 +93,7 @@ export function SupremeOrderEditor({ orderId, initialItems, initialNotes, initia
   useEffect(() => {
     if (!token) return
     Promise.all([
-      supabase.rpc('get_governed_products', { p_token: token }),
+      supabase.rpc('get_governed_products', { p_token: token, p_active_only: true, p_visible_only: true }),
       supabase.rpc('get_governed_companies', { p_token: token }),
     ]).then(([prodRes, compRes]) => {
       if (prodRes.data) {
