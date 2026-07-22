@@ -373,7 +373,6 @@ export function OrderEditPage() {
         p_notes: notes || null,
         p_daily_deals: dealsPayload,
         p_flash_offers: offersPayload,
-        p_order_type: orderType,
       })
 
       if (replaceError) { toast.error('فشل حفظ التعديلات: ' + replaceError.message); setSubmitting(false); return }

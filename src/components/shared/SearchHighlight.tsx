@@ -7,7 +7,7 @@ interface SearchHighlightProps {
   className?: string;
 }
 
-export const SearchHighlight: React.FC<SearchHighlightProps> = ({ text, query, className = '' }) => {
+export const SearchHighlight = React.memo(function SearchHighlight({ text, query, className = '' }: SearchHighlightProps) {
   if (!query || !text) return <span className={className}>{text}</span>;
 
   const normalizedText = normalizeArabic(text);
@@ -58,4 +58,4 @@ export const SearchHighlight: React.FC<SearchHighlightProps> = ({ text, query, c
   }
 
   return <span className={className}>{segments}</span>;
-};
+})

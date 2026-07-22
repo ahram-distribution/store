@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import { Edit3, Eye, Power, Trash2, Star, Package, Building2, Calendar } from 'lucide-react'
 import { formatCurrencyShort } from '../../utils/format'
 import { SearchHighlight } from '../shared/SearchHighlight'
@@ -17,7 +18,7 @@ const UNIT_LABELS: Record<string, string> = {
   carton: 'كرتونة',
 }
 
-export function ProductCard({ product, onEdit, onToggleActive, onDelete, onViewDetails, searchQuery }: ProductCardProps) {
+export const ProductCard = memo(function ProductCard({ product, onEdit, onToggleActive, onDelete, onViewDetails, searchQuery }: ProductCardProps) {
   const isOutOfStock = product.is_out_of_stock === true && product.is_active !== false
   const units = (product.product_units || []).filter((u: any) => u.is_active !== false)
   const unitNames = units.map((u: any) => UNIT_LABELS[u.unit_type] || u.unit_type).join(' - ')
@@ -129,4 +130,4 @@ export function ProductCard({ product, onEdit, onToggleActive, onDelete, onViewD
       </div>
     </div>
   )
-}
+})

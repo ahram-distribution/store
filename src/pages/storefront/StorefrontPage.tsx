@@ -155,7 +155,7 @@ export function StorefrontPage() {
       if (order.customer_id) {
         setSelectedCustomer({ id: order.customer_id, name: order.customer_name || '', phone: order.customer_phone || '', code: order.customer_code || '' })
       }
-      restoreCart(items, editOrderId)
+      restoreCart(items, editOrderId, order.order_type)
     })
   }, [editOrderId, authToken])
 

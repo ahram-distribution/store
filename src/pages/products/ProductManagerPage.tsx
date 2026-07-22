@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Plus, Search, X, Loader2, AlertTriangle, Trash2, Power, Image, Upload } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
@@ -35,6 +35,7 @@ export function ProductManagerPage() {
   const [companies, setCompanies] = useState<any[]>([])
   const [allTiers, setAllTiers] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // ── Filters ──
   const [viewState, setViewState, resetViewState] = usePersistentViewState('products-manage', {
@@ -43,6 +44,16 @@ export function ProductManagerPage() {
     statusFilter: 'all' as 'all' | 'active' | 'out_of_stock' | 'inactive' | 'no_price',
   })
   const { searchQuery, companyFilter, statusFilter } = viewState
+  const [searchInput, setSearchInput] = useState(searchQuery)
+
+  // Debounce search: sync searchInput to viewState after 200ms of no typing
+  useEffect(() => {
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current)
+    searchTimerRef.current = setTimeout(() => {
+      setViewState({ searchQuery: searchInput })
+    }, 200)
+    return () => { if (searchTimerRef.current) clearTimeout(searchTimerRef.current) }
+  }, [searchInput])
 
   // Derived company names (from products list)
   const companyNames = useMemo(() => {
@@ -69,12 +80,13 @@ export function ProductManagerPage() {
     if (statusFilter === 'out_of_stock') list = list.filter((p: any) => p.is_out_of_stock === true && p.is_active !== false)
     if (statusFilter === 'inactive') list = list.filter((p: any) => (!p.is_active || !p.is_visible) && (p.carton_price && Number(p.carton_price) > 0))
     if (statusFilter === 'no_price') list = list.filter((p: any) => !p.carton_price || Number(p.carton_price) <= 0)
+    if (companyFilter) list = list.filter((p: any) => p.company_name === companyFilter)
     const q = searchQuery.trim()
     if (q) {
-      const indices = searchIndices.filter((si) => list.includes(si.product))
+      const filteredIds = new Set(list.map((p: any) => p.id))
+      const indices = searchIndices.filter((si) => filteredIds.has(si.product.id))
       list = searchProducts(q, indices, (si) => si.index).map((si) => si.product)
     } else {
-      if (companyFilter) list = list.filter((p: any) => p.company_name === companyFilter)
       list = [...list].sort((a: any, b: any) => (a.product_name || '').localeCompare(b.product_name || ''))
     }
     return list
@@ -102,23 +114,24 @@ export function ProductManagerPage() {
     const token = getToken()
     if (!token) return
     const isOutOfStock = product.is_out_of_stock === true && product.is_active !== false
+    let newState: Partial<any> = {}
     if (product.is_active && !isOutOfStock) {
-      // Active → Out of Stock
       const { error } = await supabase.rpc('governed_set_product_out_of_stock', { p_token: token, p_id: product.id, p_is_out_of_stock: true })
       if (error) { toast.error(error.message); return }
+      newState = { is_out_of_stock: true, is_active: true }
       toast.success('تم تعيين المنتج كمنتهي الكمية')
     } else if (isOutOfStock) {
-      // Out of Stock → Active
       const { error } = await supabase.rpc('governed_set_product_out_of_stock', { p_token: token, p_id: product.id, p_is_out_of_stock: false })
       if (error) { toast.error(error.message); return }
+      newState = { is_out_of_stock: false, is_active: true }
       toast.success('تم تفعيل المنتج')
     } else {
-      // Inactive → Active
       const { error } = await supabase.rpc('governed_activate_product', { p_token: token, p_id: product.id })
       if (error) { toast.error(error.message); return }
+      newState = { is_out_of_stock: false, is_active: true }
       toast.success('تم تفعيل المنتج')
     }
-    await loadData()
+    setProducts(prev => prev.map(p => p.id === product.id ? { ...p, ...newState } : p))
   }
 
   // ── Hard delete ──
@@ -157,10 +170,10 @@ export function ProductManagerPage() {
     const result = data as any
     if (result?.error) { toast.error(result.error); setDeleting(false); return }
     toast.success('تم حذف المنتج نهائياً')
+    setProducts(prev => prev.filter(p => p.id !== deleteTarget.id))
     setDeleteTarget(null)
     setDeletePreview(null)
     setDeleting(false)
-    await loadData()
   }
 
   // ── Add product ──
@@ -270,76 +283,86 @@ export function ProductManagerPage() {
     const token = getToken()
     if (!token) { setEditSaving(false); return }
     try {
+      // Steps 1-6 are independent column updates — run in parallel
+      const promises: Promise<any>[] = []
+
       // 1. Update basic fields
-      const { error: updateErr } = await supabase.rpc('governed_update_product', {
-        p_token: token, p_id: editTarget.id,
-        p_product_name: editForm.product_name || null,
-        p_legacy_code: editForm.legacy_code || null,
-        p_description: editForm.description || null,
-        p_image_url: editForm.image_url || null,
-      })
-      if (updateErr) { toast.error(updateErr.message); setEditSaving(false); return }
+      promises.push(
+        supabase.rpc('governed_update_product', {
+          p_token: token, p_id: editTarget.id,
+          p_product_name: editForm.product_name || null,
+          p_legacy_code: editForm.legacy_code || null,
+          p_description: editForm.description || null,
+          p_image_url: editForm.image_url || null,
+        })
+      )
 
       // 2. Change company if different
       if (editForm.company_id && editForm.company_id !== editTarget.company_id) {
-        const { error: compErr } = await supabase.rpc('governed_change_product_company', {
-          p_token: token, p_product_id: editTarget.id, p_new_company_id: editForm.company_id,
-        })
-        if (compErr) { toast.error(compErr.message); setEditSaving(false); return }
+        promises.push(
+          supabase.rpc('governed_change_product_company', {
+            p_token: token, p_product_id: editTarget.id, p_new_company_id: editForm.company_id,
+          })
+        )
       }
 
       // 3. Update pricing
-      const { error: pricingErr } = await supabase.rpc('governed_update_product_pricing', {
-        p_token: token, p_id: editTarget.id,
-        p_carton_price: editForm.carton_price ? parseFloat(editForm.carton_price) : null,
-        p_carton_quantity: editForm.carton_quantity ? parseInt(editForm.carton_quantity) : null,
-      })
-      if (pricingErr) { toast.error(pricingErr.message); setEditSaving(false); return }
+      promises.push(
+        supabase.rpc('governed_update_product_pricing', {
+          p_token: token, p_id: editTarget.id,
+          p_carton_price: editForm.carton_price ? parseFloat(editForm.carton_price) : null,
+          p_carton_quantity: editForm.carton_quantity ? parseInt(editForm.carton_quantity) : null,
+        })
+      )
 
       // 4. Update units
-      const { error: unitsErr } = await supabase.rpc('governed_update_product_units', {
-        p_token: token, p_id: editTarget.id,
-        p_units: editForm.units.map((u: string) => ({ unit_type: u })),
-      })
-      if (unitsErr) { toast.error(unitsErr.message); setEditSaving(false); return }
+      promises.push(
+        supabase.rpc('governed_update_product_units', {
+          p_token: token, p_id: editTarget.id,
+          p_units: editForm.units.map((u: string) => ({ unit_type: u })),
+        })
+      )
 
-      // 5. Update visibility (only if is_active is true, derived from status)
-      const derivedVisible = editForm.is_active
-      const { error: visErr } = await supabase.rpc('governed_update_product_visibility', {
-        p_token: token, p_id: editTarget.id, p_is_visible: derivedVisible,
-      })
-      if (visErr) { toast.error('فشل تحديث الظهور: ' + visErr.message); setEditSaving(false); return }
+      // 5. Update visibility
+      promises.push(
+        supabase.rpc('governed_update_product_visibility', {
+          p_token: token, p_id: editTarget.id, p_is_visible: editForm.is_active,
+        })
+      )
 
       // 6. Update inventory
       if (editForm.inventory_quantity) {
-        const { error: invErr } = await supabase.rpc('governed_update_product_inventory', {
-          p_token: token, p_id: editTarget.id,
-          p_quantity: parseInt(editForm.inventory_quantity),
-        })
-        if (invErr) { toast.error('فشل تحديث المخزون: ' + invErr.message); setEditSaving(false); return }
+        promises.push(
+          supabase.rpc('governed_update_product_inventory', {
+            p_token: token, p_id: editTarget.id,
+            p_quantity: parseInt(editForm.inventory_quantity),
+          })
+        )
       }
 
-      // 7. Handle status changes (3-state)
+      const results = await Promise.all(promises)
+      const firstErr = results.find(r => r.error)
+      if (firstErr) { toast.error(firstErr.error.message); setEditSaving(false); return }
+
+      // 7. Handle status changes (3-state) — must run after basic updates
       const wasOutOfStock = editTarget.is_out_of_stock === true && editTarget.is_active !== false
       if (editForm.is_active && editForm.is_out_of_stock && !wasOutOfStock) {
-        // Active → Out of Stock
         if (!editTarget.is_active) {
-          const { error: actErr } = await supabase.rpc('governed_activate_product', { p_token: token, p_id: editTarget.id })
-          if (actErr) { toast.error(actErr.message); setEditSaving(false); return }
+          const { error } = await supabase.rpc('governed_activate_product', { p_token: token, p_id: editTarget.id })
+          if (error) { toast.error(error.message); setEditSaving(false); return }
         }
-        const { error: oosErr } = await supabase.rpc('governed_set_product_out_of_stock', { p_token: token, p_id: editTarget.id, p_is_out_of_stock: true })
-        if (oosErr) { toast.error(oosErr.message); setEditSaving(false); return }
+        const { error } = await supabase.rpc('governed_set_product_out_of_stock', { p_token: token, p_id: editTarget.id, p_is_out_of_stock: true })
+        if (error) { toast.error(error.message); setEditSaving(false); return }
       } else if (editForm.is_active && !editForm.is_out_of_stock && (wasOutOfStock || !editTarget.is_active)) {
-        // Out of Stock or Inactive → Active
-        const { error: actErr } = await supabase.rpc('governed_activate_product', { p_token: token, p_id: editTarget.id })
-        if (actErr) { toast.error(actErr.message); setEditSaving(false); return }
+        const { error } = await supabase.rpc('governed_activate_product', { p_token: token, p_id: editTarget.id })
+        if (error) { toast.error(error.message); setEditSaving(false); return }
       } else if (!editForm.is_active && editTarget.is_active) {
-        // Active or Out of Stock → Inactive
-        const { error: deactErr } = await supabase.rpc('governed_deactivate_product', { p_token: token, p_id: editTarget.id })
-        if (deactErr) { toast.error(deactErr.message); setEditSaving(false); return }
+        const { error } = await supabase.rpc('governed_deactivate_product', { p_token: token, p_id: editTarget.id })
+        if (error) { toast.error(error.message); setEditSaving(false); return }
       }
 
       // 8. Tier discounts
+      const tierPromises: Promise<any>[] = []
       for (const tier of allTiers) {
         const newDiscount = editTierDiscounts[tier.id]
         const existingEx = (tier.product_exceptions || []).find(
@@ -349,26 +372,53 @@ export function ProductManagerPage() {
           const parsed = parseFloat(newDiscount)
           if (isNaN(parsed) || parsed < 0 || parsed > 100) continue
           if (existingEx) {
-            await supabase.rpc('governed_remove_tier_product_exception', {
+            tierPromises.push(
+              supabase.rpc('governed_remove_tier_product_exception', {
+                p_token: token, p_exception_id: existingEx.id,
+              })
+            )
+          }
+          tierPromises.push(
+            supabase.rpc('governed_set_tier_product_exception', {
+              p_token: token, p_product_id: editTarget.id,
+              p_discount_percent: parsed, p_tier_id: tier.id,
+              p_applies_to_all_tiers: false,
+            })
+          )
+        } else if (existingEx) {
+          tierPromises.push(
+            supabase.rpc('governed_remove_tier_product_exception', {
               p_token: token, p_exception_id: existingEx.id,
             })
-          }
-          await supabase.rpc('governed_set_tier_product_exception', {
-            p_token: token, p_product_id: editTarget.id,
-            p_discount_percent: parsed, p_tier_id: tier.id,
-            p_applies_to_all_tiers: false,
-          })
-        } else if (existingEx) {
-          await supabase.rpc('governed_remove_tier_product_exception', {
-            p_token: token, p_exception_id: existingEx.id,
-          })
+          )
         }
       }
+      if (tierPromises.length > 0) {
+        await Promise.all(tierPromises)
+      }
+
+      // Update local state instead of full reload
+      const newCompany = companies.find((c: any) => c.id === editForm.company_id)
+      setProducts(prev => prev.map(p =>
+        p.id === editTarget.id ? {
+          ...p,
+          product_name: editForm.product_name || p.product_name,
+          legacy_code: editForm.legacy_code || p.legacy_code,
+          description: editForm.description !== undefined ? editForm.description : p.description,
+          company_id: editForm.company_id || p.company_id,
+          company_name: newCompany?.company_name || p.company_name,
+          image_url: editForm.image_url !== undefined ? editForm.image_url : p.image_url,
+          carton_price: editForm.carton_price ? parseFloat(editForm.carton_price) : p.carton_price,
+          carton_quantity: editForm.carton_quantity ? parseInt(editForm.carton_quantity) : p.carton_quantity,
+          is_active: editForm.is_active,
+          is_visible: editForm.is_active,
+          is_out_of_stock: editForm.is_active ? editForm.is_out_of_stock : false,
+        } : p
+      ))
 
       toast.success('تم حفظ التغييرات')
       setEditTarget(null)
       setEditSaving(false)
-      await loadData()
     } catch (err: any) {
       toast.error(err.message || 'حدث خطأ')
       setEditSaving(false)
@@ -408,8 +458,8 @@ export function ProductManagerPage() {
             <div className="relative flex-1">
               <input
                 type="text"
-                value={searchQuery}
-                onChange={(e) => setViewState({ searchQuery: e.target.value })}
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
                 placeholder="بحث باسم المنتج أو الكود أو الشركة..."
                 className="w-full pr-9 pl-3 py-2.5 rounded-lg border border-border text-sm bg-surface focus:outline-none focus:ring-2 focus:ring-primary/20"
               />

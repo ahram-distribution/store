@@ -5,7 +5,7 @@ import { UnifiedFilterBar } from '../../components/shared/UnifiedFilterBar'
 import { useAuthStore } from '../../store/auth'
 import { resolveDateRangeISO } from '../../lib/dateRange'
 import { supabase } from '../../lib/supabase'
-import { filterDelivered as filterDeliveredOrders, isDelivered } from '../../lib/deliveredOrders'
+import { filterDelivered as filterDeliveredOrders } from '../../lib/deliveredOrders'
 import type { FilterState } from '../../types/filters'
 
 function formatNumber(n: number): string {
@@ -279,11 +279,13 @@ export function SalesAnalyticsPage() {
   const location = useLocation()
   const user = useAuthStore((s) => s.user)
   const [activeTab, setActiveTab] = useState<Tab>('customers')
-  const [orders, setOrders] = useState<any[]>([])
-  const [orderItems, setOrderItems] = useState<any[]>([])
+  const [analyticsData, setAnalyticsData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [employees, setEmployees] = useState<any[]>([])
-  const [drillDown, setDrillDown] = useState<{ type: 'customer' | 'company' | 'product' | 'all'; entityName: string; filterDelivered?: boolean } | null>(null)
+  const [drillDownParams, setDrillDownParams] = useState<{ type: 'customer' | 'company' | 'product' | 'all'; entityName: string; filterDelivered?: boolean } | null>(null)
+  const [drillDownOrders, setDrillDownOrders] = useState<any[] | null>(null)
+  const [drillDownItems, setDrillDownItems] = useState<any[] | null>(null)
+  const [drillDownLoading, setDrillDownLoading] = useState(false)
 
   const scope = ((location.state as { scope?: string })?.scope ?? 'company') as 'company' | 'team' | 'self'
 
@@ -340,17 +342,17 @@ export function SalesAnalyticsPage() {
     return employees.map(toOpt)
   }, [employees, scope, user?.employee_id, filters.managerId])
 
-  const managerTeamEmployeeIds = useMemo(() => {
+  const managerTeamIds = useMemo(() => {
     if (!filters.managerId) return null
     const teamMembers = employees.filter((e: any) => e.manager_id === filters.managerId)
-    const ids = new Set(teamMembers.map((e: any) => e.id as string))
-    if (scope === 'team' && user?.employee_id) {
-      ids.add(user.employee_id)
+    const ids = teamMembers.map((e: any) => e.id as string)
+    if (scope === 'team' && user?.employee_id && !ids.includes(user.employee_id)) {
+      ids.push(user.employee_id)
     }
-    if (scope === 'company') {
-      ids.add(filters.managerId)
+    if (scope === 'company' && !ids.includes(filters.managerId)) {
+      ids.push(filters.managerId)
     }
-    return ids
+    return ids.length > 0 ? ids : null
   }, [employees, filters.managerId, scope, user?.employee_id])
 
   const resolveDateRange = (f: FilterState): { from: string | null; to: string | null } => {
@@ -364,33 +366,20 @@ export function SalesAnalyticsPage() {
     if (!token) { setLoading(false); return }
     setLoading(true)
     const range = resolveDateRange(filters)
-    const rpcParams: any = { p_token: token.trim() }
-    if (filters.search) rpcParams.p_search = filters.search
-    if (filters.employeeId) rpcParams.p_owner_id = filters.employeeId
-    if (range.from) rpcParams.p_date_from = range.from
-    if (range.to) rpcParams.p_date_to = range.to
-
-    const { data } = await supabase.rpc('get_statistical_orders', rpcParams)
-    let orderList = data && Array.isArray(data) ? data : []
-
-    if (!filters.employeeId && managerTeamEmployeeIds) {
-      orderList = orderList.filter((o: any) => managerTeamEmployeeIds.has(o.owner_id))
+    const params: any = { p_token: token.trim() }
+    if (filters.search) params.p_search = filters.search
+    if (filters.employeeId) {
+      params.p_owner_id = filters.employeeId
+    } else if (managerTeamIds) {
+      params.p_owner_ids = managerTeamIds
     }
+    if (range.from) params.p_date_from = range.from
+    if (range.to) params.p_date_to = range.to
 
-    setOrders(orderList)
-
-    const allItems: any[] = []
-    for (const order of orderList) {
-      if (Array.isArray(order.items)) {
-        for (const item of order.items) {
-          allItems.push({ ...item, order_id: order.id })
-        }
-      }
-    }
-    setOrderItems(allItems)
-
+    const { data } = await supabase.rpc('get_sales_analytics', params)
+    if (data) setAnalyticsData(data)
     setLoading(false)
-  }, [filters, managerTeamEmployeeIds])
+  }, [filters, managerTeamIds])
 
   useEffect(() => { fetchData() }, [fetchData])
 
@@ -402,63 +391,66 @@ export function SalesAnalyticsPage() {
     })
   }, [])
 
-  /* ── Delivered datasets (target = delivered orders only) ── */
-  const deliveredOrderIds = useMemo(() => {
-    return new Set(filterDeliveredOrders(orders).map((o: any) => o.id))
-  }, [orders])
+  /* ── Lazy drill-down fetch ── */
+  useEffect(() => {
+    if (!drillDownParams) { setDrillDownOrders(null); setDrillDownItems(null); return }
+    const token = getToken()
+    if (!token) return
+    let cancelled = false
+    setDrillDownLoading(true)
 
-  const deliveredOrderItems = useMemo(() => {
-    return orderItems.filter((item: any) => deliveredOrderIds.has(item.order_id))
-  }, [orderItems, deliveredOrderIds])
+    const range = resolveDateRange(filters)
 
-  /* ── Tab 1: Sales by Customers ── */
-  const customerAgg = useMemo(() => {
-    const map = new Map<string, { activity: number; target: number; orderCount: number }>()
-    for (const order of orders) {
-      const name = order.customer_name || 'غير محدد'
-      const amount = Number(order.total_amount) || 0
-      const entry = map.get(name) || { activity: 0, target: 0, orderCount: 0 }
-      entry.activity += amount
-      entry.orderCount += 1
-      if (isDelivered(order)) entry.target += amount
-      map.set(name, entry)
-    }
-    return Array.from(map.entries())
-      .map(([name, v]) => ({ name, ...v }))
-      .sort((a, b) => b.activity - a.activity)
-  }, [orders])
+    supabase.rpc('get_sales_analytics_drilldown', {
+      p_token: token.trim(),
+      p_entity_type: drillDownParams.type,
+      p_entity_name: drillDownParams.entityName,
+      p_filter_delivered: drillDownParams.filterDelivered || false,
+      p_date_from: range.from,
+      p_date_to: range.to,
+    }).then(({ data }) => {
+      if (cancelled) return
+      if (data) {
+        setDrillDownOrders(Array.isArray(data.orders) ? data.orders : [])
+        setDrillDownItems(Array.isArray(data.items) ? data.items : [])
+      } else {
+        setDrillDownOrders([])
+        setDrillDownItems([])
+      }
+      setDrillDownLoading(false)
+    })
 
-  /* ── Tab 2: Sales by Companies ── */
+    return () => { cancelled = true }
+  }, [drillDownParams])
+
+  /* ── Derive active rows from pre-aggregated data ── */
+  const customerAgg: EntityRow[] = useMemo(() => {
+    if (!analyticsData?.customers) return []
+    return analyticsData.customers.map((c: any) => ({
+      name: c.name,
+      activity: Number(c.activity) || 0,
+      target: Number(c.target) || 0,
+      orderCount: c.order_count || 0,
+    }))
+  }, [analyticsData])
+
   const companyAgg = useMemo(() => {
-    const map = new Map<string, { activity: number; target: number }>()
-    for (const item of orderItems) {
-      const companyName = (item as any).company_name || 'غير محدد'
-      const amount = Number(item.total_price) || 0
-      const entry = map.get(companyName) || { activity: 0, target: 0 }
-      entry.activity += amount
-      if (deliveredOrderIds.has(item.order_id)) entry.target += amount
-      map.set(companyName, entry)
-    }
-    return Array.from(map.entries())
-      .map(([name, v]) => ({ name, ...v }))
-      .sort((a, b) => b.activity - a.activity)
-  }, [orderItems, deliveredOrderIds])
+    if (!analyticsData?.companies) return []
+    return analyticsData.companies.map((c: any) => ({
+      name: c.name,
+      activity: Number(c.activity) || 0,
+      target: Number(c.target) || 0,
+    }))
+  }, [analyticsData])
 
-  /* ── Tab 3: Sales by Products ── */
   const productAgg = useMemo(() => {
-    const map = new Map<string, { activity: number; target: number }>()
-    for (const item of orderItems) {
-      const productName = (item as any).product_name || 'غير محدد'
-      const amount = Number(item.total_price) || 0
-      const entry = map.get(productName) || { activity: 0, target: 0 }
-      entry.activity += amount
-      if (deliveredOrderIds.has(item.order_id)) entry.target += amount
-      map.set(productName, entry)
-    }
-    return Array.from(map.entries())
-      .map(([name, v]) => ({ name, ...v }))
-      .sort((a, b) => b.activity - a.activity)
-  }, [orderItems, deliveredOrderIds])
+    if (!analyticsData?.products) return []
+    return analyticsData.products.map((p: any) => ({
+      name: p.name,
+      activity: Number(p.activity) || 0,
+      target: Number(p.target) || 0,
+    }))
+  }, [analyticsData])
 
   const activeRows = activeTab === 'customers' ? customerAgg : activeTab === 'companies' ? companyAgg : productAgg
   const totalActivity = useMemo(() => activeRows.reduce((sum, r) => sum + r.activity, 0), [activeRows])
@@ -467,11 +459,11 @@ export function SalesAnalyticsPage() {
   const tabEntityLabel = activeTab === 'customers' ? 'العملاء' : activeTab === 'companies' ? 'الشركات' : 'الأصناف'
 
   const openDrillDown = useCallback((type: 'customer' | 'company' | 'product' | 'all', entityName: string, filterDelivered?: boolean) => {
-    setDrillDown({ type, entityName, filterDelivered })
+    setDrillDownParams({ type, entityName, filterDelivered })
   }, [])
 
   const handleNavigateOrder = useCallback((orderId: string) => {
-    setDrillDown(null)
+    setDrillDownParams(null)
     navigate(`/orders/${orderId}`)
   }, [navigate])
 
@@ -563,16 +555,22 @@ export function SalesAnalyticsPage() {
       )}
 
       {/* ── Drill-Down Modal ── */}
-      {drillDown && (
-        <DrillDownModal
-          type={drillDown.type}
-          entityName={drillDown.entityName}
-          orders={orders}
-          orderItems={orderItems}
-          filterDelivered={drillDown.filterDelivered}
-          onClose={() => setDrillDown(null)}
-          onNavigate={handleNavigateOrder}
-        />
+      {drillDownParams && (
+        drillDownLoading ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+            <div className="bg-white rounded-2xl shadow-xl p-8 text-text-secondary text-sm">جاري التحميل...</div>
+          </div>
+        ) : (
+          <DrillDownModal
+            type={drillDownParams.type}
+            entityName={drillDownParams.entityName}
+            orders={drillDownOrders || []}
+            orderItems={drillDownItems || []}
+            filterDelivered={drillDownParams.filterDelivered}
+            onClose={() => setDrillDownParams(null)}
+            onNavigate={handleNavigateOrder}
+          />
+        )
       )}
     </div>
   )

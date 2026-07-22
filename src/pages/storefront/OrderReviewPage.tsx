@@ -126,7 +126,6 @@ export function OrderReviewPage() {
           p_token: token,
           p_id: editingOrderId,
           p_items: orderItems,
-          p_order_type: orderType,
         })
         if (replaceError) { toast.error('فشل تحديث الطلب: ' + replaceError.message); setSubmitting(false); return }
         order = { id: editingOrderId }
@@ -153,7 +152,7 @@ export function OrderReviewPage() {
           p_execution_longitude: null,
           p_execution_accuracy_meters: null,
           p_execution_captured_at: null,
-          p_order_type: orderType,
+          p_order_type: orderType || 'cash',
         })
         if (createError) { toast.error('فشل إنشاء الطلب: ' + createError.message); setSubmitting(false); return }
         if (!created) { toast.error('فشل إنشاء الطلب'); setSubmitting(false); return }

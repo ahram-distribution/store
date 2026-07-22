@@ -44,7 +44,7 @@ interface CartState {
   setSelectedCustomer: (customer: CartCustomer | null) => void
   setEditingOrder: (orderId: string | null) => void
   setOrderType: (orderType: string) => void
-  restoreCart: (items: CartItem[], editingOrderId: string) => void
+  restoreCart: (items: CartItem[], editingOrderId: string, restoreOrderType?: string) => void
 }
 
 export const useCartStore = create(
@@ -296,7 +296,7 @@ export const useCartStore = create(
 
       setOrderType: (orderType) => set({ orderType }),
 
-      restoreCart: (orderItems, editingOrderId) => {
+      restoreCart: (orderItems, editingOrderId, restoreOrderType) => {
         const state = get()
         const items: CartItem[] = orderItems.map((i: any) => {
           const product = state.products.find(p => p.id === i.product_id)
@@ -314,7 +314,7 @@ export const useCartStore = create(
             companyName: product?.companyName,
           }
         })
-        set({ items, editingOrderId })
+        set({ items, editingOrderId, orderType: restoreOrderType || '' })
       },
 
       getDealItems: () => get().dealItems,
