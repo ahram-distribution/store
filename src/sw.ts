@@ -378,6 +378,10 @@ self.addEventListener('fetch', (event) => {
     event.request.mode === 'navigate' ||
     event.request.destination === 'document'
   ) {
+    const path = new URL(event.request.url).pathname
+    if (path.startsWith('/store/') && path !== '/store/' && path !== '/store/index.html') {
+      console.error('[NAV-DEBUG-SW] intercepting path-based navigation:', event.request.url, 'mode:', event.request.mode, 'dest:', event.request.destination, 'referrer:', event.request.referrer)
+    }
     event.respondWith(
       fetch('/store/index.html').catch(() =>
         caches.match('/store/index.html')
