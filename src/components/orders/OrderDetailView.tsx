@@ -123,6 +123,14 @@ export function OrderDetailView({ data, actions, onBack, editMode, editItems, on
           <div className="mt-2 flex justify-center">
             <StatusBadge status={order.status} size="lg" />
           </div>
+          {order.reference_number && (
+            <div className="mt-2 flex justify-center">
+              <div className="text-[13px] text-[#6B7280]">
+                <span className="font-medium">الرقم المرجعى: </span>
+                <span className="font-bold text-[#111827] font-mono">{order.reference_number}</span>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

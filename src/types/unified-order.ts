@@ -91,6 +91,7 @@ export interface UnifiedOrderHeader {
   order_creator_id: string | null
   order_creator_type: string | null
   current_owner_name: string
+  reference_number: string | null
 }
 
 export interface UnifiedCustomerSummary {
@@ -263,4 +264,5 @@ export interface UnifiedOrderListItem {
   created_by_id: string | null
   created_by_type: string | null
   owner_id: string | null
+  reference_number: string | null
 }

@@ -47,6 +47,8 @@ export function OrderStatusManager({ orderId, currentStatus, canReview, canCompl
   const [showDropdown, setShowDropdown] = useState(false)
   const [showReturnModal, setShowReturnModal] = useState(false)
   const [returnReason, setReturnReason] = useState('')
+  const [showRefModal, setShowRefModal] = useState(false)
+  const [refNumber, setRefNumber] = useState('')
 
   function getAllowedTargets(): OrderStatus[] {
     if (canManage) return ALL_STATUSES.filter(s => s !== currentStatus)
@@ -67,12 +69,24 @@ export function OrderStatusManager({ orderId, currentStatus, canReview, canCompl
     const token = getToken()
     if (!token) return
 
+    if (currentStatus === 'submitted' && target === 'reviewing') {
+      setShowRefModal(true)
+      return
+    }
+
     if (isExceptional(currentStatus, target)) {
       setShowReasonModal(target)
       return
     }
 
     await executeChange(target, null)
+  }
+
+  async function handleRefConfirm() {
+    if (!refNumber.trim()) return
+    setShowRefModal(false)
+    await executeChange('reviewing', null, refNumber.trim())
+    setRefNumber('')
   }
 
   async function handleReasonConfirm() {
@@ -82,7 +96,7 @@ export function OrderStatusManager({ orderId, currentStatus, canReview, canCompl
     setReason('')
   }
 
-  async function executeChange(target: string, reasonText: string | null) {
+  async function executeChange(target: string, reasonText: string | null, referenceNumber?: string) {
     const token = getToken()
     if (!token) return
     const actionLabel = ORDER_STATUS_LABELS[target] || target
@@ -113,6 +127,7 @@ export function OrderStatusManager({ orderId, currentStatus, canReview, canCompl
       p_order_id: orderId,
       p_new_status: target,
       p_reason: reasonText,
+      p_reference_number: referenceNumber || null,
     })
     if (error) {
       onError?.(error.message)
@@ -208,6 +223,31 @@ export function OrderStatusManager({ orderId, currentStatus, canReview, canCompl
               {loading === t ? 'جاري...' : ORDER_STATUS_LABELS[t] || t}
             </button>
           ))}
+        </div>
+      )}
+
+      {showRefModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 px-4">
+          <div className="bg-white rounded-xl w-full max-w-sm p-5 space-y-4">
+            <h3 className="text-sm font-bold text-text">إدخال الرقم المرجعى</h3>
+            <input
+              type="text"
+              value={refNumber}
+              onChange={(e) => setRefNumber(e.target.value)}
+              placeholder="الرقم المرجعى..."
+              autoFocus
+              className="w-full border border-border rounded-lg px-3 py-2 text-xs bg-white"
+            />
+            {!refNumber.trim() && refNumber.length > 0 && (
+              <p className="text-[10px] text-danger">الرجاء إدخال الرقم المرجعى</p>
+            )}
+            <div className="flex gap-2">
+              <button onClick={() => { setShowRefModal(false); setRefNumber('') }}
+                className="flex-1 bg-surface text-text text-xs py-2.5 rounded-lg active:opacity-80 transition-opacity">إلغاء</button>
+              <button onClick={handleRefConfirm} disabled={!refNumber.trim() || loading !== null}
+                className="flex-1 bg-primary text-white text-xs py-2.5 rounded-lg active:opacity-90 disabled:opacity-40">تأكيد</button>
+            </div>
+          </div>
         </div>
       )}
 

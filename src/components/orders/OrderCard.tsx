@@ -8,6 +8,7 @@ interface OrderCardProps {
   order: {
     id: string
     order_number: string
+    reference_number?: string | null
     customer_name?: string
     customer_phone?: string
     owner_name?: string
@@ -92,6 +93,13 @@ export const OrderCard = memo(function OrderCard({ order, onClick, orderId }: Or
           )}
         </div>
       </div>
+
+      {order.reference_number && (
+        <p className="text-[11px] text-text-secondary mb-1">
+          <span className="text-text-muted">الرقم المرجعى: </span>
+          <span className="font-medium font-mono text-text">{order.reference_number}</span>
+        </p>
+      )}
 
       <div className="flex items-baseline gap-1.5 mb-1.5">
         <span className="text-[11px] text-text-muted">قيمة الطلب:</span>
