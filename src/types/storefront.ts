@@ -63,6 +63,7 @@ export interface ProductWithPrice {
   companyName: string
   unitPrices: ProductUnitPrice[]
   availableUnitTypes: UnitType[]
+  recentlyAvailableAt?: string
 }
 
 export interface ComputedPrices {

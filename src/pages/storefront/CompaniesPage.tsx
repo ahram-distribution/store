@@ -15,6 +15,7 @@ interface CompanyItem {
   id: string
   companyName: string
   logoUrl: string | null
+  legacyCode: string
 }
 
 export function CompaniesPage() {
@@ -23,6 +24,7 @@ export function CompaniesPage() {
   const customerParam = searchParams.get('customer')
   const setOrderType = useCartStore((s) => s.setOrderType)
   const refreshKey = useCompaniesStore((s) => s.refreshKey)
+  const setStoreCompanies = useCompaniesStore((s) => s.setCompanies)
   const { token: authToken } = useAuthStore()
   const [companies, setCompanies] = useState<CompanyItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -39,22 +41,23 @@ export function CompaniesPage() {
   useEffect(() => {
     supabase
       .from('companies')
-      .select('id, company_name, logo_url, display_order')
+      .select('id, company_name, logo_url, legacy_code, display_order')
       .eq('is_visible', true)
       .order('display_order')
       .then(({ data, error }) => {
         if (!error && data) {
-          setCompanies(
-            data.map((c: any) => ({
-              id: c.id,
-              companyName: c.company_name,
-              logoUrl: c.logo_url || null,
-            }))
-          )
+          const mapped = data.map((c: any) => ({
+            id: c.id,
+            companyName: c.company_name,
+            logoUrl: c.logo_url || null,
+            legacyCode: c.legacy_code || '',
+          }))
+          setCompanies(mapped)
+          setStoreCompanies(mapped)
         }
         setLoading(false)
       })
-  }, [refreshKey])
+  }, [refreshKey, setStoreCompanies])
 
   const fetchAllProducts = useCallback(async () => {
     if (!authToken || searchFetchRef.current) return
@@ -97,6 +100,7 @@ export function CompaniesPage() {
           companyName: row.company_name ?? '',
           unitPrices,
           availableUnitTypes: activeUnitTypes,
+          recentlyAvailableAt: row.recently_available_at || undefined,
         }
       })
       setSearchProducts(mapped)

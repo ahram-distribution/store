@@ -3,12 +3,14 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../store/auth'
 import { useCartStore } from '../../store/cart'
+import { useCompaniesStore, type CompanyItem } from '../../store/companies'
 import { ProductCard } from '../../components/storefront/ProductCard'
 import { StorefrontBanner, StorefrontFooter } from '../../components/storefront/CompanyInfoSection'
 import { computeProductPrices } from '../../engine/pricing'
 import { formatCurrencyShort } from '../../utils/format'
 import { buildSearchIndex, searchProducts, type ProductSearchIndex } from '../../utils/smartSearch'
 import type { ProductWithPrice, ProductUnitPrice, TierConfig, UnitType } from '../../types/storefront'
+import { DYNAMIC_COLLECTIONS, loadCollection, type CollectionStrategy } from '../../config/dynamicCollections'
 
 const UNIT_PRIORITY: UnitType[] = ['carton', 'dozen', 'piece']
 
@@ -20,6 +22,8 @@ export function StorefrontPage() {
   const customerParam = searchParams.get('customer')
   const highlightId = searchParams.get('highlight')
   const { token: authToken, user } = useAuthStore()
+  const fetchCompanyById = useCompaniesStore((s) => s.fetchCompanyById)
+  const [companyContext, setCompanyContext] = useState<CompanyItem | null>(null)
 
   const {
     items,
@@ -54,6 +58,17 @@ export function StorefrontPage() {
   const [expandedUnit, setExpandedUnit] = useState<UnitType>('piece')
   const [expandedQty, setExpandedQty] = useState(0)
 
+  useEffect(() => {
+    if (!companyId) { setCompanyContext(null); return }
+    fetchCompanyById(companyId).then(setCompanyContext)
+  }, [companyId, fetchCompanyById])
+
+  const collectionConfig = useMemo<{ type: 'static' } | { type: 'dynamic'; strategy: CollectionStrategy } | null>(() => {
+    if (!companyId || !companyContext) return null
+    const config = DYNAMIC_COLLECTIONS[companyContext.legacyCode]
+    return config ? { type: 'dynamic', strategy: config.strategy } : { type: 'static' }
+  }, [companyId, companyContext])
+
   const fetchProducts = useCallback(async () => {
     setLoadingProducts(true)
     if (!authToken) {
@@ -61,9 +76,22 @@ export function StorefrontPage() {
       setLoadingProducts(false)
       return
     }
-    const { data, error } = await supabase.rpc('get_governed_products', {
-      p_token: authToken, p_company_id: companyId || null, p_active_only: true, p_visible_only: true,
-    })
+
+    let data: any[] | null = null
+    let error: any = null
+
+    if (collectionConfig?.type === 'dynamic') {
+      const result = await loadCollection(collectionConfig.strategy, authToken)
+      data = result.data
+      error = result.error
+    } else if (collectionConfig?.type === 'static') {
+      const result = await supabase.rpc('get_governed_products', {
+        p_token: authToken, p_company_id: companyId || null, p_active_only: true, p_visible_only: true,
+      })
+      data = result.data
+      error = result.error
+    }
+
     if (!error && data) {
       const arr = Array.isArray(data) ? data : []
       const mapped: ProductWithPrice[] = arr.map((row: any) => {
@@ -95,12 +123,13 @@ export function StorefrontPage() {
           companyName: row.company_name ?? '',
           unitPrices,
           availableUnitTypes,
+          recentlyAvailableAt: row.recently_available_at || undefined,
         }
       })
       setProducts(mapped)
     }
     setLoadingProducts(false)
-  }, [setProducts, companyId, authToken])
+  }, [setProducts, companyId, authToken, collectionConfig])
 
   const fetchTiers = useCallback(async () => {
     if (!authToken) return
@@ -247,15 +276,18 @@ export function StorefrontPage() {
     let list = products.filter((p) => p.isActive && p.isVisible)
     if (searchQuery.trim()) {
       const indices = searchIndices.filter((si) => list.includes(si.product))
-      list = searchProducts(searchQuery, indices, (si) => si.index).map((si) => si.product)
+      const matched = new Set(searchProducts(searchQuery, indices, (si) => si.index).map((si) => si.product.id))
+      list = list.filter((p) => matched.has(p.id))
     } else {
-      if (companyId) {
+      if (companyId && collectionConfig?.type !== 'dynamic') {
         list = list.filter((p) => p.companyId === companyId)
       }
-      list = [...list].sort((a, b) => a.productName.localeCompare(b.productName, 'ar'))
+      if (collectionConfig?.type !== 'dynamic') {
+        list = [...list].sort((a, b) => a.productName.localeCompare(b.productName, 'ar'))
+      }
     }
     return list
-  }, [products, searchQuery, companyId, searchIndices])
+  }, [products, searchQuery, companyId, collectionConfig, searchIndices])
 
   const expandedProduct = expandedId ? filteredProducts.find((p) => p.id === expandedId) ?? null : null
 
@@ -295,7 +327,7 @@ export function StorefrontPage() {
     setShowInitModal(false)
   }
 
-  const selectedCompanyName = companyId ? filteredProducts[0]?.companyName : null
+  const selectedCompanyName = companyContext?.companyName ?? null
 
   return (
     <div className="space-y-4">

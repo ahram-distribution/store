@@ -47,6 +47,10 @@ export function ProductCard({
 
   const isBlocked = !product.isActive || product.isOutOfStock
 
+  const isNewlyAvailable = product.recentlyAvailableAt
+    ? (Date.now() - new Date(product.recentlyAvailableAt).getTime()) < 7 * 24 * 60 * 60 * 1000
+    : false
+
   const itemKey = `${product.id}:${selectedUnit}`
   const isInCart = cartItemKeys?.has(itemKey) ?? false
 
@@ -114,6 +118,11 @@ export function ProductCard({
           style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
           <SearchHighlight text={product.productName} query={searchQuery || ''} />
         </h3>
+        {isNewlyAvailable && (
+          <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary shrink-0 font-bold">
+            جديد
+          </span>
+        )}
         {isBlocked && (
           <span className={`text-[10px] px-1.5 py-0.5 rounded shrink-0 ${
             product.isOutOfStock ? 'bg-warning/10 text-warning' : 'bg-red-50 text-danger'
