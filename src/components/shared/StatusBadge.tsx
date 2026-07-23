@@ -2,7 +2,7 @@ import { memo } from 'react'
 
 interface StatusBadgeProps {
   status: string
-  size?: 'sm' | 'md'
+  size?: 'sm' | 'md' | 'lg'
 }
 
 const statusConfig: Record<string, { bg: string; text: string; label: string }> = {
@@ -29,10 +29,10 @@ const statusConfig: Record<string, { bg: string; text: string; label: string }> 
 
 export const StatusBadge = memo(function StatusBadge({ status, size = 'sm' }: StatusBadgeProps) {
   const config = statusConfig[status] || { bg: 'bg-gray-100', text: 'text-gray-600', label: status }
-  const sizeClass = size === 'sm' ? 'text-[10px] px-2 py-0.5' : 'text-xs px-3 py-1'
+  const sizeClass = size === 'sm' ? 'text-[10px] px-2 py-0.5' : size === 'md' ? 'text-xs px-3 py-1' : 'text-sm px-4 py-1.5'
 
   return (
-    <span className={`${config.bg} ${config.text} ${sizeClass} rounded-full font-medium inline-block`}>
+    <span className={`${config.bg} ${config.text} ${sizeClass} rounded-full font-semibold inline-block`}>
       {config.label}
     </span>
   )

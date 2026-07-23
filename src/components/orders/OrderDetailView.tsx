@@ -13,7 +13,7 @@ import { ModificationHistoryPanel } from './ModificationHistoryPanel'
 import { formatDateTime, formatCurrencyShort } from '../../utils/format'
 import { CustomerAddressCard } from '../customers/CustomerAddressCard'
 import { ORDER_STATUS_LABELS } from '../../types/order-display'
-import { renderDeliveryPermitHtml, printInvoice } from './order-printing'
+import { renderDeliveryPermitHtml, printInvoice, downloadInvoicePdf } from './order-printing'
 import { buildTimelineEvents } from './order-detail.utils'
 import { copyToClipboard } from '../../utils/safeClipboard'
 import { OrderOwnershipInfo } from './OrderOwnershipInfo'
@@ -72,6 +72,20 @@ export function OrderDetailView({ data, actions, onBack, editMode, editItems, on
     }
   }
 
+  async function handlePdfDownload() {
+    const logoUrl = window.location.origin + '/store/branding/ahram-logo.png'
+    const html = renderDeliveryPermitHtml(data, logoUrl)
+      .replace(/size: A4/, 'size: A5')
+      .replace(/1cm/g, '0.4cm')
+      .replace(/10pt/g, '8pt')
+      .replace(/18pt/g, '11pt')
+      .replace(/20pt/g, '14pt')
+    const custName = (customer?.company_name || order.snapshot_customer_name || 'عميل').replace(/[\\/:*?"<>|]/g, '_')
+    const createdDate = new Date(order.created_at).toLocaleDateString('ar-EG')
+    const filename = `${custName} - ${createdDate}.pdf`
+    await downloadInvoicePdf(html, filename)
+  }
+
   function handleWhatsApp() {
     const display = buildOrderDisplayData({ order: data.order as any, items: data.items as any, liveCustomer: customer })
     sendWhatsAppFromDisplay(display)
@@ -91,113 +105,128 @@ export function OrderDetailView({ data, actions, onBack, editMode, editItems, on
   return (
     <div className="max-w-[1400px] mx-auto px-4 lg:px-6 pb-6 space-y-3">
 
+      {/* ── 1. HEADER: Back + Status ── */}
       <div className="bg-white rounded-lg border border-[#E5E7EB] shadow-sm">
         <div className="px-5 py-3">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center justify-between">
             {onBack && (
-              <button onClick={onBack} className="text-[#6B7280] text-lg hover:text-[#111827] transition-colors shrink-0 leading-none">&larr;</button>
+              <button onClick={onBack} className="text-[13px] text-[#2563EB] hover:text-[#1D4ED8] transition-colors shrink-0 font-medium">
+                الرجوع للطلبات
+              </button>
             )}
-            <h1 className="text-[18px] font-bold text-[#111827] truncate leading-tight">{order.order_number}</h1>
             {overLimit && (
               <span className="text-[10px] bg-[#FEF2F2] text-[#DC2626] px-2 py-0.5 rounded-full border border-[#FECACA] shrink-0 font-medium">
                 تجاوز الحد
               </span>
             )}
           </div>
-          <div className="mt-2">
-            <StatusBadge status={order.status} size="md" />
+          <div className="mt-2 flex justify-center">
+            <StatusBadge status={order.status} size="lg" />
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-1 mt-2 text-[12px]">
-            <div className="flex items-center gap-1.5">
-              <span style={{color:'#9CA3AF'}}>المسؤول:</span>
-              <span className="font-medium text-[#111827]">{order.customer_owner_name || '—'}</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span style={{color:'#9CA3AF'}}>المنشئ:</span>
-              <span className="font-medium text-[#111827]">
-                <OrderOwnershipInfo
-                  creatorName={order.order_creator_name}
-                  creatorId={order.order_creator_id}
-                  creatorType={order.order_creator_type}
-                  creatorRole={order.order_creator_role}
-                  ownerId={order.owner_id}
-                  currentOwnerName={order.current_owner_name}
-                />
-              </span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span style={{color:'#9CA3AF'}}>تاريخ الإنشاء:</span>
-              <span className="font-medium text-[#111827]">{formatDateTime(order.created_at)}</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span style={{color:'#9CA3AF'}}>آخر تحديث:</span>
-              <span className="font-medium text-[#111827]">{formatDateTime(order.updated_at)}</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span style={{color:'#9CA3AF'}}>نوع الطلب:</span>
-              <span className={'text-xs px-2 py-0.5 rounded font-medium ' + ((order as any).order_type === 'credit' ? 'bg-purple-100 text-purple-700' : 'bg-emerald-100 text-emerald-700')}>
-                {(order as any).order_type === 'credit' ? 'آجل' : 'نقدي'}
-              </span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span style={{color:'#9CA3AF'}}>نوع التوصيل:</span>
-              <span className="font-medium text-[#111827]">{order.delivery_mode === 'internal' ? 'داخلى' : 'شركة شحن'}</span>
-            </div>
-          </div>
-          {(revisionCount > 0 || order.status === 'returned_for_revision') && (
-            <div className="flex flex-wrap items-center gap-2 mt-2">
-              <span className="text-[10px] bg-[#FFFBEB] text-[#D97706] px-2 py-0.5 rounded-full border border-[#FDE68A] font-medium">
-                Revision #{revisionCount + 1}
-              </span>
-              {totalEditCount > 0 && (
-                <span className="text-[10px] bg-[#EFF6FF] text-[#2563EB] px-2 py-0.5 rounded-full border border-[#BFDBFE] font-medium">
-                  {totalEditCount} تعديل{totalEditCount !== 1 ? 'ات' : ''}
-                </span>
-              )}
-              {lastRevision?.reason && (
-                <span className="text-[10px] text-[#6B7280]">{lastRevision.reason}</span>
-              )}
-            </div>
-          )}
         </div>
       </div>
 
+      {/* ── 2. ORDER SUMMARY: Type + Creation Date + Total ── */}
       <div className="bg-white rounded-lg border border-[#E5E7EB] shadow-sm p-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1 text-[13px]">
-          <div><span style={{color:'#9CA3AF'}}>اسم العميل:</span> <span className="font-semibold text-[26px] text-primary cursor-pointer hover:text-primary/70 underline decoration-transparent hover:decoration-primary/30 transition-all" onClick={() => customer?.id && navigate(`/customers/${customer.id}`)}>{customer?.company_name || order.snapshot_customer_name || 'غير متوفر'}</span></div>
-          <div><span style={{color:'#9CA3AF'}}>الكود:</span> <span className="font-semibold text-[#111827]">{customer?.code || '—'}</span></div>
-          <div><span style={{color:'#9CA3AF'}}>الهاتف:</span> <span className="font-semibold text-[#111827] font-mono">{customer?.phone || order.snapshot_customer_phone || 'غير متوفر'}</span></div>
-          <div><span style={{color:'#9CA3AF'}}>المندوب:</span> <span className="font-semibold text-[#111827]">{order.customer_owner_name || '—'}</span></div>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
-          <CustomerAddressCard type="gps" gpsData={customer ? {
-            formatted_address: customer.gps_formatted_address,
-            latitude: customer.gps_latitude,
-            longitude: customer.gps_longitude,
-            accuracy_meters: customer.gps_accuracy_meters,
-            enrichment_status: customer.gps_latitude != null && customer.gps_longitude != null ? 'completed' : null,
-          } : null} />
-          <CustomerAddressCard type="manual" manualData={customer ? {
-            governorate: customer.governorate,
-            city: customer.city,
-            address_line1: customer.address_line1,
-            address_line2: customer.address_line2,
-          } : null} />
-        </div>
-        <div className="flex flex-wrap items-center gap-2 mt-2 pt-2 border-t border-[#E5E7EB]">
-          <a href={`tel:${customer?.phone || order.snapshot_customer_phone}`}
-            className="flex items-center justify-center gap-1.5 text-xs text-[#2563EB] bg-[#EFF6FF] hover:bg-[#DBEAFE] px-3 py-1.5 rounded-lg transition-colors font-medium h-[32px]">
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>
-            اتصال
-          </a>
-          <a href={`https://wa.me/${(customer?.phone || order.snapshot_customer_phone || '').replace(/[^0-9]/g, '')}`} target="_blank" rel="noopener noreferrer"
-            className="flex items-center justify-center gap-1.5 text-xs text-[#059669] bg-[#ECFDF5] hover:bg-[#D1FAE5] px-3 py-1.5 rounded-lg transition-colors font-medium h-[32px]">
-            <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-            واتساب
-          </a>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1.5">
+            <span style={{color:'#9CA3AF'}}>نوع الطلب:</span>
+            <span className={'text-xs px-2 py-0.5 rounded font-medium ' + ((order as any).order_type === 'credit' ? 'bg-purple-100 text-purple-700' : 'bg-emerald-100 text-emerald-700')}>
+              {(order as any).order_type === 'credit' ? 'آجل' : 'نقدي'}
+            </span>
+          </div>
+          <div className="text-[13px] text-[#6B7280]">
+            <span>{formatDateTime(order.created_at)}</span>
+          </div>
+          <div className="text-[18px] font-bold text-[#111827]">
+            {formatCurrencyShort(grandTotal)}
+          </div>
         </div>
       </div>
 
+      {/* ── 3. CUSTOMER: Name, Phone, Address, Location ── */}
+      <div className="bg-white rounded-lg border border-[#E5E7EB] shadow-sm p-4 space-y-2 text-[13px]">
+        <div>
+          <span style={{color:'#9CA3AF'}}>اسم العميل:</span>{' '}
+          <span className="font-semibold text-[26px] text-primary cursor-pointer hover:text-primary/70 underline decoration-transparent hover:decoration-primary/30 transition-all" onClick={() => customer?.id && navigate(`/customers/${customer.id}`)}>
+            {customer?.company_name || order.snapshot_customer_name || 'غير متوفر'}
+          </span>
+        </div>
+        <div>
+          <span style={{color:'#9CA3AF'}}>الهاتف:</span>{' '}
+          <a href={`tel:${customer?.phone || order.snapshot_customer_phone}`} className="font-semibold text-[#2563EB] font-mono underline">
+            {customer?.phone || order.snapshot_customer_phone || 'غير متوفر'}
+          </a>
+        </div>
+        {customer && (customer.address_line1 || customer.address_line2 || customer.city || customer.governorate) && (
+          <div>
+            <span style={{color:'#9CA3AF'}}>العنوان:</span>{' '}
+            <span className="font-semibold text-[#111827]">
+              {[customer.address_line1, customer.address_line2, customer.city, customer.governorate].filter(Boolean).join(', ')}
+            </span>
+          </div>
+        )}
+        {customer?.gps_latitude != null && customer?.gps_longitude != null && (
+          <div>
+            <a
+              href={`https://www.google.com/maps?q=${customer.gps_latitude},${customer.gps_longitude}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-xs text-[#2563EB] bg-[#EFF6FF] hover:bg-[#DBEAFE] px-3 py-1.5 rounded-lg transition-colors font-medium"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+              فتح الموقع على الخريطة
+            </a>
+          </div>
+        )}
+      </div>
+
+      {/* ── 4. ORDER CREATOR ── */}
+      <div className="bg-white rounded-lg border border-[#E5E7EB] shadow-sm p-4 text-[13px]">
+        <span style={{color:'#9CA3AF'}}>منشئ الطلب:</span>{' '}
+        <span className="font-semibold text-[#111827]">
+          <OrderOwnershipInfo
+            creatorName={order.order_creator_name}
+            creatorId={order.order_creator_id}
+            creatorType={order.order_creator_type}
+            creatorRole={order.order_creator_role}
+            ownerId={order.owner_id}
+            currentOwnerName={order.current_owner_name}
+          />
+        </span>
+      </div>
+
+      {/* ── 5. PRODUCTS TABLE (unchanged) ── */}
+      <OrderProductsSection
+        items={editMode && editItems ? editItems : items}
+        order={order}
+        mode={editMode ? 'edit' : 'view'}
+        onQuantityChange={onQuantityChange}
+        onRemoveItem={onRemoveItem}
+        onPriceChange={onPriceChange}
+        onAddProduct={onAddProduct}
+      />
+      {editMode && editActions && (
+        <div className="sticky bottom-0 z-10 bg-white border-t border-[#E5E7EB] shadow-[0_-4px_12px_rgba(0,0,0,0.08)] px-4 py-3 -mx-4 lg:-mx-6">
+          {editActions}
+        </div>
+      )}
+
+      {/* ── 6. PRIMARY ACTIONS ── */}
+      {actions && (
+        <div className="bg-white rounded-lg border border-[#E5E7EB] shadow-sm p-4">
+          <div className="flex items-stretch gap-2 flex-wrap">
+            {actions}
+          </div>
+        </div>
+      )}
+
+      {/* ── 7. ORDER TIMELINE ── */}
+      <OrderTimelineSection timelineEvents={timelineEvents} />
+
+      {/* ── 8. REMAINING: everything else ── */}
+
+      {/* Last Visit */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
         <div>
           {data.last_visit && data.last_visit.start_latitude != null && data.last_visit.start_longitude != null ? (
@@ -268,20 +297,7 @@ export function OrderDetailView({ data, actions, onBack, editMode, editItems, on
         </div>
       </div>
 
-      <OrderProductsSection
-        items={editMode && editItems ? editItems : items}
-        order={order}
-        mode={editMode ? 'edit' : 'view'}
-        onQuantityChange={onQuantityChange}
-        onRemoveItem={onRemoveItem}
-        onPriceChange={onPriceChange}
-        onAddProduct={onAddProduct}
-      />
-      {editMode && editActions && (
-        <div className="sticky bottom-0 z-10 bg-white border-t border-[#E5E7EB] shadow-[0_-4px_12px_rgba(0,0,0,0.08)] px-4 py-3 -mx-4 lg:-mx-6">
-          {editActions}
-        </div>
-      )}
+      {/* Order Notes */}
       {order.notes && (
         <div className="bg-white rounded-lg border border-[#E5E7EB] shadow-sm p-4">
           <p className="text-[13px] font-bold text-[#111827] mb-1">ملاحظات</p>
@@ -289,12 +305,26 @@ export function OrderDetailView({ data, actions, onBack, editMode, editItems, on
         </div>
       )}
 
+      {/* Delivery */}
       <OrderDeliverySection current_delivery={current_delivery} delivery_mode={order.delivery_mode} customer={customer} />
 
+      {/* ── Order Number ── */}
+      <div className="bg-white rounded-lg border border-[#E5E7EB] shadow-sm p-4">
+        <div className="flex items-center gap-1.5">
+          <span style={{color:'#9CA3AF'}}>رقم الطلب:</span>
+          <span className="text-[18px] font-bold text-[#111827]">{order.order_number}</span>
+        </div>
+      </div>
+
+      {/* Collections */}
       {collections && collections.length > 0 && (
         <OrderCollectionsSection collections={collections} />
       )}
+
+      {/* Returns */}
       <OrderReturnsSection returns={data.returns} />
+
+      {/* Modification History */}
       {modification_history && modification_history.length > 0 && (
         <ModificationHistoryPanel
           entries={modification_history}
@@ -302,19 +332,11 @@ export function OrderDetailView({ data, actions, onBack, editMode, editItems, on
           lastRevisedAt={order.last_revised_at}
         />
       )}
-      <OrderTimelineSection timelineEvents={timelineEvents} />
 
-      {actions && (
-        <div className="bg-white rounded-lg border border-[#E5E7EB] shadow-sm p-4">
-          <div className="flex items-stretch gap-2 flex-wrap">
-            {actions}
-          </div>
-        </div>
-      )}
-
+      {/* Quick Actions */}
       <div className="bg-white rounded-lg border border-[#E5E7EB] shadow-sm p-4">
         <p className="text-[13px] font-bold text-[#111827] mb-3">إجراءات</p>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+        <div className="grid grid-cols-3 md:grid-cols-5 gap-2">
           <button onClick={() => handlePdf(false)}
             className="bg-[#2563EB] text-white text-[12px] py-2.5 rounded-lg active:opacity-90 transition-colors hover:bg-[#1D4ED8] font-medium h-[38px]">
             PDF
@@ -322,6 +344,10 @@ export function OrderDetailView({ data, actions, onBack, editMode, editItems, on
           <button onClick={() => handlePdf(true)}
             className="bg-[#059669] text-white text-[12px] py-2.5 rounded-lg active:opacity-90 transition-colors hover:bg-[#047857] font-medium h-[38px]">
             PDF A5
+          </button>
+          <button onClick={handlePdfDownload}
+            className="bg-[#D97706] text-white text-[12px] py-2.5 rounded-lg active:opacity-90 transition-colors hover:bg-[#B45309] font-medium h-[38px]">
+            تحميل PDF A5
           </button>
           <button onClick={handleWhatsApp}
             className="bg-[#059669] text-white text-[12px] py-2.5 rounded-lg active:opacity-90 transition-colors hover:bg-[#047857] font-medium h-[38px]">
@@ -332,6 +358,43 @@ export function OrderDetailView({ data, actions, onBack, editMode, editItems, on
             نسخ الرسالة
           </button>
         </div>
+      </div>
+
+      {/* Remaining admin info */}
+      <div className="bg-white rounded-lg border border-[#E5E7EB] shadow-sm p-4">
+        <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-[12px]">
+          <div className="flex items-center gap-1.5">
+            <span style={{color:'#9CA3AF'}}>المسؤول:</span>
+            <span className="font-medium text-[#111827]">{order.customer_owner_name || '—'}</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span style={{color:'#9CA3AF'}}>تاريخ الإنشاء:</span>
+            <span className="font-medium text-[#111827]">{formatDateTime(order.created_at)}</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span style={{color:'#9CA3AF'}}>آخر تحديث:</span>
+            <span className="font-medium text-[#111827]">{formatDateTime(order.updated_at)}</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span style={{color:'#9CA3AF'}}>نوع التوصيل:</span>
+            <span className="font-medium text-[#111827]">{order.delivery_mode === 'internal' ? 'داخلى' : 'شركة شحن'}</span>
+          </div>
+        </div>
+        {(revisionCount > 0 || order.status === 'returned_for_revision') && (
+          <div className="flex flex-wrap items-center gap-2 mt-2">
+            <span className="text-[10px] bg-[#FFFBEB] text-[#D97706] px-2 py-0.5 rounded-full border border-[#FDE68A] font-medium">
+              Revision #{revisionCount + 1}
+            </span>
+            {totalEditCount > 0 && (
+              <span className="text-[10px] bg-[#EFF6FF] text-[#2563EB] px-2 py-0.5 rounded-full border border-[#BFDBFE] font-medium">
+                {totalEditCount} تعديل{totalEditCount !== 1 ? 'ات' : ''}
+              </span>
+            )}
+            {lastRevision?.reason && (
+              <span className="text-[10px] text-[#6B7280]">{lastRevision.reason}</span>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )

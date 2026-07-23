@@ -280,3 +280,31 @@ export function printInvoice(html: string) {
   win.document.close()
   setTimeout(() => { try { win.print() } catch {}; document.body.removeChild(iframe) }, 500)
 }
+
+export async function downloadInvoicePdf(html: string, filename: string) {
+  const html2canvas = (await import('html2canvas')).default
+  const { jsPDF } = await import('jspdf')
+
+  const parsed = new DOMParser().parseFromString(html, 'text/html')
+  const container = document.createElement('div')
+  container.style.cssText = 'position:fixed;left:-9999px;top:0;width:148mm;background:#fff;direction:rtl'
+  Array.from(parsed.querySelectorAll('style')).forEach(s => container.appendChild(s.cloneNode(true)))
+  container.innerHTML += parsed.body.innerHTML
+  document.body.appendChild(container)
+
+  await new Promise(r => setTimeout(r, 1000))
+
+  const canvas = await html2canvas(container, { scale: 2, useCORS: true, logging: false })
+  document.body.removeChild(container)
+
+  const imgData = canvas.toDataURL('image/jpeg', 0.95)
+  const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a5' })
+  const pdfW = pdf.internal.pageSize.getWidth()
+  const pdfH = pdf.internal.pageSize.getHeight()
+  const ratio = Math.min(pdfW / canvas.width, pdfH / canvas.height)
+  const imgW = canvas.width * ratio
+  const imgH = canvas.height * ratio
+  const x = (pdfW - imgW) / 2
+  pdf.addImage(imgData, 'JPEG', x, 0, imgW, imgH)
+  pdf.save(filename)
+}
