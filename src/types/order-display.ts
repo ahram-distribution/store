@@ -91,6 +91,7 @@ export const ORDER_STATUS_LABELS: Record<string, string> = {
   dispatched: 'تم الشحن',
   delivered: 'تم التسليم',
   cancelled: 'ملغي',
+  stock_review: 'مراجعة المخزون',
 }
 
 export const UNIT_LABELS: Record<string, string> = {

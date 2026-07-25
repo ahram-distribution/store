@@ -6,11 +6,11 @@ function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
 }
 
-const ALL_STATUSES = ['draft','submitted','reviewing','returned_for_revision','approved','preparing','prepared','ready_for_dispatch','sent_to_delivery','dispatched','deferred','cancelled','delivered'] as const
+const ALL_STATUSES = ['draft','submitted','reviewing','returned_for_revision','approved','preparing','prepared','ready_for_dispatch','sent_to_delivery','dispatched','deferred','cancelled','delivered','stock_review'] as const
 
 type OrderStatus = typeof ALL_STATUSES[number]
 
-const WORKFLOW_ORDER = ['draft','submitted','reviewing','returned_for_revision','approved','preparing','prepared','ready_for_dispatch','sent_to_delivery','dispatched','deferred','cancelled','delivered']
+const WORKFLOW_ORDER = ['draft','submitted','reviewing','returned_for_revision','approved','preparing','prepared','ready_for_dispatch','sent_to_delivery','dispatched','deferred','cancelled','delivered','stock_review']
 
 interface OrderStatusManagerProps {
   orderId: string
@@ -35,6 +35,9 @@ function isExceptional(from: string, to: string): boolean {
   if (from === to) return false
   if (from === 'cancelled' || to === 'cancelled') return true
   if (from === 'deferred' || to === 'deferred') return true
+  // Stock Review → Submitted is the normal resubmission path (not exceptional)
+  if (from === 'stock_review' && to === 'submitted') return false
+  if (from === 'stock_review') return true
   if (!isForward(from, to)) return true
   if (!isAdjacent(from, to)) return true
   return false

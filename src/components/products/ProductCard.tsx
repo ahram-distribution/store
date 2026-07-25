@@ -78,6 +78,14 @@ export const ProductCard = memo(function ProductCard({ product, onEdit, onToggle
           <span className="truncate">{product.company_name || '—'}</span>
         </div>
 
+        {/* Stock Balance */}
+        <div className="flex items-center gap-1.5 text-[12px]">
+          <Package className="w-3 h-3 shrink-0 text-text-secondary" />
+          <span className={`font-semibold ${(product.inventory?.quantity ?? 0) < 0 ? 'text-danger' : (product.inventory?.quantity ?? 0) === 0 ? 'text-warning' : 'text-text'}`}>
+            المخزون: {product.inventory?.quantity ?? 0} قطعة
+          </span>
+        </div>
+
         {/* Units */}
         {unitNames && (
           <div className="flex items-center gap-1.5 text-[13px] text-text-secondary">

@@ -21,6 +21,18 @@ function toDateInput(iso: string): string {
   try { return new Date(iso).toISOString().slice(0, 10) } catch { return '' }
 }
 
+const DEDUCTION_STATUS_LABELS: Record<string, string> = {
+  submitted: 'عند التسليم (مقدم)',
+  reviewing: 'عند المراجعة',
+  approved: 'عند الاعتماد (معتمد)',
+  preparing: 'عند التجهيز',
+  prepared: 'بعد التجهيز',
+  ready_for_dispatch: 'عند التسليم للشحن',
+  sent_to_delivery: 'عند الإرسال للتوصيل',
+  dispatched: 'عند الشحن',
+  delivered: 'عند التسليم',
+}
+
 // =============================================================================
 // ProductManagerPage — Full product management dashboard
 // =============================================================================
@@ -36,6 +48,15 @@ export function ProductManagerPage() {
   const [allTiers, setAllTiers] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // ── Global Inventory Policies ──
+  const [globalPolicies, setGlobalPolicies] = useState<{ negative_selling_allowed: boolean; inventory_deduction_status: string }>({
+    negative_selling_allowed: true,
+    inventory_deduction_status: 'approved',
+  })
+  const [scopeDialogTarget, setScopeDialogTarget] = useState<'negative_selling' | 'deduction_status' | null>(null)
+  const [pendingPolicyValue, setPendingPolicyValue] = useState<any>(null)
+  const [policySaving, setPolicySaving] = useState(false)
 
   // ── Filters ──
   const [viewState, setViewState, resetViewState] = usePersistentViewState('products-manage', {
@@ -96,18 +117,70 @@ export function ProductManagerPage() {
   async function loadData() {
     const token = getToken()
     if (!token) { setLoading(false); return }
-    const [prodRes, compRes, tiersRes] = await Promise.all([
+    const [prodRes, compRes, tiersRes, policyRes] = await Promise.all([
       supabase.rpc('get_governed_products', { p_token: token, p_active_only: false, p_visible_only: false }),
       supabase.rpc('get_governed_companies', { p_token: token }),
       supabase.rpc('get_governed_tiers', { p_token: token }),
+      supabase.rpc('get_inventory_policies', { p_token: token }),
     ])
     if (prodRes.data) setProducts(Array.isArray(prodRes.data) ? prodRes.data : [])
     if (compRes.data) setCompanies(Array.isArray(compRes.data) ? compRes.data : [])
     if (tiersRes.data) setAllTiers(Array.isArray(tiersRes.data) ? tiersRes.data : [])
+    if (policyRes.data && !policyRes.error) setGlobalPolicies(policyRes.data)
     setLoading(false)
   }
 
   useEffect(() => { loadData() }, [])
+
+  // ── Global Policy Change Handlers ──
+  function handleNegativeSellingChange(newValue: boolean) {
+    if (newValue === globalPolicies.negative_selling_allowed) return
+    setPendingPolicyValue(newValue)
+    setScopeDialogTarget('negative_selling')
+  }
+
+  function handleDeductionStatusChange(newValue: string) {
+    if (newValue === globalPolicies.inventory_deduction_status) return
+    setPendingPolicyValue(newValue)
+    setScopeDialogTarget('deduction_status')
+  }
+
+  async function confirmPolicyChange(scope: 'new_orders' | 'previous_and_new') {
+    if (!scopeDialogTarget || pendingPolicyValue === null) return
+    setPolicySaving(true)
+    const token = getToken()
+    if (!token) { setPolicySaving(false); return }
+    try {
+      if (scopeDialogTarget === 'negative_selling') {
+        const { data, error } = await supabase.rpc('set_global_negative_selling_policy', {
+          p_token: token, p_value: pendingPolicyValue, p_scope: scope,
+        })
+        if (error) { toast.error(error.message); setPolicySaving(false); return }
+        const result = data as any
+        if (result?.error) { toast.error(result.error); setPolicySaving(false); return }
+        setGlobalPolicies(prev => ({ ...prev, negative_selling_allowed: pendingPolicyValue }))
+        if (result?.moved_to_stock_review > 0) {
+          toast.success(`تم تغيير السياسة. تم نقل ${result.moved_to_stock_review} طلب لمراجعة المخزون`)
+        } else {
+          toast.success('تم تغيير سياسة البيع بالسالب')
+        }
+      } else {
+        const { data, error } = await supabase.rpc('set_global_inventory_deduction_status', {
+          p_token: token, p_value: pendingPolicyValue, p_scope: scope,
+        })
+        if (error) { toast.error(error.message); setPolicySaving(false); return }
+        const result = data as any
+        if (result?.error) { toast.error(result.error); setPolicySaving(false); return }
+        setGlobalPolicies(prev => ({ ...prev, inventory_deduction_status: pendingPolicyValue }))
+        toast.success('تم تغيير حالة خصم المخزون')
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'حدث خطأ')
+    }
+    setPolicySaving(false)
+    setScopeDialogTarget(null)
+    setPendingPolicyValue(null)
+  }
 
   // ── Toggle active ──
   async function handleToggleActive(product: any) {
@@ -232,7 +305,8 @@ export function ProductManagerPage() {
   const [editTarget, setEditTarget] = useState<any>(null)
   const [editForm, setEditForm] = useState<any>({
     product_name: '', legacy_code: '', description: '', company_id: '',
-    image_url: '', inventory_quantity: '', carton_quantity: '', carton_price: '',
+    image_url: '', inventory_quantity: '', inventory_unit: 'piece' as 'piece' | 'carton',
+    carton_quantity: '', carton_price: '',
     units: ['piece', 'dozen', 'carton'], is_active: true, is_out_of_stock: false,
   })
   const [editTierDiscounts, setEditTierDiscounts] = useState<Record<string, string>>({})
@@ -247,6 +321,7 @@ export function ProductManagerPage() {
       company_id: product.company_id || '',
       image_url: product.image_url || '',
       inventory_quantity: String(product.inventory?.quantity ?? ''),
+      inventory_unit: 'piece' as const,
       carton_quantity: String(product.carton_quantity ?? ''),
       carton_price: String(product.carton_price ?? ''),
       units: (product.product_units || []).filter((u: any) => u.is_active !== false).map((u: any) => u.unit_type),
@@ -330,14 +405,17 @@ export function ProductManagerPage() {
         })
       )
 
-      // 6. Update inventory
-      if (editForm.inventory_quantity) {
-        promises.push(
-          supabase.rpc('governed_update_product_inventory', {
-            p_token: token, p_id: editTarget.id,
-            p_quantity: parseInt(editForm.inventory_quantity),
-          })
-        )
+      // 6. Update inventory using governed_set_product_stock (SET/REPLACE)
+      if (editForm.inventory_quantity !== '' && editForm.inventory_quantity !== undefined) {
+        const qty = parseInt(editForm.inventory_quantity)
+        if (!isNaN(qty)) {
+          promises.push(
+            supabase.rpc('governed_set_product_stock', {
+              p_token: token, p_product_id: editTarget.id,
+              p_quantity: qty, p_unit: editForm.inventory_unit || 'piece',
+            })
+          )
+        }
       }
 
       const results = await Promise.all(promises)
@@ -450,6 +528,60 @@ export function ProductManagerPage() {
           </button>
         )}
       </div>
+
+      {/* ── Global Inventory Settings ── */}
+      {canManage && (
+        <div className="mx-4 mt-4 bg-white rounded-xl border border-border p-3 space-y-3">
+          <div className="flex items-center gap-2">
+            <div className="w-1.5 h-1.5 rounded-full bg-primary" />
+            <h3 className="text-xs font-bold text-text">إعدادات المخزون</h3>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {/* Negative Selling */}
+            <div className="flex items-center justify-between bg-surface rounded-lg px-3 py-2.5">
+              <div>
+                <span className="text-xs font-semibold text-text block">البيع بالسالب</span>
+                <span className="text-[10px] text-text-secondary">
+                  {globalPolicies.negative_selling_allowed ? 'مسموح — يمكن للمخزون أن يصبح بالسالب' : 'غير مسموح — لا يجوز تجاوز المخزون المتاح'}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleNegativeSellingChange(!globalPolicies.negative_selling_allowed)}
+                disabled={policySaving}
+                className={`relative w-11 h-6 rounded-full transition-colors shrink-0 ${globalPolicies.negative_selling_allowed ? 'bg-success' : 'bg-gray-300'}`}
+              >
+                <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${globalPolicies.negative_selling_allowed ? 'right-0.5' : 'right-[22px]'}`} />
+              </button>
+            </div>
+            {/* Deduction Status */}
+            <div className="flex items-center justify-between bg-surface rounded-lg px-3 py-2.5">
+              <div className="min-w-0">
+                <span className="text-xs font-semibold text-text block">خصم المخزون عند</span>
+                <span className="text-[10px] text-text-secondary truncate block">
+                  {DEDUCTION_STATUS_LABELS[globalPolicies.inventory_deduction_status] || globalPolicies.inventory_deduction_status}
+                </span>
+              </div>
+              <select
+                value={globalPolicies.inventory_deduction_status}
+                onChange={(e) => handleDeductionStatusChange(e.target.value)}
+                disabled={policySaving}
+                className="border border-border rounded-lg px-2 py-1.5 text-xs bg-white shrink-0 ml-2"
+              >
+                <option value="submitted">عند التسليم (مقدم)</option>
+                <option value="reviewing">عند المراجعة</option>
+                <option value="approved">عند الاعتماد (معتمد)</option>
+                <option value="preparing">عند التجهيز</option>
+                <option value="prepared">بعد التجهيز</option>
+                <option value="ready_for_dispatch">عند التسليم للشحن</option>
+                <option value="sent_to_delivery">عند الإرسال للتوصيل</option>
+                <option value="dispatched">عند الشحن</option>
+                <option value="delivered">عند التسليم</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="px-4 py-4 space-y-4">
         {/* ── Filters (always visible) ── */}
@@ -706,12 +838,26 @@ export function ProductManagerPage() {
                 )}
               </div>
 
-              {/* Inventory */}
+              {/* Inventory — Governance Controls */}
               <div className="space-y-3">
                 <h4 className="text-xs font-bold text-text-secondary">المخزون</h4>
-                <input type="number" value={editForm.inventory_quantity}
-                  onChange={(e) => setEditForm((p: any) => ({ ...p, inventory_quantity: e.target.value }))}
-                  readOnly={!canManage} className="w-full border border-border rounded-lg px-3 py-2.5 text-sm bg-surface" />
+                {/* Stock SET/REPLACE */}
+                <div className="flex gap-2">
+                  <input type="number" value={editForm.inventory_quantity}
+                    onChange={(e) => setEditForm((p: any) => ({ ...p, inventory_quantity: e.target.value }))}
+                    readOnly={!canManage} placeholder="كمية المخزون"
+                    className="flex-1 border border-border rounded-lg px-3 py-2.5 text-sm bg-surface" />
+                  <select
+                    value={editForm.inventory_unit}
+                    onChange={(e) => setEditForm((p: any) => ({ ...p, inventory_unit: e.target.value }))}
+                    disabled={!canManage}
+                    className="border border-border rounded-lg px-3 py-2.5 text-sm bg-surface"
+                  >
+                    <option value="piece">قطع</option>
+                    <option value="carton">كراتين</option>
+                  </select>
+                </div>
+                <p className="text-[10px] text-text-secondary">الإدخال يستبدل المخزون الحالي (SET) وليس إضافي</p>
               </div>
 
               {/* Packaging & Pricing */}
@@ -889,6 +1035,50 @@ export function ProductManagerPage() {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Scope Dialog ── */}
+      {scopeDialogTarget && (
+        <div className="fixed inset-0 z-[80] bg-black/50 flex items-center justify-center">
+          <div className="bg-white rounded-2xl w-full max-w-sm mx-3 shadow-xl p-5 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-5 h-5 text-primary" />
+              </div>
+              <div>
+                <h3 className="font-bold text-text">
+                  {scopeDialogTarget === 'negative_selling' ? 'تغيير سياسة البيع بالسالب' : 'تغيير حالة خصم المخزون'}
+                </h3>
+                <p className="text-xs text-text-secondary">اختر نطاق تطبيق التغيير</p>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <button
+                onClick={() => confirmPolicyChange('new_orders')}
+                disabled={policySaving}
+                className="w-full text-right px-4 py-3 rounded-lg border border-border hover:bg-surface transition-colors disabled:opacity-50"
+              >
+                <span className="text-sm font-semibold text-text block">طلبات جديدة فقط</span>
+                <span className="text-[10px] text-text-secondary">سيتم تطبيق التغيير على الطلبات الجديدة من الآن فصاعداً</span>
+              </button>
+              <button
+                onClick={() => confirmPolicyChange('previous_and_new')}
+                disabled={policySaving}
+                className="w-full text-right px-4 py-3 rounded-lg border border-border hover:bg-surface transition-colors disabled:opacity-50"
+              >
+                <span className="text-sm font-semibold text-text block">الطلبات السابقة والحديثة</span>
+                <span className="text-[10px] text-text-secondary">سيتم تطبيق التغيير على جميع الطلبات الحالية والجديدة</span>
+              </button>
+            </div>
+            <button
+              onClick={() => { setScopeDialogTarget(null); setPendingPolicyValue(null) }}
+              disabled={policySaving}
+              className="w-full py-2.5 rounded-lg border border-border text-sm text-text-secondary hover:bg-surface transition-colors disabled:opacity-50"
+            >
+              إلغاء
+            </button>
           </div>
         </div>
       )}
