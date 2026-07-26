@@ -5,6 +5,7 @@ import { OrderDetailView } from '../../components/orders/OrderDetailView'
 import { OrderStatusManager } from '../../components/orders/OrderStatusManager'
 import { useCapability } from '../../hooks/useCapability'
 import { useAuthStore } from '../../store/auth'
+import { useEntityViewsStore } from '../../store/entityViews'
 import { isUpperManagement } from '../../utils/roleNormalization'
 import { formatCurrencyShort } from '../../utils/format'
 import { UNIT_LABELS } from '../../types/order-display'
@@ -114,6 +115,13 @@ export function OrderDetailPage() {
   }
 
   useEffect(() => { loadOrder() }, [id])
+
+  useEffect(() => {
+    if (!id) return
+    const token = getToken()
+    if (!token) return
+    useEntityViewsStore.getState().markOrderViewed(token, id)
+  }, [id])
 
   useEffect(() => {
     if (!editMode || !id) return

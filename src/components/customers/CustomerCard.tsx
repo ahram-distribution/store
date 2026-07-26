@@ -5,9 +5,10 @@ import type { CustomerCardData } from '../../types/customers'
 
 interface CustomerCardProps {
   customer: CustomerCardData
+  isUnseen?: boolean
 }
 
-export function CustomerCard({ customer }: CustomerCardProps) {
+export function CustomerCard({ customer, isUnseen }: CustomerCardProps) {
   const navigate = useNavigate()
   const hasNoOrders = !customer.previous_order_count || customer.previous_order_count === 0
 
@@ -15,15 +16,22 @@ export function CustomerCard({ customer }: CustomerCardProps) {
     <div
       onClick={() => navigate(`/customers/${customer.id}`)}
       className={`h-full rounded-xl border-2 bg-white p-3 cursor-pointer active:scale-[0.98] transition-all hover:shadow-md flex flex-col ${
-        !customer.is_active
-          ? 'border-red-200 bg-red-50/40'
-          : hasNoOrders
-            ? 'border-orange-300 bg-orange-50/40'
-            : 'border-border'
+        isUnseen
+          ? 'border-blue-200 bg-blue-50/30 ring-1 ring-blue-100'
+          : !customer.is_active
+            ? 'border-red-200 bg-red-50/40'
+            : hasNoOrders
+              ? 'border-orange-300 bg-orange-50/40'
+              : 'border-border'
       }`}
     >
       {/* 1. Customer Name */}
-      <h3 className="text-sm font-bold text-text leading-tight line-clamp-1">{customer.company_name}</h3>
+      <div className="flex items-center gap-1.5">
+        <h3 className="text-sm font-bold text-text leading-tight line-clamp-1">{customer.company_name}</h3>
+        {isUnseen && (
+          <span className="shrink-0 text-[9px] font-bold text-blue-600 bg-blue-100 border border-blue-200 px-1.5 py-0.5 rounded-full leading-none">جديد</span>
+        )}
+      </div>
 
       {/* 2. Badges */}
       {customer.needs_address_correction && (

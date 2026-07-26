@@ -5,6 +5,7 @@ import { AppRoutes } from './routes'
 import { AppLayout } from './layouts/AppLayout'
 import { useAuthStore } from './store/auth'
 import { useNotificationStore } from './store/notifications'
+import { useEntityViewsStore } from './store/entityViews'
 import { notificationInboxService } from './services/notifications'
 import { SplashScreen } from './components/splash/SplashScreen'
 
@@ -43,6 +44,8 @@ export function App() {
       const { user } = useAuthStore.getState()
       if (user?.identity_type === 'employee') {
         useNotificationStore.getState().fetchInitial()
+        const tok = localStorage.getItem('session_token')
+        if (tok) useEntityViewsStore.getState().fetchUnseenCounts(tok)
         const unsub = notificationInboxService.subscribeToNotifications((n) => {
           useNotificationStore.getState().prependNotification(n)
           toast(n.title + ': ' + n.message, { duration: 4000 })
@@ -60,6 +63,7 @@ export function App() {
     const unsub = useAuthStore.subscribe((state, prev) => {
       if (prev.token && !state.token) {
         useNotificationStore.getState().reset()
+        useEntityViewsStore.getState().reset()
       }
     })
     return unsub

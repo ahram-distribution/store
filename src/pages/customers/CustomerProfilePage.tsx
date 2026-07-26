@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useCapability } from '../../hooks/useCapability'
+import { useEntityViewsStore } from '../../store/entityViews'
 import { formatCurrencyShort, formatDate, formatDateTime } from '../../utils/format'
 import { getCustomerState, getCustomerStateLabel, CUSTOMER_STATE_LABELS } from '../../utils/systemStates'
 import { LocationRepository, LocationNormalizationService } from '../../domain/location'
@@ -497,6 +498,8 @@ export function CustomerProfilePage() {
     if (!id) return
     const token = getToken()
     if (!token) return
+
+    useEntityViewsStore.getState().markCustomerViewed(token, id)
 
     Promise.all([
       supabase.rpc('get_governed_customer', { p_token: token, p_id: id }),

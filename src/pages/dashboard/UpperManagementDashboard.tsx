@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { targetService } from '../../services/targets'
 import { useAuthStore } from '../../store/auth'
+import { useEntityViewsStore } from '../../store/entityViews'
 import { MonthlyActivity } from '../../components/activity/MonthlyActivity'
 import { DeliveredOrdersKPI } from '../../components/activity/DeliveredOrdersKPI'
 
@@ -37,6 +38,9 @@ export default function UpperManagementDashboard() {
   const [achievementPct, setAchievementPct] = useState(0)
   const [dashMgmt, setDashMgmt] = useState<DashMgmt | null>(null)
   const [showReportsCenter, setShowReportsCenter] = useState(false)
+  const unseenOrdersCount = useEntityViewsStore((s) => s.unseenOrdersCount)
+  const unseenCustomersCount = useEntityViewsStore((s) => s.unseenCustomersCount)
+  const fetchUnseenCounts = useEntityViewsStore((s) => s.fetchUnseenCounts)
 
   useEffect(() => {
     const token = getToken()
@@ -54,15 +58,17 @@ export default function UpperManagementDashboard() {
     supabase.rpc('get_dashboard_management', { p_token: token }).then((mgmtResult) => {
       if (!mgmtResult.error && mgmtResult.data) setDashMgmt(mgmtResult.data as DashMgmt)
     })
+
+    fetchUnseenCounts(token)
   }, [])
 
   const achievementValue = achievementPct
 
   const groups: LauncherGroup[] = [
-    { icon: '📋', label: 'الطلبات', path: '/launcher/orders', isSubLauncher: true, badge: dashMgmt?.pending_orders },
+    { icon: '📋', label: 'الطلبات', path: '/launcher/orders', isSubLauncher: true, badge: unseenOrdersCount },
     { icon: '📍', label: 'الانتشار', path: '/coverage-map' },
     { icon: '📍', label: 'الزيارات', path: '/launcher/visits', isSubLauncher: true, badge: dashMgmt?.active_visits },
-    { icon: '👥', label: 'العملاء', path: '/launcher/customers', isSubLauncher: true, badge: dashMgmt?.total_customers },
+    { icon: '👥', label: 'العملاء', path: '/launcher/customers', isSubLauncher: true, badge: unseenCustomersCount },
     { icon: '👤', label: 'الموظفون', path: '/launcher/employees', isSubLauncher: true },
     { icon: '⏱️', label: 'الحضور والانصراف', path: '/attendance' },
     { icon: '📦', label: 'المخزون', path: '/launcher/inventory', isSubLauncher: true },

@@ -3,6 +3,7 @@ import { usePersistentViewState } from '../../hooks/usePersistentViewState'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../store/auth'
+import { useEntityViewsStore } from '../../store/entityViews'
 import { resolveDateRangeISO } from '../../lib/dateRange'
 import { OrderCard } from '../../components/orders/OrderCard'
 import SmartFilterBar, { type FilterValues } from '../../components/SmartFilterBar'
@@ -72,6 +73,8 @@ export function OrdersPage() {
   const navigate = useNavigate()
   const currentUserId = useAuthStore((s) => s.user?.identity_id)
   const currentEmpId = useAuthStore((s) => s.user?.employee_id)
+  const unseenOrderIds = useEntityViewsStore((s) => s.unseenOrderIds)
+  const fetchUnseenOrders = useEntityViewsStore((s) => s.fetchUnseenOrders)
   const [orders, setOrders] = useState<any[]>([])
   const [customers, setCustomers] = useState<any[]>([])
   const [employees, setEmployees] = useState<any[]>([])
@@ -123,6 +126,11 @@ export function OrdersPage() {
   }, [filters, statusFilter, customerFilter, tab, currentUserId, governorateFilter])
 
   useEffect(() => { fetchOrders() }, [filters, statusFilter, customerFilter, tab, governorateFilter])
+
+  useEffect(() => {
+    const token = getToken()
+    if (token) fetchUnseenOrders(token)
+  }, [])
 
   useEffect(() => {
     const token = getToken()
@@ -337,7 +345,7 @@ export function OrdersPage() {
       ) : (
         <CardGrid>
           {sorted.map((order: any) => (
-            <OrderCard key={order.id} order={order} orderId={order.id} />
+            <OrderCard key={order.id} order={order} orderId={order.id} isUnseen={unseenOrderIds.has(order.id)} />
           ))}
         </CardGrid>
       )}

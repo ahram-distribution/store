@@ -38,6 +38,7 @@ interface OrderCardProps {
   }
   onClick?: () => void
   orderId?: string
+  isUnseen?: boolean
 }
 
 const cardAccent: Record<string, string> = {
@@ -58,7 +59,7 @@ const cardAccent: Record<string, string> = {
 
 
 
-export const OrderCard = memo(function OrderCard({ order, onClick, orderId }: OrderCardProps) {
+export const OrderCard = memo(function OrderCard({ order, onClick, orderId, isUnseen }: OrderCardProps) {
   const navigate = useNavigate()
   const handleClick = onClick || (orderId ? () => navigate(`/orders/${orderId}`) : undefined)
   const dt = order.created_at ? new Date(order.created_at) : null
@@ -68,15 +69,21 @@ export const OrderCard = memo(function OrderCard({ order, onClick, orderId }: Or
   const accent = isSubmitted
     ? 'border-r-[#2563EB] shadow-[0_2px_8px_-2px_rgba(37,99,235,0.12),0_0_0_1px_rgba(37,99,235,0.06)] bg-[rgba(37,99,235,0.04)]'
     : (cardAccent[order.status] || 'border-r-gray-300')
+  const unseenCls = isUnseen ? 'ring-2 ring-blue-200 bg-blue-50/30' : ''
 
   return (
     <div
       onClick={handleClick}
-      className={'h-full rounded-xl border border-border border-r-4 bg-white p-3.5 cursor-pointer active:scale-[0.98] transition-all flex flex-col ' + accent}
+      className={'h-full rounded-xl border border-border border-r-4 bg-white p-3.5 cursor-pointer active:scale-[0.98] transition-all flex flex-col ' + accent + ' ' + unseenCls}
     >
-      <p className="text-base font-bold text-text mb-1 leading-snug">
-        {order.customer_name || 'غير متوفر'}
-      </p>
+      <div className="flex items-center gap-1.5 mb-1">
+        <p className="text-base font-bold text-text leading-snug truncate">
+          {order.customer_name || 'غير متوفر'}
+        </p>
+        {isUnseen && (
+          <span className="shrink-0 text-[9px] font-bold text-blue-600 bg-blue-100 border border-blue-200 px-1.5 py-0.5 rounded-full leading-none">جديد</span>
+        )}
+      </div>
 
       {order.customer_display_address && (
         <p className="text-[11px] text-text-secondary mb-2 leading-snug">

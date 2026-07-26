@@ -5,6 +5,7 @@ import { useAuthStore } from '../../store/auth'
 import { useCapability } from '../../hooks/useCapability'
 import { computeDateRange, cairoMidnightISO, cairoDateComponents } from '../../lib/dateRange'
 import { usePersistentViewState } from '../../hooks/usePersistentViewState'
+import { useEntityViewsStore } from '../../store/entityViews'
 import SmartFilterBar, { type FilterValues } from '../../components/SmartFilterBar'
 import { CustomerCard } from '../../components/customers/CustomerCard'
 import type { CustomerCardData } from '../../types/customers'
@@ -29,6 +30,8 @@ export function CustomersPage() {
   })
   const { myOnly, filters, quickFilters, governorateId } = viewState
   const [sfResetKey, setSfResetKey] = useState(0)
+  const unseenCustomerIds = useEntityViewsStore((s) => s.unseenCustomerIds)
+  const fetchUnseenCustomers = useEntityViewsStore((s) => s.fetchUnseenCustomers)
 
   const resolveDateRange = (f: FilterValues): { from: string | null; to: string | null } => {
     if (f.datePreset === 'all') return { from: null, to: null }
@@ -109,6 +112,11 @@ export function CustomersPage() {
   }
 
   useEffect(() => { fetchData() }, [filters, myOnly, quickFilters, governorateId])
+
+  useEffect(() => {
+    const token = getToken()
+    if (token) fetchUnseenCustomers(token)
+  }, [])
 
   useEffect(() => {
     const token = getToken()
@@ -243,7 +251,7 @@ export function CustomersPage() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
           {customers.map((c) => (
-            <CustomerCard key={c.id} customer={c} />
+            <CustomerCard key={c.id} customer={c} isUnseen={unseenCustomerIds.has(c.id)} />
           ))}
         </div>
       )}
