@@ -169,7 +169,7 @@ BEGIN
   SELECT o.order_number, o.owner_id INTO v_order_number, v_order_owner
   FROM public.orders o WHERE o.id = NEW.order_id;
 
-  v_actor_name := public.fn_employee_name(NEW.changed_by);
+  v_actor_name := public.fn_employee_name(public.resolve_employee_id(NEW.changed_by));
 
   -- Resolve order owner to employee
   v_order_owner := public.resolve_employee_id(v_order_owner);
