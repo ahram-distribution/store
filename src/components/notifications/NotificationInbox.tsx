@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { useNotificationStore } from '../../store/notifications'
 import { NotificationItem } from './NotificationItem'
+import { PushPermissionButton } from './PushPermissionButton'
 
 export function NotificationInbox() {
   const { notifications, loading, hasMore, unreadCount, fetchInitial, fetchMore, markAllRead, refresh } = useNotificationStore()
@@ -29,6 +30,11 @@ export function NotificationInbox() {
             قراءة الكل
           </button>
         )}
+      </div>
+
+      {/* Push permission */}
+      <div className="mb-4">
+        <PushPermissionButton />
       </div>
 
       {/* Loading state */}

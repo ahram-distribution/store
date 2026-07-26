@@ -114,6 +114,28 @@ BEGIN
   VALUES (p_recipient, p_type, p_title, p_message, p_entity_type, p_entity_id, p_target_path, p_event_key)
   RETURNING id INTO v_id;
 
+  -- Fire-and-forget push delivery via pg_net (failure does NOT affect notification)
+  BEGIN
+    PERFORM net.http_post(
+      url := 'https://gbcbejejgpvltuhbztbx.supabase.co/functions/v1/send-push',
+      headers := jsonb_build_object(
+        'Content-Type', 'application/json',
+        'Authorization', 'Bearer ' || 'push-invoke'
+      ),
+      body := jsonb_build_object(
+        'notification_id', v_id,
+        'recipient_employee_id', p_recipient,
+        'title', p_title,
+        'message', p_message,
+        'type', p_type,
+        'target_path', p_target_path
+      )
+    );
+  EXCEPTION WHEN OTHERS THEN
+    -- Push failure must never prevent notification creation
+    NULL;
+  END;
+
   RETURN v_id;
 END;
 $$;
@@ -322,7 +344,7 @@ DECLARE
   v_target text;
 BEGIN
   v_actor_name := public.fn_employee_name(NEW.employee_id);
-  v_checkin_time := to_char(NEW.start_time AT TIME ZONE 'Cairo', 'HH24:MI');
+  v_checkin_time := to_char(NEW.start_time AT TIME ZONE 'Africa/Cairo', 'HH24:MI');
   v_target := '/attendance';
 
   v_manager := public.fn_resolve_manager(NEW.employee_id);
@@ -368,7 +390,7 @@ BEGIN
   END IF;
 
   v_actor_name := public.fn_employee_name(NEW.employee_id);
-  v_checkout_time := to_char(NEW.end_time AT TIME ZONE 'Cairo', 'HH24:MI');
+  v_checkout_time := to_char(NEW.end_time AT TIME ZONE 'Africa/Cairo', 'HH24:MI');
   v_target := '/attendance';
 
   v_manager := public.fn_resolve_manager(NEW.employee_id);

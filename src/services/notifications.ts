@@ -88,4 +88,102 @@ export const notificationInboxService = {
       supabase.removeChannel(channel)
     }
   },
+
+  // ---- Push Subscription Management ----
+
+  VAPID_PUBLIC_KEY: 'BLvPl__v7fL1hsF7u3cpCmiZqLpBMlyfRziC72PDU9NxltZMYnwAquRRpY_e79yyjUoummCC49uBaKADGFvywJk',
+
+  isPushSupported(): boolean {
+    return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window
+  },
+
+  getPushPermissionState(): NotificationPermission {
+    if (!this.isPushSupported()) return 'denied'
+    return Notification.permission
+  },
+
+  async subscribeToPush(): Promise<boolean> {
+    if (!this.isPushSupported()) return false
+    const token = useAuthStore.getState().token
+    if (!token) return false
+
+    try {
+      const permission = await Notification.requestPermission()
+      if (permission !== 'granted') return false
+
+      const registration = await navigator.serviceWorker.ready
+      const existingSubscription = await registration.pushManager.getSubscription()
+
+      if (existingSubscription) {
+        await this.saveSubscription(existingSubscription)
+        return true
+      }
+
+      const subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: this.urlBase64ToUint8Array(this.VAPID_PUBLIC_KEY),
+      })
+
+      await this.saveSubscription(subscription)
+      return true
+    } catch {
+      return false
+    }
+  },
+
+  async unsubscribeFromPush(): Promise<boolean> {
+    try {
+      const registration = await navigator.serviceWorker.ready
+      const subscription = await registration.pushManager.getSubscription()
+      if (!subscription) return true
+
+      await subscription.unsubscribe()
+      await this.removeSubscription(subscription.endpoint)
+      return true
+    } catch {
+      return false
+    }
+  },
+
+  async getExistingSubscription(): Promise<PushSubscription | null> {
+    try {
+      const registration = await navigator.serviceWorker.ready
+      return await registration.pushManager.getSubscription()
+    } catch {
+      return null
+    }
+  },
+
+  async saveSubscription(subscription: PushSubscription): Promise<void> {
+    const token = useAuthStore.getState().token
+    if (!token) return
+
+    const subJson = subscription.toJSON()
+    const p256dh = subJson.keys?.p256dh || ''
+    const auth = subJson.keys?.auth || ''
+    const endpoint = subscription.endpoint
+
+    await supabase.rpc('save_push_subscription', {
+      p_token: token,
+      p_endpoint: endpoint,
+      p_p256dh: p256dh,
+      p_auth: auth,
+      p_user_agent: navigator.userAgent,
+    })
+  },
+
+  async removeSubscription(endpoint: string): Promise<void> {
+    await supabase.rpc('remove_push_subscription', { p_endpoint: endpoint })
+  },
+
+  urlBase64ToUint8Array(base64String: string): Uint8Array {
+    const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
+    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
+    const rawData = window.atob(base64)
+    const outputArray = new Uint8Array(rawData.length)
+    for (let i = 0; i < rawData.length; i++) {
+      outputArray[i] = rawData.charCodeAt(i)
+    }
+    return outputArray
+  },
 }

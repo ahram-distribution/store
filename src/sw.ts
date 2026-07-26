@@ -322,16 +322,17 @@ self.addEventListener('push', (event) => {
   const title = data.title || 'تتبع الموقع'
   const body = data.body || 'يبدو أن التطبيق متوقف، افتح التطبيق لاستئناف المزامنة.'
   const icon = data.icon || '/icons/icon-192x192.png'
+  const tag = data.tag || 'notification'
+  const url = data.url || '/'
 
   event.waitUntil(
     self.registration.showNotification(title, {
       body,
       icon,
       badge: '/icons/icon-192x192.png',
-      tag: 'tracking-reminder',
+      tag,
       renotify: true,
-      requireInteraction: true,
-      data: { url: data.url || '/' },
+      data: { url },
     })
   )
 })
@@ -339,12 +340,18 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
   const urlToOpen = event.notification.data?.url || '/'
+  // Support hash routing: /store/#/orders/xxx
+  const fullUrl = urlToOpen.startsWith('/') ? `/store/#${urlToOpen}` : urlToOpen
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
       for (const client of windowClients) {
-        if (client.url.includes(urlToOpen) && 'focus' in client) return client.focus()
+        if ('focus' in client) {
+          client.focus()
+          client.navigate(fullUrl)
+          return
+        }
       }
-      if (clients.openWindow) return clients.openWindow(urlToOpen)
+      if (clients.openWindow) return clients.openWindow(fullUrl)
     })
   )
 })
