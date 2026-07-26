@@ -1,5 +1,6 @@
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '../../store/auth'
+import { NotificationBell } from '../notifications/NotificationBell'
 
 export function TopBar() {
   const navigate = useNavigate()
@@ -20,7 +21,8 @@ export function TopBar() {
         <div className="flex items-center gap-2 min-w-0">
           <span className="font-semibold text-sm text-text">{displayName}</span>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-1 shrink-0">
+          <NotificationBell />
           {!isStorefront && (
             <button onClick={() => navigate('/storefront')}
               className="text-[10px] px-2.5 py-1 rounded-full transition-colors shrink-0 text-text-secondary border border-border">

@@ -60,6 +60,7 @@ import { SalesManagerCCPage, SalesManagerOperations, SalesManagerField, SalesMan
 import { SalesListPage } from '../pages/sales-list'
 import { SalesAnalyticsPage } from '../pages/sales-analytics'
 
+import { NotificationInbox } from '../components/notifications/NotificationInbox'
 import { GpsTestPage } from '../pages/diagnostics'
 import CoverageMapPage from '../pages/coverage/CoverageMapPage'
 import { DataDeletionCenter } from '../pages/data-center/DataDeletionCenter'
@@ -199,6 +200,8 @@ export function AppRoutes() {
       <Route path="/sales-list" element={<ProtectedRoute employeeOnly><SalesListPage /></ProtectedRoute>} />
       <Route path="/sales-analytics" element={<ProtectedRoute employeeOnly><SalesAnalyticsPage /></ProtectedRoute>} />
 
+
+      <Route path="/notifications" element={<ProtectedRoute><NotificationInbox /></ProtectedRoute>} />
 
       <Route path="/ops/gps-test" element={<ProtectedRoute requireUpperManagement><GpsTestPage /></ProtectedRoute>} />
       <Route path="/coverage-map" element={<ProtectedRoute requireUpperManagement><CoverageMapPage /></ProtectedRoute>} />
