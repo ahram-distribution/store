@@ -24,4 +24,6 @@ export interface CustomerCardData {
   last_visit_date: string | null
   visit_count: number | null
   current_balance: number | null
+  needs_address_correction: boolean
+  manual_governorate_id: string | null
 }

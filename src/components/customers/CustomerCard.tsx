@@ -25,11 +25,18 @@ export function CustomerCard({ customer }: CustomerCardProps) {
       {/* 1. Customer Name */}
       <h3 className="text-sm font-bold text-text leading-tight line-clamp-1">{customer.company_name}</h3>
 
-      {/* 2. Badge */}
+      {/* 2. Badges */}
+      {customer.needs_address_correction && (
+        <div className="mt-1">
+          <span className="inline-block text-[10px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium border border-amber-200 leading-none">
+            تصحيح عنوان
+          </span>
+        </div>
+      )}
       {hasNoOrders && (
         <div className="mt-1">
           <span className="inline-block text-[10px] bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full font-medium border border-orange-200 leading-none">
-            🟧 عميل بدون طلبات
+            عميل بدون طلبات
           </span>
         </div>
       )}

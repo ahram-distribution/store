@@ -198,8 +198,8 @@ export function CustomerForm({
                 className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/50 transition-colors" />
             </div>
             <div>
-              <label className="text-[11px] font-semibold text-white/50 mb-1.5 block">الشارع *</label>
-              <input type="text" placeholder="الشارع والمنطقة" value={form.streetAddress}
+              <label className="text-[11px] font-semibold text-white/50 mb-1.5 block">اسم الشارع *</label>
+              <input type="text" placeholder="اسم الشارع والمنطقة" value={form.streetAddress}
                 onChange={e => set('streetAddress', e.target.value)}
                 className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/50 transition-colors" />
             </div>
@@ -301,8 +301,8 @@ export function CustomerForm({
               className={inputClass} />
           </div>
           <div>
-            <label className={labelClass}>الشارع *</label>
-            <input type="text" placeholder="الشارع والمنطقة" value={form.streetAddress}
+            <label className={labelClass}>اسم الشارع *</label>
+            <input type="text" placeholder="اسم الشارع والمنطقة" value={form.streetAddress}
               onChange={e => set('streetAddress', e.target.value)}
               className={inputClass} />
           </div>

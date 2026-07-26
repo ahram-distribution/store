@@ -36,8 +36,11 @@ export function CustomerAddressCard({ type, manualData, gpsData, onUpdateLocatio
 
   const manualFullAddress = useMemo(() => {
     if (!manualData) return ''
-    return [manualData.governorate, manualData.city, manualData.address_line1, manualData.address_line2]
-      .filter(Boolean).join(' - ')
+    return [
+      manualData.governorate,
+      manualData.city,
+      manualData.address_line1 || manualData.address_line2,
+    ].filter(Boolean).join(' - ')
   }, [manualData])
 
   const hasCoords = gpsData?.latitude != null && gpsData?.longitude != null
@@ -90,7 +93,7 @@ export function CustomerAddressCard({ type, manualData, gpsData, onUpdateLocatio
           )}
           {manualData.address_line1 && (
             <div>
-              <div className="text-[10px] text-text-secondary">الشارع</div>
+              <div className="text-[10px] text-text-secondary">اسم الشارع</div>
               <div className="text-sm font-semibold text-text">{manualData.address_line1}</div>
             </div>
           )}

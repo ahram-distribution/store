@@ -35,13 +35,15 @@ export function VisitsPage() {
   const [visits, setVisits] = useState<any[]>([])
   const [customers, setCustomers] = useState<any[]>([])
   const [employees, setEmployees] = useState<any[]>([])
+  const [governorates, setGovernorates] = useState<{ id: string; name_ar: string }[]>([])
   const [loading, setLoading] = useState(true)
   const [viewState, setViewState, resetViewState] = usePersistentViewState('visits-list', {
     statusFilter: filter === 'active' ? 'active' : '',
     customerFilter: '',
+    governorateFilter: '',
     filters: { datePreset: filter === 'today' ? 'today' : 'all', dateFrom: '', dateTo: '', search: '', employeeId: '' } as FilterValues,
   })
-  const { statusFilter, customerFilter, filters } = viewState
+  const { statusFilter, customerFilter, governorateFilter, filters } = viewState
   const [sfResetKey, setSfResetKey] = useState(0)
 
   const [showCheckin, setShowCheckin] = useState(false)
@@ -77,9 +79,11 @@ export function VisitsPage() {
     Promise.all([
       supabase.rpc('get_governed_customers', { p_token: token }),
       supabase.rpc('get_governed_employees', { p_token: token }),
-    ]).then(([custRes, empRes]) => {
+      supabase.from('reference_governorates').select('id, name_ar').order('name_ar', { ascending: true }),
+    ]).then(([custRes, empRes, govRes]) => {
       if (custRes.data) setCustomers(Array.isArray(custRes.data) ? custRes.data : [])
       if (empRes.data) setEmployees(Array.isArray(empRes.data) ? empRes.data : [])
+      if (govRes.data) setGovernorates(govRes.data || [])
     })
   }, [])
 
@@ -95,12 +99,19 @@ export function VisitsPage() {
     return m
   }, [employees])
 
+  const customerGovMap = useMemo(() => {
+    const m = new Map<string, string | null>()
+    for (const c of customers) m.set(c.id, c.manual_governorate_id || null)
+    return m
+  }, [customers])
+
   const filtered = useMemo(() => {
     let list = visits
     if (statusFilter) list = list.filter((v: any) => v.status === statusFilter)
     if (customerFilter) list = list.filter((v: any) => v.customer_id === customerFilter)
+    if (governorateFilter) list = list.filter((v: any) => customerGovMap.get(v.customer_id) === governorateFilter)
     return list
-  }, [visits, statusFilter, customerFilter])
+  }, [visits, statusFilter, customerFilter, governorateFilter, customerGovMap])
 
   async function handleCheckin() {
     if (!checkinCustomerId) { toast.error('اختر العميل'); return }
@@ -196,6 +207,11 @@ export function VisitsPage() {
           className="flex-1 border border-border rounded-lg px-2 py-1.5 text-xs bg-white">
           <option value="">كل العملاء</option>
           {customers.map((c: any) => <option key={c.id} value={c.id}>{c.company_name}</option>)}
+        </select>
+        <select value={governorateFilter} onChange={(e) => setViewState({ governorateFilter: e.target.value })}
+          className="flex-1 border border-border rounded-lg px-2 py-1.5 text-xs bg-white">
+          <option value="">كل المحافظات</option>
+          {governorates.map((g) => <option key={g.id} value={g.id}>{g.name_ar}</option>)}
         </select>
       </div>
 

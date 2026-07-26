@@ -19,13 +19,15 @@ export function CustomersPage() {
   const currentEmpId = useAuthStore((s) => s.user?.employee_id)
   const [customers, setCustomers] = useState<CustomerCardData[]>([])
   const [employees, setEmployees] = useState<{ id: string; name: string }[]>([])
+  const [governorates, setGovernorates] = useState<{ id: string; name_ar: string }[]>([])
   const [loading, setLoading] = useState(true)
   const [viewState, setViewState, resetViewState] = usePersistentViewState('customers-list', {
     myOnly: false,
     filters: { datePreset: 'all', dateFrom: '', dateTo: '', search: '', employeeId: '' } as FilterValues,
-    quickFilters: { noOrders: false, noVisits: false, noLocation: false },
+    quickFilters: { noOrders: false, noVisits: false, noLocation: false, needsCorrection: false },
+    governorateId: '',
   })
-  const { myOnly, filters, quickFilters } = viewState
+  const { myOnly, filters, quickFilters, governorateId } = viewState
   const [sfResetKey, setSfResetKey] = useState(0)
 
   const resolveDateRange = (f: FilterValues): { from: string | null; to: string | null } => {
@@ -85,6 +87,8 @@ export function CustomersPage() {
       p_no_orders: quickFilters.noOrders || null,
       p_no_visits: quickFilters.noVisits || null,
       p_no_location: quickFilters.noLocation || null,
+      p_governorate_id: governorateId || null,
+      p_needs_address_correction: quickFilters.needsCorrection ? true : null,
     }
     if (myOnly && currentEmpId) {
       params.p_employee_id = currentEmpId
@@ -104,13 +108,20 @@ export function CustomersPage() {
     setLoading(false)
   }
 
-  useEffect(() => { fetchData() }, [filters, myOnly, quickFilters])
+  useEffect(() => { fetchData() }, [filters, myOnly, quickFilters, governorateId])
+
+  useEffect(() => {
+    const token = getToken()
+    if (!token) return
+    supabase.from('reference_governorates').select('id, name_ar').order('name_ar', { ascending: true })
+      .then(({ data }) => { if (data) setGovernorates(data) })
+  }, [])
 
   const toggleQuickFilter = (key: keyof typeof quickFilters) => {
     setViewState((prev: typeof viewState) => ({ quickFilters: { ...prev.quickFilters, [key]: !prev.quickFilters[key] } }))
   }
 
-  const hasActiveQuickFilter = quickFilters.noOrders || quickFilters.noVisits || quickFilters.noLocation
+  const hasActiveQuickFilter = quickFilters.noOrders || quickFilters.noVisits || quickFilters.noLocation || quickFilters.needsCorrection
 
   return (
     <div className="space-y-4">
@@ -139,6 +150,16 @@ export function CustomersPage() {
         onFilterChange={(f) => setViewState({ filters: f })}
       />
 
+      {/* Governorate filter */}
+      <select
+        value={governorateId}
+        onChange={(e) => setViewState({ governorateId: e.target.value })}
+        className="w-full border border-border rounded-lg px-2 py-1.5 text-xs bg-white"
+      >
+        <option value="">كل المحافظات</option>
+        {governorates.map((g) => <option key={g.id} value={g.id}>{g.name_ar}</option>)}
+      </select>
+
       {/* Stats bar */}
       {!loading && customers.length > 0 && (
         <div className="flex items-center flex-wrap gap-x-3 gap-y-1 text-[11px] bg-white rounded-lg border border-border p-2.5">
@@ -155,11 +176,24 @@ export function CustomersPage() {
           <span className="text-border">|</span>
           <span className="text-text font-semibold" dir="ltr">{customers.filter(c => !c.visit_count || c.visit_count === 0).length}</span>
           <span className="text-text-muted whitespace-nowrap">🚗 بدون زيارات</span>
+          <span className="text-border">|</span>
+          <span className="text-text font-semibold" dir="ltr">{customers.filter(c => c.needs_address_correction).length}</span>
+          <span className="text-text-muted whitespace-nowrap">⚠️ يحتاج تصحيح عنوان</span>
         </div>
       )}
 
       {/* Quick filters */}
       <div className="flex gap-2 flex-wrap">
+        <button
+          onClick={() => toggleQuickFilter('needsCorrection')}
+          className={`text-[10px] px-2.5 py-1 rounded-lg font-semibold transition-colors border ${
+            quickFilters.needsCorrection
+              ? 'bg-amber-100 text-amber-700 border-amber-200'
+              : 'bg-white text-text-secondary border-border'
+          }`}
+        >
+          {quickFilters.needsCorrection ? '✓' : '□'} تصحيح عنوان
+        </button>
         <button
           onClick={() => toggleQuickFilter('noOrders')}
           className={`text-[10px] px-2.5 py-1 rounded-lg font-semibold transition-colors border ${
@@ -192,7 +226,7 @@ export function CustomersPage() {
         </button>
         {hasActiveQuickFilter && (
           <button
-            onClick={() => setViewState({ quickFilters: { noOrders: false, noVisits: false, noLocation: false } })}
+            onClick={() => setViewState({ quickFilters: { noOrders: false, noVisits: false, noLocation: false, needsCorrection: false }, governorateId: '' })}
             className="text-[10px] px-2.5 py-1 rounded-lg font-semibold bg-red-50 text-red-600 border border-red-100 hover:bg-red-100 transition-colors"
           >
             إلغاء الكل

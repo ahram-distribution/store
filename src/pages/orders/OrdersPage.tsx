@@ -75,6 +75,7 @@ export function OrdersPage() {
   const [orders, setOrders] = useState<any[]>([])
   const [customers, setCustomers] = useState<any[]>([])
   const [employees, setEmployees] = useState<any[]>([])
+  const [governorates, setGovernorates] = useState<{ id: string; name_ar: string }[]>([])
   const [loading, setLoading] = useState(true)
   const [initialLoaded, setInitialLoaded] = useState(false)
   const params = new URLSearchParams(window.location.search)
@@ -83,9 +84,10 @@ export function OrdersPage() {
     statusFilter: '',
     customerFilter: '',
     orderTypeFilter: '',
+    governorateFilter: '',
     filters: { datePreset: 'all', dateFrom: '', dateTo: '', search: '', employeeId: '' } as FilterValues,
   })
-  const { tab, statusFilter, customerFilter, orderTypeFilter, filters } = viewState
+  const { tab, statusFilter, customerFilter, orderTypeFilter, governorateFilter, filters } = viewState
   const [sfResetKey, setSfResetKey] = useState(0)
 
   const smartFilterEmployees = useMemo(
@@ -112,14 +114,15 @@ export function OrdersPage() {
     if (statusFilter) rpcParams.p_status = statusFilter
     if (customerFilter) rpcParams.p_customer_id = customerFilter
     if (tab === 'my_orders' && currentUserId) rpcParams.p_created_by = currentUserId
+    if (governorateFilter) rpcParams.p_governorate_id = governorateFilter
 
     const { data } = await supabase.rpc('get_unified_orders', rpcParams)
     if (data) setOrders(Array.isArray(data) ? data : [])
     setLoading(false)
     setInitialLoaded(true)
-  }, [filters, statusFilter, customerFilter, tab, currentUserId])
+  }, [filters, statusFilter, customerFilter, tab, currentUserId, governorateFilter])
 
-  useEffect(() => { fetchOrders() }, [filters, statusFilter, customerFilter, tab])
+  useEffect(() => { fetchOrders() }, [filters, statusFilter, customerFilter, tab, governorateFilter])
 
   useEffect(() => {
     const token = getToken()
@@ -127,9 +130,11 @@ export function OrdersPage() {
     Promise.all([
       supabase.rpc('get_governed_customers', { p_token: token }),
       supabase.rpc('get_governed_employees', { p_token: token }),
-    ]).then(([custRes, empRes]) => {
+      supabase.from('reference_governorates').select('id, name_ar').order('name_ar', { ascending: true }),
+    ]).then(([custRes, empRes, govRes]) => {
       if (custRes.data) setCustomers(Array.isArray(custRes.data) ? custRes.data : [])
       if (empRes.data) setEmployees(Array.isArray(empRes.data) ? empRes.data : [])
+      if (govRes.data) setGovernorates(govRes.data || [])
     })
   }, [])
 
@@ -194,8 +199,13 @@ export function OrdersPage() {
       if (cust) items.push({ id: 'customer', label: 'العميل', value: cust.company_name })
     }
 
+    if (governorateFilter) {
+      const gov = governorates.find((g) => g.id === governorateFilter)
+      if (gov) items.push({ id: 'governorate', label: 'المحافظة', value: gov.name_ar, onRemove: () => setViewState({ governorateFilter: '' }) })
+    }
+
     return items
-  }, [tab, filters, statusFilter, customerFilter, employees, customers])
+  }, [tab, filters, statusFilter, customerFilter, employees, customers, governorateFilter, governorates])
 
   const statusCounts = useMemo(() => {
     const counts: Record<string, number> = {}
@@ -231,7 +241,7 @@ export function OrdersPage() {
     ? (filters.dateFrom || '...') + ' → ' + (filters.dateTo || '...')
     : (filters.datePreset !== 'all' ? datePresetLabels[filters.datePreset] : undefined)
 
-  const hasActiveFilters = tab !== 'all' || !!statusFilter || !!orderTypeFilter || !!customerFilter || !!filters.search || filters.datePreset !== 'all' || !!filters.employeeId
+  const hasActiveFilters = tab !== 'all' || !!statusFilter || !!orderTypeFilter || !!customerFilter || !!governorateFilter || !!filters.search || filters.datePreset !== 'all' || !!filters.employeeId
 
   const handleResetAll = useCallback(() => {
     resetViewState()
@@ -271,6 +281,11 @@ export function OrdersPage() {
         <select value={orderTypeFilter} onChange={(e) => setViewState({ orderTypeFilter: e.target.value })}
           className="w-[120px] border border-border rounded-lg px-2 py-1.5 text-xs bg-white">
           {ORDER_TYPE_OPTIONS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+        </select>
+        <select value={governorateFilter} onChange={(e) => setViewState({ governorateFilter: e.target.value })}
+          className="flex-1 border border-border rounded-lg px-2 py-1.5 text-xs bg-white">
+          <option value="">كل المحافظات</option>
+          {governorates.map((g) => <option key={g.id} value={g.id}>{g.name_ar}</option>)}
         </select>
       </div>
 

@@ -47,7 +47,7 @@ export function getCurrentOwner(data: UnifiedOrder): string {
 
 export function getFullAddress(customer: UnifiedCustomerSummary | null, order?: { snapshot_customer_address?: string | null }): string {
   if (!customer && !order?.snapshot_customer_address) return ''
-  const parts = [customer?.governorate, customer?.city, customer?.address_line1, customer?.address_line2].filter(Boolean)
+  const parts = [customer?.governorate, customer?.city, customer?.address_line1].filter(Boolean)
   if (parts.length > 0) return parts.join(' - ')
   return order?.snapshot_customer_address || ''
 }
