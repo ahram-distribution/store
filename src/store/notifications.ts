@@ -7,12 +7,15 @@ interface NotificationState {
   loading: boolean
   hasMore: boolean
   total: number
+  toastNotification: Notification | null
   fetchInitial: () => Promise<void>
   fetchMore: () => Promise<void>
   refresh: () => Promise<void>
   markRead: (id: string) => Promise<void>
   markAllRead: () => Promise<void>
   prependNotification: (n: Notification) => void
+  showToast: (n: Notification) => void
+  dismissToast: () => void
   reset: () => void
 }
 
@@ -22,6 +25,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
   loading: false,
   hasMore: true,
   total: 0,
+  toastNotification: null,
 
   fetchInitial: async () => {
     set({ loading: true })
@@ -109,7 +113,15 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
     })
   },
 
+  showToast: (n: Notification) => {
+    set({ toastNotification: n })
+  },
+
+  dismissToast: () => {
+    set({ toastNotification: null })
+  },
+
   reset: () => {
-    set({ notifications: [], unreadCount: 0, loading: false, hasMore: true, total: 0 })
+    set({ notifications: [], unreadCount: 0, loading: false, hasMore: true, total: 0, toastNotification: null })
   },
 }))

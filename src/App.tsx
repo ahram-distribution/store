@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { BrowserRouter, HashRouter } from 'react-router-dom'
-import { Toaster, toast } from 'react-hot-toast'
+import { Toaster } from 'react-hot-toast'
 import { AppRoutes } from './routes'
 import { AppLayout } from './layouts/AppLayout'
 import { useAuthStore } from './store/auth'
@@ -8,6 +8,7 @@ import { useNotificationStore } from './store/notifications'
 import { useEntityViewsStore } from './store/entityViews'
 import { notificationInboxService } from './services/notifications'
 import { SplashScreen } from './components/splash/SplashScreen'
+import { NotificationToast } from './components/notifications/NotificationToast'
 
 import { OfflinePage } from './components/splash/OfflinePage'
 import { ThemeProvider } from './context/ThemeContext'
@@ -48,7 +49,7 @@ export function App() {
         if (tok) useEntityViewsStore.getState().fetchUnseenCounts(tok)
         const unsub = notificationInboxService.subscribeToNotifications((n) => {
           useNotificationStore.getState().prependNotification(n)
-          toast(n.title + ': ' + n.message, { duration: 4000 })
+          useNotificationStore.getState().showToast(n)
         })
         return () => {
           notificationService.removeAllListeners()
@@ -110,6 +111,7 @@ export function App() {
         </ThemeProvider>
       )}
       <OfflinePage />
+      <NotificationToast />
       <Toaster
         position="top-center"
         toastOptions={{
