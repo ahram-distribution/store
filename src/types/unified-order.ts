@@ -140,6 +140,7 @@ export interface UnifiedStatusHistoryEntry {
   changed_by: string | null
   changed_at: string
   changed_by_name: string | null
+  reason: string | null
 }
 
 export interface UnifiedDeliveryTracking {
@@ -222,8 +223,8 @@ export interface UnifiedModificationEntry {
   old_daily_deals: any | null
   new_daily_deals: any | null
   old_flash_offers: any | null
-  new_flash_offers: any | null
   modified_by: string | null
+  modified_by_name: string | null
   reason: string | null
   modified_at: string
 }

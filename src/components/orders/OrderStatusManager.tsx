@@ -116,6 +116,7 @@ export function OrderStatusManager({ orderId, currentStatus, canReview, canCompl
       const { data, error } = await supabase.rpc('governed_approve_order', {
         p_token: token,
         p_id: orderId,
+        p_reason: reasonText,
       })
       if (error) {
         onError?.(error.message)

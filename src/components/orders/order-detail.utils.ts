@@ -1,5 +1,13 @@
 import { ORDER_STATUS_LABELS } from '../../types/order-display'
-import type { UnifiedOrder, UnifiedCustomerSummary } from '../../types/unified-order'
+import type { UnifiedOrder, UnifiedCustomerSummary, UnifiedModificationEntry } from '../../types/unified-order'
+
+export interface ItemChange {
+  product_id: string
+  product_name: string
+  action: 'added' | 'removed' | 'quantity_changed'
+  old_qty?: number
+  new_qty?: number
+}
 
 export interface TimelineEvent {
   id: string
@@ -7,6 +15,10 @@ export interface TimelineEvent {
   timestamp: string
   color: 'green' | 'blue' | 'yellow' | 'orange' | 'red'
   actor?: string
+  reason?: string | null
+  fromStatus?: string | null
+  toStatus?: string | null
+  itemChanges?: ItemChange[]
 }
 
 export function timeAgo(dateStr: string): string {
@@ -52,6 +64,48 @@ export function getFullAddress(customer: UnifiedCustomerSummary | null, order?: 
   return order?.snapshot_customer_address || ''
 }
 
+function computeItemChanges(m: UnifiedModificationEntry): ItemChange[] {
+  const changes: ItemChange[] = []
+  const oldItems: Record<string, any> = {}
+  const newItems: Record<string, any> = {}
+  if (Array.isArray(m.old_order_items)) for (const item of m.old_order_items) oldItems[item.product_id] = item
+  if (Array.isArray(m.new_order_items)) for (const item of m.new_order_items) newItems[item.product_id] = item
+  const allIds = new Set([...Object.keys(oldItems), ...Object.keys(newItems)])
+  for (const pid of allIds) {
+    const oldItem = oldItems[pid]
+    const newItem = newItems[pid]
+    if (oldItem && !newItem) {
+      changes.push({ product_id: pid, product_name: '', action: 'removed', old_qty: Number(oldItem.unit_quantity || 0) })
+    } else if (!oldItem && newItem) {
+      changes.push({ product_id: pid, product_name: '', action: 'added', new_qty: Number(newItem.unit_quantity || 0) })
+    } else if (oldItem && newItem && Number(oldItem.unit_quantity || 0) !== Number(newItem.unit_quantity || 0)) {
+      changes.push({
+        product_id: pid, product_name: '', action: 'quantity_changed',
+        old_qty: Number(oldItem.unit_quantity || 0), new_qty: Number(newItem.unit_quantity || 0),
+      })
+    }
+  }
+  return changes
+}
+
+function getEditLabel(field_name: string, changes: ItemChange[]): string {
+  if (field_name === 'REVISION_SNAPSHOT') return 'إعادة الطلب للتعديل'
+  if (field_name === 'supreme_edit') return 'تم تحرير الطلب'
+  if (field_name === 'content_replacement') return 'تم تحرير الطلب'
+  return 'تم تعديل الطلب'
+}
+
+function getItemsSummary(changes: ItemChange[]): string {
+  const added = changes.filter(c => c.action === 'added').length
+  const removed = changes.filter(c => c.action === 'removed').length
+  const changed = changes.filter(c => c.action === 'quantity_changed').length
+  const parts: string[] = []
+  if (added > 0) parts.push(`إضافة ${added} صنف`)
+  if (removed > 0) parts.push(`حذف ${removed} صنف`)
+  if (changed > 0) parts.push(`تعديل ${changed} صنف`)
+  return parts.join('، ')
+}
+
 export function buildTimelineEvents(data: UnifiedOrder): TimelineEvent[] {
   const events: TimelineEvent[] = []
 
@@ -72,6 +126,9 @@ export function buildTimelineEvents(data: UnifiedOrder): TimelineEvent[] {
       timestamp: h.changed_at,
       color: h.to_status === 'cancelled' ? 'red' : h.to_status === 'delivered' ? 'green' : 'blue',
       actor: h.changed_by_name || undefined,
+      reason: h.reason,
+      fromStatus: h.from_status,
+      toStatus: h.to_status,
     })
   }
 
@@ -144,19 +201,21 @@ export function buildTimelineEvents(data: UnifiedOrder): TimelineEvent[] {
   }
 
   for (const m of data.modification_history || []) {
-    if (m.field_name === 'REVISION_SNAPSHOT') {
-      events.push({
-        id: `mod-snap-${m.id}`,
-        label: `إعادة الطلب للتعديل (المرة #${m.revision_number})`,
-        timestamp: m.modified_at,
-        color: 'orange',
-        actor: m.reason || undefined,
-      })
-    }
+    const changes = computeItemChanges(m)
+    const itemChanges: ItemChange[] = changes.length > 0 ? changes : undefined
+    const summary = changes.length > 0 ? ` (${getItemsSummary(changes)})` : ''
+    events.push({
+      id: `mod-${m.id}`,
+      label: `${getEditLabel(m.field_name, changes)}${summary}`,
+      timestamp: m.modified_at,
+      color: 'orange',
+      actor: m.modified_by_name || undefined,
+      reason: m.reason,
+      itemChanges,
+    })
   }
 
   events.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-  console.log('[DEBUG] buildTimelineEvents:', JSON.stringify(events.map(e => ({ id: e.id, label: e.label, actor: e.actor })), null, 2))
   return events
 }
 

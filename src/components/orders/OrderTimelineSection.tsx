@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { formatDateTime } from '../../utils/format'
-import type { TimelineEvent } from './order-detail.utils'
+import { ORDER_STATUS_LABELS } from '../../types/order-display'
+import type { TimelineEvent, ItemChange } from './order-detail.utils'
 
 interface OrderTimelineSectionProps {
   timelineEvents: TimelineEvent[]
@@ -20,6 +21,19 @@ const COLOR_CLASSES: Record<string, string> = {
   yellow: 'bg-[#FFFBEB] text-[#D97706]',
   orange: 'bg-[#FFF7ED] text-[#EA580C]',
   red: 'bg-[#FEF2F2] text-[#DC2626]',
+}
+
+function ItemChangeRow({ change }: { change: ItemChange }) {
+  if (change.action === 'added') {
+    return <div className="text-[12px] text-green-700">تمت إضافة صنف — الكمية: {change.new_qty}</div>
+  }
+  if (change.action === 'removed') {
+    return <div className="text-[12px] text-red-600">تم حذف صنف — الكمية السابقة: {change.old_qty}</div>
+  }
+  if (change.action === 'quantity_changed') {
+    return <div className="text-[12px] text-[#D97706]">الكمية: {change.old_qty} → {change.new_qty}</div>
+  }
+  return null
 }
 
 export function OrderTimelineSection({ timelineEvents }: OrderTimelineSectionProps) {
@@ -48,12 +62,18 @@ export function OrderTimelineSection({ timelineEvents }: OrderTimelineSectionPro
               <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full shrink-0 mt-0.5 text-[11px] ${COLOR_CLASSES[ev.color]}`}>
                 {COLOR_ICONS[ev.color]}
               </span>
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <p className="text-[#111827] font-semibold leading-tight">{ev.label}</p>
                 <div className="flex items-center gap-2 mt-0.5">
                   <span className="text-[#6B7280] text-[12px]">{formatDateTime(ev.timestamp)}</span>
                   {ev.actor && <span className="text-[#6B7280] text-[11px]">— {ev.actor}</span>}
                 </div>
+                {(ev.reason || ev.itemChanges) && (
+                  <div className="mt-1.5 space-y-0.5">
+                    {ev.reason && <div className="text-[12px] text-[#6B7280]">الملاحظة: {ev.reason}</div>}
+                    {ev.itemChanges?.map((ch, i) => <ItemChangeRow key={i} change={ch} />)}
+                  </div>
+                )}
               </div>
             </div>
           ))}
