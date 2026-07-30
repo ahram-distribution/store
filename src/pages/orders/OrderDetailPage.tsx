@@ -130,10 +130,11 @@ export function OrderDetailPage() {
     if (!data?.order || !id || !canManage) return
     const status = data.order.status
     const skipStatuses = new Set(['draft', 'cancelled', 'returned_for_revision'])
-    if (skipStatuses.has(status)) { setInventorySnapshot(null); return }
+    if (skipStatuses.has(status)) { setInventorySnapshot(null); setShortageItems(null); return }
     const token = getToken()
     if (!token) return
     setInventorySnapshot(null)
+    setShortageItems(null)
     supabase.rpc('governed_get_order_inventory_snapshot', {
       p_token: token,
       p_order_id: id,
