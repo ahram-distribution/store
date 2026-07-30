@@ -17,7 +17,7 @@ import { renderDeliveryPermitHtml, printInvoice, downloadInvoicePdf } from './or
 import { buildTimelineEvents } from './order-detail.utils'
 import { copyToClipboard } from '../../utils/safeClipboard'
 import { OrderOwnershipInfo } from './OrderOwnershipInfo'
-import type { UnifiedOrder, UnifiedOrderItem } from '../../types/unified-order'
+import type { UnifiedOrder, UnifiedOrderItem, InventorySnapshotItem } from '../../types/unified-order'
 
 interface OrderDetailViewProps {
   data: UnifiedOrder
@@ -30,9 +30,11 @@ interface OrderDetailViewProps {
   onPriceChange?: (productId: string, unitType: string, newPrice: number) => void
   onAddProduct?: (companyName: string) => void
   editActions?: React.ReactNode
+  shortageProductIds?: Set<string> | null
+  inventorySnapshot?: InventorySnapshotItem[] | null
 }
 
-export function OrderDetailView({ data, actions, onBack, editMode, editItems, onQuantityChange, onRemoveItem, onPriceChange, onAddProduct, editActions }: OrderDetailViewProps) {
+export function OrderDetailView({ data, actions, onBack, editMode, editItems, onQuantityChange, onRemoveItem, onPriceChange, onAddProduct, editActions, shortageProductIds, inventorySnapshot }: OrderDetailViewProps) {
   const navigate = useNavigate()
   const { order, customer, items, collections, current_delivery, modification_history } = data
   const [overLimit, setOverLimit] = useState<boolean | null>(null)
@@ -204,7 +206,20 @@ export function OrderDetailView({ data, actions, onBack, editMode, editItems, on
         </span>
       </div>
 
-      {/* ── 5. PRODUCTS TABLE (unchanged) ── */}
+      {/* ── SHORTAGE SUMMARY (management early warning) ── */}
+      {inventorySnapshot && (
+        (() => {
+          const insufficient = inventorySnapshot.filter(s => !s.is_sufficient)
+          if (insufficient.length === 0) return null
+          return (
+            <div className="bg-white rounded-lg border border-danger/40 shadow-sm p-4">
+              <p className="text-[13px] font-bold text-danger">⚠️ يوجد {insufficient.length} صنف كميته المطلوبة أكبر من المخزون الحالي</p>
+            </div>
+          )
+        })()
+      )}
+
+      {/* ── 5. PRODUCTS TABLE ── */}
       <OrderProductsSection
         items={editMode && editItems ? editItems : items}
         order={order}
@@ -213,6 +228,8 @@ export function OrderDetailView({ data, actions, onBack, editMode, editItems, on
         onRemoveItem={onRemoveItem}
         onPriceChange={onPriceChange}
         onAddProduct={onAddProduct}
+        shortageProductIds={shortageProductIds || undefined}
+        inventorySnapshot={inventorySnapshot || undefined}
       />
       {editMode && editActions && (
         <div className="sticky bottom-0 z-10 bg-white border-t border-[#E5E7EB] shadow-[0_-4px_12px_rgba(0,0,0,0.08)] px-4 py-3 -mx-4 lg:-mx-6">

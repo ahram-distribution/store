@@ -228,6 +228,13 @@ export interface UnifiedModificationEntry {
   modified_at: string
 }
 
+export interface InventorySnapshotItem {
+  product_id: string
+  requested_quantity: number
+  available_quantity: number
+  is_sufficient: boolean
+}
+
 export interface UnifiedOrderListItem {
   id: string
   order_number: string

@@ -12,6 +12,12 @@ type OrderStatus = typeof ALL_STATUSES[number]
 
 const WORKFLOW_ORDER = ['draft','submitted','reviewing','returned_for_revision','approved','preparing','prepared','ready_for_dispatch','sent_to_delivery','dispatched','deferred','cancelled','delivered','stock_review']
 
+interface ShortageEntry {
+  product_id: string
+  requested_quantity: number
+  available_quantity: number
+}
+
 interface OrderStatusManagerProps {
   orderId: string
   currentStatus: string
@@ -21,6 +27,7 @@ interface OrderStatusManagerProps {
   canManage: boolean
   onSuccess?: (newStatus: string) => void
   onError?: (error: string) => void
+  onShortage?: (shortages: ShortageEntry[], details?: string) => void
 }
 
 function isForward(from: string, to: string): boolean {
@@ -43,7 +50,7 @@ function isExceptional(from: string, to: string): boolean {
   return false
 }
 
-export function OrderStatusManager({ orderId, currentStatus, canReview, canCompletePreparation, canSendToDelivery, canManage, onSuccess, onError }: OrderStatusManagerProps) {
+export function OrderStatusManager({ orderId, currentStatus, canReview, canCompletePreparation, canSendToDelivery, canManage, onSuccess, onError, onShortage }: OrderStatusManagerProps) {
   const [loading, setLoading] = useState<string | null>(null)
   const [showReasonModal, setShowReasonModal] = useState<string | null>(null)
   const [reason, setReason] = useState('')
@@ -116,7 +123,11 @@ export function OrderStatusManager({ orderId, currentStatus, canReview, canCompl
         return
       }
       if (data && typeof data === 'object' && 'error' in data && data.error) {
-        onError?.(String(data.error))
+        if ('shortages' in data && Array.isArray(data.shortages) && data.shortages.length > 0) {
+          onShortage?.(data.shortages as ShortageEntry[], String(data.details || data.error))
+        } else {
+          onError?.(String(data.error))
+        }
         setLoading(null)
         return
       }
@@ -125,7 +136,7 @@ export function OrderStatusManager({ orderId, currentStatus, canReview, canCompl
       return
     }
 
-    const { error } = await supabase.rpc('governed_change_order_status', {
+    const { data, error } = await supabase.rpc('governed_change_order_status', {
       p_token: token,
       p_order_id: orderId,
       p_new_status: target,
@@ -134,6 +145,15 @@ export function OrderStatusManager({ orderId, currentStatus, canReview, canCompl
     })
     if (error) {
       onError?.(error.message)
+      setLoading(null)
+      return
+    }
+    if (data && typeof data === 'object' && 'error' in data && data.error) {
+      if ('shortages' in data && Array.isArray(data.shortages) && data.shortages.length > 0) {
+        onShortage?.(data.shortages as ShortageEntry[], String(data.details || data.error))
+      } else {
+        onError?.(String(data.error))
+      }
       setLoading(null)
       return
     }

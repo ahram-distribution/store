@@ -14,7 +14,7 @@ import { buildSearchIndex, searchProducts } from '../../utils/smartSearch'
 import { SearchHighlight } from '../../components/shared/SearchHighlight'
 import { SearchableSelect } from '../../components/shared/SearchableSelect'
 import toast from 'react-hot-toast'
-import type { UnifiedOrder, UnifiedOrderItem } from '../../types/unified-order'
+import type { UnifiedOrder, UnifiedOrderItem, InventorySnapshotItem } from '../../types/unified-order'
 import type { ProductWithPrice, ProductUnitPrice, UnitType } from '../../types/storefront'
 
 function getToken(): string | null {
@@ -94,6 +94,8 @@ export function OrderDetailPage() {
   const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [transferMode, setTransferMode] = useState(false)
+  const [shortageItems, setShortageItems] = useState<Set<string> | null>(null)
+  const [inventorySnapshot, setInventorySnapshot] = useState<InventorySnapshotItem[] | null>(null)
   const [transferTarget, setTransferTarget] = useState<string | null>(null)
   const [transferReason, setTransferReason] = useState('')
   const [transferEmployees, setTransferEmployees] = useState<any[]>([])
@@ -122,6 +124,56 @@ export function OrderDetailPage() {
     if (!token) return
     useEntityViewsStore.getState().markOrderViewed(token, id)
   }, [id])
+
+  // Load inventory snapshot for management users from Submitted onward
+  useEffect(() => {
+    if (!data?.order || !id || !canManage) return
+    const status = data.order.status
+    const skipStatuses = new Set(['draft', 'cancelled', 'returned_for_revision'])
+    if (skipStatuses.has(status)) { setInventorySnapshot(null); return }
+    const token = getToken()
+    if (!token) return
+    setInventorySnapshot(null)
+    supabase.rpc('governed_get_order_inventory_snapshot', {
+      p_token: token,
+      p_order_id: id,
+    }).then(({ data: result }) => {
+      if (result?.snapshot && Array.isArray(result.snapshot)) {
+        const items = result.snapshot as InventorySnapshotItem[]
+        setInventorySnapshot(items)
+        const insufficient = items.filter(i => !i.is_sufficient).map(i => i.product_id)
+        if (insufficient.length > 0) {
+          setShortageItems(new Set(insufficient))
+        } else {
+          setShortageItems(null)
+        }
+      }
+    })
+  }, [data?.order?.status, data?.order?.id, id, canManage])
+
+  useEffect(() => {
+    if (!data?.order || !id) return
+    const s = data.order.status
+    const isEditMode = s === 'returned_for_revision' || s === 'stock_review' || (s === 'draft' && (data.order.revision_number || 0) >= 1)
+    if (!isEditMode) return
+    const token = getToken()
+    if (!token) return
+    const items = data.items || []
+    Promise.all(items.map(item =>
+      supabase.rpc('governed_check_product_availability', {
+        p_product_id: item.product_id,
+        p_requested_quantity: item.unit_quantity,
+      }).then(({ data: avail }) => ({
+        productId: item.product_id,
+        available: avail?.available === true || avail?.error === 'NEGATIVE_SELLING_ALLOWED',
+      }))
+    )).then(results => {
+      const shortageIds = results.filter(r => !r.available).map(r => r.productId)
+      if (shortageIds.length > 0) {
+        setShortageItems(new Set(shortageIds))
+      }
+    })
+  }, [data?.order?.status, data?.order?.revision_number, id])
 
   useEffect(() => {
     if (!editMode || !id) return
@@ -152,11 +204,38 @@ export function OrderDetailPage() {
 
   function handleStatusSuccess(newStatus: string) {
     toast.success(`تم تغيير الحالة إلى ${newStatus}`)
+    setShortageItems(null)
+    setInventorySnapshot(null)
     loadOrder()
   }
 
   function handleStatusError(error: string) {
     toast.error(error)
+  }
+
+  function handleShortage(shortages: Array<{product_id: string, requested_quantity: number, available_quantity?: number}>, details?: string) {
+    const productIds = shortages.map(s => s.product_id)
+    setShortageItems(new Set(productIds))
+    setInventorySnapshot(prev => {
+      if (prev) {
+        return prev.map(item =>
+          productIds.includes(item.product_id)
+            ? { ...item, is_sufficient: false, available_quantity: shortages.find(s => s.product_id === item.product_id)?.available_quantity ?? item.available_quantity }
+            : item
+        )
+      }
+      return shortages.map(s => ({
+        product_id: s.product_id,
+        requested_quantity: s.requested_quantity,
+        available_quantity: s.available_quantity ?? 0,
+        is_sufficient: false,
+      }))
+    })
+    const names = data?.items
+      ?.filter(i => productIds.includes(i.product_id))
+      .map(i => i.product_name || i.legacy_code || i.product_id) || []
+    const warn = details || 'بعض الأصناف تتجاوز الكمية المتاحة في المخزون'
+    toast.error(warn, { duration: 4000 })
   }
 
   function handleEditSaved() {
@@ -439,6 +518,7 @@ export function OrderDetailPage() {
         onRemoveItem={handleRemoveItem}
         onPriceChange={handlePriceChange}
         onAddProduct={() => { setShowProductSearch(true); setSelectedCompanyId(null); setSearchQuery('') }}
+        shortageProductIds={shortageItems}
         editActions={
           <div className="space-y-3">
             <div className="bg-white rounded-xl border border-[#E5E7EB] p-3">
@@ -487,6 +567,8 @@ export function OrderDetailPage() {
     <OrderDetailView
       data={data}
       onBack={() => navigate('/orders')}
+      shortageProductIds={shortageItems}
+      inventorySnapshot={inventorySnapshot}
       actions={
         <div className="flex items-stretch gap-2 flex-wrap">
           {canEdit && (
@@ -564,6 +646,7 @@ export function OrderDetailPage() {
               canManage={canManage}
               onSuccess={handleStatusSuccess}
               onError={handleStatusError}
+              onShortage={handleShortage}
             />
           )}
         </div>

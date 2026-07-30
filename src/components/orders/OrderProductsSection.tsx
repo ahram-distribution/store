@@ -1,7 +1,7 @@
 import { Fragment, useMemo, useState } from 'react'
 import { formatCurrencyShort } from '../../utils/format'
 import { UNIT_LABELS } from '../../types/order-display'
-import type { UnifiedOrder, UnifiedOrderItem } from '../../types/unified-order'
+import type { UnifiedOrder, UnifiedOrderItem, InventorySnapshotItem } from '../../types/unified-order'
 
 interface CompanyGroup {
   company: string
@@ -17,9 +17,11 @@ interface OrderProductsSectionProps {
   onRemoveItem?: (productId: string, unitType: string) => void
   onPriceChange?: (productId: string, unitType: string, newPrice: number) => void
   onAddProduct?: (companyName: string) => void
+  shortageProductIds?: Set<string>
+  inventorySnapshot?: InventorySnapshotItem[]
 }
 
-export function OrderProductsSection({ items, order, mode = 'view', onQuantityChange, onRemoveItem, onPriceChange, onAddProduct }: OrderProductsSectionProps) {
+export function OrderProductsSection({ items, order, mode = 'view', onQuantityChange, onRemoveItem, onPriceChange, onAddProduct, shortageProductIds, inventorySnapshot }: OrderProductsSectionProps) {
   const grandTotal = useMemo(() => items.reduce((s, i) => s + Number(i.total_price || 0), 0), [items])
   const totalPieces = useMemo(() => items.reduce((s, i) => s + Number(i.piece_quantity || 0), 0), [items])
   const totalQty = useMemo(() => items.reduce((s, i) => s + Number(i.unit_quantity || 0), 0), [items])
@@ -81,71 +83,86 @@ export function OrderProductsSection({ items, order, mode = 'view', onQuantityCh
                     const qty = Number(item.unit_quantity || 1)
                     const price = Number(item.unit_price || 0)
                     const lineTotal = qty * price
+                    const snap = inventorySnapshot?.find(s => s.product_id === item.product_id)
+                    const isShortage = shortageProductIds?.has(item.product_id) || snap?.is_sufficient === false
+                    const shortageAvail = snap?.available_quantity
                     return (
-                      <tr key={item.id || idx} className="border-b border-[#E5E7EB] last:border-0 hover:bg-[#F9FAFB] transition-colors">
-                        <td className="px-3 py-3">
-                          <span className="text-[15px] font-bold text-blue-600 font-mono" dir="ltr">{item.legacy_code || '—'}</span>
-                        </td>
-                        <td className="px-3 py-3">
-                          <p className="font-semibold text-[#111827]">{item.product_name || 'غير متوفر'}</p>
-                        </td>
-                        <td className="px-3 py-3 text-center text-[#6B7280]">{UNIT_LABELS[item.unit_type] || item.unit_type}</td>
-                        <td className="px-3 py-3 text-center">
-                          {isEdit && onQuantityChange ? (
-                            <div className="inline-flex items-center gap-1">
-                              <button
-                                onClick={() => onQuantityChange(item.product_id, item.unit_type, -1)}
-                                className="w-5 h-5 rounded-full bg-[#F3F4F6] text-[#6B7280] text-xs flex items-center justify-center hover:bg-[#E5E7EB] transition-colors"
-                              >−</button>
+                      <Fragment key={item.id || idx}>
+                        <tr className={`border-b border-[#E5E7EB] last:border-0 hover:bg-[#F9FAFB] transition-colors ${isShortage ? 'bg-red-50' : ''}`}>
+                          <td className="px-3 py-3">
+                            <span className="text-[15px] font-bold text-blue-600 font-mono" dir="ltr">{item.legacy_code || '—'}</span>
+                          </td>
+                          <td className="px-3 py-3">
+                            <p className="font-semibold text-[#111827]">{item.product_name || 'غير متوفر'}</p>
+                          </td>
+                          <td className="px-3 py-3 text-center text-[#6B7280]">{UNIT_LABELS[item.unit_type] || item.unit_type}</td>
+                          <td className="px-3 py-3 text-center">
+                            {isEdit && onQuantityChange ? (
+                              <div className="inline-flex items-center gap-1">
+                                <button
+                                  onClick={() => onQuantityChange(item.product_id, item.unit_type, -1)}
+                                  className="w-5 h-5 rounded-full bg-[#F3F4F6] text-[#6B7280] text-xs flex items-center justify-center hover:bg-[#E5E7EB] transition-colors"
+                                >−</button>
+                                <input
+                                  type="number"
+                                  value={qty}
+                                  onChange={e => {
+                                    const v = parseInt(e.target.value) || 1
+                                    if (v >= 1) onQuantityChange(item.product_id, item.unit_type, v)
+                                  }}
+                                  className="w-10 text-center text-[12px] font-semibold text-[#111827] border border-[#E5E7EB] rounded px-1 py-0.5"
+                                  min="1"
+                                />
+                                <button
+                                  onClick={() => onQuantityChange(item.product_id, item.unit_type, 1)}
+                                  className="w-5 h-5 rounded-full bg-[#F3F4F6] text-[#6B7280] text-xs flex items-center justify-center hover:bg-[#E5E7EB] transition-colors"
+                                >+</button>
+                              </div>
+                            ) : (
+                              <span className="text-[#111827] font-semibold">{qty}</span>
+                            )}
+                          </td>
+                          <td className="px-3 py-3 text-left">
+                            {isEdit && onPriceChange ? (
                               <input
                                 type="number"
-                                value={qty}
+                                value={price}
                                 onChange={e => {
-                                  const v = parseInt(e.target.value) || 1
-                                  if (v >= 1) onQuantityChange(item.product_id, item.unit_type, v)
+                                  const v = Number(e.target.value)
+                                  if (v >= 0) onPriceChange(item.product_id, item.unit_type, v)
                                 }}
-                                className="w-10 text-center text-[12px] font-semibold text-[#111827] border border-[#E5E7EB] rounded px-1 py-0.5"
-                                min="1"
+                                className="w-16 text-left text-[12px] font-semibold text-[#111827] border border-[#E5E7EB] rounded px-1 py-0.5"
+                                step="0.01"
+                                min="0"
                               />
-                              <button
-                                onClick={() => onQuantityChange(item.product_id, item.unit_type, 1)}
-                                className="w-5 h-5 rounded-full bg-[#F3F4F6] text-[#6B7280] text-xs flex items-center justify-center hover:bg-[#E5E7EB] transition-colors"
-                              >+</button>
-                            </div>
-                          ) : (
-                            <span className="text-[#111827] font-semibold">{qty}</span>
-                          )}
-                        </td>
-                        <td className="px-3 py-3 text-left">
-                          {isEdit && onPriceChange ? (
-                            <input
-                              type="number"
-                              value={price}
-                              onChange={e => {
-                                const v = Number(e.target.value)
-                                if (v >= 0) onPriceChange(item.product_id, item.unit_type, v)
-                              }}
-                              className="w-16 text-left text-[12px] font-semibold text-[#111827] border border-[#E5E7EB] rounded px-1 py-0.5"
-                              step="0.01"
-                              min="0"
-                            />
-                          ) : (
-                            <span className="text-[#111827]">{formatCurrencyShort(price)}</span>
-                          )}
-                        </td>
-                        <td className="px-3 py-3 text-left text-[#111827] font-bold">{formatCurrencyShort(lineTotal)}</td>
-                        {isEdit && onRemoveItem && (
-                          <td className="px-2 py-3 text-center">
-                            <button
-                              onClick={() => onRemoveItem(item.product_id, item.unit_type)}
-                              className="text-[#EF4444] hover:text-[#DC2626] text-xs font-semibold transition-colors"
-                              title="حذف الصنف"
-                            >
-                              ✕
-                            </button>
+                            ) : (
+                              <span className="text-[#111827]">{formatCurrencyShort(price)}</span>
+                            )}
                           </td>
+                          <td className="px-3 py-3 text-left text-[#111827] font-bold">{formatCurrencyShort(lineTotal)}</td>
+                          {isEdit && onRemoveItem && (
+                            <td className="px-2 py-3 text-center">
+                              <button
+                                onClick={() => onRemoveItem(item.product_id, item.unit_type)}
+                                className="text-[#EF4444] hover:text-[#DC2626] text-xs font-semibold transition-colors"
+                                title="حذف الصنف"
+                              >
+                                ✕
+                              </button>
+                            </td>
+                          )}
+                        </tr>
+                        {isShortage && (
+                          <tr className="border-b border-[#E5E7EB] bg-red-50">
+                            <td colSpan={isEdit ? 7 : 6} className="px-3 pb-2">
+                              <p className="text-[11px] text-danger font-medium">⚠️ الكمية المطلوبة غير متوفرة بالمخزون</p>
+                              <p className="text-[11px] text-danger font-medium">
+                                المطلوب: {qty}{shortageAvail != null ? ` | المتاح حاليًا: ${shortageAvail}` : ''}
+                              </p>
+                            </td>
+                          </tr>
                         )}
-                      </tr>
+                      </Fragment>
                     )
                   })}
                   {groups.length > 1 && (
