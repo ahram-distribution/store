@@ -11,6 +11,7 @@ import { UNIT_LABELS } from '../../types/order-display'
 import { supabase } from '../../lib/supabase'
 import toast from 'react-hot-toast'
 import type { CartItem as CartItemType } from '../../types/storefront'
+import { checkCartAvailability, showUnavailableToast } from '../../utils/cart-availability'
 
 const COMPANY_COLORS = [
   { bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-800', header: 'bg-blue-500' },
@@ -332,7 +333,12 @@ export function CartPage() {
                           </button>
                           <span className="text-sm font-semibold text-text w-6 text-center">{item.unitQuantity}</span>
                           <button
-                            onClick={() => updateQuantity(item.productId, item.unitType, item.unitQuantity + 1)}
+                            onClick={async () => {
+                              const finalQty = item.unitQuantity + 1
+                              const allowed = await checkCartAvailability(item.productId, finalQty)
+                              if (!allowed) { showUnavailableToast(); return }
+                              updateQuantity(item.productId, item.unitType, finalQty)
+                            }}
                             className="w-7 h-7 flex items-center justify-center rounded-lg bg-white border border-border text-text-secondary text-sm active:bg-surface transition-colors"
                           >
                             +

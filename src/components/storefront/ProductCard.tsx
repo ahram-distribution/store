@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import type { ProductWithPrice, ComputedPrices } from '../../types/storefront'
 import type { UnitType } from '../../types/storefront'
 import { formatCurrencyShort } from '../../utils/format'
@@ -6,6 +6,8 @@ import { UNIT_LABELS } from '../../types/order-display'
 import { SearchHighlight } from '../shared/SearchHighlight'
 import toast from 'react-hot-toast'
 import { Package, X } from 'lucide-react'
+import { supabase } from '../../lib/supabase'
+import { checkCartAvailability, showUnavailableToast } from '../../utils/cart-availability'
 
 const UNIT_PRIORITY: UnitType[] = ['carton', 'dozen', 'piece']
 
@@ -27,6 +29,10 @@ interface ProductCardProps {
   onQuantityChange?: (qty: number) => void
 }
 
+function getToken(): string | null {
+  try { return localStorage.getItem('session_token') } catch { return null }
+}
+
 export function ProductCard({
   product, prices, hasTier, tierName, onAddToCart, onRemoveFromCart, cartItemKeys, searchQuery,
   onImageClick, expanded, onClose,
@@ -38,6 +44,8 @@ export function ProductCard({
 
   const [internalUnit, setInternalUnit] = useState<UnitType>(defaultUnit)
   const [internalQty, setInternalQty] = useState(0)
+  const [availabilityWarning, setAvailabilityWarning] = useState<string | null>(null)
+  const checkTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const selectedUnit = controlledUnit ?? internalUnit
   const quantity = controlledQty ?? internalQty
@@ -54,12 +62,42 @@ export function ProductCard({
   const itemKey = `${product.id}:${selectedUnit}`
   const isInCart = cartItemKeys?.has(itemKey) ?? false
 
-  const handleToggle = () => {
+  async function checkAvailability(qty: number) {
+    if (qty <= 0 || isBlocked) {
+      setAvailabilityWarning(null)
+      return
+    }
+    const token = getToken()
+    if (!token) return
+    const { data } = await supabase.rpc('governed_check_product_availability', {
+      p_product_id: product.id,
+      p_requested_quantity: qty,
+    })
+    if (data && typeof data === 'object' && 'available' in data && data.available === false) {
+      setAvailabilityWarning('الكمية المطلوبة غير متاحة حاليًا، برجاء تقليل الكمية')
+    } else {
+      setAvailabilityWarning(null)
+    }
+  }
+
+  function handleQuantityChange(newQty: number) {
+    const clamped = Math.max(0, newQty)
+    setQuantity(clamped)
+    if (checkTimer.current) clearTimeout(checkTimer.current)
+    checkTimer.current = setTimeout(() => checkAvailability(clamped), 400)
+  }
+
+  const handleToggle = async () => {
     if (isInCart) {
       onRemoveFromCart?.(product.id, selectedUnit)
       toast('تمت إزالة المنتج', { icon: '🗑' })
     } else {
       if (quantity > 0) {
+        const allowed = await checkCartAvailability(product.id, quantity)
+        if (!allowed) {
+          showUnavailableToast()
+          return
+        }
         onAddToCart(product, selectedUnit, quantity)
         toast.success('تمت إضافة المنتج للسلة')
       }
@@ -186,7 +224,7 @@ export function ProductCard({
               {/* Quantity Controls — responsive, no overflow */}
               <div className={`flex items-center gap-1.5 min-w-0 ${expanded ? 'gap-2' : ''}`}>
                 <button
-                  onClick={() => setQuantity(q => Math.max(0, q - 1))}
+                  onClick={() => handleQuantityChange(quantity - 1)}
                   className={`${expanded ? 'w-11 h-11 text-lg' : 'w-9 h-9 sm:w-11 sm:h-11 text-base sm:text-lg'} rounded-lg bg-surface text-text-secondary flex items-center justify-center active:bg-border transition-colors font-bold shrink-0`}
                 >
                   −
@@ -195,18 +233,21 @@ export function ProductCard({
                   type="number"
                   min={0}
                   value={quantity || ''}
-                  onChange={(e) => setQuantity(Math.max(0, parseInt(e.target.value) || 0))}
+                  onChange={(e) => handleQuantityChange(parseInt(e.target.value) || 0)}
                   placeholder="0"
                   className={`flex-1 min-w-0 border border-border rounded-lg text-center font-medium [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none ${expanded ? 'h-11 px-2 text-base' : 'h-9 sm:h-11 px-1 sm:px-2 text-sm'}`}
                   onFocus={(e) => e.target.select()}
                 />
                 <button
-                  onClick={() => setQuantity(q => q + 1)}
+                  onClick={() => handleQuantityChange(quantity + 1)}
                   className={`${expanded ? 'w-11 h-11 text-lg' : 'w-9 h-9 sm:w-11 sm:h-11 text-base sm:text-lg'} rounded-lg bg-surface text-text-secondary flex items-center justify-center active:bg-border transition-colors font-bold shrink-0`}
                 >
                   +
                 </button>
               </div>
+              {availabilityWarning && (
+                <p className="text-[11px] text-danger/80 text-center">{availabilityWarning}</p>
+              )}
 
               {/* Purchase Button */}
               <button
