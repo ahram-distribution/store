@@ -26,6 +26,11 @@ export function OrderProductsSection({ items, order, mode = 'view', onQuantityCh
   const totalPieces = useMemo(() => items.reduce((s, i) => s + Number(i.piece_quantity || 0), 0), [items])
   const totalQty = useMemo(() => items.reduce((s, i) => s + Number(i.unit_quantity || 0), 0), [items])
 
+  const snapshotAvailMap = useMemo(() => {
+    if (!inventorySnapshot || inventorySnapshot.length === 0) return new Map<string, number>()
+    return new Map(inventorySnapshot.map(s => [s.product_id, s.available_quantity]))
+  }, [inventorySnapshot])
+
   const groups: CompanyGroup[] = useMemo(() => {
     const map: Record<string, CompanyGroup> = {}
     for (const item of items) {
@@ -85,7 +90,7 @@ export function OrderProductsSection({ items, order, mode = 'view', onQuantityCh
                     const lineTotal = qty * price
                     const snap = inventorySnapshot?.find(s => s.product_id === item.product_id)
                     const isShortage = shortageProductIds?.has(item.product_id) || snap?.is_sufficient === false
-                    const shortageAvail = snap?.available_quantity
+                    const shortageAvail = snap?.available_quantity ?? snapshotAvailMap.get(item.product_id)
                     return (
                       <Fragment key={item.id || idx}>
                         <tr className={`border-b border-[#E5E7EB] last:border-0 hover:bg-[#F9FAFB] transition-colors ${isShortage ? 'bg-red-50' : ''}`}>

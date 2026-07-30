@@ -140,7 +140,12 @@ export function OrderDetailPage() {
       p_order_id: id,
     }).then(({ data: result }) => {
       if (result?.snapshot && Array.isArray(result.snapshot)) {
-        const items = result.snapshot as InventorySnapshotItem[]
+        const items = (result.snapshot as any[]).filter(Boolean).map((s: any) => ({
+          product_id: String(s.product_id ?? ''),
+          requested_quantity: Number(s.requested_quantity ?? 0),
+          available_quantity: Number(s.available_quantity ?? 0),
+          is_sufficient: Boolean(s.is_sufficient),
+        }))
         setInventorySnapshot(items)
         const insufficient = items.filter(i => !i.is_sufficient).map(i => i.product_id)
         if (insufficient.length > 0) {
