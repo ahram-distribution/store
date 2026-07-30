@@ -1,9 +1,20 @@
-import { ORDER_STATUS_LABELS } from '../../types/order-display'
-import type { UnifiedOrder, UnifiedCustomerSummary, UnifiedModificationEntry } from '../../types/unified-order'
+import { ORDER_STATUS_LABELS, UNIT_LABELS } from '../../types/order-display'
+import type { UnifiedOrder, UnifiedCustomerSummary, UnifiedModificationEntry, UnifiedOrderItem } from '../../types/unified-order'
+
+const SYSTEM_REASON_LABELS: Record<string, string> = {
+  'Order created': 'تم إنشاء الطلب',
+}
+
+const ITEM_CHANGE_LABELS: Record<string, string> = {
+  added: 'تمت إضافة صنف',
+  removed: 'تم حذف صنف',
+  quantity_changed: 'تم تغيير كمية الصنف',
+}
 
 export interface ItemChange {
   product_id: string
   product_name: string
+  unit_name: string
   action: 'added' | 'removed' | 'quantity_changed'
   old_qty?: number
   new_qty?: number
@@ -64,7 +75,9 @@ export function getFullAddress(customer: UnifiedCustomerSummary | null, order?: 
   return order?.snapshot_customer_address || ''
 }
 
-function computeItemChanges(m: UnifiedModificationEntry): ItemChange[] {
+function computeItemChanges(m: UnifiedModificationEntry, items: UnifiedOrderItem[]): ItemChange[] {
+  const productMap: Record<string, UnifiedOrderItem> = {}
+  for (const it of items) productMap[it.product_id] = it
   const changes: ItemChange[] = []
   const oldItems: Record<string, any> = {}
   const newItems: Record<string, any> = {}
@@ -74,13 +87,17 @@ function computeItemChanges(m: UnifiedModificationEntry): ItemChange[] {
   for (const pid of allIds) {
     const oldItem = oldItems[pid]
     const newItem = newItems[pid]
+    const cur = productMap[pid]
+    const product_name = cur?.product_name || 'منتج'
+    const unit_type = cur?.unit_type || oldItem?.unit_type || newItem?.unit_type || 'piece'
+    const unit_name = UNIT_LABELS[unit_type] || unit_type
     if (oldItem && !newItem) {
-      changes.push({ product_id: pid, product_name: '', action: 'removed', old_qty: Number(oldItem.unit_quantity || 0) })
+      changes.push({ product_id: pid, product_name, unit_name, action: 'removed', old_qty: Number(oldItem.unit_quantity || 0) })
     } else if (!oldItem && newItem) {
-      changes.push({ product_id: pid, product_name: '', action: 'added', new_qty: Number(newItem.unit_quantity || 0) })
+      changes.push({ product_id: pid, product_name, unit_name, action: 'added', new_qty: Number(newItem.unit_quantity || 0) })
     } else if (oldItem && newItem && Number(oldItem.unit_quantity || 0) !== Number(newItem.unit_quantity || 0)) {
       changes.push({
-        product_id: pid, product_name: '', action: 'quantity_changed',
+        product_id: pid, product_name, unit_name, action: 'quantity_changed',
         old_qty: Number(oldItem.unit_quantity || 0), new_qty: Number(newItem.unit_quantity || 0),
       })
     }
@@ -120,13 +137,14 @@ export function buildTimelineEvents(data: UnifiedOrder): TimelineEvent[] {
   for (const h of data.status_history) {
     const toLabel = ORDER_STATUS_LABELS[h.to_status] || h.to_status
     const fromLabel = h.from_status ? (ORDER_STATUS_LABELS[h.from_status] || h.from_status) : null
+    const systemLabel = h.reason ? SYSTEM_REASON_LABELS[h.reason] : undefined
     events.push({
       id: `status-${h.id}`,
       label: fromLabel ? `تغيير الحالة من "${fromLabel}" إلى "${toLabel}"` : toLabel,
       timestamp: h.changed_at,
       color: h.to_status === 'cancelled' ? 'red' : h.to_status === 'delivered' ? 'green' : 'blue',
       actor: h.changed_by_name || undefined,
-      reason: h.reason,
+      reason: systemLabel || h.reason,
       fromStatus: h.from_status,
       toStatus: h.to_status,
     })
@@ -201,9 +219,10 @@ export function buildTimelineEvents(data: UnifiedOrder): TimelineEvent[] {
   }
 
   for (const m of data.modification_history || []) {
-    const changes = computeItemChanges(m)
+    const changes = computeItemChanges(m, data.items)
     const itemChanges: ItemChange[] = changes.length > 0 ? changes : undefined
-    const summary = changes.length > 0 ? ` (${getItemsSummary(changes)})` : ''
+    const count = changes.length
+    const summary = count > 0 ? ` (تعديل ${count} صنف${count !== 1 ? 'ف' : ''})` : ''
     events.push({
       id: `mod-${m.id}`,
       label: `${getEditLabel(m.field_name, changes)}${summary}`,

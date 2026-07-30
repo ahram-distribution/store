@@ -6,6 +6,27 @@ function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
 }
 
+const ERROR_MAP: Record<string, string> = {
+  'INVALID_SESSION': 'انتهت صلاحية الجلسة، الرجاء تسجيل الدخول مرة أخرى',
+  'INVALID_STATE': 'لا يمكن تنفيذ هذا الإجراء في الحالة الحالية للطلب',
+  'ORDER_NOT_FOUND': 'الطلب غير موجود',
+  'NOT_FOUND': 'الطلب غير موجود',
+  'FORBIDDEN': 'ليس لديك صلاحية لتنفيذ هذا الإجراء',
+  'MISSING_CAPABILITY': 'ليس لديك صلاحية لتنفيذ هذا الإجراء',
+}
+
+function toUserError(msg: string): string {
+  if (!msg) return 'حدث خطأ غير متوقع'
+  for (const [code, arabic] of Object.entries(ERROR_MAP)) {
+    if (msg.includes(code) || msg.includes(code.toLowerCase())) return arabic
+  }
+  if (/PGRST|Could not find|schema cache|syntax error|relation .* does not exist/i.test(msg)) {
+    console.error('[Technical Error]', msg)
+    return 'حدث خطأ في النظام، الرجاء المحاولة مرة أخرى'
+  }
+  return msg
+}
+
 const ALL_STATUSES = ['draft','submitted','reviewing','returned_for_revision','approved','preparing','prepared','ready_for_dispatch','sent_to_delivery','dispatched','deferred','cancelled','delivered','stock_review'] as const
 
 type OrderStatus = typeof ALL_STATUSES[number]
@@ -119,7 +140,7 @@ export function OrderStatusManager({ orderId, currentStatus, canReview, canCompl
         p_reason: reasonText,
       })
       if (error) {
-        onError?.(error.message)
+        onError?.(toUserError(error.message))
         setLoading(null)
         return
       }
@@ -127,7 +148,7 @@ export function OrderStatusManager({ orderId, currentStatus, canReview, canCompl
         if ('shortages' in data && Array.isArray(data.shortages) && data.shortages.length > 0) {
           onShortage?.(data.shortages as ShortageEntry[], String(data.details || data.error))
         } else {
-          onError?.(String(data.error))
+          onError?.(toUserError(String(data.error)))
         }
         setLoading(null)
         return
@@ -145,7 +166,7 @@ export function OrderStatusManager({ orderId, currentStatus, canReview, canCompl
       p_reference_number: referenceNumber || null,
     })
     if (error) {
-      onError?.(error.message)
+      onError?.(toUserError(error.message))
       setLoading(null)
       return
     }
@@ -153,7 +174,7 @@ export function OrderStatusManager({ orderId, currentStatus, canReview, canCompl
       if ('shortages' in data && Array.isArray(data.shortages) && data.shortages.length > 0) {
         onShortage?.(data.shortages as ShortageEntry[], String(data.details || data.error))
       } else {
-        onError?.(String(data.error))
+        onError?.(toUserError(String(data.error)))
       }
       setLoading(null)
       return
@@ -174,13 +195,13 @@ export function OrderStatusManager({ orderId, currentStatus, canReview, canCompl
       p_reason: returnReason.trim(),
     })
     if (error) {
-      onError?.(error.message)
+      onError?.(toUserError(error.message))
       setLoading(null)
       setShowReturnModal(false)
       return
     }
     if (data && typeof data === 'object' && 'error' in data && data.error) {
-      onError?.(String(data.error))
+      onError?.(toUserError(String(data.error)))
       setLoading(null)
       setShowReturnModal(false)
       return

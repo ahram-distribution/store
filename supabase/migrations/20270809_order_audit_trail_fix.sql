@@ -7,6 +7,11 @@
 -- ============================================================================
 
 -- ---------------------------------------------------------------------------
+-- 0. Drop old 2-param overload to avoid PostgREST ambiguity
+-- ---------------------------------------------------------------------------
+DROP FUNCTION IF EXISTS public.governed_approve_order(p_token text, p_id uuid);
+
+-- ---------------------------------------------------------------------------
 -- 1. governed_approve_order — add p_reason parameter
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.governed_approve_order(
@@ -200,7 +205,9 @@ $$;
 
 -- ---------------------------------------------------------------------------
 -- 3. get_unified_order — include osh.reason in status_history
+-- (preserved exact contract from 20260626_unify_p_token_text_contract.sql)
 -- ---------------------------------------------------------------------------
+DROP FUNCTION IF EXISTS public.get_unified_order(text, uuid);
 CREATE OR REPLACE FUNCTION public.get_unified_order(
   p_token text,
   p_id uuid
@@ -211,52 +218,126 @@ SECURITY DEFINER
 SET search_path = public, extensions
 AS $$
 DECLARE
-  v_employee_id uuid;
-  v_customer_id uuid;
-  v_identity_type text;
-  v_result jsonb;
   v_session app.sessions;
+  v_employee_id uuid;
+  v_is_upper boolean;
+  v_visible uuid[];
+  v_order public.orders%ROWTYPE;
+  v_customer_id uuid;
+  v_allowed boolean;
 BEGIN
   SELECT * INTO v_session FROM app.sessions WHERE token = p_token::uuid AND expires_at > now();
   IF NOT FOUND THEN RETURN jsonb_build_object('error', 'INVALID_SESSION'); END IF;
 
-  v_employee_id := v_session.employee_id;
-  v_customer_id := v_session.customer_id;
-  v_identity_type := v_session.identity_type;
+  SELECT * INTO v_order FROM public.orders WHERE id = p_id;
+  IF NOT FOUND THEN RETURN jsonb_build_object('error', 'NOT_FOUND'); END IF;
 
-  -- Visibility check: employee can see any order, customer only their own
-  IF v_identity_type = 'customer' THEN
-    IF NOT EXISTS (SELECT 1 FROM public.orders WHERE id = p_id AND customer_id = v_customer_id) THEN
+  IF v_session.identity_type = 'customer' THEN
+    IF v_order.customer_id != v_session.customer_id THEN
       RETURN jsonb_build_object('error', 'FORBIDDEN');
+    END IF;
+  ELSE
+    v_employee_id := v_session.employee_id;
+    v_is_upper := public.is_upper_management(v_employee_id);
+    IF NOT v_is_upper THEN
+      v_visible := COALESCE(public.get_visible_employee_ids(p_token), '{}'::uuid[]);
+      SELECT EXISTS(
+        SELECT 1 FROM public.customers c
+        WHERE c.id = v_order.customer_id
+          AND (c.owner_id = ANY(v_visible))
+      ) INTO v_allowed;
+      IF NOT v_allowed THEN
+        RETURN jsonb_build_object('error', 'FORBIDDEN');
+      END IF;
     END IF;
   END IF;
 
-  SELECT jsonb_build_object(
-      'order', row_to_json(o.*)::jsonb || jsonb_strip_nulls(jsonb_build_object(
-        'customer_owner_name', COALESCE(c_owner.full_name, ''),
-        'customer_owner_role', COALESCE(c_owner.job_title, ''),
-        'customer_owner_id', c.owner_id,
-        'order_creator_name', COALESCE(oc_emp.full_name, oc_cust.company_name, oc_cust.name, ''),
-        'order_creator_role', COALESCE(oc_emp.job_title::text, oc_cust.identity_type, ''),
-        'order_creator_id', o.created_by,
-        'order_creator_type', oc_i.identity_type,
-        'current_owner_name', COALESCE(owner_e.full_name, ''),
-        'reference_number', o.reference_number
-      )),
-      'customer', row_to_json(c.*)::jsonb || jsonb_strip_nulls(jsonb_build_object(
-        'display_address', CASE
-          WHEN c.address_line1 IS NOT NULL AND c.city IS NOT NULL
-            THEN c.address_line1 || ' - ' || c.city
-          WHEN c.address_line1 IS NOT NULL THEN c.address_line1
-          WHEN c.city IS NOT NULL THEN c.city
+  v_customer_id := v_order.customer_id;
+
+  RETURN (
+    SELECT jsonb_build_object(
+      'order', jsonb_build_object(
+        'id', o.id,
+        'order_number', o.order_number,
+        'status', o.status,
+        'delivery_mode', o.delivery_mode,
+        'payment_method', o.payment_method,
+        'subtotal', o.subtotal,
+        'discount_amount', o.discount_amount,
+        'tax_amount', o.tax_amount,
+        'total_amount', o.total_amount,
+        'notes', o.notes,
+        'revision_number', o.revision_number,
+        'last_revised_at', o.last_revised_at,
+        'customer_id', o.customer_id,
+        'owner_type', o.owner_type,
+        'owner_id', o.owner_id,
+        'created_by', o.created_by,
+        'submitted_at', o.submitted_at,
+        'approved_at', o.approved_at,
+        'delivered_at', o.delivered_at,
+        'cancelled_at', o.cancelled_at,
+        'created_at', o.created_at,
+        'updated_at', o.updated_at,
+        'deferred_until', o.deferred_until,
+        'defer_reason', o.defer_reason,
+        'cancel_reason', o.cancel_reason,
+        'execution_latitude', o.execution_latitude,
+        'execution_longitude', o.execution_longitude,
+        'execution_accuracy_meters', o.execution_accuracy_meters,
+        'execution_captured_at', o.execution_captured_at,
+        'execution_location_id', o.execution_location_id,
+        'tier_id', o.tier_id,
+        'effective_discount_percent', o.effective_discount_percent,
+        'snapshot_customer_name', o.snapshot_customer_name,
+        'snapshot_customer_phone', o.snapshot_customer_phone,
+        'snapshot_customer_address', o.snapshot_customer_address,
+        'snapshot_customer_code', o.snapshot_customer_code,
+        'snapshot_owner_name', o.snapshot_owner_name,
+        'snapshot_owner_phone', o.snapshot_owner_phone,
+        'snapshot_owner_address', o.snapshot_owner_address,
+        'snapshot_sender_name', o.snapshot_sender_name,
+        'snapshot_sender_phone', o.snapshot_sender_phone,
+        'snapshot_sender_address', o.snapshot_sender_address,
+        'customer_owner_name', COALESCE(co_emp.full_name, ''),
+        'customer_owner_role', COALESCE((SELECT r.name FROM public.employee_roles er2 JOIN public.roles r ON r.id = er2.role_id WHERE er2.employee_id = c.owner_id LIMIT 1), ''),
+        'order_creator_name', COALESCE(oc_emp.full_name, oc_cust.company_name, ''),
+        'order_creator_role', CASE
+          WHEN oc_i.identity_type = 'employee' THEN COALESCE((SELECT r.name FROM public.employee_roles er2 JOIN public.roles r ON r.id = er2.role_id WHERE er2.employee_id = oc_emp.id LIMIT 1), '')
           ELSE NULL
-        END
-      )),
+        END,
+        'customer_owner_id', c.owner_id,
+        'order_creator_id', CASE
+          WHEN oc_i.identity_type = 'employee' THEN oc_emp.id
+          WHEN oc_i.identity_type = 'customer' THEN oc_cust.id
+          ELSE NULL
+        END,
+        'order_creator_type', oc_i.identity_type
+      ),
+      'customer', (
+        SELECT jsonb_build_object(
+          'id', c.id,
+          'code', c.code,
+          'company_name', c.company_name,
+          'phone', i.phone,
+          'address_line1', ca.address_line1,
+          'address_line2', ca.address_line2,
+          'city', ca.city,
+          'governorate', ca.governorate,
+          'address_latitude', ca.latitude,
+          'address_longitude', ca.longitude
+        )
+        FROM public.customers c
+        LEFT JOIN public.identities i ON i.id = c.identity_id
+        LEFT JOIN public.customer_addresses ca ON ca.customer_id = c.id AND ca.is_default = true
+        WHERE c.id = v_customer_id
+        LIMIT 1
+      ),
       'items', COALESCE((
         SELECT jsonb_agg(jsonb_build_object(
           'id', oi.id,
           'product_id', oi.product_id,
-          'product_name', COALESCE(p.name_ar, p.name_en, ''),
+          'product_name', p.product_name,
           'legacy_code', p.legacy_code,
           'image_url', p.image_url,
           'company_id', p.company_id,
@@ -278,9 +359,9 @@ BEGIN
           'from_status', osh.from_status,
           'to_status', osh.to_status,
           'changed_by', osh.changed_by,
+          'changed_at', osh.changed_at,
           'changed_by_name', e_changed.full_name,
-          'reason', osh.reason,
-          'changed_at', osh.changed_at
+          'reason', osh.reason
         ) ORDER BY osh.changed_at)
         FROM public.order_status_history osh
         LEFT JOIN public.employees e_changed ON e_changed.identity_id = osh.changed_by
@@ -325,12 +406,14 @@ BEGIN
           'external_carrier_id', dt.external_carrier_id,
           'waybill_number', dt.waybill_number,
           'tracking_url', dt.tracking_url,
-          'delivery_mode', o.delivery_mode,
           'assigned_to_name', ast.code,
-          'external_carrier_name', ec.name
+          'assigned_to_phone', i_assigned.phone,
+          'external_carrier_name', ec.name,
+          'updated_at', dt.updated_at
         )
         FROM public.delivery_tracking dt
         LEFT JOIN public.employees ast ON ast.id = dt.assigned_to
+        LEFT JOIN public.identities i_assigned ON i_assigned.id = ast.identity_id
         LEFT JOIN public.external_carriers ec ON ec.id = dt.external_carrier_id
         WHERE dt.order_id = o.id AND dt.is_active = true
         LIMIT 1
@@ -354,10 +437,13 @@ BEGIN
           'waybill_number', dt.waybill_number,
           'tracking_url', dt.tracking_url,
           'assigned_to_name', ast.code,
-          'external_carrier_name', ec.name
+          'assigned_to_phone', i_assigned.phone,
+          'external_carrier_name', ec.name,
+          'updated_at', dt.updated_at
         ) ORDER BY dt.attempt_number)
         FROM public.delivery_tracking dt
         LEFT JOIN public.employees ast ON ast.id = dt.assigned_to
+        LEFT JOIN public.identities i_assigned ON i_assigned.id = ast.identity_id
         LEFT JOIN public.external_carriers ec ON ec.id = dt.external_carrier_id
         WHERE dt.order_id = o.id
       ), '[]'::jsonb),
@@ -410,14 +496,11 @@ BEGIN
     )
     FROM public.orders o
     JOIN public.customers c ON c.id = o.customer_id
-    LEFT JOIN public.employees c_owner ON c_owner.id = c.owner_id
-    LEFT JOIN public.employees owner_e ON owner_e.id = o.owner_id
+    LEFT JOIN public.employees co_emp ON co_emp.id = c.owner_id
     LEFT JOIN public.identities oc_i ON oc_i.id = o.created_by
     LEFT JOIN public.employees oc_emp ON oc_emp.identity_id = oc_i.id AND oc_i.identity_type = 'employee'
     LEFT JOIN public.customers oc_cust ON oc_cust.identity_id = oc_i.id AND oc_i.identity_type = 'customer'
     WHERE o.id = p_id
-  INTO v_result;
-
-  RETURN v_result;
+  );
 END;
 $$;

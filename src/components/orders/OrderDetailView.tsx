@@ -9,7 +9,6 @@ import { OrderDeliverySection } from './OrderDeliverySection'
 import { OrderCollectionsSection } from './OrderCollectionsSection'
 import { OrderReturnsSection } from './OrderReturnsSection'
 import { OrderTimelineSection } from './OrderTimelineSection'
-import { ModificationHistoryPanel } from './ModificationHistoryPanel'
 import { formatDateTime, formatCurrencyShort } from '../../utils/format'
 import { CustomerAddressCard } from '../customers/CustomerAddressCard'
 import { ORDER_STATUS_LABELS } from '../../types/order-display'
@@ -348,15 +347,6 @@ export function OrderDetailView({ data, actions, onBack, editMode, editItems, on
 
       {/* Returns */}
       <OrderReturnsSection returns={data.returns} />
-
-      {/* Modification History */}
-      {modification_history && modification_history.length > 0 && (
-        <ModificationHistoryPanel
-          entries={modification_history}
-          revisionNumber={order.revision_number}
-          lastRevisedAt={order.last_revised_at}
-        />
-      )}
 
       {/* Quick Actions */}
       <div className="bg-white rounded-lg border border-[#E5E7EB] shadow-sm p-4">

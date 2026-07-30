@@ -25,13 +25,34 @@ const COLOR_CLASSES: Record<string, string> = {
 
 function ItemChangeRow({ change }: { change: ItemChange }) {
   if (change.action === 'added') {
-    return <div className="text-[12px] text-green-700">تمت إضافة صنف — الكمية: {change.new_qty}</div>
+    return (
+      <div className="text-[12px] text-green-700 space-y-0.5">
+        <div>تمت إضافة صنف</div>
+        <div>الصنف: {change.product_name}</div>
+        <div>الوحدة: {change.unit_name}</div>
+        <div>الكمية: {change.new_qty} {change.unit_name}</div>
+      </div>
+    )
   }
   if (change.action === 'removed') {
-    return <div className="text-[12px] text-red-600">تم حذف صنف — الكمية السابقة: {change.old_qty}</div>
+    return (
+      <div className="text-[12px] text-red-600 space-y-0.5">
+        <div>تم حذف صنف</div>
+        <div>الصنف: {change.product_name}</div>
+        <div>الوحدة: {change.unit_name}</div>
+        <div>الكمية السابقة: {change.old_qty} {change.unit_name}</div>
+      </div>
+    )
   }
   if (change.action === 'quantity_changed') {
-    return <div className="text-[12px] text-[#D97706]">الكمية: {change.old_qty} → {change.new_qty}</div>
+    return (
+      <div className="text-[12px] text-[#D97706] space-y-0.5">
+        <div>تم تغيير كمية الصنف</div>
+        <div>الصنف: {change.product_name}</div>
+        <div>الوحدة: {change.unit_name}</div>
+        <div>الكمية: {change.old_qty} → {change.new_qty} {change.unit_name}</div>
+      </div>
+    )
   }
   return null
 }

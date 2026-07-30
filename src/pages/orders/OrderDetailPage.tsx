@@ -108,9 +108,34 @@ export function OrderDetailPage() {
     if (!token) { setLoading(false); return }
 
     supabase.rpc('get_unified_order', { p_token: token, p_id: id }).then((res) => {
-      if (res.error || !res.data) { setLoading(false); return }
+      if (res.error) {
+        console.error('[OrderDetail] RPC error:', res.error)
+        toast.error('تعذر تحميل بيانات الطلب. حاول مرة أخرى.')
+        setLoading(false)
+        return
+      }
       const raw = res.data
-      if (raw?.error) { setLoading(false); return }
+      if (raw?.error) {
+        if (raw.error === 'NOT_FOUND') {
+          setData(null)
+          setLoading(false)
+          return
+        }
+        if (raw.error === 'FORBIDDEN') {
+          toast.error('ليس لديك صلاحية لعرض هذا الطلب')
+          setLoading(false)
+          return
+        }
+        if (raw.error === 'INVALID_SESSION') {
+          toast.error('انتهت صلاحية الجلسة، الرجاء تسجيل الدخول مرة أخرى')
+          setLoading(false)
+          return
+        }
+        console.error('[OrderDetail] RPC business error:', raw.error)
+        toast.error('تعذر تحميل بيانات الطلب. حاول مرة أخرى.')
+        setLoading(false)
+        return
+      }
       setData(raw as UnifiedOrder)
       setLoading(false)
     })
