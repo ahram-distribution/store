@@ -53,7 +53,10 @@ function createSupabaseProviders(context: RequestContext): ProviderSet {
 }
 
 function createDesktopProviders(context: RequestContext): ProviderSet {
-  return createLegacyProviders(context)
+  // Desktop mode uses a Local PostgreSQL proxy instead of remote Supabase.
+  // The proxy is injected via src/lib/supabase.ts when navigator.userAgent includes 'Electron',
+  // so Supabase providers automatically route all queries to local PostgreSQL.
+  return createSupabaseProviders(context)
 }
 
 const PROVIDER_FACTORIES: Record<ProviderBackend, (ctx: RequestContext) => ProviderSet> = {

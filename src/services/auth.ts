@@ -10,6 +10,7 @@ interface CustomerInfo {
 interface LoginResult {
   success: boolean
   token?: string
+  identity_id?: string
   identity_type?: 'employee' | 'customer'
   employee?: { id: string; full_name: string; code: string; manager_id: string | null }
   customer?: CustomerInfo

@@ -18,13 +18,14 @@ SET search_path = public, extensions
 AS $$
 DECLARE
   v_order record;
-  v_item record;
-  v_inv record;
-  v_product record;
-  v_deducted_items jsonb := '[]'::jsonb;
-  v_new_qty integer;
   v_negative_selling boolean;
+  v_requirements jsonb;
+  v_req record;
+  v_available integer;
+  v_shortages jsonb := '[]'::jsonb;
+  v_deducted_items jsonb := '[]'::jsonb;
 BEGIN
+  -- Fetch order
   SELECT * INTO v_order FROM public.orders WHERE id = p_order_id;
   IF NOT FOUND THEN RETURN jsonb_build_object('error', 'ORDER_NOT_FOUND'); END IF;
 
@@ -33,104 +34,101 @@ BEGIN
     RETURN jsonb_build_object('success', true, 'already_deducted', true);
   END IF;
 
-  -- Check per-order negative selling policy
-  v_negative_selling := v_order.order_negative_selling_allowed;
+  v_negative_selling := COALESCE(v_order.order_negative_selling_allowed, false);
 
-  -- Deduct normal order items
-  FOR v_item IN
-    SELECT oi.product_id, oi.piece_quantity, oi.unit_type, oi.unit_quantity
-    FROM public.order_items oi
-    WHERE oi.order_id = p_order_id
-  LOOP
-    SELECT * INTO v_inv FROM public.inventory
-    WHERE product_id = v_item.product_id FOR UPDATE;
-
-    IF FOUND THEN
-      IF v_negative_selling THEN
-        v_new_qty := v_inv.quantity - v_item.piece_quantity;
-      ELSE
-        IF v_inv.quantity < v_item.piece_quantity THEN
-          RETURN jsonb_build_object(
-            'error', 'INSUFFICIENT_STOCK',
-            'product_id', v_item.product_id,
-            'available', v_inv.quantity,
-            'required', v_item.piece_quantity
-          );
-        END IF;
-        v_new_qty := v_inv.quantity - v_item.piece_quantity;
-      END IF;
-
-      UPDATE public.inventory
-      SET quantity = v_new_qty, updated_at = now()
-      WHERE product_id = v_item.product_id;
-
-      v_deducted_items := v_deducted_items || jsonb_build_object(
-        'product_id', v_item.product_id,
-        'piece_quantity', v_item.piece_quantity
-      );
-    END IF;
-  END LOOP;
-
-  -- Deduct daily deal component inventory
-  FOR v_item IN
-    SELECT di.product_id, (di.quantity * odd.quantity) AS total_pieces
+  -- Aggregate required quantities per product across normal items, daily deals, and flash offers
+  WITH combined AS (
+    SELECT oi.product_id, SUM(oi.piece_quantity) AS total_qty
+    FROM public.order_items oi WHERE oi.order_id = p_order_id
+    GROUP BY oi.product_id
+    UNION ALL
+    SELECT di.product_id, SUM(di.quantity * odd.quantity)
     FROM public.order_daily_deals odd
     JOIN public.daily_deal_items di ON di.deal_id = odd.deal_id
     WHERE odd.order_id = p_order_id
-  LOOP
-    SELECT * INTO v_inv FROM public.inventory
-    WHERE product_id = v_item.product_id FOR UPDATE;
-
-    IF FOUND THEN
-      IF NOT v_negative_selling AND v_inv.quantity < v_item.total_pieces THEN
-        RETURN jsonb_build_object(
-          'error', 'INSUFFICIENT_STOCK',
-          'product_id', v_item.product_id,
-          'available', v_inv.quantity,
-          'required', v_item.total_pieces
-        );
-      END IF;
-
-      UPDATE public.inventory
-      SET quantity = v_inv.quantity - v_item.total_pieces, updated_at = now()
-      WHERE product_id = v_item.product_id;
-
-      v_deducted_items := v_deducted_items || jsonb_build_object(
-        'product_id', v_item.product_id,
-        'piece_quantity', v_item.total_pieces
-      );
-    END IF;
-  END LOOP;
-
-  -- Deduct flash offer component inventory
-  FOR v_item IN
-    SELECT foi.product_id, (foi.quantity * ofo.quantity) AS total_pieces
+    GROUP BY di.product_id
+    UNION ALL
+    SELECT foi.product_id, SUM(foi.quantity * ofo.quantity)
     FROM public.order_flash_offers ofo
     JOIN public.flash_offer_items foi ON foi.offer_id = ofo.offer_id
     WHERE ofo.order_id = p_order_id
-  LOOP
-    SELECT * INTO v_inv FROM public.inventory
-    WHERE product_id = v_item.product_id FOR UPDATE;
+    GROUP BY foi.product_id
+  ),
+  aggregated AS (
+    SELECT product_id, SUM(total_qty) AS total_quantity
+    FROM combined
+    WHERE product_id IS NOT NULL
+    GROUP BY product_id
+  )
+  SELECT jsonb_agg(
+    jsonb_build_object('product_id', product_id, 'total_quantity', total_quantity)
+  ) INTO v_requirements
+  FROM aggregated;
 
-    IF FOUND THEN
-      IF NOT v_negative_selling AND v_inv.quantity < v_item.total_pieces THEN
-        RETURN jsonb_build_object(
-          'error', 'INSUFFICIENT_STOCK',
-          'product_id', v_item.product_id,
-          'available', v_inv.quantity,
-          'required', v_item.total_pieces
+  -- No products to deduct — mark as deducted and return
+  IF v_requirements IS NULL OR jsonb_array_length(v_requirements) = 0 THEN
+    UPDATE public.orders
+    SET inventory_deducted_at = now(),
+        inventory_deducted_items = '[]'::jsonb,
+        updated_at = now()
+    WHERE id = p_order_id;
+    RETURN jsonb_build_object('success', true, 'deducted', true, 'item_count', 0);
+  END IF;
+
+  -- -----------------------------------------------------------------------
+  -- PHASE 1: Lock all inventory rows and validate stock (pre-check)
+  -- -----------------------------------------------------------------------
+  -- No UPDATE happens here.  Every row is locked with FOR UPDATE to prevent
+  -- concurrent transactions from seeing stale data.  If any product lacks
+  -- sufficient stock (and negative selling is disabled), we collect ALL
+  -- shortages and return a structured error — still nothing has been written.
+  -- -----------------------------------------------------------------------
+
+  IF NOT v_negative_selling THEN
+    FOR v_req IN SELECT * FROM jsonb_array_elements(v_requirements) LOOP
+      SELECT quantity INTO v_available
+      FROM public.inventory
+      WHERE product_id = (v_req.value->>'product_id')::uuid
+      FOR UPDATE;
+
+      IF FOUND AND v_available < (v_req.value->>'total_quantity')::integer THEN
+        v_shortages := v_shortages || jsonb_build_object(
+          'product_id', v_req.value->>'product_id',
+          'requested_quantity', (v_req.value->>'total_quantity')::integer
         );
       END IF;
+    END LOOP;
 
-      UPDATE public.inventory
-      SET quantity = v_inv.quantity - v_item.total_pieces, updated_at = now()
-      WHERE product_id = v_item.product_id;
-
-      v_deducted_items := v_deducted_items || jsonb_build_object(
-        'product_id', v_item.product_id,
-        'piece_quantity', v_item.total_pieces
+    IF jsonb_array_length(v_shortages) > 0 THEN
+      RETURN jsonb_build_object(
+        'success', false,
+        'error', 'INSUFFICIENT_STOCK',
+        'shortages', v_shortages
       );
     END IF;
+  ELSE
+    -- Negative selling: lock rows but skip stock validation
+    FOR v_req IN SELECT * FROM jsonb_array_elements(v_requirements) LOOP
+      PERFORM FROM public.inventory
+      WHERE product_id = (v_req.value->>'product_id')::uuid
+      FOR UPDATE;
+    END LOOP;
+  END IF;
+
+  -- -----------------------------------------------------------------------
+  -- PHASE 2: Deduct every product once (all validated or negative selling)
+  -- -----------------------------------------------------------------------
+
+  FOR v_req IN SELECT * FROM jsonb_array_elements(v_requirements) LOOP
+    UPDATE public.inventory
+    SET quantity = quantity - (v_req.value->>'total_quantity')::integer,
+        updated_at = now()
+    WHERE product_id = (v_req.value->>'product_id')::uuid;
+
+    v_deducted_items := v_deducted_items || jsonb_build_object(
+      'product_id', v_req.value->>'product_id',
+      'piece_quantity', (v_req.value->>'total_quantity')::integer
+    );
   END LOOP;
 
   -- Mark as deducted (exactly-once)
@@ -645,7 +643,7 @@ BEGIN
        AND v_order.inventory_deducted_at IS NULL THEN
       v_deduct_result := public.governed_inventory_deduct(p_order_id);
       IF (v_deduct_result->>'error') IS NOT NULL THEN
-        RETURN json_build_object('success', false, 'error', (v_deduct_result->>'error')::text);
+        RETURN v_deduct_result::json;
       END IF;
     END IF;
   END IF;

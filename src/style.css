@@ -292,3 +292,288 @@ nav .mobile-container {
 .animate-zoom-in {
   animation: zoom-in 0.25s ease-out;
 }
+
+/* ===== Desktop Shell (Electron) ===== */
+.desktop-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+  background: #f8f9fa;
+}
+
+.desktop-topbar {
+  flex-shrink: 0;
+  background: #fff;
+  border-bottom: 1px solid #e5e7eb;
+  z-index: 50;
+}
+
+.desktop-topbar-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 48px;
+  padding: 0 16px;
+  gap: 16px;
+}
+
+.desktop-topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.desktop-brand {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  text-decoration: none;
+  flex-shrink: 0;
+}
+
+.desktop-brand-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: #0B3D91;
+  color: #C9A227;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.desktop-brand-text {
+  font-size: 14px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.desktop-nav {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  overflow-x: auto;
+}
+
+.desktop-nav-item {
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #6b7280;
+  text-decoration: none;
+  border-radius: 6px;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s;
+}
+
+.desktop-nav-item:hover {
+  background: #f3f4f6;
+  color: #111827;
+}
+
+.desktop-nav-item.active {
+  background: #0B3D91;
+  color: #fff;
+}
+
+.desktop-topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.desktop-topbar-btn {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  color: #6b7280;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.desktop-topbar-btn:hover {
+  background: #f3f4f6;
+}
+
+.desktop-topbar-btn-success {
+  color: #16a34a;
+  border-color: #bbf7d0;
+}
+
+.desktop-topbar-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: #dc2626;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.desktop-topbar-user {
+  font-size: 13px;
+  font-weight: 500;
+  color: #374151;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-topbar-role {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
+.desktop-topbar-logout {
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  color: #6b7280;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.desktop-topbar-logout:hover {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+.desktop-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 16px 24px;
+}
+
+/* ===== Desktop Runtime Status Panel ===== */
+.desktop-runtime-panel {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 8px 16px;
+  background: #fff;
+  border-top: 1px solid #e5e7eb;
+  font-size: 12px;
+  direction: rtl;
+}
+
+.desktop-runtime-status {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.desktop-runtime-indicator {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.desktop-runtime-status-text {
+  font-weight: 600;
+  color: #374151;
+}
+
+.desktop-runtime-db-status {
+  color: #6b7280;
+}
+
+.desktop-runtime-last-sync {
+  color: #6b7280;
+  white-space: nowrap;
+}
+
+.desktop-runtime-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.desktop-runtime-btn {
+  padding: 4px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  background: #fff;
+  color: #374151;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.desktop-runtime-btn:hover:not(:disabled) {
+  background: #f3f4f6;
+  border-color: #9ca3af;
+}
+
+.desktop-runtime-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.desktop-runtime-btn-backup {
+  border-color: #0B3D91;
+  color: #0B3D91;
+}
+
+.desktop-runtime-btn-backup:hover:not(:disabled) {
+  background: #eef2ff;
+}
+
+.desktop-runtime-backup-result {
+  color: #059669;
+  font-size: 11px;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-runtime-btn-update {
+  border-color: #0B3D91;
+  color: #0B3D91;
+  font-weight: 600;
+}
+
+.desktop-runtime-btn-update:hover:not(:disabled) {
+  background: #eef2ff;
+}
+
+.desktop-runtime-update-progress {
+  color: #0B3D91;
+  font-weight: 600;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.desktop-runtime-update-error {
+  color: #dc2626;
+  font-size: 11px;
+  white-space: nowrap;
+}

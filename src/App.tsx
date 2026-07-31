@@ -3,6 +3,7 @@ import { BrowserRouter, HashRouter } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
 import { AppRoutes } from './routes'
 import { AppLayout } from './layouts/AppLayout'
+import { DesktopAppLayout } from './layouts/DesktopAppLayout'
 import { useAuthStore } from './store/auth'
 import { useNotificationStore } from './store/notifications'
 import { useEntityViewsStore } from './store/entityViews'
@@ -17,6 +18,8 @@ import { healthMonitor } from './utils/pageHealthCheck'
 import { lifeSignalService } from './services/lifeSignalService'
 import { trackingEngine } from './services/trackingEngine'
 import { useSWUpdate } from './hooks/useSWUpdate'
+
+const isDesktop = typeof navigator !== 'undefined' && navigator.userAgent.includes('Electron')
 
 const Router = HashRouter
 export function App() {
@@ -87,7 +90,7 @@ export function App() {
           onFinish={() => setSplashDone(true)}
           message={loading ? 'جاري التحقق من المستخدم' : undefined}
         />
-        <OfflinePage />
+        {!isDesktop && <OfflinePage />}
       </>
     )
   }
@@ -105,12 +108,18 @@ export function App() {
         </div>
       ) : (
         <ThemeProvider>
-          <AppLayout>
-            <AppRoutes />
-          </AppLayout>
+          {isDesktop ? (
+            <DesktopAppLayout>
+              <AppRoutes />
+            </DesktopAppLayout>
+          ) : (
+            <AppLayout>
+              <AppRoutes />
+            </AppLayout>
+          )}
         </ThemeProvider>
       )}
-      <OfflinePage />
+      {!isDesktop && <OfflinePage />}
       <NotificationToast />
       <Toaster
         position="top-center"

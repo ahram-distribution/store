@@ -78,6 +78,20 @@ jobs:
           grep -n -i -E 'error|fail' /tmp/build.log 2>/dev/null || echo "(no error keywords found)"
           echo "::endgroup::"
 
+      - name: RPC contract validation gate
+        run: |
+          if [ -z "$SUPABASE_DB_URL" ]; then
+            echo "⚠ RPC validation gate skipped — SUPABASE_DB_URL not configured"
+            echo "  Deployments from forks or PRs without DB access skip this check."
+            echo "  To enable, set SUPABASE_DB_URL in repository secrets."
+            exit 0
+          fi
+          echo "=== RPC CONTRACT VALIDATION GATE ==="
+          DATABASE_URL="$SUPABASE_DB_URL" node scripts/rpc-deployment-gate.cjs
+        shell: bash
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+
       - name: Prepare deploy directory
         run: |
           mkdir -p deploy

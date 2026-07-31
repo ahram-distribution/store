@@ -6,7 +6,7 @@ import { BootstrapProvider } from './context/BootstrapProvider'
 import { LoginScreen } from './pages/LoginScreen'
 import { useAuthStore } from '../store/auth'
 import { useEffect, useRef, useState } from 'react'
-import { OfflinePage } from '../components/splash/OfflinePage'
+
 
 export function DesktopShell() {
   const { loading, token, restoreSession } = useAuthStore()
@@ -55,7 +55,6 @@ export function DesktopShell() {
       <ThemeProvider>
         <BootstrapProvider>
           <DesktopLayout />
-          <OfflinePage />
           <Toaster
             position="top-center"
             toastOptions={{

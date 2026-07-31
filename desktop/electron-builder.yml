@@ -3,23 +3,61 @@ productName: Ahram ERP
 copyright: Copyright © 2026 Ahram Trading & Distribution
 
 directories:
-  output: release
+  output: release3
   buildResources: assets
 
 files:
   - build/**/*
   - assets/**/*
+  - node_modules/pg/**/*
+  - node_modules/pg-connection-string/**/*
+  - node_modules/pg-pool/**/*
+  - node_modules/pg-protocol/**/*
+  - node_modules/pg-types/**/*
+  - node_modules/postgres-array/**/*
+  - node_modules/postgres-bytea/**/*
+  - node_modules/postgres-date/**/*
+  - node_modules/postgres-int8/**/*
+  - node_modules/postgres-range/**/*
+  - node_modules/electron-updater/**/*
+  - node_modules/builder-util-runtime/**/*
+  - node_modules/fs-extra/**/*
+  - node_modules/graceful-fs/**/*
+  - node_modules/jsonfile/**/*
+  - node_modules/universalify/**/*
+  - node_modules/js-yaml/**/*
+  - node_modules/argparse/**/*
+  - node_modules/lazy-val/**/*
+  - node_modules/lodash.escaperegexp/**/*
+  - node_modules/lodash.isequal/**/*
+  - node_modules/semver/**/*
+  - node_modules/tiny-typed-emitter/**/*
+  - node_modules/debug/**/*
+  - node_modules/sax/**/*
+
+publish:
+  - provider: github
+    owner: ahram-distribution
+    repo: store
+    releaseType: release
 
 extraResources:
   - from: ../dist
     to: dist
     filter:
       - "**/*"
+  - from: main/db/schema.sql
+    to: schema.sql
+  - from: resources/pg-binaries.zip
+    to: pg-binaries.zip
+  - from: resources/provision.ps1
+    to: provision.ps1
+  - from: resources/supabase.json
+    to: supabase.json
 
 win:
   target:
     - nsis
-    - portable
   icon: assets/icon.ico
   sign: false
   signAndEditExecutable: false
@@ -33,8 +71,6 @@ nsis:
   uninstallDisplayName: Ahram ERP
   license: null
   artifactName: "Ahram ERP Setup ${version}.${ext}"
-
-portable:
-  artifactName: "Ahram ERP ${version}.${ext}"
+  include: installer/installer.nsh
 
 asar: true

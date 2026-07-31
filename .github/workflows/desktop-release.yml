@@ -1,0 +1,93 @@
+name: Build & Publish Desktop Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g. 1.2.2). Must match desktop/package.json.'
+        required: true
+        default: '1.2.2'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: desktop-release
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install web dependencies
+        run: npm ci
+
+      - name: Build web app (shared renderer bundle)
+        run: npm run build
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || secrets.SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY || secrets.SUPABASE_ANON_KEY }}
+          VITE_APP_NAME: ${{ vars.VITE_APP_NAME || 'Ahram Distribution' }}
+          VITE_APP_VERSION: ${{ vars.VITE_APP_VERSION || '1.0.0' }}
+          VITE_WHATSAPP_NUMBER: ${{ vars.VITE_WHATSAPP_NUMBER }}
+          BUILD_ID: ${{ github.sha }}
+          COMMIT_HASH: ${{ github.sha }}
+          NODE_OPTIONS: "--no-warnings"
+
+      - name: Install desktop dependencies
+        working-directory: desktop
+        run: npm ci
+
+      - name: Download bundled PostgreSQL binaries
+        shell: pwsh
+        working-directory: desktop
+        run: |
+          $url = "https://get.enterprisedb.com/postgresql/postgresql-16.4-1-windows-x64-binaries.zip"
+          $dest = "resources\pg-binaries.zip"
+          if (-not (Test-Path "resources")) { New-Item -ItemType Directory -Path "resources" -Force | Out-Null }
+          Write-Host "Downloading PostgreSQL 16.4 binaries from EDB..."
+          curl.exe -L --fail --retry 3 -o $dest $url
+          $size = (Get-Item $dest).Length
+          Write-Host "Downloaded pg-binaries.zip ($size bytes)"
+          if ($size -lt 300000000) { throw "pg-binaries.zip too small ($size bytes) - download failed" }
+
+      - name: Generate supabase runtime config
+        shell: pwsh
+        working-directory: desktop
+        run: |
+          $url = "${{ secrets.VITE_SUPABASE_URL || secrets.SUPABASE_URL }}"
+          $key = "${{ secrets.VITE_SUPABASE_ANON_KEY || secrets.SUPABASE_ANON_KEY }}"
+          if ([string]::IsNullOrEmpty($url) -or [string]::IsNullOrEmpty($key)) {
+            throw "VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY secrets are required for the desktop build."
+          }
+          if (-not (Test-Path "resources")) { New-Item -ItemType Directory -Path "resources" -Force | Out-Null }
+          $json = @{ url = $url; anonKey = $key } | ConvertTo-Json -Compress
+          [System.IO.File]::WriteAllText((Join-Path (Get-Location) "resources\supabase.json"), $json, [System.Text.UTF8Encoding]::new($false))
+          Write-Host "supabase.json generated."
+
+      - name: Build and publish Desktop installer
+        working-directory: desktop
+        run: |
+          node ../node_modules/typescript/bin/tsc -p tsconfig.json
+          copy /Y main\db\schema.sql build\main\db\schema.sql
+          npx electron-builder --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify release artifacts
+        shell: pwsh
+        run: |
+          Get-ChildItem "desktop\release3" | Select-Object Name, Length
+          if (-not (Test-Path "desktop\release3\latest.yml")) { throw "latest.yml missing - auto-update metadata not generated" }

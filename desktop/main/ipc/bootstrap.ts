@@ -2,11 +2,13 @@ import { ipcMain, app, BrowserWindow } from 'electron'
 import { registerPrintHandlers } from './handlers/printing'
 import { registerFileSystemHandlers } from './handlers/filesystem'
 import { registerDatabaseHandlers } from './handlers/database'
+import { registerUpdaterHandlers } from './handlers/updater'
 
 export function bootstrapIpc(): void {
   registerPrintHandlers()
   registerFileSystemHandlers()
   registerDatabaseHandlers()
+  registerUpdaterHandlers()
 
   ipcMain.handle('app:getVersion', () => {
     return app.getVersion()

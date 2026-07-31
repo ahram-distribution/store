@@ -67,8 +67,15 @@ runtime_test*.py
 t3.py*
 # Desktop app build artifacts
 desktop/release/
+desktop/release3/
+desktop/release-final/
 desktop/build/
 desktop/screenshots/
+# Bundled PG binaries (downloaded by build/CI from EDB — see .github/workflows/desktop-release.yml)
+desktop/resources/pg-binaries.zip
+desktop/resources/schema.sql
+# Supabase temp migration copies
+supabase/temp_migrations/
 # Generated audit/review files (not source)
 docs/analysis_report.txt
 docs/execute_update.sql
