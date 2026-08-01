@@ -234,6 +234,23 @@ export interface InventorySnapshotItem {
   requested_quantity: number
   available_quantity: number
   is_sufficient: boolean
+  reserved_quantity: number
+  allocated_quantity: number
+  capacity: number | null
+}
+
+export interface OrderEventLogItem {
+  id: string
+  product_id: string | null
+  product_name: string | null
+  movement_type: string
+  reason: string | null
+  quantity_change: number | null
+  previous_quantity: number | null
+  new_quantity: number | null
+  created_at: string
+  created_by: string | null
+  created_by_name: string | null
 }
 
 export interface UnifiedOrderListItem {

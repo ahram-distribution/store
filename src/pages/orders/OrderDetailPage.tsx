@@ -14,7 +14,7 @@ import { buildSearchIndex, searchProducts } from '../../utils/smartSearch'
 import { SearchHighlight } from '../../components/shared/SearchHighlight'
 import { SearchableSelect } from '../../components/shared/SearchableSelect'
 import toast from 'react-hot-toast'
-import type { UnifiedOrder, UnifiedOrderItem, InventorySnapshotItem } from '../../types/unified-order'
+import type { UnifiedOrder, UnifiedOrderItem, InventorySnapshotItem, OrderEventLogItem } from '../../types/unified-order'
 import type { ProductWithPrice, ProductUnitPrice, UnitType } from '../../types/storefront'
 
 function getToken(): string | null {
@@ -61,6 +61,26 @@ function mapProduct(row: any): ProductWithPrice {
   }
 }
 
+function buildReservationRejectMessage(
+  rejected: any[],
+  editItems: UnifiedOrderItem[],
+  products: ProductWithPrice[]
+): string | null {
+  if (!Array.isArray(rejected) || rejected.length === 0) return null
+  const lines = rejected.slice(0, 3).map((r) => {
+    const productId = String(r.product_id ?? '')
+    const item = editItems.find((i) => i.product_id === productId)
+    const product = products.find((p) => p.id === productId)
+    const unitType = (item?.unit_type as UnitType) ?? 'piece'
+    const piecesPerUnit = computePieceQuantity(1, unitType, product?.cartonQuantity ?? 0)
+    const capacity = Number(r.available_capacity ?? 0)
+    const maxUnits = piecesPerUnit > 0 ? Math.floor(capacity / piecesPerUnit) : 0
+    const name = item?.product_name || product?.productName || 'منتج'
+    return `${name}: الحد الأقصى المسموح ${maxUnits} ${UNIT_LABELS[unitType] || 'قطعة'}`
+  })
+  return `الكمية المطلوبة تتجاوز السعة المتاحة — ${lines.join('، ')}`
+}
+
 export function OrderDetailPage() {
   const navigate = useNavigate()
   const { id } = useParams()
@@ -96,6 +116,7 @@ export function OrderDetailPage() {
   const [transferMode, setTransferMode] = useState(false)
   const [shortageItems, setShortageItems] = useState<Set<string> | null>(null)
   const [inventorySnapshot, setInventorySnapshot] = useState<InventorySnapshotItem[] | null>(null)
+  const [eventLog, setEventLog] = useState<OrderEventLogItem[] | null>(null)
   const [transferTarget, setTransferTarget] = useState<string | null>(null)
   const [transferReason, setTransferReason] = useState('')
   const [transferEmployees, setTransferEmployees] = useState<any[]>([])
@@ -170,6 +191,9 @@ export function OrderDetailPage() {
           requested_quantity: Number(s.requested_quantity ?? 0),
           available_quantity: Number(s.available_quantity ?? 0),
           is_sufficient: Boolean(s.is_sufficient),
+          reserved_quantity: Number(s.reserved_quantity ?? 0),
+          allocated_quantity: Number(s.allocated_quantity ?? 0),
+          capacity: s.capacity == null ? null : Number(s.capacity),
         }))
         setInventorySnapshot(items)
         const insufficient = items.filter(i => !i.is_sufficient).map(i => i.product_id)
@@ -182,6 +206,35 @@ export function OrderDetailPage() {
     })
   }, [data?.order?.status, data?.order?.id, id, canManage])
 
+  // Load the Order Event Log (BR-AUD-01) for management users.
+  useEffect(() => {
+    if (!data?.order || !id || !canManage) return
+    const token = getToken()
+    if (!token) return
+    supabase.rpc('governed_get_order_event_log', {
+      p_token: token,
+      p_order_id: id,
+    }).then(({ data: result }) => {
+      if (result?.events && Array.isArray(result.events)) {
+        setEventLog((result.events as any[]).filter(Boolean).map((e: any) => ({
+          id: String(e.id ?? ''),
+          product_id: e.product_id ? String(e.product_id) : null,
+          product_name: e.product_name ?? null,
+          movement_type: String(e.movement_type ?? ''),
+          reason: e.reason ?? null,
+          quantity_change: e.quantity_change == null ? null : Number(e.quantity_change),
+          previous_quantity: e.previous_quantity == null ? null : Number(e.previous_quantity),
+          new_quantity: e.new_quantity == null ? null : Number(e.new_quantity),
+          created_at: String(e.created_at ?? ''),
+          created_by: e.created_by ? String(e.created_by) : null,
+          created_by_name: e.created_by_name ?? null,
+        })))
+      } else {
+        setEventLog([])
+      }
+    }).catch(() => { setEventLog([]) })
+  }, [data?.order?.id, id, canManage])
+
   useEffect(() => {
     if (!data?.order || !id) return
     const s = data.order.status
@@ -191,12 +244,14 @@ export function OrderDetailPage() {
     if (!token) return
     const items = data.items || []
     Promise.all(items.map(item =>
-      supabase.rpc('governed_check_product_availability', {
+      supabase.rpc('governed_check_product_availability_v2', {
         p_product_id: item.product_id,
         p_requested_quantity: item.unit_quantity,
+        p_unit_type: item.unit_type,
+        p_token: token,
       }).then(({ data: avail }) => ({
         productId: item.product_id,
-        available: avail?.available === true || avail?.error === 'NEGATIVE_SELLING_ALLOWED',
+        available: avail?.available !== false,
       }))
     )).then(results => {
       const shortageIds = results.filter(r => !r.available).map(r => r.productId)
@@ -260,6 +315,9 @@ export function OrderDetailPage() {
         requested_quantity: s.requested_quantity,
         available_quantity: s.available_quantity ?? 0,
         is_sufficient: false,
+        reserved_quantity: 0,
+        allocated_quantity: 0,
+        capacity: s.available_quantity != null ? s.available_quantity : null,
       }))
     })
     const names = data?.items
@@ -416,6 +474,15 @@ export function OrderDetailPage() {
     setSubmitting(false)
     if (error) { toast.error('فشل حفظ التعديلات: ' + error.message); return }
     if (result && typeof result === 'object' && 'error' in result && result.error) {
+      if ((result as any).reservations_rejected) {
+        const rejection = buildReservationRejectMessage((result as any).reservations_rejected, editItems, products)
+        toast.error(rejection || 'الكمية المطلوبة تتجاوز السعة المتاحة', { duration: 6000 })
+        return
+      }
+      if ((result as any).shortages) {
+        toast.error('لا يوجد مخزون كافٍ لتعديل الطلب — برجاء تقليل الكميات', { duration: 6000 })
+        return
+      }
       toast.error(String((result as any).detail || (result as any).error)); return
     }
     toast.success('تم حفظ التعديلات بنجاح')
@@ -550,6 +617,7 @@ export function OrderDetailPage() {
         onPriceChange={handlePriceChange}
         onAddProduct={() => { setShowProductSearch(true); setSelectedCompanyId(null); setSearchQuery('') }}
         shortageProductIds={shortageItems}
+        eventLog={eventLog}
         editActions={
           <div className="space-y-3">
             <div className="bg-white rounded-xl border border-[#E5E7EB] p-3">
@@ -600,6 +668,7 @@ export function OrderDetailPage() {
       onBack={() => navigate('/orders')}
       shortageProductIds={shortageItems}
       inventorySnapshot={inventorySnapshot}
+      eventLog={eventLog}
       actions={
         <div className="flex items-stretch gap-2 flex-wrap">
           {canEdit && (

@@ -10,7 +10,8 @@ import { buildOrderDisplayData, UNIT_LABELS } from '../../types/order-display'
 import toast from 'react-hot-toast'
 import { creditService } from '../../services/credit'
 import { lifeSignalService } from '../../services/lifeSignalService'
-import type { CartItem as CartItemType } from '../../types/storefront'
+import { buildOverQuantityRejectionMessage } from '../../utils/cart-availability'
+import type { CartItem as CartItemType, ProductWithPrice, UnitType } from '../../types/storefront'
 
 const COMPANY_COLORS = [
   { bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-800', header: 'bg-blue-500' },
@@ -123,22 +124,36 @@ export function OrderReviewPage() {
       }))
 
       if (editingOrderId) {
-        const { error: replaceError } = await supabase.rpc('governed_replace_order_contents', {
+        const { error: replaceError, data: replaceData } = await supabase.rpc('governed_replace_order_contents', {
           p_token: token,
           p_id: editingOrderId,
           p_items: orderItems,
         })
         if (replaceError) { toast.error('فشل تحديث الطلب: ' + replaceError.message); setSubmitting(false); return }
+        if (replaceData && typeof replaceData === 'object' && 'error' in replaceData && replaceData.error) {
+          toast.error('فشل تحديث الطلب: ' + String((replaceData as any).error)); setSubmitting(false); return
+        }
         order = { id: editingOrderId }
         lifeSignalService.notifyBusiness('order_created')
 
-        const { error: submitError } = await supabase.rpc('governed_submit_order', {
+        const { data: submitData, error: submitError } = await supabase.rpc('governed_submit_order', {
           p_token: token,
           p_id: editingOrderId,
         })
         if (submitError) {
           toast.error('تم تحديث الطلب ولكن فشل الإرسال: ' + submitError.message)
           setSubmitting(false); return
+        }
+        if (submitData && typeof submitData === 'object' && 'error' in submitData && submitData.error) {
+          const rejection = buildOverQuantityRejectionMessage(
+            (submitData as any).reservations_rejected,
+            items.map(i => ({ product_id: i.productId, product_name: i.productName, unit_type: i.unitType })),
+            products
+          )
+          toast.error(rejection || 'تعذر إرسال الطلب: ' + String((submitData as any).error), { duration: 6000 })
+          setSubmitting(false)
+          navigate('/cart')
+          return
         }
         toast.success('تم تحديث الطلب وإرساله بنجاح!')
       } else {
@@ -157,6 +172,9 @@ export function OrderReviewPage() {
         })
         if (createError) { toast.error('فشل إنشاء الطلب: ' + createError.message); setSubmitting(false); return }
         if (!created) { toast.error('فشل إنشاء الطلب'); setSubmitting(false); return }
+        if (created && typeof created === 'object' && 'error' in created && created.error) {
+          toast.error('فشل إنشاء الطلب: ' + String((created as any).error)); setSubmitting(false); return
+        }
         order = created
         lifeSignalService.notifyBusiness('order_created')
 
@@ -170,13 +188,24 @@ export function OrderReviewPage() {
           await supabase.rpc('governed_add_order_daily_deals', { p_token: token, p_order_id: order.id, p_deals: dealPayload }).then(() => {}).catch(() => {})
         }
 
-        const { error: submitError } = await supabase.rpc('governed_submit_order', {
+        const { data: submitData, error: submitError } = await supabase.rpc('governed_submit_order', {
           p_token: token,
           p_id: order.id,
         })
         if (submitError) {
           toast.error('تم إنشاء الطلب كمسودة ولكن فشل الإرسال: ' + submitError.message)
           setSubmitting(false)
+          return
+        }
+        if (submitData && typeof submitData === 'object' && 'error' in submitData && submitData.error) {
+          const rejection = buildOverQuantityRejectionMessage(
+            (submitData as any).reservations_rejected,
+            items.map(i => ({ product_id: i.productId, product_name: i.productName, unit_type: i.unitType })),
+            products
+          )
+          toast.error(rejection || 'تعذر إرسال الطلب: ' + String((submitData as any).error), { duration: 6000 })
+          setSubmitting(false)
+          navigate('/cart')
           return
         }
         toast.success('تم إرسال الطلب بنجاح!')

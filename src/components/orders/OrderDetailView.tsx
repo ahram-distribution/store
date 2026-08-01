@@ -16,7 +16,18 @@ import { renderDeliveryPermitHtml, printInvoice, downloadInvoicePdf } from './or
 import { buildTimelineEvents } from './order-detail.utils'
 import { copyToClipboard } from '../../utils/safeClipboard'
 import { OrderOwnershipInfo } from './OrderOwnershipInfo'
-import type { UnifiedOrder, UnifiedOrderItem, InventorySnapshotItem } from '../../types/unified-order'
+import type { UnifiedOrder, UnifiedOrderItem, InventorySnapshotItem, OrderEventLogItem } from '../../types/unified-order'
+
+const EVENT_TYPE_LABELS: Record<string, string> = {
+  RESERVATION_ALLOCATE: 'حجز (تخصيص)',
+  RESERVATION_UPDATE: 'تحديث حجز',
+  RESERVATION_RELEASE: 'تحرير حجز',
+  RESERVATION_REJECT: 'رفض حجز',
+  ORDER_DEDUCTION: 'خصم تلقائي من المخزون',
+  ORDER_CANCELLATION_RESTORE: 'استرجاع مخزون (إلغاء)',
+  ORDER_EDIT_RESTORE: 'استرجاع مخزون (تعديل)',
+  ORDER_REVISION_RESTORE: 'استرجاع مخزون (مراجعة)',
+}
 
 interface OrderDetailViewProps {
   data: UnifiedOrder
@@ -31,9 +42,10 @@ interface OrderDetailViewProps {
   editActions?: React.ReactNode
   shortageProductIds?: Set<string> | null
   inventorySnapshot?: InventorySnapshotItem[] | null
+  eventLog?: OrderEventLogItem[] | null
 }
 
-export function OrderDetailView({ data, actions, onBack, editMode, editItems, onQuantityChange, onRemoveItem, onPriceChange, onAddProduct, editActions, shortageProductIds, inventorySnapshot }: OrderDetailViewProps) {
+export function OrderDetailView({ data, actions, onBack, editMode, editItems, onQuantityChange, onRemoveItem, onPriceChange, onAddProduct, editActions, shortageProductIds, inventorySnapshot, eventLog }: OrderDetailViewProps) {
   const navigate = useNavigate()
   const { order, customer, items, collections, current_delivery, modification_history } = data
   const [overLimit, setOverLimit] = useState<boolean | null>(null)
@@ -247,6 +259,52 @@ export function OrderDetailView({ data, actions, onBack, editMode, editItems, on
 
       {/* ── 7. ORDER TIMELINE ── */}
       <OrderTimelineSection timelineEvents={timelineEvents} />
+
+      {/* ── 7.1 ORDER EVENT LOG (BR-AUD-01 — admin only) ── */}
+      {eventLog && eventLog.length > 0 && (
+        <div className="bg-white rounded-lg border border-[#E5E7EB] shadow-sm p-4">
+          <p className="text-[13px] font-bold text-[#111827] mb-3">سجل أحداث الحجز والمخزون</p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-[12px]">
+              <thead>
+                <tr className="text-right text-[11px] text-[#6B7280] border-b border-[#E5E7EB]">
+                  <th className="py-1.5 pr-1 font-medium">الوقت</th>
+                  <th className="py-1.5 px-2 font-medium">النوع</th>
+                  <th className="py-1.5 px-2 font-medium">المنتج</th>
+                  <th className="py-1.5 px-2 font-medium">الكمية (قطع)</th>
+                  <th className="py-1.5 px-2 font-medium">قبل ← بعد</th>
+                  <th className="py-1.5 px-2 font-medium">السبب</th>
+                  <th className="py-1.5 px-2 font-medium">بواسطة</th>
+                </tr>
+              </thead>
+              <tbody>
+                {eventLog.map(ev => {
+                  const delta = ev.quantity_change == null ? null : Number(ev.quantity_change)
+                  const deltaText = delta == null ? '—' : `${delta > 0 ? '+' : ''}${delta}`
+                  const prevNew = ev.previous_quantity == null && ev.new_quantity == null
+                    ? '—'
+                    : `${ev.previous_quantity ?? '—'} ← ${ev.new_quantity ?? '—'}`
+                  return (
+                    <tr key={ev.id} className="border-b border-[#F3F4F6] last:border-0">
+                      <td className="py-1.5 pr-1 text-[#6B7280] whitespace-nowrap font-mono">{formatDateTime(ev.created_at)}</td>
+                      <td className="py-1.5 px-2">
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#EFF6FF] text-[#2563EB] border border-[#BFDBFE] font-medium whitespace-nowrap">
+                          {EVENT_TYPE_LABELS[ev.movement_type] || ev.movement_type}
+                        </span>
+                      </td>
+                      <td className="py-1.5 px-2 font-medium text-[#111827] whitespace-nowrap">{ev.product_name || '—'}</td>
+                      <td className="py-1.5 px-2 font-mono text-[#111827]">{deltaText}</td>
+                      <td className="py-1.5 px-2 font-mono text-[#6B7280] whitespace-nowrap">{prevNew}</td>
+                      <td className="py-1.5 px-2 text-[#6B7280]">{ev.reason || '—'}</td>
+                      <td className="py-1.5 px-2 text-[#6B7280] whitespace-nowrap">{ev.created_by_name || '—'}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* ── 8. REMAINING: everything else ── */}
 

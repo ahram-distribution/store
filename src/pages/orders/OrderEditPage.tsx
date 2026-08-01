@@ -9,6 +9,7 @@ import { formatCurrencyShort } from '../../utils/format'
 import { dailyDealService } from '../../services/dailyDeals'
 import { flashOfferService } from '../../services/flashOffers'
 import { buildSearchIndex, searchProducts } from '../../utils/smartSearch'
+import { buildOverQuantityRejectionMessage } from '../../utils/cart-availability'
 import type { ProductWithPrice, ProductUnitPrice, UnitType, DailyDealRecord, FlashOfferRecord, CartTotals, TierConfig } from '../../types/storefront'
 import toast from 'react-hot-toast'
 
@@ -377,7 +378,7 @@ export function OrderEditPage() {
 
       if (replaceError) { toast.error('فشل حفظ التعديلات: ' + replaceError.message); setSubmitting(false); return }
       if (replaceResult && typeof replaceResult === 'object' && 'error' in replaceResult && replaceResult.error) {
-        toast.error(String(replaceResult.error)); setSubmitting(false); return
+        toast.error(String((replaceResult as any).detail || (replaceResult as any).error)); setSubmitting(false); return
       }
 
       // 2. Submit order
@@ -387,7 +388,14 @@ export function OrderEditPage() {
       })
       if (submitError) { toast.error('فشل إرسال الطلب: ' + submitError.message); setSubmitting(false); return }
       if (submitData && typeof submitData === 'object' && 'error' in submitData && submitData.error) {
-        toast.error(String(submitData.error)); setSubmitting(false); return
+        const rejection = buildOverQuantityRejectionMessage(
+          (submitData as any).reservations_rejected,
+          cartItems.map(i => ({ product_id: i.productId, product_name: i.productName, unit_type: i.unitType })),
+          products
+        )
+        toast.error(rejection || 'تعذر إرسال الطلب: ' + String((submitData as any).detail || (submitData as any).error), { duration: 6000 })
+        setSubmitting(false)
+        return
       }
 
       toast.success('تم إرسال التعديلات بنجاح')

@@ -168,6 +168,20 @@ export function OrderProductsSection({ items, order, mode = 'view', onQuantityCh
                             </td>
                           </tr>
                         )}
+                        {!isEdit && snap && (snap.reserved_quantity > 0 || snap.allocated_quantity > 0 || snap.capacity != null) && (
+                          <tr className="border-b border-[#E5E7EB] bg-[#F8FAFC]">
+                            <td colSpan={6} className="px-3 py-1.5">
+                              <p className="text-[11px] text-[#475569]">
+                                <span className="font-semibold text-blue-700">الحجز:</span> {formatNumber(snap.reserved_quantity)} قطعة
+                                {' · '}
+                                <span className="font-semibold text-emerald-700">التخصيص الفعلي:</span> {formatNumber(snap.allocated_quantity)} قطعة
+                                {' · '}
+                                <span className="font-semibold text-[#475569]">السعة المتاحة:</span>{' '}
+                                {snap.capacity === null ? 'غير محدودة' : `${formatNumber(snap.capacity)} قطعة`}
+                              </p>
+                            </td>
+                          </tr>
+                        )}
                       </Fragment>
                     )
                   })}

@@ -336,8 +336,8 @@ export function CartPage() {
                           <button
                             onClick={async () => {
                               const finalQty = item.unitQuantity + 1
-                              const allowed = await checkCartAvailability(item.productId, finalQty)
-                              if (!allowed) { showUnavailableToast(); return }
+                              const result = await checkCartAvailability(item.productId, finalQty, item.unitType)
+                              if (!result.available) { showUnavailableToast(result); return }
                               updateQuantity(item.productId, item.unitType, finalQty)
                             }}
                             className="w-7 h-7 flex items-center justify-center rounded-lg bg-white border border-border text-text-secondary text-sm active:bg-surface transition-colors"

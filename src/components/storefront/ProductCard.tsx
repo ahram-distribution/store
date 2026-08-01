@@ -6,8 +6,7 @@ import { UNIT_LABELS } from '../../types/order-display'
 import { SearchHighlight } from '../shared/SearchHighlight'
 import toast from 'react-hot-toast'
 import { Package, X } from 'lucide-react'
-import { supabase } from '../../lib/supabase'
-import { checkCartAvailability, showUnavailableToast } from '../../utils/cart-availability'
+import { checkCartAvailability, checkProductAvailabilityV2, buildAvailabilityMessage, showUnavailableToast } from '../../utils/cart-availability'
 
 const UNIT_PRIORITY: UnitType[] = ['carton', 'dozen', 'piece']
 
@@ -27,10 +26,6 @@ interface ProductCardProps {
   onUnitChange?: (unit: UnitType) => void
   quantity?: number
   onQuantityChange?: (qty: number) => void
-}
-
-function getToken(): string | null {
-  try { return localStorage.getItem('session_token') } catch { return null }
 }
 
 export function ProductCard({
@@ -67,17 +62,8 @@ export function ProductCard({
       setAvailabilityWarning(null)
       return
     }
-    const token = getToken()
-    if (!token) return
-    const { data } = await supabase.rpc('governed_check_product_availability', {
-      p_product_id: product.id,
-      p_requested_quantity: qty,
-    })
-    if (data && typeof data === 'object' && 'available' in data && data.available === false) {
-      setAvailabilityWarning('الكمية المطلوبة غير متاحة حاليًا، برجاء تقليل الكمية')
-    } else {
-      setAvailabilityWarning(null)
-    }
+    const result = await checkProductAvailabilityV2(product.id, qty, selectedUnit)
+    setAvailabilityWarning(result.available ? null : buildAvailabilityMessage(result))
   }
 
   function handleQuantityChange(newQty: number) {
@@ -93,9 +79,9 @@ export function ProductCard({
       toast('تمت إزالة المنتج', { icon: '🗑' })
     } else {
       if (quantity > 0) {
-        const allowed = await checkCartAvailability(product.id, quantity)
-        if (!allowed) {
-          showUnavailableToast()
+        const result = await checkCartAvailability(product.id, quantity, selectedUnit)
+        if (!result.available) {
+          showUnavailableToast(result)
           return
         }
         onAddToCart(product, selectedUnit, quantity)

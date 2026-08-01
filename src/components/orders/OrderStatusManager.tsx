@@ -13,6 +13,7 @@ const ERROR_MAP: Record<string, string> = {
   'NOT_FOUND': 'الطلب غير موجود',
   'FORBIDDEN': 'ليس لديك صلاحية لتنفيذ هذا الإجراء',
   'MISSING_CAPABILITY': 'ليس لديك صلاحية لتنفيذ هذا الإجراء',
+  'INSUFFICIENT_STOCK': 'الكمية المطلوبة تتجاوز الكمية المتاحة — برجاء تعديل كميات الطلب',
 }
 
 function toUserError(msg: string): string {
