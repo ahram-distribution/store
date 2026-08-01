@@ -25,6 +25,9 @@
 | `ACTIVE_SCREEN_CATALOG.md` | كتالوج الشاشات الكامل | مرجع مستقل (فريد) |
 | `UNIFIED_SMART_SEARCH.md` | توثيق تنفيذ البحث الموحد | مرجع مستقل |
 | `FIELD_REP_PRESENCE_POLICY.md` | سياسة حضور المندوبين | مرجع مستقل |
+| `BUSINESS_SPECIFICATION_RESERVATION_ALLOCATION.md` | مواصفة أعمال محرك حجز وتخصيص المخزون (قواعد BR-* مؤكدة) | مرجع مستقل (يسبق وثيقة تصميم Schema/RPC) |
+| `RESERVATION_ALLOCATION_ARCHITECTURE.md` | معمارية الحجز والتخصيص — Synchronous Recalculation Engine | يشير إلى المواصفة الرسمية |
+| `SCHEMA_RPC_CONTRACTS_DESIGN_RESERVATION_ALLOCATION.md` | تصميم Schema و RPC Contracts — نموذج الحجز المشتق (Derived Reservation) (مُراجَع 2026-08-01: 2 معتمد، 1 مُعدَّل، 1 مؤجَّل؛ بانتظار اعتماد النسخة النهائية قبل التنفيذ) | يشير إلى المعمارية والمواصفة |
 
 ## Findings Pending Review
 

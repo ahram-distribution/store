@@ -141,7 +141,54 @@
 
 ## الإصلاحات المنجزة
 
-(لا يوجد إصلاحات تم تنفيذها بعد — هذا الملف تم إنشاؤه كجزء من أولويات التوثيق)
+### [FIX-017] — governed_cancel_order يكتب employee_id في order_status_history.changed_by (FK 23503)
+- **الوصف:** `order_status_history.changed_by` يحمل FK إلى `identities(id)`، لكن
+  `governed_cancel_order` كان يكتب `v_session.employee_id` (معرّف الموظف ليس معرّف هوية)
+  → فشل إلغاء أي طلب بواسطة جلسة موظف بـ FK 23503 (تم اعتماده كخلل تنفيذي Verified Defect — Severity: High).
+- **الإصلاح:** سطر واحد فقط — `v_employee_id := v_session.identity_id;` دون أي تغيير في
+  منطق الحجز (RESERVATION_RELEASE) أو الاسترجاع أو تحديث الحالة أو الأرصدة الائتمانية.
+- **الملف المتأثر:** `supabase/migrations/20270810_fix_cancel_changed_by_identity.sql`
+  (المهاجرة تشير إلى FIX-017).
+- **التحقق:** إلغاء طلب `submitted` محجوز (ALLOCATE→RELEASE، لا خصم، مخزون ثابت، سطر status_history
+  بغير null) + إلغاء طلب `approved` محسوم (DEDUCT→ORDER_CANCELLATION_RESTORE، عودة المخزون) — PASS.
+- **الأولوية:** عالية
+- **الحالة:** منجزة (بانتظار المراجعة — لا commit/deploy)
+
+### [FIX-016] — حجز وتخصيص المخزون (Inventory Reservation & Allocation) — Migrations A–D
+- **الوصف:** تنفيذ ميزة الحجز المشتق وتخصيص FCFS وفق التصميم المعتمد
+  `docs/01-ARCHITECTURE/SCHEMA_RPC_CONTRACTS_DESIGN_RESERVATION_ALLOCATION.md`
+  (القسم 15 — تسلسل التنفيذ A–D، القرارات 16.1: حجز مشتق بلا جدول؛ submitted=يبدأ الحجز؛
+  approved=الخصم ينهي الحجز؛ العروض مؤجَّلة).
+- **Migration A** (`20270810_inventory_reservation_migration_a.sql`):
+  +3 أعمدة تدقيق على `inventory_movements` (reason, previous_quantity, new_quantity — BR-AUD-01)؛
+  دالة `_to_pieces` الموحدة (BR-SU-01/02)؛ تحديث `governed_inventory_deduct` (تحويل موحد عبر
+  `_to_pieces` بأحدث `carton_quantity` + تسجيل قبل/بعد)؛ تحديث `governed_inventory_restore`
+  (معاملان اختياريان `p_movement_type`/`p_reason` + تسجيل قبل/بعد).
+- **Migration B** (`20270810_inventory_reservation_migration_b.sql`):
+  `_reserved_quantity_for_order` (حجز مشتق: مجموع `_to_pieces` على `order_items` فقط في
+  `submitted` وغير المحسوم، وإلا 0 — BR-RS-01..05)؛ `_reservation_capacity` (سعة محدودة =
+  رصيد المخزون − حجوزات الطلبات المؤهلة الأخرى، أو NULL غير محدودة عند تفعيل البيع بالسالب
+  عالمياً — BR-AL-01)؛ REVOKE من الأعمدة العامة (دوال داخلية غير معروضة).
+- **Migration C** (`20270810_inventory_reservation_migration_c.sql`):
+  توسيع `governed_check_product_availability` (معاملان اختياريان `p_unit_type`/`p_token` +
+  `max_allowed_units` + قراءة السياسة العالمية بدل العمود المهجور `products.negative_selling_allowed`
+  + مراعاة الحجوزات — BR-VIS-01)؛ توسيع `governed_get_order_inventory_snapshot`
+  (reserved_quantity / allocated_quantity / capacity لكل منتج — BR-VIS-02) مع حفظ الحقول الحالية.
+- **Migration D** (`20270810_inventory_reservation_migration_d.sql`):
+  ربط القواعد على المسارات الفعلية المعتمدة: `governed_submit_order`
+  (فحص سعة + RESERVATION_REJECT/ALLOCATE)؛ `governed_approve_order` / `governed_cancel_order`
+  / `governed_return_order_for_revision` (RESERVATION_RELEASE عند الخروج من submitted +
+  استرجاع بنوع ORDER_REVISION_RESTORE)؛ `governed_change_order_status`
+  (RELEASE/فحص سعة/ALLOCATE حول submitted)؛ `governed_supreme_edit_order`
+  (مزامنة الخصم ORDER_EDIT_RESTORE ← استبدال ← إعادة خصم + RESERVATION_UPDATE/REJECT — BR-RS-08).
+- **ملاحظة معتمدة:** `governed_create_order` و `governed_replace_order_contents` لا يعملان
+  أبداً على طلب في `submitted` (إنشاء دائم في draft؛ الاستبدال محصور في
+  draft/returned_for_revision/stock_review) → الحجز صفر فيهما → لا حاجة لربط (قرار تعيين 2026-08-01).
+- **الملفات المتأثرة:** 4 مهاجرات SQL جديدة (A–D) + الوثائق
+  `00-INDEX/DOCUMENTATION_INDEX.md` و `00-INDEX/ANCHORED_SUMMARY.md`
+  (حالة التصميم: معتمد).
+- **الأولوية:** عالية
+- **الحالة:** منجزة (بانتظار المراجعة — لا commit/deploy)
 
 ---
 

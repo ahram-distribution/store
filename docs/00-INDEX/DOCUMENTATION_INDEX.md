@@ -43,6 +43,9 @@ docs/
 |------|-------------|
 | `SYSTEM_OF_TRUTH_MAP.md` | The mandatory architecture reference — 9 sections (GPS, Orders, Customers, WhatsApp, Auth, Attendance, Dashboard, Dependency Map, Future Rules) |
 | `ACTIVE_SCREEN_CATALOG.md` | Screen catalog — all screens, routes, and permissions |
+| `BUSINESS_SPECIFICATION_RESERVATION_ALLOCATION.md` | **Business Specification** — confirmed rules for the Inventory Reservation & Allocation Engine (BR-*) |
+| `RESERVATION_ALLOCATION_ARCHITECTURE.md` | **Architecture** — Synchronous Recalculation Engine for reservations/allocations; input to the Schema & RPC Contracts Design |
+| `SCHEMA_RPC_CONTRACTS_DESIGN_RESERVATION_ALLOCATION.md` | **Schema & RPC Contracts Design** — Derived Reservation model, Reuse/Extend/New classification, RPC contracts (reviewed 2026-08-01: 2 approved, 1 revised, 1 deferred; awaiting final approval before implementation) |
 
 ### 02-runtime/
 
