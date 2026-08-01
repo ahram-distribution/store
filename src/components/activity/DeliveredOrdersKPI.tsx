@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import { resolveDateRangeISO } from '../../lib/dateRange'
 import { filterDelivered, deliveredTotalAmount, deliveredOrderCount } from '../../lib/deliveredOrders'
+import { formatInteger, formatDecimal } from '../../utils/numbers'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 function getToken(): string | null {
@@ -16,8 +17,8 @@ const MONTHS = ['يناير', 'فبراير', 'مارس', 'إبريل', 'ماي�
 
 function fmt(n: number | null | undefined): string {
   if (n == null) return '\u2014'
-  if (Number.isInteger(n)) return n.toLocaleString('ar-EG-u-nu-latn')
-  return n.toLocaleString('ar-EG-u-nu-latn', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  if (Number.isInteger(n)) return formatInteger(n)
+  return formatDecimal(n, 2)
 }
 
 function kpiFontClass(formatted: string): string {

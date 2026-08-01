@@ -4,7 +4,8 @@ import { supabase } from '../../lib/supabase'
 import { ArrowRight, Clock, Coffee, MapPinned, Navigation } from 'lucide-react'
 import { MapContainer, TileLayer, Polyline, CircleMarker, Popup, Marker as LeafletMarker, useMap } from 'react-leaflet'
 import L from 'leaflet'
-import { formatTime } from '../../utils/format'
+import { formatCurrencyShort, formatTime } from '../../utils/format'
+import { formatNumber } from '../../utils/numbers'
 import { LocationDisplay } from '../../components/shared/LocationDisplay'
 import { locationService } from '../../services/location'
 
@@ -266,7 +267,7 @@ export default function EmployeeWorkdayDetailPage() {
           <div className="flex-1 min-w-0">
             <h1 className="font-bold text-gray-800 text-base truncate">{employeeName || 'الموظف'}</h1>
             <p className="text-[10px] text-gray-400">
-              {today && new Date(today).toLocaleDateString('ar-EG', { weekday: 'long', month: 'long', day: 'numeric' })}
+              {today && new Date(today).toLocaleDateString('ar-EG-u-nu-latn', { weekday: 'long', month: 'long', day: 'numeric' })}
             </p>
           </div>
           <div className="flex items-center gap-1">
@@ -355,7 +356,7 @@ export default function EmployeeWorkdayDetailPage() {
                 </div>
                 <div className="bg-emerald-50 rounded-lg p-2">
                   <div className="text-[9px] text-gray-500">المبيعات</div>
-                  <div className="text-xs font-bold text-emerald-700">{(session.sales_value ?? 0).toLocaleString('en-EG')} ج.م</div>
+                  <div className="text-xs font-bold text-emerald-700">{formatCurrencyShort(session.sales_value ?? 0)}</div>
                 </div>
                 <div className="bg-rose-50 rounded-lg p-2">
                   <div className="text-[9px] text-gray-500">عملاء جدد</div>
@@ -373,8 +374,8 @@ export default function EmployeeWorkdayDetailPage() {
                   <KpiMini label="صافي العمل" value={fmtMin(presenceMinutes)} color="text-green-600" bg="bg-green-50" />
                 )}
                 <KpiMini label="الطلبات" value={String(session.order_count ?? 0)} color="text-purple-600" bg="bg-purple-50" />
-                <KpiMini label="المبيعات" value={(session.sales_value ?? 0).toLocaleString('en-EG')} color="text-emerald-600" bg="bg-emerald-50" />
-                <KpiMini label="التحصيل" value={(session.collection_amount ?? 0).toLocaleString('en-EG')} color="text-cyan-600" bg="bg-cyan-50" />
+                <KpiMini label="المبيعات" value={formatNumber(session.sales_value ?? 0)} color="text-emerald-600" bg="bg-emerald-50" />
+                <KpiMini label="التحصيل" value={formatNumber(session.collection_amount ?? 0)} color="text-cyan-600" bg="bg-cyan-50" />
                 <KpiMini label="عملاء جدد" value={String(session.new_customer_count ?? 0)} color="text-rose-600" bg="bg-rose-50" />
                 <KpiMini label="الزيارات" value={String(session.visit_count)} color="text-blue-600" bg="bg-blue-50" />
                 <KpiMini label="المسافة" value={mapData ? `${mapData.total_distance_km} كم` : '--'} color="text-indigo-600" bg="bg-indigo-50" />
@@ -409,7 +410,7 @@ export default function EmployeeWorkdayDetailPage() {
                     return (
                       <div key={i} className="flex flex-col items-center shrink-0">
                         <span className="text-[9px] text-gray-400 mb-0.5">
-                          {d.date ? new Date(d.date).toLocaleDateString('ar-EG', { weekday: 'short' }) : ''}
+                          {d.date ? new Date(d.date).toLocaleDateString('ar-EG-u-nu-latn', { weekday: 'short' }) : ''}
                         </span>
                         <div className="w-10 h-14 bg-gray-50 rounded-lg relative overflow-hidden">
                           <div className={`absolute bottom-0 w-full rounded-t-sm transition-all ${d.met_target ? 'bg-green-400' : pct >= 50 ? 'bg-amber-400' : 'bg-red-400'}`}
@@ -445,13 +446,13 @@ export default function EmployeeWorkdayDetailPage() {
                         <tr key={i} className="border-b border-gray-50 hover:bg-gray-50 cursor-pointer"
                           onClick={() => navigate(`/attendance/employee/${employeeId}/${s.date}`)}>
                           <td className="py-1 px-1 text-gray-600">
-                            {s.date ? new Date(s.date).toLocaleDateString('ar-EG', { weekday: 'short' }) : ''}
+                            {s.date ? new Date(s.date).toLocaleDateString('ar-EG-u-nu-latn', { weekday: 'short' }) : ''}
                           </td>
                           <td className="py-1 px-1 text-gray-500">{s.date}</td>
                           <td className="py-1 px-1 text-center font-bold text-gray-800">{isField ? fmtMin(s.duration_minutes) : fmtMin(s.net_minutes)}</td>
                           <td className="py-1 px-1 text-center text-gray-700">{s.order_count ?? 0}</td>
-                          <td className="py-1 px-1 text-center text-gray-700">{(s.sales_value ?? 0).toLocaleString('en-EG')}</td>
-                          <td className="py-1 px-1 text-center text-gray-700">{(s.collection_amount ?? 0).toLocaleString('en-EG')}</td>
+                          <td className="py-1 px-1 text-center text-gray-700">{formatNumber(s.sales_value ?? 0)}</td>
+                          <td className="py-1 px-1 text-center text-gray-700">{formatNumber(s.collection_amount ?? 0)}</td>
                           <td className="py-1 px-1 text-center text-gray-700">{s.visit_count ?? 0}</td>
                           {isFixed && <td className="py-1 px-1 text-center"><BadgeSmall status={s.attendance_status} /></td>}
                         </tr>

@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { formatCurrencyShort, formatDateTime } from '../../utils/format'
 import { UNIT_LABELS } from '../../types/order-display'
+import { InventoryBreakdown } from '../../components/shared/InventoryBreakdown'
 
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
@@ -132,11 +133,7 @@ export function ProductProfilePage() {
 
       {inv && (
         <div className="bg-white rounded-xl border border-border p-4">
-          <h2 className="text-sm font-bold mb-3">المخزون</h2>
-          <div className="flex justify-between py-1.5">
-            <span className="text-xs text-text-secondary">الكمية المتاحة</span>
-            <span className="text-sm font-semibold">{Number(inv.quantity ?? 0).toLocaleString('ar-EG-u-nu-latn')}</span>
-          </div>
+          <InventoryBreakdown quantity={Number(inv.quantity ?? 0)} cartonQuantity={Number(product.carton_quantity ?? 0)} />
         </div>
       )}
 

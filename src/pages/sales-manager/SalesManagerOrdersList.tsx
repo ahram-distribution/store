@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { formatCurrencyShort } from '../../utils/format'
+import { formatNumber } from '../../utils/numbers'
 import SmartFilterBar, { type FilterValues } from '../../components/SmartFilterBar'
 import { resolveDateRangeISO } from '../../lib/dateRange'
 import { usePersistentViewState } from '../../hooks/usePersistentViewState'
@@ -11,7 +12,7 @@ function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
 }
 
-const fmt = (n: number) => Number.isFinite(n) ? n.toLocaleString('ar-EG-u-nu-latn') : '0'
+const fmt = (n: number) => formatNumber(n)
 
 const STATUS_LABELS: Record<string, string> = {
   pending: 'قيد الانتظار', approved: 'معتمد', submitted: 'مرسل',

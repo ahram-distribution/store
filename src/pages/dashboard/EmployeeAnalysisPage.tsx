@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { targetService } from '../../services/targets'
 import { supabase } from '../../lib/supabase'
+import { formatNumber, formatPercent } from '../../utils/numbers'
 
 interface EmpSummary {
   employee_id: string; employee_code: string; employee_name: string; role_type: string; has_team: boolean
@@ -48,8 +49,8 @@ function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
 }
 
-function fmt(n: number): string { return n.toLocaleString('ar-EG-u-nu-latn') }
-function fmtPct(n: number | null): string { return n != null ? n.toFixed(1) + '%' : 'غير متوفر' }
+function fmt(n: number): string { return formatNumber(n) }
+function fmtPct(n: number | null): string { return n != null ? formatPercent(n, 1) : 'غير متوفر' }
 function pctColor(pct: number | null): string {
   if (pct == null) return 'text-text-secondary'
   if (pct >= 100) return 'text-success'

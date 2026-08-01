@@ -216,8 +216,8 @@ export function exportToPdf({ title, subtitle, identity, dateFrom, dateTo, secti
   if (!win) return
 
   const now = new Date()
-  const printDate = now.toLocaleDateString('ar-EG', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
-  const printTime = now.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', hour12: true })
+  const printDate = now.toLocaleDateString('ar-EG-u-nu-latn', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
+  const printTime = now.toLocaleTimeString('ar-EG-u-nu-latn', { hour: '2-digit', minute: '2-digit', hour12: true })
 
   const periodLabel = dateFrom && dateTo
     ? `الفترة: ${fmtArabicDate(dateFrom)} — ${fmtArabicDate(dateTo)}`

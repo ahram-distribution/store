@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useCapability } from '../../hooks/useCapability'
 import { DynamicSchemaEditor, CREDIT_PROGRAM_COLUMNS } from '../../utils/schemaEditor'
+import { formatNumber } from '../../utils/numbers'
 import toast from 'react-hot-toast'
 
 function getToken() { try { return localStorage.getItem('session_token') } catch { return null } }
@@ -114,7 +115,7 @@ export function CreditProgramsManagerPage() {
         <option value="">اختر برنامج...</option>
         {programs.map((p: any) => (
           <option key={p.id} value={p.id}>
-            {p.name} ({p.credit_limit && `${p.credit_limit.toLocaleString()}ج`}) {!p.is_active ? '— موقوف' : ''}
+            {p.name} ({p.credit_limit && `${formatNumber(p.credit_limit)}ج`}) {!p.is_active ? '— موقوف' : ''}
           </option>
         ))}
       </select>

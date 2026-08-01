@@ -3,12 +3,13 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { attendanceService } from '../../services/attendance'
 import { MobileDialog } from '../../components/shared/MobileDialog'
+import { formatNumber } from '../../utils/numbers'
 
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
 }
 
-const fmt = (n: number) => Number.isFinite(n) ? n.toLocaleString('ar-EG-u-nu-latn') : '0'
+const fmt = (n: number) => formatNumber(n)
 
 const POLLING_INTERVAL = 30000
 

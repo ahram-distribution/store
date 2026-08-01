@@ -25,6 +25,7 @@ interface CartState {
 
   setTiers: (tiers: TierConfig[]) => void
   setProducts: (products: ProductWithPrice[]) => void
+  syncProduct: (product: ProductWithPrice) => void
   selectTier: (tierId: string | null) => void
   addItem: (product: ProductWithPrice, unitType: UnitType, unitQuantity: number) => void
   removeItem: (productId: string, unitType: UnitType) => void
@@ -78,6 +79,16 @@ export const useCartStore = create(
       setTiers: (tiers) => set({ tiers }),
 
       setProducts: (products) => set({ products }),
+
+      syncProduct: (product) => {
+        const state = get()
+        const exists = state.products.some((p) => p.id === product.id)
+        const products = exists
+          ? state.products.map((p) => (p.id === product.id ? product : p))
+          : [...state.products, product]
+        set({ products })
+        get().recalculateAll()
+      },
 
       selectTier: (tierId) => {
         set({ selectedTierId: tierId })

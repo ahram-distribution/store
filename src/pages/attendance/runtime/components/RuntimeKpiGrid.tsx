@@ -1,4 +1,5 @@
 import { ShoppingCart, DollarSign, Users, HandCoins } from 'lucide-react'
+import { formatInteger } from '../../../../utils/numbers'
 
 interface RuntimeKpiGridProps {
   todayOrders: number
@@ -8,7 +9,7 @@ interface RuntimeKpiGridProps {
 }
 
 function fmtCurrency(n: number): string {
-  return Math.round(n).toLocaleString('en-EG')
+  return formatInteger(n)
 }
 
 export default function RuntimeKpiGrid({

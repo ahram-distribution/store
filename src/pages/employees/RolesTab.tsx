@@ -209,7 +209,7 @@ export function RolesTab() {
                           {role.description && <p className="text-[10px] text-text-secondary mt-0.5">{role.description}</p>}
                           <div className="flex gap-3 mt-1">
                             <span className="text-[10px] text-text-secondary">{empCount} موظف</span>
-                            <span className="text-[10px] text-text-secondary">منذ {new Date(role.created_at).toLocaleDateString('ar-EG')}</span>
+                            <span className="text-[10px] text-text-secondary">منذ {new Date(role.created_at).toLocaleDateString('ar-EG-u-nu-latn')}</span>
                           </div>
                         </div>
                         <div className="flex gap-1">

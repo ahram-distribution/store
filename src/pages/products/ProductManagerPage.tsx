@@ -4,21 +4,20 @@ import { Plus, Search, X, Loader2, AlertTriangle, Trash2, Power, Image, Upload }
 import { supabase } from '../../lib/supabase'
 import { useCapability } from '../../hooks/useCapability'
 import { ProductCard } from '../../components/products/ProductCard'
-import { formatCurrencyShort } from '../../utils/format'
+import { InventoryBreakdown } from '../../components/shared/InventoryBreakdown'
+import { formatCurrencyShort, formatDateTimeStamp, toEnglishDigits } from '../../utils/format'
 import { UNIT_LABELS } from '../../types/order-display'
 import { buildSearchIndex, searchProducts } from '../../utils/smartSearch'
 import { SearchHighlight } from '../../components/shared/SearchHighlight'
 import { SearchableSelect } from '../../components/shared/SearchableSelect'
 import toast from 'react-hot-toast'
 import { usePersistentViewState } from '../../hooks/usePersistentViewState'
+import { useCatalogStore } from '../../store/catalog'
+import { useCartStore } from '../../store/cart'
+import { toProductWithPrice } from '../../utils/catalog'
 
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
-}
-
-function toDateInput(iso: string): string {
-  if (!iso) return ''
-  try { return new Date(iso).toISOString().slice(0, 10) } catch { return '' }
 }
 
 const DEDUCTION_STATUS_LABELS: Record<string, string> = {
@@ -43,7 +42,7 @@ export function ProductManagerPage() {
   const editImageInputRef = useRef<HTMLInputElement>(null)
 
   // ── Data ──
-  const [products, setProducts] = useState<any[]>([])
+  const products = useCatalogStore((s) => s.products)
   const [companies, setCompanies] = useState<any[]>([])
   const [allTiers, setAllTiers] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -123,7 +122,7 @@ export function ProductManagerPage() {
       supabase.rpc('get_governed_tiers', { p_token: token }),
       supabase.rpc('get_inventory_policies', { p_token: token }),
     ])
-    if (prodRes.data) setProducts(Array.isArray(prodRes.data) ? prodRes.data : [])
+    if (prodRes.data) useCatalogStore.getState().setProducts(Array.isArray(prodRes.data) ? prodRes.data : [])
     if (compRes.data) setCompanies(Array.isArray(compRes.data) ? compRes.data : [])
     if (tiersRes.data) setAllTiers(Array.isArray(tiersRes.data) ? tiersRes.data : [])
     if (policyRes.data && !policyRes.error) setGlobalPolicies(policyRes.data)
@@ -204,7 +203,9 @@ export function ProductManagerPage() {
       newState = { is_out_of_stock: false, is_active: true }
       toast.success('تم تفعيل المنتج')
     }
-    setProducts(prev => prev.map(p => p.id === product.id ? { ...p, ...newState } : p))
+    useCatalogStore.getState().updateProduct(product.id, newState)
+    const updatedRow = useCatalogStore.getState().products.find((p: any) => p.id === product.id)
+    if (updatedRow) useCartStore.getState().syncProduct(toProductWithPrice(updatedRow))
   }
 
   // ── Hard delete ──
@@ -243,7 +244,7 @@ export function ProductManagerPage() {
     const result = data as any
     if (result?.error) { toast.error(result.error); setDeleting(false); return }
     toast.success('تم حذف المنتج نهائياً')
-    setProducts(prev => prev.filter(p => p.id !== deleteTarget.id))
+    useCatalogStore.getState().removeProduct(deleteTarget.id)
     setDeleteTarget(null)
     setDeletePreview(null)
     setDeleting(false)
@@ -305,7 +306,8 @@ export function ProductManagerPage() {
   const [editTarget, setEditTarget] = useState<any>(null)
   const [editForm, setEditForm] = useState<any>({
     product_name: '', legacy_code: '', description: '', company_id: '',
-    image_url: '', inventory_quantity: '', inventory_unit: 'piece' as 'piece' | 'carton',
+    image_url: '',
+    inventory_cartons: '', inventory_remainder: '',
     carton_quantity: '', carton_price: '',
     units: ['piece', 'dozen', 'carton'], is_active: true, is_out_of_stock: false,
   })
@@ -313,6 +315,8 @@ export function ProductManagerPage() {
   const [editSaving, setEditSaving] = useState(false)
 
   function openEdit(product: any) {
+    const currentStock = product.inventory?.quantity ?? ''
+    const cartonQty = Number(product.carton_quantity) || 0
     setEditTarget(product)
     setEditForm({
       product_name: product.product_name || '',
@@ -320,8 +324,8 @@ export function ProductManagerPage() {
       description: product.description || '',
       company_id: product.company_id || '',
       image_url: product.image_url || '',
-      inventory_quantity: String(product.inventory?.quantity ?? ''),
-      inventory_unit: 'piece' as const,
+      inventory_cartons: cartonQty > 0 && Number(currentStock) >= 0 ? String(Math.floor(Number(currentStock) / cartonQty)) : '',
+      inventory_remainder: cartonQty > 0 && Number(currentStock) >= 0 ? String(Number(currentStock) % cartonQty) : '',
       carton_quantity: String(product.carton_quantity ?? ''),
       carton_price: String(product.carton_price ?? ''),
       units: (product.product_units || []).filter((u: any) => u.is_active !== false).map((u: any) => u.unit_type),
@@ -344,6 +348,22 @@ export function ProductManagerPage() {
     : null
   const computedDozenPrice = computedPiecePrice !== null ? computedPiecePrice * 12 : null
 
+  // ── Smart inventory input: cartons + remainder → auto total pieces ──
+  const invCartonQty = parseInt(editForm.carton_quantity) || 0
+  const invCartons = parseInt(editForm.inventory_cartons) || 0
+  const invRemainder = parseInt(editForm.inventory_remainder) || 0
+  const hasStockInput = (editForm.inventory_cartons ?? '') !== '' || (editForm.inventory_remainder ?? '') !== ''
+  const stockTotal: number | null = hasStockInput ? invCartons * invCartonQty + invRemainder : null
+  const stockError: string | null = !hasStockInput ? null
+    : invCartons > 0 && invCartonQty <= 0
+      ? 'حدد عدد القطع في الكرتونة أولاً'
+      : null
+  const previewPieces = stockTotal ?? 0
+  const previewCartons = invCartonQty > 0 ? Math.trunc(previewPieces / invCartonQty) : 0
+  const previewCartonRem = invCartonQty > 0 ? previewPieces - previewCartons * invCartonQty : previewPieces
+  const previewDozens = Math.trunc(previewPieces / 12)
+  const previewDozenRem = previewPieces - previewDozens * 12
+
   function handleEditImageFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
@@ -357,6 +377,29 @@ export function ProductManagerPage() {
     setEditSaving(true)
     const token = getToken()
     if (!token) { setEditSaving(false); return }
+
+    // Governed RPCs return business failures inside data.error (jsonb) while the
+    // supabase-level error stays null — check both before claiming success.
+    const rpcError = (res: any): string | null => {
+      if (res?.error) return res.error.message || String(res.error)
+      const d = res?.data
+      if (d && typeof d === 'object' && d.error) return String(d.error)
+      return null
+    }
+
+    // Empty numeric inputs commit as 0 (cleared); invalid text is rejected.
+    const parseNumberOrFail = (v: string, label: string): number | null => {
+      if (v === undefined || v === null || v.trim() === '') return 0
+      const n = Number(v)
+      if (Number.isNaN(n)) { toast.error(`${label} يجب أن يكون رقماً`); return null }
+      return n
+    }
+
+    const cartonPriceNum = parseNumberOrFail(editForm.carton_price, 'سعر الكرتونة')
+    if (cartonPriceNum === null) { setEditSaving(false); return }
+    const cartonQtyNum = parseNumberOrFail(editForm.carton_quantity, 'عدد القطع في الكرتونة')
+    if (cartonQtyNum === null) { setEditSaving(false); return }
+
     try {
       // Steps 1-6 are independent column updates — run in parallel
       const promises: Promise<any>[] = []
@@ -365,10 +408,10 @@ export function ProductManagerPage() {
       promises.push(
         supabase.rpc('governed_update_product', {
           p_token: token, p_id: editTarget.id,
-          p_product_name: editForm.product_name || null,
-          p_legacy_code: editForm.legacy_code || null,
-          p_description: editForm.description || null,
-          p_image_url: editForm.image_url || null,
+          p_product_name: editForm.product_name,
+          p_legacy_code: editForm.legacy_code,
+          p_description: editForm.description,
+          p_image_url: editForm.image_url,
         })
       )
 
@@ -385,8 +428,8 @@ export function ProductManagerPage() {
       promises.push(
         supabase.rpc('governed_update_product_pricing', {
           p_token: token, p_id: editTarget.id,
-          p_carton_price: editForm.carton_price ? parseFloat(editForm.carton_price) : null,
-          p_carton_quantity: editForm.carton_quantity ? parseInt(editForm.carton_quantity) : null,
+          p_carton_price: cartonPriceNum,
+          p_carton_quantity: cartonQtyNum,
         })
       )
 
@@ -405,94 +448,88 @@ export function ProductManagerPage() {
         })
       )
 
-      // 6. Update inventory using governed_set_product_stock (SET/REPLACE)
-      if (editForm.inventory_quantity !== '' && editForm.inventory_quantity !== undefined) {
-        const qty = parseInt(editForm.inventory_quantity)
-        if (!isNaN(qty)) {
+      // 6. Update inventory using governed_set_product_stock (SET/REPLACE, pieces only)
+      if (hasStockInput) {
+        if (stockError) {
+          toast.error(stockError)
+          setEditSaving(false)
+          return
+        }
+        if (stockTotal !== null) {
           promises.push(
             supabase.rpc('governed_set_product_stock', {
               p_token: token, p_product_id: editTarget.id,
-              p_quantity: qty, p_unit: editForm.inventory_unit || 'piece',
+              p_quantity: stockTotal, p_unit: 'piece',
             })
           )
         }
       }
 
       const results = await Promise.all(promises)
-      const firstErr = results.find(r => r.error)
-      if (firstErr) { toast.error(firstErr.error.message); setEditSaving(false); return }
+      const failed = results.map(rpcError).find(Boolean)
+      if (failed) { toast.error(failed); setEditSaving(false); return }
 
       // 7. Handle status changes (3-state) — must run after basic updates
       const wasOutOfStock = editTarget.is_out_of_stock === true && editTarget.is_active !== false
+      let statusErr: string | null = null
       if (editForm.is_active && editForm.is_out_of_stock && !wasOutOfStock) {
         if (!editTarget.is_active) {
-          const { error } = await supabase.rpc('governed_activate_product', { p_token: token, p_id: editTarget.id })
-          if (error) { toast.error(error.message); setEditSaving(false); return }
+          statusErr = rpcError(await supabase.rpc('governed_activate_product', { p_token: token, p_id: editTarget.id }))
+          if (statusErr) { toast.error(statusErr); setEditSaving(false); return }
         }
-        const { error } = await supabase.rpc('governed_set_product_out_of_stock', { p_token: token, p_id: editTarget.id, p_is_out_of_stock: true })
-        if (error) { toast.error(error.message); setEditSaving(false); return }
+        statusErr = rpcError(await supabase.rpc('governed_set_product_out_of_stock', { p_token: token, p_id: editTarget.id, p_is_out_of_stock: true }))
+        if (statusErr) { toast.error(statusErr); setEditSaving(false); return }
       } else if (editForm.is_active && !editForm.is_out_of_stock && (wasOutOfStock || !editTarget.is_active)) {
-        const { error } = await supabase.rpc('governed_activate_product', { p_token: token, p_id: editTarget.id })
-        if (error) { toast.error(error.message); setEditSaving(false); return }
+        statusErr = rpcError(await supabase.rpc('governed_activate_product', { p_token: token, p_id: editTarget.id }))
+        if (statusErr) { toast.error(statusErr); setEditSaving(false); return }
       } else if (!editForm.is_active && editTarget.is_active) {
-        const { error } = await supabase.rpc('governed_deactivate_product', { p_token: token, p_id: editTarget.id })
-        if (error) { toast.error(error.message); setEditSaving(false); return }
+        statusErr = rpcError(await supabase.rpc('governed_deactivate_product', { p_token: token, p_id: editTarget.id }))
+        if (statusErr) { toast.error(statusErr); setEditSaving(false); return }
       }
 
-      // 8. Tier discounts
-      const tierPromises: Promise<any>[] = []
+      // 8. Tier discounts — serialize remove→set per tier. The set RPC uses
+      // ON CONFLICT DO NOTHING, so running remove+set in parallel could leave the
+      // exception removed without being re-added (silent data loss).
       for (const tier of allTiers) {
         const newDiscount = editTierDiscounts[tier.id]
         const existingEx = (tier.product_exceptions || []).find(
           (ex: any) => ex.product_id === editTarget.id && ex.applies_to_all_tiers === false
         )
-        if (newDiscount !== undefined && newDiscount !== '') {
-          const parsed = parseFloat(newDiscount)
-          if (isNaN(parsed) || parsed < 0 || parsed > 100) continue
-          if (existingEx) {
-            tierPromises.push(
-              supabase.rpc('governed_remove_tier_product_exception', {
-                p_token: token, p_exception_id: existingEx.id,
-              })
-            )
-          }
-          tierPromises.push(
-            supabase.rpc('governed_set_tier_product_exception', {
-              p_token: token, p_product_id: editTarget.id,
-              p_discount_percent: parsed, p_tier_id: tier.id,
-              p_applies_to_all_tiers: false,
-            })
-          )
-        } else if (existingEx) {
-          tierPromises.push(
-            supabase.rpc('governed_remove_tier_product_exception', {
+        const keepExisting = existingEx && parseFloat(newDiscount) === Number(existingEx.discount_percent)
+        if (newDiscount === undefined || newDiscount === '' || keepExisting) {
+          if (newDiscount === '' && existingEx) {
+            const err = rpcError(await supabase.rpc('governed_remove_tier_product_exception', {
               p_token: token, p_exception_id: existingEx.id,
-            })
-          )
+            }))
+            if (err) { toast.error(err); setEditSaving(false); return }
+          }
+          continue
         }
-      }
-      if (tierPromises.length > 0) {
-        await Promise.all(tierPromises)
+        const parsed = parseFloat(newDiscount)
+        if (isNaN(parsed) || parsed < 0 || parsed > 100) continue
+        if (existingEx) {
+          const err = rpcError(await supabase.rpc('governed_remove_tier_product_exception', {
+            p_token: token, p_exception_id: existingEx.id,
+          }))
+          if (err) { toast.error(err); setEditSaving(false); return }
+        }
+        const err = rpcError(await supabase.rpc('governed_set_tier_product_exception', {
+          p_token: token, p_product_id: editTarget.id,
+          p_discount_percent: parsed, p_tier_id: tier.id,
+          p_applies_to_all_tiers: false,
+        }))
+        if (err) { toast.error(err); setEditSaving(false); return }
       }
 
-      // Update local state instead of full reload
-      const newCompany = companies.find((c: any) => c.id === editForm.company_id)
-      setProducts(prev => prev.map(p =>
-        p.id === editTarget.id ? {
-          ...p,
-          product_name: editForm.product_name || p.product_name,
-          legacy_code: editForm.legacy_code || p.legacy_code,
-          description: editForm.description !== undefined ? editForm.description : p.description,
-          company_id: editForm.company_id || p.company_id,
-          company_name: newCompany?.company_name || p.company_name,
-          image_url: editForm.image_url !== undefined ? editForm.image_url : p.image_url,
-          carton_price: editForm.carton_price ? parseFloat(editForm.carton_price) : p.carton_price,
-          carton_quantity: editForm.carton_quantity ? parseInt(editForm.carton_quantity) : p.carton_quantity,
-          is_active: editForm.is_active,
-          is_visible: editForm.is_active,
-          is_out_of_stock: editForm.is_active ? editForm.is_out_of_stock : false,
-        } : p
-      ))
+      // Reload from DB (single source of truth) so the manager list reflects the save
+      await loadData()
+
+      // Push the updated product into the shared cart catalog so already-open
+      // storefront / cart / order-review / checkout screens update immediately.
+      const savedRow = useCatalogStore.getState().products.find((p: any) => p.id === editTarget.id)
+      if (savedRow) {
+        useCartStore.getState().syncProduct(toProductWithPrice(savedRow))
+      }
 
       toast.success('تم حفظ التغييرات')
       setEditTarget(null)
@@ -506,14 +543,6 @@ export function ProductManagerPage() {
   // ── Render ──
   return (
     <div id="product-manager-page" className="min-h-screen bg-surface pb-24" dir="rtl">
-      <style>{`#product-manager-page input[type="number"]::-webkit-inner-spin-button,
-#product-manager-page input[type="number"]::-webkit-outer-spin-button {
-  -webkit-appearance: none !important;
-  margin: 0 !important;
-}
-#product-manager-page input[type="number"] {
-  -moz-appearance: textfield !important;
-}`}</style>
       {/* Header */}
       <div className="bg-gradient-to-l from-primary to-primary/80 text-white px-4 py-4 flex items-center gap-3">
         <button onClick={() => nav('/dashboard')} className="text-white/80 hover:text-white">&larr;</button>
@@ -725,14 +754,12 @@ export function ProductManagerPage() {
               />
               <div className="grid grid-cols-2 gap-2">
                 <input
-                  type="number" value={addCartonQty} onChange={(e) => setAddCartonQty(e.target.value)}
-                  placeholder="قطع في الكرتونة"
-                  className="w-full border border-border rounded-lg px-3 py-2.5 text-sm bg-surface"
+                  type="text" inputMode="numeric" dir="ltr" value={addCartonQty} onChange={(e) => setAddCartonQty(toEnglishDigits(e.target.value))}
+                  placeholder="قطع في الكرتونة" className="w-full border border-border rounded-lg px-3 py-2.5 text-sm bg-surface text-right"
                 />
                 <input
-                  type="number" step="0.01" value={addCartonPrice} onChange={(e) => setAddCartonPrice(e.target.value)}
-                  placeholder="سعر الكرتونة"
-                  className="w-full border border-border rounded-lg px-3 py-2.5 text-sm bg-surface"
+                  type="text" inputMode="decimal" dir="ltr" value={addCartonPrice} onChange={(e) => setAddCartonPrice(toEnglishDigits(e.target.value))}
+                  placeholder="سعر الكرتونة" className="w-full border border-border rounded-lg px-3 py-2.5 text-sm bg-surface text-right"
                 />
               </div>
               <div>
@@ -772,45 +799,93 @@ export function ProductManagerPage() {
       {/* ── Edit Product Modal ── */}
       {editTarget && (
         <div className="fixed inset-0 z-[70] bg-black/50 flex items-center justify-center">
-          <div className="bg-white rounded-2xl w-full sm:max-w-xl max-h-[calc(100dvh-6rem)] overflow-y-auto shadow-xl">
+          <div className="bg-white rounded-2xl w-full sm:max-w-2xl max-h-[calc(100dvh-6rem)] overflow-y-auto shadow-xl">
             <div className="sticky top-0 bg-white border-b border-border px-5 py-3 flex items-center justify-between z-10">
               <h3 className="font-bold text-text">تعديل: {editTarget.product_name}</h3>
               <button onClick={() => setEditTarget(null)} className="text-text-secondary">
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <div className="p-5 space-y-4">
-              {/* Identity */}
-              <div className="space-y-3">
-                <h4 className="text-xs font-bold text-text-secondary">بيانات المنتج</h4>
-                <input type="text" value={editForm.product_name}
-                  onChange={(e) => setEditForm((p: any) => ({ ...p, product_name: e.target.value }))}
-                  readOnly={!canManage} className="w-full border border-border rounded-lg px-3 py-2.5 text-sm bg-surface" />
-                <input type="text" value={editForm.legacy_code}
-                  onChange={(e) => setEditForm((p: any) => ({ ...p, legacy_code: e.target.value }))}
-                  readOnly={!canManage} className="w-full border border-border rounded-lg px-3 py-2.5 text-sm bg-surface" dir="ltr" />
-                <textarea value={editForm.description}
-                  onChange={(e) => setEditForm((p: any) => ({ ...p, description: e.target.value }))}
-                  readOnly={!canManage} className="w-full border border-border rounded-lg px-3 py-2.5 text-sm bg-surface resize-none" rows={2} />
-              </div>
+            <div className="p-5 space-y-5">
 
-              {/* Company */}
-              <div className="space-y-3">
-                <h4 className="text-xs font-bold text-text-secondary">الشركة</h4>
-                <SearchableSelect
-                  items={companies.map((c: any) => ({ id: c.id, name: c.company_name }))}
-                  value={editForm.company_id}
-                  onChange={(val) => setEditForm((p: any) => ({ ...p, company_id: val }))}
-                  placeholder="اختر شركة..."
-                  disabled={!canManage}
+              {/* ── Product Summary (read-only) ── */}
+              <section className="bg-surface/40 border border-border rounded-xl p-4 space-y-3">
+                <div>
+                  <p className="text-[10px] font-medium text-text-secondary">ملخص المنتج</p>
+                  <h3 className="text-lg font-extrabold text-text leading-snug">{editTarget.product_name}</h3>
+                </div>
+                <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+                  <div className="space-y-0.5">
+                    <span className="block text-[10px] font-medium text-text-secondary">الكود</span>
+                    <span className="block text-sm font-bold text-text" dir="ltr">{editTarget.legacy_code || '—'}</span>
+                  </div>
+                  <div className="space-y-0.5">
+                    <span className="block text-[10px] font-medium text-text-secondary">الشركة</span>
+                    <span className="block text-sm font-semibold text-text truncate">{editTarget.company_name || '—'}</span>
+                  </div>
+                </div>
+                <div className="space-y-0.5">
+                  <span className="block text-[10px] font-medium text-text-secondary">الحالة</span>
+                  <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold border ${
+                    editTarget.is_active === false
+                      ? 'text-danger border-danger/30 bg-danger/5'
+                      : editTarget.is_out_of_stock === true
+                        ? 'text-warning border-warning/30 bg-warning/5'
+                        : 'text-success border-success/30 bg-success/5'
+                  }`}>
+                    {editTarget.is_active === false ? 'مخفي' : editTarget.is_out_of_stock === true ? 'نفذت الكمية' : 'نشط'}
+                  </span>
+                </div>
+                <InventoryBreakdown
+                  quantity={Number(editTarget.inventory?.quantity ?? 0)}
+                  cartonQuantity={Number(editTarget.carton_quantity ?? 0)}
                 />
-              </div>
+                {editTarget.updated_at ? (
+                  <div className="flex items-center justify-between pt-1 border-t border-border">
+                    <span className="text-[10px] font-medium text-text-secondary">آخر تحديث</span>
+                    <span className="text-xs font-semibold text-text" dir="ltr">{formatDateTimeStamp(editTarget.updated_at)}</span>
+                  </div>
+                ) : null}
+              </section>
 
-              {/* Image */}
-              <div className="space-y-3">
-                <h4 className="text-xs font-bold text-text-secondary">صورة المنتج</h4>
+              {/* ── Product Information ── */}
+              <section className="bg-surface/40 border border-border rounded-xl p-4 space-y-3">
+                <h3 className="text-sm font-extrabold text-text">بيانات المنتج</h3>
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-medium text-text-secondary">اسم المنتج</label>
+                  <input type="text" value={editForm.product_name}
+                    onChange={(e) => setEditForm((p: any) => ({ ...p, product_name: e.target.value }))}
+                    readOnly={!canManage} className="w-full border border-border rounded-lg px-3 py-2.5 text-sm bg-white" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-medium text-text-secondary">الكود القديم</label>
+                  <input type="text" value={editForm.legacy_code}
+                    onChange={(e) => setEditForm((p: any) => ({ ...p, legacy_code: e.target.value }))}
+                    readOnly={!canManage} className="w-full border border-border rounded-lg px-3 py-2.5 text-sm bg-white" dir="ltr" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-medium text-text-secondary">الوصف</label>
+                  <textarea value={editForm.description}
+                    onChange={(e) => setEditForm((p: any) => ({ ...p, description: e.target.value }))}
+                    readOnly={!canManage} className="w-full border border-border rounded-lg px-3 py-2.5 text-sm bg-white resize-none" rows={2} />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-medium text-text-secondary">الشركة</label>
+                  <SearchableSelect
+                    items={companies.map((c: any) => ({ id: c.id, name: c.company_name }))}
+                    value={editForm.company_id}
+                    onChange={(val) => setEditForm((p: any) => ({ ...p, company_id: val }))}
+                    placeholder="اختر شركة..."
+                    disabled={!canManage}
+                  />
+                </div>
+              </section>
+
+              {/* ── Product Image ── */}
+              <section className="bg-surface/40 border border-border rounded-xl p-4 space-y-3">
+                <h3 className="text-sm font-extrabold text-text">صورة المنتج</h3>
                 {editForm.image_url ? (
-                  <div className="relative w-full h-32 rounded-lg overflow-hidden border border-border bg-surface mb-2">
+                  <div className="relative w-full h-32 rounded-lg overflow-hidden border border-border bg-white mb-1">
                     <img src={editForm.image_url} alt="" className="w-full h-full object-contain" />
                     {canManage && (
                       <button onClick={() => setEditForm((p: any) => ({ ...p, image_url: '' }))}
@@ -820,7 +895,7 @@ export function ProductManagerPage() {
                     )}
                   </div>
                 ) : (
-                  <div className="w-full h-28 bg-surface rounded-lg border border-border flex items-center justify-center mb-2">
+                  <div className="w-full h-28 bg-white rounded-lg border border-border flex items-center justify-center mb-1">
                     <Image className="w-8 h-8 text-text-secondary/30" />
                   </div>
                 )}
@@ -828,7 +903,7 @@ export function ProductManagerPage() {
                   <div className="flex gap-2">
                     <input type="text" value={editForm.image_url}
                       onChange={(e) => setEditForm((p: any) => ({ ...p, image_url: e.target.value }))}
-                      placeholder="رابط الصورة..." className="flex-1 border border-border rounded-lg px-3 py-2 text-xs bg-surface" dir="ltr" />
+                      placeholder="رابط الصورة..." className="flex-1 border border-border rounded-lg px-3 py-2.5 text-xs bg-white" dir="ltr" />
                     <button type="button" onClick={() => editImageInputRef.current?.click()}
                       className="px-3 py-2 rounded-lg border border-border text-text-secondary hover:bg-surface">
                       <Upload className="w-4 h-4" />
@@ -836,74 +911,132 @@ export function ProductManagerPage() {
                     <input ref={editImageInputRef} type="file" accept="image/*" className="hidden" onChange={handleEditImageFile} />
                   </div>
                 )}
-              </div>
+              </section>
 
-              {/* Inventory — Governance Controls */}
-              <div className="space-y-3">
-                <h4 className="text-xs font-bold text-text-secondary">المخزون</h4>
-                {/* Stock SET/REPLACE */}
-                <div className="flex gap-2">
-                  <input type="number" value={editForm.inventory_quantity}
-                    onChange={(e) => setEditForm((p: any) => ({ ...p, inventory_quantity: e.target.value }))}
-                    readOnly={!canManage} placeholder="كمية المخزون"
-                    className="flex-1 border border-border rounded-lg px-3 py-2.5 text-sm bg-surface" />
-                  <select
-                    value={editForm.inventory_unit}
-                    onChange={(e) => setEditForm((p: any) => ({ ...p, inventory_unit: e.target.value }))}
-                    disabled={!canManage}
-                    className="border border-border rounded-lg px-3 py-2.5 text-sm bg-surface"
-                  >
-                    <option value="piece">قطع</option>
-                    <option value="carton">كراتين</option>
-                  </select>
-                </div>
-                <p className="text-[10px] text-text-secondary">الإدخال يستبدل المخزون الحالي (SET) وليس إضافي</p>
-              </div>
+              {/* ── Inventory ── */}
+              <section className="bg-surface/40 border border-border rounded-xl p-4 space-y-3">
+                <h3 className="text-sm font-extrabold text-text">المخزون</h3>
 
-              {/* Packaging & Pricing */}
-              <div className="space-y-3">
-                <h4 className="text-xs font-bold text-text-secondary">التعبئة والتسعير</h4>
+                {/* Cartons + remaining pieces — total is auto-calculated */}
                 <div className="grid grid-cols-2 gap-2">
-                  <input type="number" value={editForm.carton_quantity}
-                    onChange={(e) => setEditForm((p: any) => ({ ...p, carton_quantity: e.target.value }))}
-                    readOnly={!canManage} placeholder="قطع في الكرتونة"
-                    className="w-full border border-border rounded-lg px-3 py-2.5 text-sm bg-surface" />
-                  <input type="number" step="0.01" value={editForm.carton_price}
-                    onChange={(e) => setEditForm((p: any) => ({ ...p, carton_price: e.target.value }))}
-                    readOnly={!canManage} placeholder="سعر الكرتونة"
-                    className="w-full border border-border rounded-lg px-3 py-2.5 text-sm bg-surface" />
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-medium text-text-secondary">عدد الكراتين</label>
+                    <input type="text" inputMode="numeric" dir="ltr" value={editForm.inventory_cartons}
+                      onChange={(e) => setEditForm((p: any) => ({ ...p, inventory_cartons: toEnglishDigits(e.target.value) }))}
+                      readOnly={!canManage} placeholder="0"
+                      className="w-full border border-border rounded-lg px-3 py-2.5 text-sm bg-white text-right" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-medium text-text-secondary">قطع متبقية</label>
+                    <input type="text" inputMode="numeric" dir="ltr" value={editForm.inventory_remainder}
+                      onChange={(e) => setEditForm((p: any) => ({ ...p, inventory_remainder: toEnglishDigits(e.target.value) }))}
+                      readOnly={!canManage} placeholder="0"
+                      className="w-full border border-border rounded-lg px-3 py-2.5 text-sm bg-white text-right" />
+                  </div>
+                </div>
+
+                {/* Auto-calculated total */}
+                {!stockError && stockTotal !== null && (
+                  <p className="text-xs font-semibold text-success">الإجمالي: {stockTotal} قطعة</p>
+                )}
+
+                {/* Validation message */}
+                {stockError && (
+                  <p className="text-xs font-semibold text-danger">⚠️ {stockError}</p>
+                )}
+
+                <p className="text-[10px] text-text-secondary">الإدخال يستبدل المخزون الحالي (SET) وليس إضافي</p>
+
+                {/* Live preview — three cards, same inventory in different units */}
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="bg-white rounded-xl border border-border p-3 flex flex-col items-center text-center gap-1.5">
+                    <span className="text-xl leading-none">📦</span>
+                    <span className="text-[11px] font-bold text-text-secondary">الكراتين</span>
+                    <span className="text-sm font-extrabold text-text leading-snug" dir="rtl">
+                      {invCartonQty > 0
+                        ? `${previewCartons} كرتونة + ${previewCartonRem} قطعة`
+                        : 'غير محدد'}
+                    </span>
+                  </div>
+                  <div className="bg-white rounded-xl border border-border p-3 flex flex-col items-center text-center gap-1.5">
+                    <span className="text-xl leading-none">📚</span>
+                    <span className="text-[11px] font-bold text-text-secondary">الدست</span>
+                    <span className="text-sm font-extrabold text-text leading-snug">
+                      {previewDozens} دستة + {previewDozenRem} قطعة
+                    </span>
+                  </div>
+                  <div className="bg-white rounded-xl border border-border p-3 flex flex-col items-center text-center gap-1.5">
+                    <span className="text-xl leading-none">🧴</span>
+                    <span className="text-[11px] font-bold text-text-secondary">القطع</span>
+                    <span className="text-sm font-extrabold text-text leading-snug">
+                      {previewPieces} قطعة
+                    </span>
+                  </div>
+                </div>
+              </section>
+
+              {/* ── Packaging ── */}
+              <section className="bg-surface/40 border border-border rounded-xl p-4 space-y-3">
+                <h3 className="text-sm font-extrabold text-text">التعبئة</h3>
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-medium text-text-secondary">عدد القطع في الكرتونة</label>
+                  <input type="text" inputMode="numeric" dir="ltr" value={editForm.carton_quantity}
+                    onChange={(e) => setEditForm((p: any) => ({ ...p, carton_quantity: toEnglishDigits(e.target.value) }))}
+                    readOnly={!canManage} placeholder="0"
+                    className="w-full border border-border rounded-lg px-3 py-2.5 text-sm bg-white text-right" />
+                </div>
+              </section>
+
+              {/* ── Pricing ── */}
+              <section className="bg-surface/40 border border-border rounded-xl p-4 space-y-3">
+                <h3 className="text-sm font-extrabold text-text">التسعير</h3>
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-medium text-text-secondary">سعر الكرتونة</label>
+                  <input type="text" inputMode="decimal" dir="ltr" value={editForm.carton_price}
+                    onChange={(e) => setEditForm((p: any) => ({ ...p, carton_price: toEnglishDigits(e.target.value) }))}
+                    readOnly={!canManage} placeholder="0.00"
+                    className="w-full border border-border rounded-lg px-3 py-2.5 text-sm bg-white text-right" />
                 </div>
                 {computedPiecePrice !== null && (
-                  <div className="text-[11px] text-text-secondary space-y-0.5 bg-surface rounded-lg p-3">
-                    <div>سعر القطعة: <span className="font-semibold text-text">{formatCurrencyShort(computedPiecePrice)}</span></div>
-                    <div>سعر الدستة: <span className="font-semibold text-text">{formatCurrencyShort(computedDozenPrice!)}</span></div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="bg-white rounded-lg border border-border p-3">
+                      <span className="block text-[10px] font-medium text-text-secondary">سعر القطعة</span>
+                      <span className="text-sm font-extrabold text-text">{formatCurrencyShort(computedPiecePrice)}</span>
+                    </div>
+                    <div className="bg-white rounded-lg border border-border p-3">
+                      <span className="block text-[10px] font-medium text-text-secondary">سعر الدستة</span>
+                      <span className="text-sm font-extrabold text-text">{formatCurrencyShort(computedDozenPrice!)}</span>
+                    </div>
                   </div>
                 )}
-              </div>
+              </section>
 
-              {/* Units */}
-              <div className="space-y-3">
-                <h4 className="text-xs font-bold text-text-secondary">وحدات البيع النشطة</h4>
-                <div className="flex gap-4">
-                  {['piece', 'dozen', 'carton'].map((u) => (
-                    <label key={u} className="flex items-center gap-1.5 text-xs cursor-pointer select-none">
-                      <input type="checkbox" checked={editForm.units.includes(u)}
+              {/* ── Selling Units ── */}
+              <section className="bg-surface/40 border border-border rounded-xl p-4 space-y-3">
+                <h3 className="text-sm font-extrabold text-text">وحدات البيع النشطة</h3>
+                <div className="flex gap-2">
+                  {['piece', 'dozen', 'carton'].map((u) => {
+                    const checked = editForm.units.includes(u)
+                    return (
+                      <button key={u} type="button"
                         disabled={!canManage}
-                        onChange={() => setEditForm((p: any) => ({
+                        onClick={() => setEditForm((p: any) => ({
                           ...p, units: p.units.includes(u) ? p.units.filter((x: string) => x !== u) : [...p.units, u]
                         }))}
-                        className="accent-primary" />
-                      <span className={editForm.units.includes(u) ? 'font-semibold text-text' : 'text-text-secondary'}>
+                        className={`flex-1 px-3 py-2.5 rounded-xl border text-xs font-bold transition-colors ${
+                          checked ? 'border-primary bg-primary/10 text-primary' : 'border-border text-text-secondary hover:bg-white/60'
+                        } disabled:opacity-50`}
+                      >
                         {UNIT_LABELS[u]}
-                      </span>
-                    </label>
-                  ))}
+                      </button>
+                    )
+                  })}
                 </div>
-              </div>
+              </section>
 
-              {/* Status — 3-state selector */}
-              <div className="space-y-3">
-                <h4 className="text-xs font-bold text-text-secondary">حالة المنتج</h4>
+              {/* ── Product Status ── */}
+              <section className="bg-surface/40 border border-border rounded-xl p-4 space-y-3">
+                <h3 className="text-sm font-extrabold text-text">حالة المنتج</h3>
                 <div className="flex gap-2">
                   {[
                     { value: 'active', label: 'نشط', desc: 'يظهر للعملاء ويمكن بيعه', color: 'text-success border-success/30 bg-success/5' },
@@ -931,11 +1064,11 @@ export function ProductManagerPage() {
                     )
                   })}
                 </div>
-              </div>
+              </section>
 
-              {/* Tier Discounts */}
-              <div className="space-y-3">
-                <h4 className="text-xs font-bold text-text-secondary">خصم الشرائح</h4>
+              {/* ── Discounts ── */}
+              <section className="bg-surface/40 border border-border rounded-xl p-4 space-y-3">
+                <h3 className="text-sm font-extrabold text-text">خصم الشرائح</h3>
                 {allTiers.length === 0 ? (
                   <p className="text-xs text-text-secondary">لا توجد شرائح</p>
                 ) : (
@@ -944,17 +1077,17 @@ export function ProductManagerPage() {
                     const hasException = exDiscount !== undefined && exDiscount !== ''
                     const effectiveDiscount = hasException ? parseFloat(exDiscount) : (tier.discount_percent ?? 0)
                     return (
-                      <div key={tier.id} className="flex items-center gap-3 border border-border rounded-lg px-3 py-2.5">
+                      <div key={tier.id} className="flex items-center gap-3 border border-border rounded-lg bg-white px-3 py-2.5">
                         <div className="flex-1 min-w-0">
                           <span className="text-xs font-semibold text-text block truncate">{tier.name}</span>
                           <span className="text-[10px] text-text-secondary">الافتراضي: {tier.discount_percent}%</span>
                         </div>
                         {canManage ? (
                           <div className="flex items-center gap-1.5">
-                            <input type="number" min="0" max="100" step="0.01"
+                            <input type="text" inputMode="decimal"
                               value={exDiscount ?? ''}
-                              onChange={(e) => setEditTierDiscounts((prev) => ({ ...prev, [tier.id]: e.target.value }))}
-                              placeholder="نسبة" className="w-16 border border-border rounded-md px-2 py-1 text-xs text-center bg-surface" dir="ltr" />
+                              onChange={(e) => setEditTierDiscounts((prev) => ({ ...prev, [tier.id]: toEnglishDigits(e.target.value) }))}
+                              placeholder="نسبة" className="w-16 border border-border rounded-md px-2 py-1 text-xs text-center bg-white" dir="ltr" />
                             <span className="text-[10px] text-text-secondary">%</span>
                           </div>
                         ) : (
@@ -964,12 +1097,12 @@ export function ProductManagerPage() {
                     )
                   })
                 )}
-              </div>
+              </section>
 
-              {/* Save */}
+              {/* ── Save ── */}
               {canManage && (
                 <button onClick={handleEditSave} disabled={editSaving}
-                  className="w-full bg-primary text-white rounded-xl py-3 text-sm font-semibold hover:bg-primary/90 disabled:opacity-50 transition-colors flex items-center justify-center gap-2">
+                  className="w-full bg-primary text-white rounded-xl py-3.5 text-sm font-bold hover:bg-primary/90 disabled:opacity-50 transition-colors flex items-center justify-center gap-2">
                   {editSaving ? <><Loader2 className="w-4 h-4 animate-spin" /> جاري الحفظ...</> : 'حفظ التغييرات'}
                 </button>
               )}

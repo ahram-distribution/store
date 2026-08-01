@@ -1,4 +1,5 @@
 import type { KpiCardData } from '../../types/reports'
+import { formatInteger } from '../../utils/numbers'
 
 const COLOR_MAP: Record<string, string> = {
   emerald: 'bg-gradient-to-br from-emerald-50 to-green-100/60 border-emerald-200/50 text-success',
@@ -9,12 +10,12 @@ const COLOR_MAP: Record<string, string> = {
 
 function fmt(n: number | null | undefined): string {
   if (n == null) return '\u2014'
-  return Math.round(n).toLocaleString('ar-EG-u-nu-latn')
+  return formatInteger(n)
 }
 
 function fmtMoney(n: number | null | undefined): string {
   if (n == null) return '\u2014'
-  return Math.round(n).toLocaleString('ar-EG-u-nu-latn')
+  return formatInteger(n)
 }
 
 function fmtPct(n: number | null | undefined): string {

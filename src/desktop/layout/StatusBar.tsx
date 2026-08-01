@@ -86,12 +86,12 @@ export function StatusBar() {
         </span>
         <span style={{ opacity: 0.5 }}>|</span>
         <span>
-          {clock.toLocaleDateString('ar-SA', {
+          {clock.toLocaleDateString('ar-EG-u-nu-latn', {
             year: 'numeric', month: 'short', day: 'numeric',
           })}
         </span>
         <span>
-          {clock.toLocaleTimeString('ar-SA', {
+          {clock.toLocaleTimeString('ar-EG-u-nu-latn', {
             hour: '2-digit', minute: '2-digit',
           })}
         </span>

@@ -2,15 +2,16 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../store/auth'
+import { formatNumber, formatInteger } from '../../utils/numbers'
 
 function fmt(n: number | null | undefined): string {
   if (n == null) return '\u2014'
-  return n.toLocaleString('ar-EG-u-nu-latn')
+  return formatNumber(n)
 }
 
 function fmtMoney(n: number | null | undefined): string {
   if (n == null || n === 0) return '0'
-  return Math.round(n).toLocaleString('ar-EG-u-nu-latn')
+  return formatInteger(n)
 }
 
 export function TeamAchievement() {

@@ -1,5 +1,6 @@
 import { Fragment, useMemo, useState } from 'react'
 import { formatCurrencyShort } from '../../utils/format'
+import { formatNumber } from '../../utils/numbers'
 import { UNIT_LABELS } from '../../types/order-display'
 import type { UnifiedOrder, UnifiedOrderItem, InventorySnapshotItem } from '../../types/unified-order'
 
@@ -200,11 +201,11 @@ export function OrderProductsSection({ items, order, mode = 'view', onQuantityCh
           </div>
           <div>
             <p className="text-[11px] text-[#9CA3AF] font-medium">إجمالي الوحدات</p>
-            <p className="text-[13px] font-bold text-[#111827] mt-0.5">{totalQty.toLocaleString('en-EG')}</p>
+            <p className="text-[13px] font-bold text-[#111827] mt-0.5">{formatNumber(totalQty)}</p>
           </div>
           <div>
             <p className="text-[11px] text-[#9CA3AF] font-medium">إجمالي القطع</p>
-            <p className="text-[13px] font-bold text-[#111827] mt-0.5">{totalPieces.toLocaleString('en-EG')}</p>
+            <p className="text-[13px] font-bold text-[#111827] mt-0.5">{formatNumber(totalPieces)}</p>
           </div>
           <div className="text-left">
             <p className="text-[11px] text-[#9CA3AF] font-medium">الإجمالي النهائي</p>

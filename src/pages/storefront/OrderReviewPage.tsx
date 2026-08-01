@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useCartStore } from '../../store/cart'
 import { useAuthStore } from '../../store/auth'
 import { formatCurrencyShort } from '../../utils/format'
+import { formatNumber } from '../../utils/numbers'
 import { supabase } from '../../lib/supabase'
 import { sendWhatsAppFromDisplay } from '../../lib/whatsapp'
 import { buildOrderDisplayData, UNIT_LABELS } from '../../types/order-display'
@@ -262,7 +263,7 @@ export function OrderReviewPage() {
                         <span>{formatCurrencyShort(item.unitPrice)} للوحدة</span>
                       </div>
                       <div className="text-xs text-text-secondary">
-                        {item.pieceQuantity.toLocaleString('ar-EG-u-nu-latn')} قطعة
+                        {formatNumber(item.pieceQuantity)} قطعة
                       </div>
                     </div>
                     <div className="flex items-center">

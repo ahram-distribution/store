@@ -8,6 +8,7 @@ import { ProductCard } from '../../components/storefront/ProductCard'
 import { StorefrontBanner, StorefrontFooter } from '../../components/storefront/CompanyInfoSection'
 import { computeProductPrices } from '../../engine/pricing'
 import { formatCurrencyShort } from '../../utils/format'
+import { formatNumber } from '../../utils/numbers'
 import { buildSearchIndex, searchProducts, type ProductSearchIndex } from '../../utils/smartSearch'
 import type { ProductWithPrice, ProductUnitPrice, TierConfig, UnitType } from '../../types/storefront'
 import { DYNAMIC_COLLECTIONS, loadCollection, type CollectionStrategy } from '../../config/dynamicCollections'
@@ -655,7 +656,7 @@ export function StorefrontPage() {
         <div className="sticky bottom-0 bg-white border-t border-border p-3 -mx-4 -mb-24 mt-4">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs text-text-secondary">
-              {cartItemCount} منتج &middot; {items.reduce((s, i) => s + i.pieceQuantity, 0).toLocaleString('ar-EG-u-nu-latn')} قطعة
+              {cartItemCount} منتج &middot; {formatNumber(items.reduce((s, i) => s + i.pieceQuantity, 0))} قطعة
             </span>
             <span className="text-sm font-bold text-text">{formatCurrencyShort(totals.netTotal)}</span>
           </div>

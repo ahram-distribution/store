@@ -3,8 +3,8 @@ import { StatusBadge } from '../shared/StatusBadge'
 function formatDateTime(dt: string): string {
   try {
     const d = new Date(dt)
-    const date = d.toLocaleDateString('ar-EG', { day: 'numeric', month: 'short' })
-    const time = d.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })
+    const date = d.toLocaleDateString('ar-EG-u-nu-latn', { day: 'numeric', month: 'short' })
+    const time = d.toLocaleTimeString('ar-EG-u-nu-latn', { hour: '2-digit', minute: '2-digit' })
     return date + ' ' + time
   } catch { return dt }
 }

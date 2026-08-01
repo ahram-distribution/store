@@ -2,12 +2,13 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { formatCurrencyShort } from '../../utils/format'
+import { formatNumber } from '../../utils/numbers'
 
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
 }
 
-const fmt = (n: number) => Number.isFinite(n) ? n.toLocaleString('en-EG') : '0'
+const fmt = (n: number) => formatNumber(n)
 
 function safeNum(v: unknown, fallback = 0): number {
   return typeof v === 'number' && !isNaN(v) ? v : fallback

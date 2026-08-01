@@ -3,11 +3,12 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../store/auth'
 import { salesRepRange, type SalesRepPeriod } from '../../lib/dateRange'
+import { formatInteger, formatDecimal } from '../../utils/numbers'
 
 function fmt(n: number | null | undefined): string {
   if (n == null) return '\u2014'
-  if (Number.isInteger(n)) return n.toLocaleString('ar-EG-u-nu-latn')
-  return n.toLocaleString('ar-EG-u-nu-latn', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  if (Number.isInteger(n)) return formatInteger(n)
+  return formatDecimal(n, 2)
 }
 
 function getToken(): string | null {

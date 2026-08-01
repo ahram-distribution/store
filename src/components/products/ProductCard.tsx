@@ -2,6 +2,7 @@ import { memo } from 'react'
 import { Edit3, Eye, Power, Trash2, Star, Package, Building2, Calendar } from 'lucide-react'
 import { formatCurrencyShort } from '../../utils/format'
 import { SearchHighlight } from '../shared/SearchHighlight'
+import { InventoryBreakdown } from '../shared/InventoryBreakdown'
 
 interface ProductCardProps {
   product: any
@@ -79,12 +80,7 @@ export const ProductCard = memo(function ProductCard({ product, onEdit, onToggle
         </div>
 
         {/* Stock Balance */}
-        <div className="flex items-center gap-1.5 text-[12px]">
-          <Package className="w-3 h-3 shrink-0 text-text-secondary" />
-          <span className={`font-semibold ${(product.inventory?.quantity ?? 0) < 0 ? 'text-danger' : (product.inventory?.quantity ?? 0) === 0 ? 'text-warning' : 'text-text'}`}>
-            المخزون: {product.inventory?.quantity ?? 0} قطعة
-          </span>
-        </div>
+        <InventoryBreakdown quantity={product.inventory?.quantity ?? 0} cartonQuantity={product.carton_quantity ?? 0} />
 
         {/* Units */}
         {unitNames && (

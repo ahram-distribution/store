@@ -58,8 +58,8 @@ export function exportToExcel({ title, subtitle, identity, columns, data, fileNa
   const dataRows = data.map((row) => columns.map((c) => row[c.key] ?? ''))
 
   const now = new Date()
-  const printDate = now.toLocaleDateString('ar-EG', { year: 'numeric', month: 'long', day: 'numeric' })
-  const printTime = now.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', hour12: true })
+  const printDate = now.toLocaleDateString('ar-EG-u-nu-latn', { year: 'numeric', month: 'long', day: 'numeric' })
+  const printTime = now.toLocaleTimeString('ar-EG-u-nu-latn', { hour: '2-digit', minute: '2-digit', hour12: true })
 
   let currentRow = 0
 

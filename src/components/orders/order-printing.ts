@@ -1,4 +1,5 @@
 import { formatCurrencyShort, formatDate } from '../../utils/format'
+import { formatNumber } from '../../utils/numbers'
 import { UNIT_LABELS, ORDER_STATUS_LABELS } from '../../types/order-display'
 import type { UnifiedOrder } from '../../types/unified-order'
 
@@ -157,8 +158,8 @@ export function renderDeliveryPermitHtml(data: UnifiedOrder, logoUrl?: string): 
   function summarySection(): string {
     return `<div class="summary">
       <div class="summary-row"><span class="summary-label">عدد الأصناف</span><span class="summary-value">${items.length}</span></div>
-      <div class="summary-row"><span class="summary-label">إجمالي الوحدات</span><span class="summary-value">${totalQty.toLocaleString('en-EG')}</span></div>
-      <div class="summary-row"><span class="summary-label">إجمالي القطع</span><span class="summary-value">${totalPieces.toLocaleString('en-EG')}</span></div>
+      <div class="summary-row"><span class="summary-label">إجمالي الوحدات</span><span class="summary-value">${formatNumber(totalQty)}</span></div>
+      <div class="summary-row"><span class="summary-label">إجمالي القطع</span><span class="summary-value">${formatNumber(totalPieces)}</span></div>
       <hr class="summary-divider" />
       <div class="summary-row summary-grand"><span class="summary-label">الإجمالي النهائي</span><span class="summary-value">${formatCurrencyShort(grandTotal)}</span></div>
     </div>`

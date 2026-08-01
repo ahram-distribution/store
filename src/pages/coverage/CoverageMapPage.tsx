@@ -5,17 +5,18 @@ import L from 'leaflet'
 import PresenceLabel from '../../components/shared/PresenceLabel'
 import { LocationRepository } from '../../domain/location'
 import type { CoverageCustomer, CoverageEmployee, CoverageSummary } from '../../domain/location'
+import { formatNumber, formatPercent } from '../../utils/numbers'
 
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
 }
 
-const fmtNum = (n?: number) => { if (n == null) return '0'; return n.toLocaleString('ar-EG') }
-const fmtPct = (n?: number) => { if (n == null) return '0%'; return `${Math.round(n)}%` }
+const fmtNum = (n?: number) => formatNumber(n ?? 0)
+const fmtPct = (n?: number) => formatPercent(Math.round(n ?? 0))
 
 const fmtDate = (d?: string | null) => {
   if (!d) return '--'
-  try { return new Date(d).toLocaleString('ar-EG', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) } catch { return '--' }
+  try { return new Date(d).toLocaleString('ar-EG-u-nu-latn', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) } catch { return '--' }
 }
 const fmtTimeAgo = (d?: string | null) => {
   if (!d) return '--'

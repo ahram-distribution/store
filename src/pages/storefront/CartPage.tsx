@@ -7,6 +7,7 @@ import { TierMinimumNotice } from '../../components/storefront/TierMinimumNotice
 import { EmptyCart } from '../../components/storefront/EmptyCart'
 import { SearchableSelect } from '../../components/shared/SearchableSelect'
 import { formatCurrencyShort } from '../../utils/format'
+import { formatNumber } from '../../utils/numbers'
 import { UNIT_LABELS } from '../../types/order-display'
 import { supabase } from '../../lib/supabase'
 import toast from 'react-hot-toast'
@@ -317,7 +318,7 @@ export function CartPage() {
                           {UNIT_LABELS[item.unitType]} &middot; {formatCurrencyShort(item.unitPrice)} للوحدة
                         </div>
                         <div className="text-xs text-text-secondary">
-                          {item.pieceQuantity.toLocaleString('ar-EG-u-nu-latn')} قطعة
+                          {formatNumber(item.pieceQuantity)} قطعة
                         </div>
                       </div>
 

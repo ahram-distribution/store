@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase'
 import { useCapability } from '../../hooks/useCapability'
 import { useEntityViewsStore } from '../../store/entityViews'
 import { formatCurrencyShort, formatDate, formatDateTime } from '../../utils/format'
+import { formatNumber, formatPercent } from '../../utils/numbers'
 import { getCustomerState, getCustomerStateLabel, CUSTOMER_STATE_LABELS } from '../../utils/systemStates'
 import { LocationRepository, LocationNormalizationService } from '../../domain/location'
 import { getCurrentLocation } from '../../services/gpsService'
@@ -30,8 +31,8 @@ function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
 }
 
-const fmt = (n: number) => Number.isFinite(n) ? n.toLocaleString('en-EG') : '0'
-const fmtPct = (n: number) => Number.isFinite(n) ? n.toFixed(1) + '%' : '0.0%'
+const fmt = (n: number) => formatNumber(n)
+const fmtPct = (n: number) => Number.isFinite(n) ? formatPercent(n, 1) : '0.0%'
 
 function safeNum(v: unknown, fallback = 0): number {
   return typeof v === 'number' && !isNaN(v) ? v : fallback

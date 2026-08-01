@@ -5,6 +5,7 @@ import { useAuthStore } from '../../store/auth'
 import { useCapability } from '../../hooks/useCapability'
 import { MonthlyActivity } from '../../components/activity/MonthlyActivity'
 import { DeliveredOrdersKPI } from '../../components/activity/DeliveredOrdersKPI'
+import { formatInteger } from '../../utils/numbers'
 
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
@@ -29,7 +30,7 @@ function isDelivered(o: any): boolean {
 }
 
 function fmtShort(n: number): string {
-  return Math.round(n).toLocaleString('ar-EG-u-nu-latn')
+  return formatInteger(n)
 }
 
 export function SalesRepWorkDay() {

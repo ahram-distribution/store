@@ -8,6 +8,7 @@ import { StorefrontFooter } from '../../components/storefront/CompanyInfoSection
 import { StorefrontHero } from '../../components/storefront/StorefrontHero'
 import { BusinessShortcuts } from '../../components/storefront/BusinessShortcuts'
 import { SearchHighlight } from '../../components/shared/SearchHighlight'
+import { formatNumber } from '../../utils/numbers'
 import { buildSearchIndex, searchProducts as smartSearchProducts, type ProductSearchIndex } from '../../utils/smartSearch'
 import type { ProductWithPrice, ProductUnitPrice, UnitType } from '../../types/storefront'
 
@@ -211,7 +212,7 @@ export function CompaniesPage() {
                         )}
                       </div>
                       <div className="text-xs text-primary font-semibold shrink-0">
-                        {product.cartonPrice > 0 ? `${product.cartonPrice.toLocaleString('ar-EG')} ج.` : ''}
+                        {product.cartonPrice > 0 ? `${formatNumber(product.cartonPrice)} ج.` : ''}
                       </div>
                     </div>
                   </button>

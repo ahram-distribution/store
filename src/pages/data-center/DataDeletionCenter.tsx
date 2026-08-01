@@ -425,7 +425,7 @@ export function DataDeletionCenter() {
                     <td className="px-2 py-2.5 font-semibold text-text">{rec.name}</td>
                     <td className="px-2 py-2.5">{renderStatusBadge(rec.status)}</td>
                     <td className="px-2 py-2.5 text-text-secondary">
-                      {new Date(rec.created_at).toLocaleDateString('ar-EG')}
+                      {new Date(rec.created_at).toLocaleDateString('ar-EG-u-nu-latn')}
                     </td>
                     <td className="px-2 py-2.5">
                       <div className="flex flex-wrap gap-1">

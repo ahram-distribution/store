@@ -176,7 +176,7 @@ function DrillDownModal({ type, entityName, orders, orderItems, filterDelivered,
             >
               <div className="flex items-center justify-between mb-1">
                 <span className="text-xs font-bold text-text font-mono">{order.order_number}</span>
-                <span className="text-[10px] text-text-secondary">{new Date(order.created_at).toLocaleDateString('ar-EG')}</span>
+                <span className="text-[10px] text-text-secondary">{new Date(order.created_at).toLocaleDateString('ar-EG-u-nu-latn')}</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-[11px] text-text-secondary truncate">{order.customer_name}</span>

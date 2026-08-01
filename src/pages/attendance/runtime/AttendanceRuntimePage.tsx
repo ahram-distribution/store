@@ -11,6 +11,7 @@ import RuntimeDailySummaryModal from './components/RuntimeDailySummaryModal'
 import DeviceReadinessPanel from '../../../components/attendance/DeviceReadinessPanel'
 import { useAuthStore } from '../../../store/auth'
 import { formatTime } from '../../../utils/format'
+import { formatInteger } from '../../../utils/numbers'
 
 interface DailyTarget {
   target_hours: number
@@ -59,7 +60,7 @@ function fmt(m: number): string {
 }
 
 function fmtShort(n: number): string {
-  return Math.round(n).toLocaleString('en-EG')
+  return formatInteger(n)
 }
 
 function getToken(): string | null {
@@ -337,7 +338,7 @@ export default function AttendanceRuntimePage() {
           <div className="flex items-center justify-between mb-5">
             <span className="text-base font-bold text-gray-800">{status.employee_name}</span>
             <span className="text-xs text-gray-400">
-              {currentTime.toLocaleDateString('ar-EG', { weekday: 'long', day: 'numeric', month: 'long' })}
+              {currentTime.toLocaleDateString('ar-EG-u-nu-latn', { weekday: 'long', day: 'numeric', month: 'long' })}
             </span>
           </div>
 

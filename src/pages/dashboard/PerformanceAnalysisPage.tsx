@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { targetService } from '../../services/targets'
+import { formatNumber, formatPercent } from '../../utils/numbers'
 
 interface PerfEmployee {
   employee_id: string; employee_code: string; employee_name: string
@@ -71,11 +72,11 @@ function getToken(): string | null {
 }
 
 function fmt(n: number): string {
-  return n.toLocaleString('ar-EG-u-nu-latn')
+  return formatNumber(n)
 }
 
 function fmtPct(n: number): string {
-  return n.toFixed(1) + '%'
+  return formatPercent(n, 1)
 }
 
 function pctColor(pct: number): string {

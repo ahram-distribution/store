@@ -13,7 +13,7 @@ function MapFitBounds({ points }: { points: [number, number][] }) {
 
 function fmtTime(t?: string) {
   if (!t) return '--'
-  try { return new Date(t).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', hour12: true }) }
+  try { return new Date(t).toLocaleTimeString('ar-EG-u-nu-latn', { hour: '2-digit', minute: '2-digit', hour12: true }) }
   catch { return t && t.length >= 5 ? t.slice(0, 5) : t }
 }
 

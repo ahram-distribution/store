@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo, useCallback } from 'react'
 import { targetService } from '../../services/targets'
+import { formatNumber } from '../../utils/numbers'
 
 interface EmployeeInfo {
   employee_id: string; employee_code: string; employee_name: string
@@ -320,7 +321,7 @@ export default function TargetsTab({ month: selMonth, year: selYear }: TargetsTa
                           </span>
                           {employeeTargetMap[mgr.employee_id] && (
                             <span className="text-[10px] text-gray-500 bg-gray-50 rounded-md px-2 py-0.5">
-                              {'🎯 ' + employeeTargetMap[mgr.employee_id].sales_target.toLocaleString('ar-EG-u-nu-latn')}
+                              {'🎯 ' + formatNumber(employeeTargetMap[mgr.employee_id].sales_target)}
                             </span>
                           )}
                         </div>
@@ -456,7 +457,7 @@ export default function TargetsTab({ month: selMonth, year: selYear }: TargetsTa
                       </span>
                       {employeeTargetMap[emp.employee_id] && (
                         <span className="text-[9px] text-gray-500 bg-gray-50 rounded-md px-1.5 py-0.5">
-                          {'🎯 ' + employeeTargetMap[emp.employee_id].sales_target.toLocaleString('ar-EG-u-nu-latn')}
+                          {'🎯 ' + formatNumber(employeeTargetMap[emp.employee_id].sales_target)}
                         </span>
                       )}
                     </div>

@@ -9,6 +9,7 @@ import { KpiDrillDownModal } from '../../components/KpiDrillDownModal'
 import TrackingExplorerModal from '../../components/TrackingExplorerModal'
 import { getBusinessDetailData } from '../../services/businessActivity'
 import * as XLSX from 'xlsx'
+import { formatInteger, formatPercent } from '../../utils/numbers'
 
 
 const MONTHS = ['يناير', 'فبراير', 'مارس', 'إبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر']
@@ -83,18 +84,18 @@ const ALL_COLUMNS = [
 
 function fmtNum(n: number | null | undefined): string {
   if (n == null) return '\u2014'
-  return Math.round(n).toLocaleString('ar-EG-u-nu-latn')
+  return formatInteger(n)
 }
 
 function fmtPct(n: number | null | undefined): string {
   if (n == null) return '\u2014'
-  return n.toFixed(1) + '%'
+  return formatPercent(n, 1)
 }
 
 function fmtMoney(n: number | null | undefined): string {
   if (n == null) return '\u2014'
   if (n === 0) return '0'
-  return Math.round(n).toLocaleString('ar-EG-u-nu-latn')
+  return formatInteger(n)
 }
 
 function fmtHours(minutes: number | null | undefined): string {

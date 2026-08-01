@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Search, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, ArrowUpDown, Clock, User } from 'lucide-react'
 import { supabase } from '../../../lib/supabase'
-import { formatTime, formatDate } from '../../../utils/format'
+import { formatCurrencyShort, formatTime, formatDate } from '../../../utils/format'
+import { formatNumber } from '../../../utils/numbers'
 
 type HistoryTabFilter = 'today' | 'yesterday' | 'last_7' | 'last_30' | 'custom'
 
@@ -149,7 +150,7 @@ function TargetRow({ label, actual, target, achievement, currency }: {
   achievement: number | null
   currency?: boolean
 }) {
-  const fmt = (v: number) => currency ? v.toLocaleString('en-EG') + ' ج.م' : v.toLocaleString('en-EG')
+  const fmt = (v: number) => currency ? formatCurrencyShort(v) : formatNumber(v)
   return (
     <div className="flex items-center justify-between py-0.5">
       <span className="text-[11px] text-gray-500">{label}</span>
@@ -348,8 +349,8 @@ export default function HistoricalPerformancePanel() {
                 { label: 'الأيام', value: data.totals.total_days },
                 { label: 'صافي ساعات', value: formatDuration(data.totals.total_net_minutes) },
                 { label: 'الطلبات', value: data.totals.total_orders },
-                { label: 'المبيعات', value: (data.totals.total_sales ?? 0).toLocaleString('en-EG') + ' ج.م' },
-                { label: 'التحصيلات', value: (data.totals.total_collection_amount ?? 0).toLocaleString('en-EG') + ' ج.م' },
+                { label: 'المبيعات', value: formatCurrencyShort(data.totals.total_sales ?? 0) },
+                { label: 'التحصيلات', value: formatCurrencyShort(data.totals.total_collection_amount ?? 0) },
                 { label: 'عملاء مسجلون', value: data.totals.total_new_customers },
                 { label: 'الزيارات', value: data.totals.total_visits },
                 { label: 'الموظفون', value: data.totals.total_employees },
@@ -399,8 +400,8 @@ export default function HistoricalPerformancePanel() {
                         { label: 'صافي ساعات', value: formatDuration(emp.summary.total_net_minutes), sub: `معدل ${formatDuration(emp.summary.avg_net_minutes)}` },
                         { label: 'أيام عمل', value: emp.summary.total_days, sub: null },
                         { label: 'الطلبات', value: emp.summary.total_orders, sub: null },
-                        { label: 'المبيعات', value: (emp.summary.total_sales_value ?? 0).toLocaleString('en-EG') + ' ج.م', sub: null },
-                        { label: 'التحصيلات', value: (emp.summary.total_collection_amount ?? 0).toLocaleString('en-EG') + ' ج.م', sub: emp.summary.total_collection_count + ' عملية' },
+                        { label: 'المبيعات', value: formatCurrencyShort(emp.summary.total_sales_value ?? 0), sub: null },
+                        { label: 'التحصيلات', value: formatCurrencyShort(emp.summary.total_collection_amount ?? 0), sub: emp.summary.total_collection_count + ' عملية' },
                         { label: 'عملاء مسجلون', value: emp.summary.total_new_customers, sub: null },
                         { label: 'الزيارات', value: emp.summary.total_visits, sub: null },
                         { label: 'مسافة', value: (emp.summary.total_distance_meters ?? 0) >= 1000 ? ((emp.summary.total_distance_meters ?? 0) / 1000).toFixed(1) + ' كم' : (emp.summary.total_distance_meters ?? 0) + ' م', sub: null },
@@ -457,8 +458,8 @@ export default function HistoricalPerformancePanel() {
                                 <td className="px-2 py-1.5 text-gray-500">{formatDuration(s.break_minutes)}</td>
                                 <td className="px-2 py-1.5 text-gray-700">{safeNum(s.visit_count)}</td>
                                 <td className="px-2 py-1.5 text-gray-700">{s.order_count}</td>
-                                <td className="px-2 py-1.5 text-gray-700">{s.sales_value.toLocaleString('en-EG')}</td>
-                                <td className="px-2 py-1.5 text-gray-700">{s.collection_amount.toLocaleString('en-EG')}</td>
+                                <td className="px-2 py-1.5 text-gray-700">{formatNumber(s.sales_value)}</td>
+                                <td className="px-2 py-1.5 text-gray-700">{formatNumber(s.collection_amount)}</td>
                                 <td className="px-2 py-1.5 text-gray-700">{s.new_customer_count}</td>
                                 <td className="px-2 py-1.5 text-gray-500">{s.distance_meters >= 1000 ? (s.distance_meters / 1000).toFixed(1) + ' كم' : s.distance_meters + ' م'}</td>
                                 <td className="px-2 py-1.5 text-gray-500">{s.tracking_points_count}</td>

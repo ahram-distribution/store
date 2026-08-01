@@ -1,4 +1,5 @@
 import { Target, ShoppingCart, DollarSign, HandCoins, Users, Clock, Coffee, Timer } from 'lucide-react'
+import { formatInteger } from '../../../../utils/numbers'
 
 function fmt(m: number): string {
   const h = Math.floor(m / 60)
@@ -7,7 +8,7 @@ function fmt(m: number): string {
 }
 
 function fmtShort(n: number): string {
-  return Math.round(n).toLocaleString('en-EG')
+  return formatInteger(n)
 }
 
 interface RuntimeTodaySummaryProps {

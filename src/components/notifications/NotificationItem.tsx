@@ -24,7 +24,7 @@ function timeAgo(dateStr: string): string {
   if (diff < 3600) return `${Math.floor(diff / 60)} دقيقة`
   if (diff < 86400) return `${Math.floor(diff / 3600)} ساعة`
   if (diff < 604800) return `${Math.floor(diff / 86400)} يوم`
-  return new Date(dateStr).toLocaleDateString('ar-EG', { day: 'numeric', month: 'short' })
+  return new Date(dateStr).toLocaleDateString('ar-EG-u-nu-latn', { day: 'numeric', month: 'short' })
 }
 
 interface Props {

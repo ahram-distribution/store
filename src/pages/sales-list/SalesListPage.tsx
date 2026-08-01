@@ -68,8 +68,8 @@ function esc(s: string | null | undefined): string {
 
 function generatePrintHtml(groups: CompanyGroup[], logoUrl: string): string {
   const now = new Date()
-  const dateStr = now.toLocaleDateString('ar-EG', { day: '2-digit', month: '2-digit', year: 'numeric' })
-  const timeStr = now.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', hour12: false })
+  const dateStr = now.toLocaleDateString('ar-EG-u-nu-latn', { day: '2-digit', month: '2-digit', year: 'numeric' })
+  const timeStr = now.toLocaleTimeString('ar-EG-u-nu-latn', { hour: '2-digit', minute: '2-digit', hour12: false })
 
   function productRow(p: ProductRow, bgColor: string): string {
     const unitPrices = computeUnitPrices(p)

@@ -1,5 +1,6 @@
 import type { CartItem as CartItemType } from '../../types/storefront'
 import { formatCurrencyShort } from '../../utils/format'
+import { formatNumber } from '../../utils/numbers'
 import { UNIT_LABELS } from '../../types/order-display'
 
 interface CartItemProps {
@@ -17,7 +18,7 @@ export function CartItem({ item, onUpdateQuantity, onRemove }: CartItemProps) {
           {UNIT_LABELS[item.unitType] || item.unitType} &middot; {formatCurrencyShort(item.unitPrice)} للوحدة
         </div>
         <div className="text-xs text-text-secondary">
-          إجمالي القطع: {item.pieceQuantity.toLocaleString('ar-EG-u-nu-latn')}
+          إجمالي القطع: {formatNumber(item.pieceQuantity)}
         </div>
       </div>
 

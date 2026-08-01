@@ -1,4 +1,5 @@
 import type { ActivityKpis } from './types'
+import { formatInteger } from '../utils/numbers'
 
 interface Props {
   kpis: ActivityKpis
@@ -7,12 +8,12 @@ interface Props {
 
 function fmtNum(n: number | null | undefined): string {
   if (n == null) return '\u2014'
-  return Math.round(n).toLocaleString('ar-EG-u-nu-latn')
+  return formatInteger(n)
 }
 
 function fmtMoney(n: number | null | undefined): string {
   if (n == null) return '\u2014'
-  return Math.round(n).toLocaleString('ar-EG-u-nu-latn')
+  return formatInteger(n)
 }
 
 const CARD_CONFIG = [

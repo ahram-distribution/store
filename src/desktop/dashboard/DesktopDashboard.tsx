@@ -6,13 +6,14 @@ import { useDesktopStore } from '../store/desktopStore'
 import { createDefaultState } from '../workspace/WorkspaceRegistry'
 import type { SalesOrder } from '../../domain/models/salesOrder'
 import type { Money } from '../../domain/value-objects'
+import { formatNumber } from '../../utils/numbers'
 
 function formatMoney(m: Money): string {
-  return `${m.currency} ${m.amount.toLocaleString()}`
+  return `${m.currency} ${formatNumber(m.amount)}`
 }
 
 function formatCount(n: number): string {
-  return n.toLocaleString('ar-EG')
+  return formatNumber(n)
 }
 
 export function DesktopDashboard() {
@@ -81,7 +82,7 @@ export function DesktopDashboard() {
     customer: o.customerName,
     amount: formatMoney(o.grandTotal),
     status: o.status,
-    date: o.createdAt instanceof Date ? o.createdAt.toLocaleDateString('ar-SA') : '—',
+    date: o.createdAt instanceof Date ? o.createdAt.toLocaleDateString('ar-EG-u-nu-latn') : '—',
     rep: o.ownerName,
   }))
 
@@ -134,7 +135,7 @@ export function DesktopDashboard() {
         </h1>
         <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
           <p style={{ fontSize: 'var(--dt-font-size-sm)', color: 'var(--dt-text-muted)', margin: '2px 0 0 0' }}>
-            {new Date().toLocaleDateString('ar-SA', { year: 'numeric', month: 'long', day: 'numeric' })}
+            {new Date().toLocaleDateString('ar-EG-u-nu-latn', { year: 'numeric', month: 'long', day: 'numeric' })}
           </p>
           <span style={{ fontSize: 'var(--dt-font-size-xs)', color: 'var(--dt-text-muted)', background: 'var(--dt-bg-surface)', padding: '1px 6px', borderRadius: 4 }}>
             {periodLabel}
@@ -148,7 +149,7 @@ export function DesktopDashboard() {
         gap: 12,
       }}>
         {kpiMeta.map((kpi) => (
-          <div key={kpi.title} style={{ cursor: kpi.onClick ? 'pointer' : 'default' }} onClick={kpi.onClick} title={`${kpi.definition}\nالمصدر: ${kpi.source}\nالفترة: ${kpi.period}\nآخر تحديث: ${kpi.lastUpdate?.toLocaleTimeString('ar-SA') || '—'}`}>
+          <div key={kpi.title} style={{ cursor: kpi.onClick ? 'pointer' : 'default' }} onClick={kpi.onClick} title={`${kpi.definition}\nالمصدر: ${kpi.source}\nالفترة: ${kpi.period}\nآخر تحديث: ${kpi.lastUpdate?.toLocaleTimeString('ar-EG-u-nu-latn') || '—'}`}>
             <KpiWidget
               title={kpi.title}
               value={kpi.value}
@@ -176,7 +177,7 @@ export function DesktopDashboard() {
           }}>
             <span>آخر الطلبات ({recentOrders.length})</span>
             <span style={{ fontWeight: 400, fontSize: 'var(--dt-font-size-xs)', color: 'var(--dt-text-muted)' }}>
-              {lastUpdate ? `آخر تحديث: ${lastUpdate.toLocaleTimeString('ar-SA')}` : ''}
+              {lastUpdate ? `آخر تحديث: ${lastUpdate.toLocaleTimeString('ar-EG-u-nu-latn')}` : ''}
             </span>
           </div>
           <div style={{ height: 320 }}>

@@ -28,7 +28,7 @@ export function NewVisitPage() {
       customerPhone,
       status: 'active' as const,
       checkInAt: now,
-      timeline: [{ time: new Date().toLocaleTimeString('ar-EG'), action: 'تسجيل الدخول', note: 'GPS captured' }],
+      timeline: [{ time: new Date().toLocaleTimeString('ar-EG-u-nu-latn'), action: 'تسجيل الدخول', note: 'GPS captured' }],
     }
 
     addVisit(visit as any)

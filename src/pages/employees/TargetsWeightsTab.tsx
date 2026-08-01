@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { targetService } from '../../services/targets'
+import { formatNumber, formatPercent } from '../../utils/numbers'
 import toast from 'react-hot-toast'
 
 interface EmpCardData {
@@ -36,11 +37,11 @@ function getToken(): string | null {
 }
 
 function fmt(n: number): string {
-  return n.toLocaleString('ar-EG-u-nu-latn')
+  return formatNumber(n)
 }
 
 function fmtPct(n: number | null): string {
-  return n !== null ? n.toFixed(1) + '%' : 'غير متوفر'
+  return n !== null ? formatPercent(n, 1) : 'غير متوفر'
 }
 
 function pctColor(pct: number | null): string {

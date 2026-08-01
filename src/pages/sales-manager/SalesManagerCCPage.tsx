@@ -6,6 +6,7 @@ import { useAuthStore } from '../../store/auth'
 import { MonthlyActivity } from '../../components/activity/MonthlyActivity'
 import { DeliveredOrdersKPI } from '../../components/activity/DeliveredOrdersKPI'
 import toast from 'react-hot-toast'
+import { formatNumber } from '../../utils/numbers'
 
 const POLLING_INTERVAL = 30000
 
@@ -13,7 +14,7 @@ function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
 }
 
-const fmt = (n: number) => Number.isFinite(n) ? n.toLocaleString('ar-EG-u-nu-latn') : '0'
+const fmt = (n: number) => formatNumber(n)
 
 interface SalesManagerCC {
   team_overview: { member_count: number; active_today: number; customer_count: number }

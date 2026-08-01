@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useCapability } from '../../hooks/useCapability'
 import { DynamicSchemaEditor, FLASH_OFFER_COLUMNS } from '../../utils/schemaEditor'
+import { formatNumber } from '../../utils/numbers'
 import toast from 'react-hot-toast'
 
 function getToken() { try { return localStorage.getItem('session_token') } catch { return null } }
@@ -223,7 +224,7 @@ export function FlashOffersManagementPage() {
                 </div>
 
                 <div className="flex items-center gap-3 text-xs text-text-secondary">
-                  <span>السعر: {offer.fixed_price ? Number(offer.fixed_price).toLocaleString('en-EG') : 0}</span>
+                  <span>السعر: {offer.fixed_price ? formatNumber(Number(offer.fixed_price)) : 0}</span>
                   <span>المتبقي: {offer.available_quantity}/{offer.original_quantity}</span>
                   {offer.ends_at && (
                     <span>ينتهي: {new Date(offer.ends_at).toLocaleDateString('ar-EG-u-nu-latn')}</span>

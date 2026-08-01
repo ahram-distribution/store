@@ -4,18 +4,19 @@ import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../store/auth'
 import { getEffectiveRole, type EffectiveRole } from '../../utils/hierarchyFilter'
 import { monthRange as bizMonthRange } from '../../lib/dateRange'
+import { formatInteger, formatDecimal } from '../../utils/numbers'
 
 const MONTHS = ['يناير', 'فبراير', 'مارس', 'إبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر']
 
 function fmt(n: number | null | undefined): string {
   if (n == null) return '\u2014'
-  if (Number.isInteger(n)) return n.toLocaleString('ar-EG-u-nu-latn')
-  return n.toLocaleString('ar-EG-u-nu-latn', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  if (Number.isInteger(n)) return formatInteger(n)
+  return formatDecimal(n, 2)
 }
 
 function fmtMoney(n: number | null | undefined): string {
   if (n == null || n === 0) return '0'
-  return Math.round(n).toLocaleString('ar-EG-u-nu-latn')
+  return formatInteger(n)
 }
 
 function getToken(): string | null {

@@ -5,12 +5,13 @@ import SmartFilterBar, { type FilterValues } from '../../components/SmartFilterB
 import { VisitCard } from '../../components/visits/VisitCard'
 import { resolveDateRangeISO } from '../../lib/dateRange'
 import { usePersistentViewState } from '../../hooks/usePersistentViewState'
+import { formatNumber } from '../../utils/numbers'
 
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
 }
 
-const fmt = (n: number) => Number.isFinite(n) ? n.toLocaleString('ar-EG-u-nu-latn') : '0'
+const fmt = (n: number) => formatNumber(n)
 
 export default function SalesManagerVisitsList() {
   const nav = useNavigate()

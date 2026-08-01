@@ -4,10 +4,11 @@ import { KpiDrillDownModal } from '../KpiDrillDownModal'
 import TrackingExplorerModal from '../TrackingExplorerModal'
 import type { ActivityViewModel, DayDetailData, DayTimelineEvent, ReportPreset } from '../../types/reports'
 import { computeDateRange, cairoDateComponents, toCairoDate } from '../../lib/dateRange'
+import { formatInteger } from '../../utils/numbers'
 
 function fmtTime(t?: string): string {
   if (!t) return '\u2014'
-  try { return new Date(t).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', hour12: true }) }
+  try { return new Date(t).toLocaleTimeString('ar-EG-u-nu-latn', { hour: '2-digit', minute: '2-digit', hour12: true }) }
   catch { return t.length >= 5 ? t.slice(0, 5) : t }
 }
 
@@ -24,7 +25,7 @@ function fmtDate(d?: string): string {
 
 function fmtShortDate(d?: string): string {
   if (!d) return ''
-  try { return new Date(d).toLocaleDateString('ar-EG', { day: 'numeric', month: 'numeric' }) }
+  try { return new Date(d).toLocaleDateString('ar-EG-u-nu-latn', { day: 'numeric', month: 'numeric' }) }
   catch { return d }
 }
 
@@ -37,12 +38,12 @@ function fmtHours(minutes: number | null | undefined): string {
 
 function fmtNum(n: number | string | null | undefined): string {
   if (n == null) return '0'
-  return Math.round(Number(n)).toLocaleString('ar-EG-u-nu-latn', { maximumFractionDigits: 0 })
+  return formatInteger(Number(n))
 }
 
 function fmtMoney(n: number | string | null | undefined): string {
   if (n == null) return '0'
-  return Math.round(Number(n)).toLocaleString('ar-EG-u-nu-latn', { maximumFractionDigits: 0 })
+  return formatInteger(Number(n))
 }
 
 function fmtDist(meters: number): string {

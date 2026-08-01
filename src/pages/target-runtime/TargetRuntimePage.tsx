@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../../store/auth'
 import { targetService } from '../../services/targets'
 import { normalizeEmployeeRole } from '../../utils/roleNormalization'
+import { formatNumber, formatInteger, formatPercent } from '../../utils/numbers'
 
 
 interface EmployeePerfRow {
@@ -156,17 +157,17 @@ function computeStatus(emp: EmployeePerfRow): StatusType {
 
 function fmt(n: number | null | undefined): string {
   if (n == null) return '\u2014'
-  return n.toLocaleString('ar-EG-u-nu-latn')
+  return formatNumber(n)
 }
 
 function fmtPct(n: number | null | undefined): string {
   if (n == null) return '\u2014'
-  return n.toFixed(1) + '%'
+  return formatPercent(n, 1)
 }
 
 function fmtShort(n: number | null | undefined): string {
   if (n == null) return '\u2014'
-  return Math.round(n).toLocaleString('ar-EG-u-nu-latn')
+  return formatInteger(n)
 }
 
 function StatusBadge({ status }: { status: StatusType }) {

@@ -387,7 +387,7 @@ export default function GpsTestPage() {
                 <tbody>
                   {monitorFixes.map((f, i) => (
                     <tr key={i} className="border-t border-gray-100">
-                      <td className="p-1.5 text-gray-500">{new Date(f.capturedAt).toLocaleTimeString('ar-EG')}</td>
+                      <td className="p-1.5 text-gray-500">{new Date(f.capturedAt).toLocaleTimeString('ar-EG-u-nu-latn')}</td>
                       <td className="p-1.5 font-mono" dir="ltr">{f.accuracy}m</td>
                       <td className="p-1.5 font-mono text-[9px]" dir="ltr">{f.latitude.toFixed(6)}</td>
                       <td className="p-1.5 font-mono text-[9px]" dir="ltr">{f.longitude.toFixed(6)}</td>
@@ -414,7 +414,7 @@ export default function GpsTestPage() {
                 : entry.level === 'success' ? 'text-green-400'
                 : 'text-gray-300'
               }>
-                <span className="text-gray-500">{new Date(entry.timestamp).toLocaleTimeString('ar-EG')}</span> {entry.message}
+                <span className="text-gray-500">{new Date(entry.timestamp).toLocaleTimeString('ar-EG-u-nu-latn')}</span> {entry.message}
               </div>
             ))}
           </div>

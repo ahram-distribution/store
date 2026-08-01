@@ -64,7 +64,7 @@ export const OrderCard = memo(function OrderCard({ order, onClick, orderId, isUn
   const handleClick = onClick || (orderId ? () => navigate(`/orders/${orderId}`) : undefined)
   const dt = order.created_at ? new Date(order.created_at) : null
   const dateStr = dt ? formatDate(dt) : ''
-  const timeStr = dt ? dt.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }) : ''
+  const timeStr = dt ? dt.toLocaleTimeString('ar-EG-u-nu-latn', { hour: '2-digit', minute: '2-digit' }) : ''
   const isSubmitted = order.status === 'submitted'
   const accent = isSubmitted
     ? 'border-r-[#2563EB] shadow-[0_2px_8px_-2px_rgba(37,99,235,0.12),0_0_0_1px_rgba(37,99,235,0.06)] bg-[rgba(37,99,235,0.04)]'

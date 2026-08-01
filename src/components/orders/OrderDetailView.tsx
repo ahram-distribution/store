@@ -82,7 +82,7 @@ export function OrderDetailView({ data, actions, onBack, editMode, editItems, on
       .replace(/18pt/g, '11pt')
       .replace(/20pt/g, '14pt')
     const custName = (customer?.company_name || order.snapshot_customer_name || 'عميل').replace(/[\\/:*?"<>|]/g, '_')
-    const createdDate = new Date(order.created_at).toLocaleDateString('ar-EG')
+    const createdDate = new Date(order.created_at).toLocaleDateString('ar-EG-u-nu-latn')
     const filename = `${custName} - ${createdDate}.pdf`
     await downloadInvoicePdf(html, filename)
   }
@@ -310,7 +310,7 @@ export function OrderDetailView({ data, actions, onBack, editMode, editItems, on
               <div className="bg-white rounded-lg border border-[#E5E7EB] shadow-sm p-3 flex flex-col items-center justify-center">
                 <p className="text-[10px] text-[#9CA3AF] font-medium text-center">قيمة آخر طلب</p>
                 {customer.previous_order_total != null && <p className="text-[13px] font-bold text-[#111827]">{formatCurrencyShort(Number(customer.previous_order_total))}</p>}
-                {customer.previous_order_date && <p className="text-[10px] text-[#6B7280]">{new Date(customer.previous_order_date).toLocaleDateString('ar-EG')}</p>}
+                {customer.previous_order_date && <p className="text-[10px] text-[#6B7280]">{new Date(customer.previous_order_date).toLocaleDateString('ar-EG-u-nu-latn')}</p>}
               </div>
             </div>
           ) : customer?.previous_order_count != null ? (

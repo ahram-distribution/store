@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useCapability } from '../../hooks/useCapability'
 import { DynamicSchemaEditor, DAILY_DEAL_COLUMNS } from '../../utils/schemaEditor'
+import { formatNumber } from '../../utils/numbers'
 import toast from 'react-hot-toast'
 
 function getToken() { try { return localStorage.getItem('session_token') } catch { return null } }
@@ -223,7 +224,7 @@ export function DailyDealsManagementPage() {
                 </div>
 
                 <div className="flex items-center gap-3 text-xs text-text-secondary">
-                  <span>السعر: {deal.fixed_price ? Number(deal.fixed_price).toLocaleString('en-EG') : 0}</span>
+                  <span>السعر: {deal.fixed_price ? formatNumber(Number(deal.fixed_price)) : 0}</span>
                   <span>المتبقي: {deal.available_quantity}/{deal.original_quantity}</span>
                   {deal.ends_at && (
                     <span>ينتهي: {new Date(deal.ends_at).toLocaleDateString('ar-EG-u-nu-latn')}</span>

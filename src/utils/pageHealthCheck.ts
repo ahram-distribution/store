@@ -115,7 +115,7 @@ class HealthMonitor {
 
   generateMarkdownReport(): string {
     const report = this.generateReport()
-    const now = new Date(report.generatedAt).toLocaleString('ar-EG', { timeZone: 'Africa/Cairo' })
+    const now = new Date(report.generatedAt).toLocaleString('ar-EG-u-nu-latn', { timeZone: 'Africa/Cairo' })
 
     let md = `# تقرير صحة الصفحات\n`
     md += `\n**تاريخ التقرير:** ${now}\n\n`

@@ -13,6 +13,8 @@ import type { ReportIdentity as IdentityData, KpiCardData } from '../../types/re
 import type { EntityType } from '../../modules/types'
 import type { ActivityViewModel, ActivityDailyRow, DayDetailData } from '../../types/reports'
 import { cairoDateComponents, toCairoDate } from '../../lib/dateRange'
+import { formatCurrencyShort } from '../../utils/format'
+import { formatNumber, formatInteger } from '../../utils/numbers'
 
 interface GovEmployee {
   id: string
@@ -80,7 +82,7 @@ function getRoleLabel(employeeId: string, tree: GovEmployee[]): string {
 
 function fmtNum(n: number | null | undefined): string {
   if (n == null) return '\u2014'
-  return Math.round(n).toLocaleString('ar-EG-u-nu-latn')
+  return formatInteger(n)
 }
 
 function fmtDist(meters: number | null | undefined): string {
@@ -91,19 +93,19 @@ function fmtDist(meters: number | null | undefined): string {
 
 function fmtTime(t?: string): string {
   if (!t) return '\u2014'
-  try { return new Date(t).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', hour12: true }) }
+  try { return new Date(t).toLocaleTimeString('ar-EG-u-nu-latn', { hour: '2-digit', minute: '2-digit', hour12: true }) }
   catch { return t.length >= 5 ? t.slice(0, 5) : t }
 }
 
 function fmtDate(d?: string): string {
   if (!d) return ''
-  try { return new Date(d).toLocaleDateString('ar-EG', { weekday: 'long', day: 'numeric', month: 'long' }) }
+  try { return new Date(d).toLocaleDateString('ar-EG-u-nu-latn', { weekday: 'long', day: 'numeric', month: 'long' }) }
   catch { return d }
 }
 
 function fmtShortDate(d?: string): string {
   if (!d) return ''
-  try { return new Date(d).toLocaleDateString('ar-EG', { day: 'numeric', month: 'numeric' }) }
+  try { return new Date(d).toLocaleDateString('ar-EG-u-nu-latn', { day: 'numeric', month: 'numeric' }) }
   catch { return d }
 }
 
@@ -116,7 +118,7 @@ function fmtHours(minutes: number | null | undefined): string {
 
 function fmtMoney(n: number | string | null | undefined): string {
   if (n == null) return '0'
-  return Math.round(Number(n)).toLocaleString('ar-EG-u-nu-latn', { maximumFractionDigits: 0 })
+  return formatInteger(Number(n))
 }
 
 function generateDateRange(from: string, to: string): string[] {
@@ -823,8 +825,8 @@ useEffect(() => {
     const kpis = kpiCards.map((k) => ({
       label: k.label,
       value: k.format === 'currency'
-        ? Math.round(k.value ?? 0).toLocaleString('ar-EG-u-nu-latn') + ' ج.م'
-        : (k.value ?? 0).toLocaleString('ar-EG-u-nu-latn'),
+        ? formatCurrencyShort(Math.round(k.value ?? 0))
+        : formatNumber(k.value ?? 0),
       color: k.color,
     }))
     const listIdentity: { roleLabel?: string; ownerName?: string; managerName?: string } = {}
@@ -959,7 +961,7 @@ useEffect(() => {
                   kpi.color === 'blue' ? 'text-primary' :
                   'text-accent'
                 }`}>
-                  {kpi.value != null ? Math.round(kpi.value).toLocaleString('ar-EG-u-nu-latn', { maximumFractionDigits: 0 }) : '0'}
+                  {kpi.value != null ? formatInteger(kpi.value) : '0'}
                 </div>
                 <div className="text-[11px] text-text-secondary mt-1 font-medium">{kpi.label}</div>
               </button>
@@ -999,7 +1001,7 @@ useEffect(() => {
                       className={`bg-white py-2.5 px-2 text-center hover:bg-surface/80 transition-colors cursor-pointer`}
                     >
                       <div className={`text-sm font-bold ${kpi.color}`}>
-                        {Math.round(kpi.value).toLocaleString('ar-EG-u-nu-latn', { maximumFractionDigits: 0 })}
+                        {formatInteger(kpi.value)}
                       </div>
                       <div className="text-[10px] text-text-secondary mt-0.5">{kpi.label}</div>
                     </button>

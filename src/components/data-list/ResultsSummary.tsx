@@ -1,5 +1,6 @@
 import { type ResultsSummaryProps } from '../../types/data-list'
 import { formatCurrencyWhole } from '../../utils/format'
+import { formatNumber } from '../../utils/numbers'
 
 export function ResultsSummary({
   total,
@@ -29,7 +30,7 @@ export function ResultsSummary({
             <>
               <p className="text-xs text-text-secondary font-medium">{title}</p>
               <p className="text-lg font-bold text-text mt-0.5">
-                {total.toLocaleString('ar-EG')}{unit ? ' ' + unit : ''}
+                {formatNumber(total)}{unit ? ' ' + unit : ''}
               </p>
               {hasValue && (
                 <p className="text-sm font-semibold text-text mt-0.5">
@@ -39,7 +40,7 @@ export function ResultsSummary({
             </>
           ) : (
             <p className="text-sm font-bold text-text">
-              عدد النتائج: {total.toLocaleString('ar-EG')}
+              عدد النتائج: {formatNumber(total)}
             </p>
           )}
           {dateRangeActive && (

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import { Eye, MapPin, User, Clock, Navigation, History, FileText, X } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
+import { formatNumber } from '../../utils/numbers'
 
 interface LiveEntry {
   employee_id: string
@@ -123,7 +124,7 @@ export default function LiveMonitoringPage({ embedded }: { embedded?: boolean })
 
       <div className="flex items-center gap-1 text-xs text-gray-400 mb-2">
         <Clock className="w-3 h-3" />
-        {entry.started_at ? new Date(entry.started_at).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }) : '--'}
+        {entry.started_at ? new Date(entry.started_at).toLocaleTimeString('ar-EG-u-nu-latn', { hour: '2-digit', minute: '2-digit' }) : '--'}
         <span className="mx-1">|</span>
         <span className="font-bold text-gray-600">مدة: {formatDuration(entry.duration_minutes)}</span>
       </div>
@@ -156,7 +157,7 @@ export default function LiveMonitoringPage({ embedded }: { embedded?: boolean })
           <p className="text-[10px] text-orange-500">طلبات</p>
         </div>
         <div className="bg-orange-100 rounded-lg p-1.5 text-center">
-          <p className="text-xs text-orange-700 font-bold">{entry.sales_value?.toLocaleString('ar-EG')} ج.م</p>
+          <p className="text-xs text-orange-700 font-bold">{formatNumber(entry.sales_value)} ج.م</p>
           <p className="text-[10px] text-orange-600">مبيعات</p>
         </div>
         <div className="bg-cyan-50 rounded-lg p-1.5 text-center">
@@ -334,7 +335,7 @@ export default function LiveMonitoringPage({ embedded }: { embedded?: boolean })
                     </div>
                     <div className="text-xs text-gray-400 mt-1">
                       {ed.visit_count != null && <span>زيارات: {ed.visit_count}</span>}
-                      {ed.ended_at && <span className="mr-2">انتهى: {new Date(ed.ended_at).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}</span>}
+                      {ed.ended_at && <span className="mr-2">انتهى: {new Date(ed.ended_at).toLocaleTimeString('ar-EG-u-nu-latn', { hour: '2-digit', minute: '2-digit' })}</span>}
                     </div>
                   </div>
                 ))}
@@ -408,7 +409,7 @@ export default function LiveMonitoringPage({ embedded }: { embedded?: boolean })
             </div>
 
             <div className="text-xs text-gray-400 mb-4">
-              آخر تحديث: {locationPopup.last_seen_at ? new Date(locationPopup.last_seen_at).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }) : '--'}
+              آخر تحديث: {locationPopup.last_seen_at ? new Date(locationPopup.last_seen_at).toLocaleTimeString('ar-EG-u-nu-latn', { hour: '2-digit', minute: '2-digit' }) : '--'}
             </div>
 
             <div className="flex gap-2">

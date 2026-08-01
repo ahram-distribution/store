@@ -116,7 +116,7 @@ export default function LiveActivityCenterPage() {
     if (d.today_visits) setTodayVisits(d.today_visits as VisitDrill[])
     if (d.today_customers) setTodayCustomers(d.today_customers as CustomerDrill[])
     if (d.today_collections) setTodayCollections(d.today_collections as CollectionDrill[])
-    setLastUpdate(new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', second: '2-digit' }))
+    setLastUpdate(new Date().toLocaleTimeString('ar-EG-u-nu-latn', { hour: '2-digit', minute: '2-digit', second: '2-digit' }))
     setLoading(false)
     setError(null)
   }, [token])
