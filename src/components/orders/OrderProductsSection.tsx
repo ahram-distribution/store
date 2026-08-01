@@ -2,7 +2,9 @@ import { Fragment, useMemo, useState } from 'react'
 import { formatCurrencyShort } from '../../utils/format'
 import { formatNumber } from '../../utils/numbers'
 import { UNIT_LABELS } from '../../types/order-display'
-import type { UnifiedOrder, UnifiedOrderItem, InventorySnapshotItem } from '../../types/unified-order'
+import { formatMixedQuantity } from '../../utils/quantity-format'
+import type { UnitType } from '../../types/storefront'
+import type { UnifiedOrder, UnifiedOrderItem, InventorySnapshotItem, ReservationStatus } from '../../types/unified-order'
 
 interface CompanyGroup {
   company: string
@@ -20,6 +22,12 @@ interface OrderProductsSectionProps {
   onAddProduct?: (companyName: string) => void
   shortageProductIds?: Set<string>
   inventorySnapshot?: InventorySnapshotItem[]
+}
+
+const RESERVATION_STATUS_META: Record<ReservationStatus, { icon: string; text: string; cls: string }> = {
+  sufficient: { icon: '🟢', text: 'جاهز للاعتماد', cls: 'text-emerald-700' },
+  prior_reservation: { icon: '🟡', text: 'يوجد حجز سابق على هذا الصنف — قد تتغير الكمية عند الاعتماد', cls: 'text-amber-700' },
+  shortage: { icon: '🔴', text: 'الكمية المطلوبة أكبر من المتاح', cls: 'text-red-600' },
 }
 
 export function OrderProductsSection({ items, order, mode = 'view', onQuantityChange, onRemoveItem, onPriceChange, onAddProduct, shortageProductIds, inventorySnapshot }: OrderProductsSectionProps) {
@@ -90,8 +98,16 @@ export function OrderProductsSection({ items, order, mode = 'view', onQuantityCh
                     const price = Number(item.unit_price || 0)
                     const lineTotal = qty * price
                     const snap = inventorySnapshot?.find(s => s.product_id === item.product_id)
-                    const isShortage = shortageProductIds?.has(item.product_id) || snap?.is_sufficient === false
+                    const reservationStatus: ReservationStatus | null = snap?.reservation_status
+                      ?? (snap?.is_sufficient === false ? 'shortage' : null)
+                    const isShortage = shortageProductIds?.has(item.product_id)
+                      || snap?.is_sufficient === false
+                      || reservationStatus === 'shortage'
                     const shortageAvail = snap?.available_quantity ?? snapshotAvailMap.get(item.product_id)
+                    const statusMeta = reservationStatus ? RESERVATION_STATUS_META[reservationStatus] : null
+                    const statusAppend = reservationStatus === 'shortage' && snap
+                      ? `المتاح حاليًا: ${formatMixedQuantity(snap.available_quantity, snap.carton_quantity, item.unit_type as UnitType)}`
+                      : null
                     return (
                       <Fragment key={item.id || idx}>
                         <tr className={`border-b border-[#E5E7EB] last:border-0 hover:bg-[#F9FAFB] transition-colors ${isShortage ? 'bg-red-50' : ''}`}>
@@ -158,26 +174,22 @@ export function OrderProductsSection({ items, order, mode = 'view', onQuantityCh
                             </td>
                           )}
                         </tr>
-                        {isShortage && (
+                        {isEdit && isShortage && (
                           <tr className="border-b border-[#E5E7EB] bg-red-50">
                             <td colSpan={isEdit ? 7 : 6} className="px-3 pb-2">
                               <p className="text-[11px] text-danger font-medium">⚠️ الكمية المطلوبة غير متوفرة بالمخزون</p>
                               <p className="text-[11px] text-danger font-medium">
-                                المطلوب: {qty}{shortageAvail != null ? ` | المتاح حاليًا: ${shortageAvail}` : ''}
+                                المطلوب: {qty}{shortageAvail != null ? ` | المتاح حاليًا: ${formatMixedQuantity(shortageAvail, snap?.carton_quantity, item.unit_type as UnitType)}` : ''}
                               </p>
                             </td>
                           </tr>
                         )}
-                        {!isEdit && snap && (snap.reserved_quantity > 0 || snap.allocated_quantity > 0 || snap.capacity != null) && (
+                        {!isEdit && reservationStatus && statusMeta && (
                           <tr className="border-b border-[#E5E7EB] bg-[#F8FAFC]">
                             <td colSpan={6} className="px-3 py-1.5">
-                              <p className="text-[11px] text-[#475569]">
-                                <span className="font-semibold text-blue-700">الحجز:</span> {formatNumber(snap.reserved_quantity)} قطعة
-                                {' · '}
-                                <span className="font-semibold text-emerald-700">التخصيص الفعلي:</span> {formatNumber(snap.allocated_quantity)} قطعة
-                                {' · '}
-                                <span className="font-semibold text-[#475569]">السعة المتاحة:</span>{' '}
-                                {snap.capacity === null ? 'غير محدودة' : `${formatNumber(snap.capacity)} قطعة`}
+                              <p className={`text-[11px] font-medium ${statusMeta.cls}`}>
+                                <span>{statusMeta.icon}</span> {statusMeta.text}
+                                {statusAppend ? ` — ${statusAppend}` : ''}
                               </p>
                             </td>
                           </tr>

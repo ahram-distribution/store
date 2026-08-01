@@ -10,7 +10,7 @@ import { buildOrderDisplayData, UNIT_LABELS } from '../../types/order-display'
 import toast from 'react-hot-toast'
 import { creditService } from '../../services/credit'
 import { lifeSignalService } from '../../services/lifeSignalService'
-import { buildOverQuantityRejectionMessage } from '../../utils/cart-availability'
+import { showReservationNotice } from '../../utils/cart-availability'
 import type { CartItem as CartItemType, ProductWithPrice, UnitType } from '../../types/storefront'
 
 const COMPANY_COLORS = [
@@ -145,16 +145,11 @@ export function OrderReviewPage() {
           setSubmitting(false); return
         }
         if (submitData && typeof submitData === 'object' && 'error' in submitData && submitData.error) {
-          const rejection = buildOverQuantityRejectionMessage(
-            (submitData as any).reservations_rejected,
-            items.map(i => ({ product_id: i.productId, product_name: i.productName, unit_type: i.unitType })),
-            products
-          )
-          toast.error(rejection || 'تعذر إرسال الطلب: ' + String((submitData as any).error), { duration: 6000 })
+          toast.error('تعذر إرسال الطلب: ' + String((submitData as any).error), { duration: 6000 })
           setSubmitting(false)
-          navigate('/cart')
           return
         }
+        showReservationNotice(submitData)
         toast.success('تم تحديث الطلب وإرساله بنجاح!')
       } else {
         const { data: created, error: createError } = await supabase.rpc('governed_create_order', {
@@ -198,16 +193,11 @@ export function OrderReviewPage() {
           return
         }
         if (submitData && typeof submitData === 'object' && 'error' in submitData && submitData.error) {
-          const rejection = buildOverQuantityRejectionMessage(
-            (submitData as any).reservations_rejected,
-            items.map(i => ({ product_id: i.productId, product_name: i.productName, unit_type: i.unitType })),
-            products
-          )
-          toast.error(rejection || 'تعذر إرسال الطلب: ' + String((submitData as any).error), { duration: 6000 })
+          toast.error('تعذر إرسال الطلب: ' + String((submitData as any).error), { duration: 6000 })
           setSubmitting(false)
-          navigate('/cart')
           return
         }
+        showReservationNotice(submitData)
         toast.success('تم إرسال الطلب بنجاح!')
       }
 

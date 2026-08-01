@@ -9,7 +9,7 @@ import { formatCurrencyShort } from '../../utils/format'
 import { dailyDealService } from '../../services/dailyDeals'
 import { flashOfferService } from '../../services/flashOffers'
 import { buildSearchIndex, searchProducts } from '../../utils/smartSearch'
-import { buildOverQuantityRejectionMessage } from '../../utils/cart-availability'
+import { showReservationNotice } from '../../utils/cart-availability'
 import type { ProductWithPrice, ProductUnitPrice, UnitType, DailyDealRecord, FlashOfferRecord, CartTotals, TierConfig } from '../../types/storefront'
 import toast from 'react-hot-toast'
 
@@ -388,16 +388,11 @@ export function OrderEditPage() {
       })
       if (submitError) { toast.error('فشل إرسال الطلب: ' + submitError.message); setSubmitting(false); return }
       if (submitData && typeof submitData === 'object' && 'error' in submitData && submitData.error) {
-        const rejection = buildOverQuantityRejectionMessage(
-          (submitData as any).reservations_rejected,
-          cartItems.map(i => ({ product_id: i.productId, product_name: i.productName, unit_type: i.unitType })),
-          products
-        )
-        toast.error(rejection || 'تعذر إرسال الطلب: ' + String((submitData as any).detail || (submitData as any).error), { duration: 6000 })
+        toast.error('تعذر إرسال الطلب: ' + String((submitData as any).detail || (submitData as any).error), { duration: 6000 })
         setSubmitting(false)
         return
       }
-
+      showReservationNotice(submitData)
       toast.success('تم إرسال التعديلات بنجاح')
 
       // 3. Open WhatsApp (best-effort) — Source of Truth = get_unified_order

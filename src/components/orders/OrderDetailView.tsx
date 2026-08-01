@@ -19,14 +19,16 @@ import { OrderOwnershipInfo } from './OrderOwnershipInfo'
 import type { UnifiedOrder, UnifiedOrderItem, InventorySnapshotItem, OrderEventLogItem } from '../../types/unified-order'
 
 const EVENT_TYPE_LABELS: Record<string, string> = {
-  RESERVATION_ALLOCATE: 'حجز (تخصيص)',
-  RESERVATION_UPDATE: 'تحديث حجز',
-  RESERVATION_RELEASE: 'تحرير حجز',
-  RESERVATION_REJECT: 'رفض حجز',
-  ORDER_DEDUCTION: 'خصم تلقائي من المخزون',
-  ORDER_CANCELLATION_RESTORE: 'استرجاع مخزون (إلغاء)',
-  ORDER_EDIT_RESTORE: 'استرجاع مخزون (تعديل)',
-  ORDER_REVISION_RESTORE: 'استرجاع مخزون (مراجعة)',
+  RESERVATION_ALLOCATE: 'حجز الكمية',
+  RESERVATION_UPDATE: 'تعديل الحجز',
+  RESERVATION_RELEASE: 'تحرير الحجز',
+  RESERVATION_NOTICE: 'إشعار الحجز السابق',
+  ORDER_ALLOCATION_TRIM: 'تقليص الكمية تلقائيًا',
+  RESERVATION_REJECT: 'رفض الحجز',
+  ORDER_DEDUCTION: 'خصم الكمية',
+  ORDER_CANCELLATION_RESTORE: 'استرجاع الكمية (إلغاء)',
+  ORDER_EDIT_RESTORE: 'استرجاع الكمية (تعديل)',
+  ORDER_REVISION_RESTORE: 'استرجاع الكمية (مراجعة)',
 }
 
 interface OrderDetailViewProps {
@@ -220,7 +222,7 @@ export function OrderDetailView({ data, actions, onBack, editMode, editItems, on
       {/* ── SHORTAGE SUMMARY (management early warning) ── */}
       {inventorySnapshot && (
         (() => {
-          const insufficient = inventorySnapshot.filter(s => !s.is_sufficient)
+          const insufficient = inventorySnapshot.filter(s => s.reservation_status === 'shortage' || (!s.reservation_status && !s.is_sufficient))
           if (insufficient.length === 0) return null
           return (
             <div className="bg-white rounded-lg border border-danger/40 shadow-sm p-4">

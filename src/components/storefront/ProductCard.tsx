@@ -6,7 +6,7 @@ import { UNIT_LABELS } from '../../types/order-display'
 import { SearchHighlight } from '../shared/SearchHighlight'
 import toast from 'react-hot-toast'
 import { Package, X } from 'lucide-react'
-import { checkCartAvailability, checkProductAvailabilityV2, buildAvailabilityMessage, showUnavailableToast } from '../../utils/cart-availability'
+import { checkCartAvailability, checkProductAvailabilityV2, buildAvailabilityMessage } from '../../utils/cart-availability'
 
 const UNIT_PRIORITY: UnitType[] = ['carton', 'dozen', 'piece']
 
@@ -81,8 +81,7 @@ export function ProductCard({
       if (quantity > 0) {
         const result = await checkCartAvailability(product.id, quantity, selectedUnit)
         if (!result.available) {
-          showUnavailableToast(result)
-          return
+          toast(buildAvailabilityMessage(result), { icon: '⚠️', duration: 6000 })
         }
         onAddToCart(product, selectedUnit, quantity)
         toast.success('تمت إضافة المنتج للسلة')

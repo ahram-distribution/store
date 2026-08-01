@@ -1,13 +1,15 @@
 import { supabase } from '../lib/supabase'
 import toast from 'react-hot-toast'
-import { computePieceQuantity } from '../engine/pricing'
 import type { UnitType } from '../types/storefront'
 import { UNIT_LABELS } from '../types/order-display'
+import { formatMixedQuantity } from './quantity-format'
 
 export interface AvailabilityResult {
   available: boolean
   error: string | null
   max_allowed_units: number | null
+  max_allowed_pieces: number | null
+  carton_quantity: number | null
   unit_type: UnitType
 }
 
@@ -18,9 +20,10 @@ function getSessionToken(): string | null {
 /**
  * Unit-aware availability guidance (BR-VIS-01).
  * Calls governed_check_product_availability_v2 — the approved RPC that reads the
- * global negative-selling policy and computes max_allowed_units in the SAME selling
- * unit the user selected (floor whole units). It never exposes raw inventory/reservation
- * numbers to sales reps.
+ * global negative-selling policy and returns max_allowed_units in the SAME selling
+ * unit the user selected (floor whole units) plus max_allowed_pieces (full usable
+ * pieces) and carton_quantity for mixed-unit messaging. It never exposes raw
+ * inventory/reservation numbers to sales reps.
  */
 export async function checkProductAvailabilityV2(
   productId: string,
@@ -39,10 +42,19 @@ export async function checkProductAvailabilityV2(
       available: data.available !== false,
       error: typeof data.error === 'string' ? data.error : null,
       max_allowed_units: typeof data.max_allowed_units === 'number' ? data.max_allowed_units : null,
+      max_allowed_pieces: typeof data.max_allowed_pieces === 'number' ? data.max_allowed_pieces : null,
+      carton_quantity: typeof data.carton_quantity === 'number' ? data.carton_quantity : null,
       unit_type: (data.unit_type as UnitType) || unitType,
     }
   }
-  return { available: true, error: null, max_allowed_units: null, unit_type: unitType }
+  return {
+    available: true,
+    error: null,
+    max_allowed_units: null,
+    max_allowed_pieces: null,
+    carton_quantity: null,
+    unit_type: unitType,
+  }
 }
 
 export async function checkCartAvailability(
@@ -50,21 +62,30 @@ export async function checkCartAvailability(
   unitQuantity: number,
   unitType: UnitType
 ): Promise<AvailabilityResult> {
-  if (unitQuantity <= 0) return { available: true, error: null, max_allowed_units: null, unit_type: unitType }
+  if (unitQuantity <= 0) {
+    return { available: true, error: null, max_allowed_units: null, max_allowed_pieces: null, carton_quantity: null, unit_type: unitType }
+  }
   return checkProductAvailabilityV2(productId, unitQuantity, unitType)
 }
 
 /**
  * Approved business wording for over-quantity guidance, always in the selling unit
- * the user selected (BR-VIS-01): rep sees only availability + the maximum allowed
- * whole units of his chosen unit — never raw stock/reservation numbers.
+ * the user selected (BR-VIS-01): rep sees the maximum allowed as full usable mixed
+ * units (e.g. "3 كرتونة + 270 قطعة") — never raw stock/reservation numbers.
  */
 export function buildAvailabilityMessage(result: AvailabilityResult): string {
-  const unitLabel = UNIT_LABELS[result.unit_type] || 'قطعة'
+  if (result.max_allowed_pieces !== null) {
+    if (result.max_allowed_pieces <= 0) {
+      return 'الكمية المطلوبة غير متاحة حاليًا بوحدة البيع المحددة، برجاء تقليل الكمية'
+    }
+    const maxLabel = formatMixedQuantity(result.max_allowed_pieces, result.carton_quantity, result.unit_type)
+    return `الكمية المطلوبة غير متاحة حاليًا — الحد الأقصى المسموح به في هذه الفاتورة هو: ${maxLabel}`
+  }
   if (result.max_allowed_units !== null) {
     if (result.max_allowed_units <= 0) {
       return 'الكمية المطلوبة غير متاحة حاليًا بوحدة البيع المحددة، برجاء تقليل الكمية'
     }
+    const unitLabel = UNIT_LABELS[result.unit_type] || 'قطعة'
     return `الكمية المطلوبة غير متاحة حاليًا — الحد الأقصى المسموح به ${result.max_allowed_units} ${unitLabel}`
   }
   return 'الكمية المطلوبة غير متاحة حاليًا، برجاء تقليل الكمية'
@@ -75,27 +96,19 @@ export function showUnavailableToast(result: AvailabilityResult) {
 }
 
 /**
- * Approved business wording for a submission/edit rejection (reservations_rejected):
- * each rejected line shows the max allowed in the SAME selling unit the user selected
- * (BR-VIS-01) — never raw inventory/reservation numbers. Shared by the storefront
- * submit path and the order edit paths.
+ * Approved reservation-notice wording (BR-RS-03/05): the order is ACCEPTED but the
+ * rep is told a previous reservation exists and quantities may be auto-adjusted at
+ * approval. Shown after a successful submit when the RPC returns reservations_notice.
  */
-export function buildOverQuantityRejectionMessage(
-  rejected: any[],
-  items: Array<{ product_id: string; product_name?: string | null; unit_type?: string | null }>,
-  products: Array<{ id: string; productName?: string; cartonQuantity?: number }>
-): string | null {
-  if (!Array.isArray(rejected) || rejected.length === 0) return null
-  const lines = rejected.slice(0, 3).map((r) => {
-    const productId = String(r.product_id ?? '')
-    const item = items.find((i) => i.product_id === productId)
-    const product = products.find((p) => p.id === productId)
-    const unitType = (item?.unit_type as UnitType) ?? 'piece'
-    const piecesPerUnit = computePieceQuantity(1, unitType, product?.cartonQuantity ?? 0)
-    const capacity = Number(r.available_capacity ?? 0)
-    const maxUnits = piecesPerUnit > 0 ? Math.floor(capacity / piecesPerUnit) : 0
-    const name = product?.productName || item?.product_name || 'منتج'
-    return `${name}: الحد الأقصى المسموح ${maxUnits} ${UNIT_LABELS[unitType] || 'قطعة'}`
-  })
-  return `تعذر إرسال الطلب — الكمية المطلوبة تتجاوز الكمية المتاحة: ${lines.join('، ')}`
+export const RESERVATION_NOTICE_TEXT =
+  'هناك فاتورة أخرى قامت بحجز كمية من هذا الصنف ولم يتم اعتمادها بعد. سيتم قبول طلبك. قد يتم تعديل الكمية تلقائيًا عند اعتماد الفواتير حسب أولوية التقديم.'
+
+export function hasReservationNotices(submitData: unknown): boolean {
+  const data = submitData as { reservations_notice?: unknown } | null
+  return Array.isArray(data?.reservations_notice) && data.reservations_notice.length > 0
+}
+
+export function showReservationNotice(submitData: unknown) {
+  if (!hasReservationNotices(submitData)) return
+  toast(RESERVATION_NOTICE_TEXT, { icon: '🟡', duration: 8000 })
 }

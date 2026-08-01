@@ -229,6 +229,8 @@ export interface UnifiedModificationEntry {
   modified_at: string
 }
 
+export type ReservationStatus = 'sufficient' | 'shortage' | 'prior_reservation'
+
 export interface InventorySnapshotItem {
   product_id: string
   requested_quantity: number
@@ -237,6 +239,8 @@ export interface InventorySnapshotItem {
   reserved_quantity: number
   allocated_quantity: number
   capacity: number | null
+  carton_quantity: number
+  reservation_status?: ReservationStatus
 }
 
 export interface OrderEventLogItem {

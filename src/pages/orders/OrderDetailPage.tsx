@@ -194,9 +194,11 @@ export function OrderDetailPage() {
           reserved_quantity: Number(s.reserved_quantity ?? 0),
           allocated_quantity: Number(s.allocated_quantity ?? 0),
           capacity: s.capacity == null ? null : Number(s.capacity),
+          carton_quantity: Number(s.carton_quantity ?? 0),
+          reservation_status: (['sufficient', 'shortage', 'prior_reservation'].includes(s.reservation_status) ? s.reservation_status : undefined) as any,
         }))
         setInventorySnapshot(items)
-        const insufficient = items.filter(i => !i.is_sufficient).map(i => i.product_id)
+        const insufficient = items.filter(i => i.reservation_status === 'shortage' || (!i.reservation_status && !i.is_sufficient)).map(i => i.product_id)
         if (insufficient.length > 0) {
           setShortageItems(new Set(insufficient))
         } else {
@@ -318,6 +320,8 @@ export function OrderDetailPage() {
         reserved_quantity: 0,
         allocated_quantity: 0,
         capacity: s.available_quantity != null ? s.available_quantity : null,
+        carton_quantity: 0,
+        reservation_status: 'shortage',
       }))
     })
     const names = data?.items

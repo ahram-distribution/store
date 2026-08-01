@@ -12,7 +12,7 @@ import { UNIT_LABELS } from '../../types/order-display'
 import { supabase } from '../../lib/supabase'
 import toast from 'react-hot-toast'
 import type { CartItem as CartItemType } from '../../types/storefront'
-import { checkCartAvailability, showUnavailableToast } from '../../utils/cart-availability'
+import { checkCartAvailability, buildAvailabilityMessage } from '../../utils/cart-availability'
 
 const COMPANY_COLORS = [
   { bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-800', header: 'bg-blue-500' },
@@ -337,7 +337,9 @@ export function CartPage() {
                             onClick={async () => {
                               const finalQty = item.unitQuantity + 1
                               const result = await checkCartAvailability(item.productId, finalQty, item.unitType)
-                              if (!result.available) { showUnavailableToast(result); return }
+                              if (!result.available) {
+                                toast(buildAvailabilityMessage(result), { icon: '⚠️', duration: 6000 })
+                              }
                               updateQuantity(item.productId, item.unitType, finalQty)
                             }}
                             className="w-7 h-7 flex items-center justify-center rounded-lg bg-white border border-border text-text-secondary text-sm active:bg-surface transition-colors"
