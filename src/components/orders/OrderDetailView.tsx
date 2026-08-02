@@ -225,14 +225,12 @@ export function OrderDetailView({ data, actions, onBack, editMode, editItems, on
       {/* ── 5. PRODUCTS TABLE ── */}
       <OrderProductsSection
         items={editMode && editItems ? editItems : items}
-        order={order}
         mode={editMode ? 'edit' : 'view'}
         onQuantityChange={onQuantityChange}
         onRemoveItem={onRemoveItem}
         onPriceChange={onPriceChange}
         onAddProduct={onAddProduct}
         shortageProductIds={shortageProductIds || undefined}
-        inventorySnapshot={inventorySnapshot || undefined}
         businessStatusByItem={businessStatusByItem || undefined}
       />
       {editMode && editActions && (

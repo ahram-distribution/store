@@ -1,12 +1,9 @@
 import { Fragment, useMemo, useState } from 'react'
 import { formatCurrencyShort } from '../../utils/format'
 import { formatNumber } from '../../utils/numbers'
-import { UNIT_LABELS, EXECUTION_GROUP } from '../../types/order-display'
-import { formatMixedQuantity } from '../../utils/quantity-format'
-import type { UnitType } from '../../types/storefront'
-import type { UnifiedOrder, UnifiedOrderItem, InventorySnapshotItem } from '../../types/unified-order'
+import { UNIT_LABELS } from '../../types/order-display'
+import type { UnifiedOrderItem } from '../../types/unified-order'
 import type { BusinessStatusCardData } from '../../utils/cart-availability'
-import { BusinessStatusCard } from '../storefront/BusinessStatusCard'
 
 interface CompanyGroup {
   company: string
@@ -16,26 +13,19 @@ interface CompanyGroup {
 
 interface OrderProductsSectionProps {
   items: UnifiedOrderItem[]
-  order: UnifiedOrder['order']
   mode?: 'view' | 'edit'
   onQuantityChange?: (productId: string, unitType: string, newQty: number) => void
   onRemoveItem?: (productId: string, unitType: string) => void
   onPriceChange?: (productId: string, unitType: string, newPrice: number) => void
   onAddProduct?: (companyName: string) => void
   shortageProductIds?: Set<string>
-  inventorySnapshot?: InventorySnapshotItem[]
   businessStatusByItem?: Record<string, BusinessStatusCardData>
 }
 
-export function OrderProductsSection({ items, order, mode = 'view', onQuantityChange, onRemoveItem, onPriceChange, onAddProduct, shortageProductIds, inventorySnapshot, businessStatusByItem }: OrderProductsSectionProps) {
+export function OrderProductsSection({ items, mode = 'view', onQuantityChange, onRemoveItem, onPriceChange, onAddProduct, shortageProductIds, businessStatusByItem }: OrderProductsSectionProps) {
   const grandTotal = useMemo(() => items.reduce((s, i) => s + Number(i.total_price || 0), 0), [items])
   const totalPieces = useMemo(() => items.reduce((s, i) => s + Number(i.piece_quantity || 0), 0), [items])
   const totalQty = useMemo(() => items.reduce((s, i) => s + Number(i.unit_quantity || 0), 0), [items])
-
-  const snapshotAvailMap = useMemo(() => {
-    if (!inventorySnapshot || inventorySnapshot.length === 0) return new Map<string, number>()
-    return new Map(inventorySnapshot.map(s => [s.product_id, s.available_quantity]))
-  }, [inventorySnapshot])
 
   const groups: CompanyGroup[] = useMemo(() => {
     const map: Record<string, CompanyGroup> = {}
@@ -94,12 +84,14 @@ export function OrderProductsSection({ items, order, mode = 'view', onQuantityCh
                     const qty = Number(item.unit_quantity || 1)
                     const price = Number(item.unit_price || 0)
                     const lineTotal = qty * price
-                    const snap = inventorySnapshot?.find(s => s.product_id === item.product_id)
                     const isShortage = shortageProductIds?.has(item.product_id) === true
-                    const shortageAvail = snap?.available_quantity ?? snapshotAvailMap.get(item.product_id)
+                    const statusCard = !isEdit ? businessStatusByItem?.[`${item.product_id}:${item.unit_type}`] : undefined
+                    const tone = statusCard?.status ?? (isShortage ? 'red' : undefined)
+                    const rowBg = tone === 'red' ? 'bg-red-50' : tone === 'yellow' ? 'bg-yellow-50' : tone === 'green' ? 'bg-green-50' : ''
+                    const rowHover = tone ? '' : 'hover:bg-[#F9FAFB]'
                     return (
                       <Fragment key={item.id || idx}>
-                        <tr className={`border-b border-[#E5E7EB] last:border-0 hover:bg-[#F9FAFB] transition-colors ${isShortage ? 'bg-red-50' : ''}`}>
+                        <tr className={`border-b border-[#E5E7EB] last:border-0 ${rowHover} transition-colors ${rowBg}`}>
                           <td className="px-3 py-3">
                             <span className="text-[15px] font-bold text-blue-600 font-mono" dir="ltr">{item.legacy_code || '—'}</span>
                           </td>
@@ -163,23 +155,6 @@ export function OrderProductsSection({ items, order, mode = 'view', onQuantityCh
                             </td>
                           )}
                         </tr>
-                        {!isEdit && !EXECUTION_GROUP.has(order.status) && businessStatusByItem && businessStatusByItem[`${item.product_id}:${item.unit_type}`] && (
-                          <tr className="border-b border-[#E5E7EB] bg-white">
-                            <td colSpan={6} className="px-3 py-2">
-                              <BusinessStatusCard data={businessStatusByItem[`${item.product_id}:${item.unit_type}`]} />
-                            </td>
-                          </tr>
-                        )}
-                        {isEdit && isShortage && (
-                          <tr className="border-b border-[#E5E7EB] bg-red-50">
-                            <td colSpan={isEdit ? 7 : 6} className="px-3 pb-2">
-                              <p className="text-[11px] text-danger font-medium">
-                                ⚠️ «{item.product_name || 'منتج'}» — الكمية الأصلية: {formatMixedQuantity(item.piece_quantity, snap?.carton_quantity, item.unit_type as UnitType)}
-                                {shortageAvail != null && <> — الكمية القابلة للتنفيذ حاليًا: {formatMixedQuantity(shortageAvail, snap?.carton_quantity, item.unit_type as UnitType)}</>}
-                              </p>
-                            </td>
-                          </tr>
-                        )}
                       </Fragment>
                     )
                   })}
