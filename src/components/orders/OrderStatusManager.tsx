@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { supabase } from '../../lib/supabase'
-import { ORDER_STATUS_LABELS } from '../../types/order-display'
+import { ORDER_STATUS_LABELS, EXECUTION_GROUP } from '../../types/order-display'
+import { formatMixedQuantity } from '../../utils/quantity-format'
+import type { UnitType } from '../../types/storefront'
 
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
@@ -28,6 +30,13 @@ function toUserError(msg: string): string {
   return msg
 }
 
+/** Smart Quantity Formatter for adjustment messages (BR-AUD-01). */
+function adjustmentQuantityLabel(pieces: number, cartonQuantity: number, units: AdjustmentUnit[]): string {
+  const t = units && units.length > 0 ? units[0].unit_type : 'piece'
+  const pref: UnitType = t === 'carton' || t === 'dozen' || t === 'piece' ? t : 'piece'
+  return formatMixedQuantity(pieces, cartonQuantity, pref)
+}
+
 const ALL_STATUSES = ['draft','submitted','reviewing','returned_for_revision','approved','preparing','prepared','ready_for_dispatch','sent_to_delivery','dispatched','deferred','cancelled','delivered','stock_review'] as const
 
 type OrderStatus = typeof ALL_STATUSES[number]
@@ -38,6 +47,32 @@ interface ShortageEntry {
   product_id: string
   requested_quantity: number
   available_quantity: number
+}
+
+interface AdjustmentUnit {
+  unit_type: string
+  unit_quantity: number
+  unit_price?: number
+  total_price?: number
+}
+
+interface AdjustmentEntry {
+  product_id: string
+  product_name: string
+  requested_pieces: number
+  available_pieces: number
+  executable_pieces: number
+  action: 'reduce' | 'remove'
+  carton_quantity: number
+  requested_units: AdjustmentUnit[]
+  executable_units: AdjustmentUnit[]
+}
+
+interface PendingAdjustment {
+  target: string
+  reasonText: string | null
+  referenceNumber?: string
+  adjustments: AdjustmentEntry[]
 }
 
 interface OrderStatusManagerProps {
@@ -81,6 +116,7 @@ export function OrderStatusManager({ orderId, currentStatus, canReview, canCompl
   const [returnReason, setReturnReason] = useState('')
   const [showRefModal, setShowRefModal] = useState(false)
   const [refNumber, setRefNumber] = useState('')
+  const [pendingAdjustments, setPendingAdjustments] = useState<PendingAdjustment | null>(null)
 
   function getAllowedTargets(): OrderStatus[] {
     if (canManage) return ALL_STATUSES.filter(s => s !== currentStatus)
@@ -131,7 +167,35 @@ export function OrderStatusManager({ orderId, currentStatus, canReview, canCompl
   async function executeChange(target: string, reasonText: string | null, referenceNumber?: string) {
     const token = getToken()
     if (!token) return
-    const actionLabel = ORDER_STATUS_LABELS[target] || target
+    setLoading(target)
+
+    // Execution Group Entry Finalization: معاينة تعديل الكميات قبل دخول مجموعة التنفيذ.
+    if (EXECUTION_GROUP.has(target) && !EXECUTION_GROUP.has(currentStatus)) {
+      const { data: preview, error: pErr } = await supabase.rpc('governed_preview_execution_entry', {
+        p_token: token,
+        p_order_id: orderId,
+      })
+      if (pErr) {
+        onError?.(toUserError(pErr.message))
+        setLoading(null)
+        return
+      }
+      const adjustments = preview && typeof preview === 'object'
+        ? (preview as { adjustments?: AdjustmentEntry[] }).adjustments
+        : undefined
+      if (Array.isArray(adjustments) && adjustments.length > 0) {
+        setPendingAdjustments({ target, reasonText, referenceNumber, adjustments })
+        setLoading(null)
+        return
+      }
+    }
+
+    await callTransition(target, reasonText, referenceNumber, false)
+  }
+
+  async function callTransition(target: string, reasonText: string | null, referenceNumber: string | undefined, confirmAdjustments: boolean) {
+    const token = getToken()
+    if (!token) return
     setLoading(target)
 
     if (target === 'approved') {
@@ -139,6 +203,7 @@ export function OrderStatusManager({ orderId, currentStatus, canReview, canCompl
         p_token: token,
         p_id: orderId,
         p_reason: reasonText,
+        p_confirm_adjustments: confirmAdjustments,
       })
       if (error) {
         onError?.(toUserError(error.message))
@@ -146,6 +211,11 @@ export function OrderStatusManager({ orderId, currentStatus, canReview, canCompl
         return
       }
       if (data && typeof data === 'object' && 'error' in data && data.error) {
+        if ('adjustments' in data && Array.isArray(data.adjustments) && data.adjustments.length > 0) {
+          setPendingAdjustments({ target, reasonText, referenceNumber, adjustments: data.adjustments as AdjustmentEntry[] })
+          setLoading(null)
+          return
+        }
         if ('shortages' in data && Array.isArray(data.shortages) && data.shortages.length > 0) {
           onShortage?.(data.shortages as ShortageEntry[], String(data.details || data.error))
         } else {
@@ -165,6 +235,7 @@ export function OrderStatusManager({ orderId, currentStatus, canReview, canCompl
       p_new_status: target,
       p_reason: reasonText,
       p_reference_number: referenceNumber || null,
+      p_confirm_adjustments: confirmAdjustments,
     })
     if (error) {
       onError?.(toUserError(error.message))
@@ -172,6 +243,11 @@ export function OrderStatusManager({ orderId, currentStatus, canReview, canCompl
       return
     }
     if (data && typeof data === 'object' && 'error' in data && data.error) {
+      if ('adjustments' in data && Array.isArray(data.adjustments) && data.adjustments.length > 0) {
+        setPendingAdjustments({ target, reasonText, referenceNumber, adjustments: data.adjustments as AdjustmentEntry[] })
+        setLoading(null)
+        return
+      }
       if ('shortages' in data && Array.isArray(data.shortages) && data.shortages.length > 0) {
         onShortage?.(data.shortages as ShortageEntry[], String(data.details || data.error))
       } else {
@@ -182,6 +258,17 @@ export function OrderStatusManager({ orderId, currentStatus, canReview, canCompl
     }
     onSuccess?.(target)
     setLoading(null)
+  }
+
+  async function handleAdjustmentConfirm() {
+    if (!pendingAdjustments) return
+    const { target, reasonText, referenceNumber } = pendingAdjustments
+    setPendingAdjustments(null)
+    await callTransition(target, reasonText, referenceNumber, true)
+  }
+
+  function handleAdjustmentCancel() {
+    setPendingAdjustments(null)
   }
 
   async function handleReturnForRevision() {
@@ -323,7 +410,7 @@ export function OrderStatusManager({ orderId, currentStatus, canReview, canCompl
             <p className="text-xs text-text-secondary">
               إعادة الطلب من <span className="font-semibold text-amber-600">{ORDER_STATUS_LABELS[currentStatus]}</span> إلى <span className="font-semibold text-amber-600">معاد للتعديل</span>
             </p>
-            <p className="text-[10px] text-danger/70">هذا الإجراء سيعيد المخزون ويعكس الفواتير الائتمانية إن وجدت</p>
+            <p className="text-[10px] text-danger/70">هذا الإجراء سيعيد الكميات إلى الكمية المتاحة ويعكس الفواتير الائتمانية إن وجدت</p>
             <textarea value={returnReason} onChange={(e) => setReturnReason(e.target.value)} rows={3} placeholder="الرجاء كتابة سبب إعادة الطلب للتعديل (إجباري)..."
               className="w-full border border-border rounded-lg px-3 py-2 text-xs bg-white resize-none" />
             <div className="flex gap-2">
@@ -331,6 +418,42 @@ export function OrderStatusManager({ orderId, currentStatus, canReview, canCompl
                 className="flex-1 bg-surface text-text text-xs py-2.5 rounded-lg active:opacity-80 transition-opacity">إلغاء</button>
               <button onClick={handleReturnForRevision} disabled={!returnReason.trim() || loading !== null}
                 className="flex-1 bg-amber-500 text-white text-xs py-2.5 rounded-lg active:opacity-90 disabled:opacity-40">تأكيد الإعادة للتعديل</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {pendingAdjustments && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 px-4 py-6 overflow-y-auto">
+          <div className="bg-white rounded-xl w-full max-w-lg p-5 space-y-4 my-auto">
+            <h3 className="text-sm font-bold text-text">تعديل الكميات قبل دخول مرحلة التنفيذ</h3>
+            <p className="text-[11px] text-text-secondary">
+              الكميات المطلوبة تتجاوز الكمية المتاحة حاليًا. سيتم اعتماد الأصناف التالية بالكمية القابلة للتنفيذ قبل <span className="font-semibold text-amber-600">{ORDER_STATUS_LABELS[pendingAdjustments.target] || pendingAdjustments.target}</span>:
+            </p>
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {pendingAdjustments.adjustments.map(a => (
+                <div key={a.product_id} className="border border-border rounded-lg p-3 bg-surface/50">
+                  <p className="text-xs font-bold text-text">{a.product_name}</p>
+                  {a.action === 'remove' ? (
+                    <p className="text-[11px] text-danger mt-1">
+                      الكمية الأصلية: <span className="font-semibold">{adjustmentQuantityLabel(a.requested_pieces, a.carton_quantity, a.requested_units)}</span> — لا توجد كمية قابلة للتنفيذ؛ سيتم إزالة الصنف من الطلب.
+                    </p>
+                  ) : (
+                    <p className="text-[11px] text-text-secondary mt-1 leading-relaxed">
+                      الكمية الأصلية: <span className="font-semibold">{adjustmentQuantityLabel(a.requested_pieces, a.carton_quantity, a.requested_units)}</span>
+                      <br />
+                      الكمية النهائية القابلة للتنفيذ: <span className="font-semibold">{adjustmentQuantityLabel(a.executable_pieces, a.carton_quantity, a.executable_units)}</span>
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+            <p className="text-[10px] text-danger/70">سيتم تسجيل هذه التعديلات في سجل الطلب قبل دخول مرحلة التنفيذ.</p>
+            <div className="flex gap-2">
+              <button onClick={handleAdjustmentCancel} disabled={loading !== null}
+                className="flex-1 bg-surface text-text text-xs py-2.5 rounded-lg active:opacity-80 transition-opacity">إلغاء</button>
+              <button onClick={handleAdjustmentConfirm} disabled={loading !== null}
+                className="flex-1 bg-primary text-white text-xs py-2.5 rounded-lg active:opacity-90 disabled:opacity-40">متابعة</button>
             </div>
           </div>
         </div>

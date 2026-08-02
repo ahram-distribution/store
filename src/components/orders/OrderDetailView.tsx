@@ -9,27 +9,16 @@ import { OrderDeliverySection } from './OrderDeliverySection'
 import { OrderCollectionsSection } from './OrderCollectionsSection'
 import { OrderReturnsSection } from './OrderReturnsSection'
 import { OrderTimelineSection } from './OrderTimelineSection'
+import { OrderEventLogSection } from './OrderEventLogSection'
 import { formatDateTime, formatCurrencyShort } from '../../utils/format'
 import { CustomerAddressCard } from '../customers/CustomerAddressCard'
-import { ORDER_STATUS_LABELS } from '../../types/order-display'
+import { ORDER_STATUS_LABELS, EXECUTION_GROUP } from '../../types/order-display'
 import { renderDeliveryPermitHtml, printInvoice, downloadInvoicePdf } from './order-printing'
 import { buildTimelineEvents } from './order-detail.utils'
 import { copyToClipboard } from '../../utils/safeClipboard'
 import { OrderOwnershipInfo } from './OrderOwnershipInfo'
 import type { UnifiedOrder, UnifiedOrderItem, InventorySnapshotItem, OrderEventLogItem } from '../../types/unified-order'
-
-const EVENT_TYPE_LABELS: Record<string, string> = {
-  RESERVATION_ALLOCATE: 'حجز الكمية',
-  RESERVATION_UPDATE: 'تعديل الحجز',
-  RESERVATION_RELEASE: 'تحرير الحجز',
-  RESERVATION_NOTICE: 'إشعار الحجز السابق',
-  ORDER_ALLOCATION_TRIM: 'تقليص الكمية تلقائيًا',
-  RESERVATION_REJECT: 'رفض الحجز',
-  ORDER_DEDUCTION: 'خصم الكمية',
-  ORDER_CANCELLATION_RESTORE: 'استرجاع الكمية (إلغاء)',
-  ORDER_EDIT_RESTORE: 'استرجاع الكمية (تعديل)',
-  ORDER_REVISION_RESTORE: 'استرجاع الكمية (مراجعة)',
-}
+import type { BusinessStatusCardData } from '../../utils/cart-availability'
 
 interface OrderDetailViewProps {
   data: UnifiedOrder
@@ -44,10 +33,11 @@ interface OrderDetailViewProps {
   editActions?: React.ReactNode
   shortageProductIds?: Set<string> | null
   inventorySnapshot?: InventorySnapshotItem[] | null
+  businessStatusByItem?: Record<string, BusinessStatusCardData> | null
   eventLog?: OrderEventLogItem[] | null
 }
 
-export function OrderDetailView({ data, actions, onBack, editMode, editItems, onQuantityChange, onRemoveItem, onPriceChange, onAddProduct, editActions, shortageProductIds, inventorySnapshot, eventLog }: OrderDetailViewProps) {
+export function OrderDetailView({ data, actions, onBack, editMode, editItems, onQuantityChange, onRemoveItem, onPriceChange, onAddProduct, editActions, shortageProductIds, inventorySnapshot, businessStatusByItem, eventLog }: OrderDetailViewProps) {
   const navigate = useNavigate()
   const { order, customer, items, collections, current_delivery, modification_history } = data
   const [overLimit, setOverLimit] = useState<boolean | null>(null)
@@ -219,14 +209,14 @@ export function OrderDetailView({ data, actions, onBack, editMode, editItems, on
         </span>
       </div>
 
-      {/* ── SHORTAGE SUMMARY (management early warning) ── */}
-      {inventorySnapshot && (
+      {/* ── SHORTAGE SUMMARY (pre-execution guidance only — Physical Inventory Engine, never on execution-state orders) ── */}
+      {inventorySnapshot && businessStatusByItem && !EXECUTION_GROUP.has(order.status) && (
         (() => {
-          const insufficient = inventorySnapshot.filter(s => s.reservation_status === 'shortage' || (!s.reservation_status && !s.is_sufficient))
+          const insufficient = Object.values(businessStatusByItem).filter(card => card.status === 'red')
           if (insufficient.length === 0) return null
           return (
             <div className="bg-white rounded-lg border border-danger/40 shadow-sm p-4">
-              <p className="text-[13px] font-bold text-danger">⚠️ يوجد {insufficient.length} صنف كميته المطلوبة أكبر من المخزون الحالي</p>
+              <p className="text-[13px] font-bold text-danger">⚠️ يوجد {insufficient.length} صنف تتجاوز الكمية المطلوبة منه الكمية المتاحة حاليًا</p>
             </div>
           )
         })()
@@ -243,6 +233,7 @@ export function OrderDetailView({ data, actions, onBack, editMode, editItems, on
         onAddProduct={onAddProduct}
         shortageProductIds={shortageProductIds || undefined}
         inventorySnapshot={inventorySnapshot || undefined}
+        businessStatusByItem={businessStatusByItem || undefined}
       />
       {editMode && editActions && (
         <div className="sticky bottom-0 z-10 bg-white border-t border-[#E5E7EB] shadow-[0_-4px_12px_rgba(0,0,0,0.08)] px-4 py-3 -mx-4 lg:-mx-6">
@@ -263,50 +254,7 @@ export function OrderDetailView({ data, actions, onBack, editMode, editItems, on
       <OrderTimelineSection timelineEvents={timelineEvents} />
 
       {/* ── 7.1 ORDER EVENT LOG (BR-AUD-01 — admin only) ── */}
-      {eventLog && eventLog.length > 0 && (
-        <div className="bg-white rounded-lg border border-[#E5E7EB] shadow-sm p-4">
-          <p className="text-[13px] font-bold text-[#111827] mb-3">سجل أحداث الحجز والمخزون</p>
-          <div className="overflow-x-auto">
-            <table className="w-full text-[12px]">
-              <thead>
-                <tr className="text-right text-[11px] text-[#6B7280] border-b border-[#E5E7EB]">
-                  <th className="py-1.5 pr-1 font-medium">الوقت</th>
-                  <th className="py-1.5 px-2 font-medium">النوع</th>
-                  <th className="py-1.5 px-2 font-medium">المنتج</th>
-                  <th className="py-1.5 px-2 font-medium">الكمية (قطع)</th>
-                  <th className="py-1.5 px-2 font-medium">قبل ← بعد</th>
-                  <th className="py-1.5 px-2 font-medium">السبب</th>
-                  <th className="py-1.5 px-2 font-medium">بواسطة</th>
-                </tr>
-              </thead>
-              <tbody>
-                {eventLog.map(ev => {
-                  const delta = ev.quantity_change == null ? null : Number(ev.quantity_change)
-                  const deltaText = delta == null ? '—' : `${delta > 0 ? '+' : ''}${delta}`
-                  const prevNew = ev.previous_quantity == null && ev.new_quantity == null
-                    ? '—'
-                    : `${ev.previous_quantity ?? '—'} ← ${ev.new_quantity ?? '—'}`
-                  return (
-                    <tr key={ev.id} className="border-b border-[#F3F4F6] last:border-0">
-                      <td className="py-1.5 pr-1 text-[#6B7280] whitespace-nowrap font-mono">{formatDateTime(ev.created_at)}</td>
-                      <td className="py-1.5 px-2">
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#EFF6FF] text-[#2563EB] border border-[#BFDBFE] font-medium whitespace-nowrap">
-                          {EVENT_TYPE_LABELS[ev.movement_type] || ev.movement_type}
-                        </span>
-                      </td>
-                      <td className="py-1.5 px-2 font-medium text-[#111827] whitespace-nowrap">{ev.product_name || '—'}</td>
-                      <td className="py-1.5 px-2 font-mono text-[#111827]">{deltaText}</td>
-                      <td className="py-1.5 px-2 font-mono text-[#6B7280] whitespace-nowrap">{prevNew}</td>
-                      <td className="py-1.5 px-2 text-[#6B7280]">{ev.reason || '—'}</td>
-                      <td className="py-1.5 px-2 text-[#6B7280] whitespace-nowrap">{ev.created_by_name || '—'}</td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+      <OrderEventLogSection events={eventLog ?? []} />
 
       {/* ── 8. REMAINING: everything else ── */}
 

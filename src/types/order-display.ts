@@ -101,6 +101,22 @@ export const UNIT_LABELS: Record<string, string> = {
 }
 
 /**
+ * Execution State Group (BR-EXEC-01): once an order enters this group its
+ * quantities are finalized. Availability/inventory guidance (shortage warnings,
+ * reservation status, business status cards) is PRE-EXECUTION ONLY and must
+ * never appear on orders inside this group.
+ */
+export const EXECUTION_GROUP: ReadonlySet<string> = new Set([
+  'approved',
+  'preparing',
+  'prepared',
+  'ready_for_dispatch',
+  'sent_to_delivery',
+  'dispatched',
+  'delivered',
+])
+
+/**
  * Build a unified OrderDisplayData.
  * When status ≠ 'delivered', uses live customer data (from UnifiedCustomerSummary).
  * When status = 'delivered', uses frozen snapshot data.

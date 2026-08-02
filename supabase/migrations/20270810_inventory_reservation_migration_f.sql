@@ -392,7 +392,6 @@ DECLARE
   v_old_status varchar(30);
   v_order record;
   v_deduct_result jsonb;
-  v_alloc_result jsonb;
   v_req_row record;
   v_reserved integer;
 BEGIN
@@ -411,11 +410,9 @@ BEGIN
     RETURN jsonb_build_object('error', 'INVALID_STATE');
   END IF;
 
-  -- التخصيص الفعلي FCFS + التقليص التلقائي عند الاعتماد (قبل تحرير الحجز).
+  -- Dynamic Reservation محرك حساب فقط — لا يُعدَّل order_items إطلاقًا عند الاعتماد.
+  -- تحرير الحجز عند الخروج من submitted.
   IF v_old_status = 'submitted' THEN
-    v_alloc_result := public._apply_fcfs_allocation(p_id, v_employee_id);
-
-    -- تحرير الحجز عند الخروج من submitted (بعد التقليص — يُحتسب من الكمية الفعلية).
     FOR v_req_row IN
       SELECT DISTINCT oi.product_id
       FROM public.order_items oi
@@ -448,12 +445,12 @@ BEGIN
   INSERT INTO public.order_status_history (order_id, from_status, to_status, changed_by, reason, changed_at)
   VALUES (p_id, v_old_status, 'approved', v_employee_id, p_reason, now());
 
-  RETURN jsonb_build_object('success', true, 'allocation', v_alloc_result);
+  RETURN jsonb_build_object('success', true);
 END;
 $$;
 
 COMMENT ON FUNCTION public.governed_approve_order IS
-  'اعتماد الطلب: التخصيص FCFS + التقليص التلقائي (ORDER_ALLOCATION_TRIM) ثم تحرير الحجز ثم الخصم حسب الإعداد';
+  'اعتماد الطلب: تحرير الحجز ثم الخصم حسب الإعداد — لا تقليص لكميات الطلب إطلاقًا';
 
 -- ---------------------------------------------------------------------------
 -- 5. governed_cancel_order — تحرير الحجز عند الخروج من submitted (سبب عربي)
@@ -804,7 +801,6 @@ DECLARE
   v_order record;
   v_deduct_result jsonb;
   v_restore_result jsonb;
-  v_alloc_result jsonb;
   v_req_row record;
   v_requested integer;
   v_capacity integer;
@@ -883,10 +879,7 @@ BEGIN
     END IF;
   END IF;
 
-  -- التخصيص الفعلي FCFS + التقليص التلقائي عند الاعتماد (قبل تحرير الحجز).
-  IF p_new_status = 'approved' AND v_current_status = 'submitted' THEN
-    v_alloc_result := public._apply_fcfs_allocation(p_order_id, v_session.identity_id);
-  END IF;
+  -- Dynamic Reservation محرك حساب فقط — لا يُعدَّل order_items عند الاعتماد إطلاقًا.
 
   -- تحرير الحجز عند الخروج من submitted (قبل أي خصم/تغيير حالة).
   IF v_current_status = 'submitted' AND p_new_status <> 'submitted' THEN

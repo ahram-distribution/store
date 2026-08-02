@@ -5,12 +5,14 @@ import type { UnitType } from '../types/storefront'
  * Breaks `pieces` into whole cartons (cartonQuantity each) + remainder pieces,
  * or dozens + remainder pieces, preferring the caller's selling unit.
  *
- * Examples:
- *   (1080, 270)             -> "4 كرتونة"
- *   (295, 270)              -> "1 كرتونة + 25 قطعة"
- *   (295, 270, 'carton')    -> "1 كرتونة + 25 قطعة"
- *   (30, 270, 'dozen')      -> "2 دستة + 6 قطعة"
- *   (25, null)              -> "25 قطعة"
+ * The remainder is NEVER hidden — even when it is zero — and a unit chosen by
+ * the user (piece/dozen/carton) is never converted into another unit:
+ *
+ *   (1710, 480, 'carton')  -> "3 كرتونة + 270 قطعة"
+ *   (505,  480, 'carton')  -> "1 كرتونة + 25 قطعة"
+ *   (1920, 480, 'carton')  -> "4 كرتونة + 0 قطعة"
+ *   (270,  480, 'dozen')   -> "22 دستة + 6 قطعة"
+ *   (270,  480, 'piece')   -> "270 قطعة"
  */
 export function formatMixedQuantity(
   pieces: number,
@@ -25,21 +27,15 @@ export function formatMixedQuantity(
   if (preferredUnit === 'carton' && carton > 0) {
     const whole = Math.floor(p / carton)
     const rem = p % carton
-    if (whole > 0) return rem > 0 ? `${whole} كرتونة + ${rem} قطعة` : `${whole} كرتونة`
-    return `${rem} قطعة`
+    if (whole > 0) return `${whole} كرتونة + ${rem} قطعة`
+    return `${p} قطعة`
   }
 
   if (preferredUnit === 'dozen') {
     const whole = Math.floor(p / 12)
     const rem = p % 12
-    if (whole > 0) return rem > 0 ? `${whole} دستة + ${rem} قطعة` : `${whole} دستة`
-    return `${rem} قطعة`
-  }
-
-  if (carton > 0 && p >= carton) {
-    const whole = Math.floor(p / carton)
-    const rem = p % carton
-    if (whole > 0) return rem > 0 ? `${whole} كرتونة + ${rem} قطعة` : `${whole} كرتونة`
+    if (whole > 0) return `${whole} دستة + ${rem} قطعة`
+    return `${p} قطعة`
   }
 
   return `${p} قطعة`

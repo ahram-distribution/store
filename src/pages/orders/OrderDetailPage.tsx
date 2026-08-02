@@ -8,14 +8,17 @@ import { useAuthStore } from '../../store/auth'
 import { useEntityViewsStore } from '../../store/entityViews'
 import { isUpperManagement } from '../../utils/roleNormalization'
 import { formatCurrencyShort } from '../../utils/format'
-import { UNIT_LABELS } from '../../types/order-display'
+import { UNIT_LABELS, EXECUTION_GROUP } from '../../types/order-display'
 import { computeProductPrices, computePieceQuantity } from '../../engine/pricing'
 import { buildSearchIndex, searchProducts } from '../../utils/smartSearch'
+import { formatMixedQuantity } from '../../utils/quantity-format'
 import { SearchHighlight } from '../../components/shared/SearchHighlight'
 import { SearchableSelect } from '../../components/shared/SearchableSelect'
 import toast from 'react-hot-toast'
 import type { UnifiedOrder, UnifiedOrderItem, InventorySnapshotItem, OrderEventLogItem } from '../../types/unified-order'
 import type { ProductWithPrice, ProductUnitPrice, UnitType } from '../../types/storefront'
+import { checkOrderItemAvailability, buildBusinessStatusCard } from '../../utils/cart-availability'
+import type { BusinessStatusCardData } from '../../utils/cart-availability'
 
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
@@ -72,13 +75,12 @@ function buildReservationRejectMessage(
     const item = editItems.find((i) => i.product_id === productId)
     const product = products.find((p) => p.id === productId)
     const unitType = (item?.unit_type as UnitType) ?? 'piece'
-    const piecesPerUnit = computePieceQuantity(1, unitType, product?.cartonQuantity ?? 0)
     const capacity = Number(r.available_capacity ?? 0)
-    const maxUnits = piecesPerUnit > 0 ? Math.floor(capacity / piecesPerUnit) : 0
+    const allowedLabel = formatMixedQuantity(capacity, product?.cartonQuantity ?? null, unitType)
     const name = item?.product_name || product?.productName || 'منتج'
-    return `${name}: الحد الأقصى المسموح ${maxUnits} ${UNIT_LABELS[unitType] || 'قطعة'}`
+    return `${name}: الحد الأقصى المسموح به ${allowedLabel}`
   })
-  return `الكمية المطلوبة تتجاوز السعة المتاحة — ${lines.join('، ')}`
+  return `تعذر اعتماد الكميات المطلوبة لبعض الأصناف لأنها تتجاوز الكمية المتاحة — ${lines.join('، ')}`
 }
 
 export function OrderDetailPage() {
@@ -116,6 +118,7 @@ export function OrderDetailPage() {
   const [transferMode, setTransferMode] = useState(false)
   const [shortageItems, setShortageItems] = useState<Set<string> | null>(null)
   const [inventorySnapshot, setInventorySnapshot] = useState<InventorySnapshotItem[] | null>(null)
+  const [businessStatusByItem, setBusinessStatusByItem] = useState<Record<string, BusinessStatusCardData> | null>(null)
   const [eventLog, setEventLog] = useState<OrderEventLogItem[] | null>(null)
   const [transferTarget, setTransferTarget] = useState<string | null>(null)
   const [transferReason, setTransferReason] = useState('')
@@ -175,7 +178,7 @@ export function OrderDetailPage() {
   useEffect(() => {
     if (!data?.order || !id || !canManage) return
     const status = data.order.status
-    const skipStatuses = new Set(['draft', 'cancelled', 'returned_for_revision'])
+    const skipStatuses = new Set(['draft', 'cancelled', 'returned_for_revision', ...EXECUTION_GROUP])
     if (skipStatuses.has(status)) { setInventorySnapshot(null); setShortageItems(null); return }
     const token = getToken()
     if (!token) return
@@ -198,12 +201,6 @@ export function OrderDetailPage() {
           reservation_status: (['sufficient', 'shortage', 'prior_reservation'].includes(s.reservation_status) ? s.reservation_status : undefined) as any,
         }))
         setInventorySnapshot(items)
-        const insufficient = items.filter(i => i.reservation_status === 'shortage' || (!i.reservation_status && !i.is_sufficient)).map(i => i.product_id)
-        if (insufficient.length > 0) {
-          setShortageItems(new Set(insufficient))
-        } else {
-          setShortageItems(null)
-        }
       }
     })
   }, [data?.order?.status, data?.order?.id, id, canManage])
@@ -236,6 +233,43 @@ export function OrderDetailPage() {
       }
     }).catch(() => { setEventLog([]) })
   }, [data?.order?.id, id, canManage])
+
+  // Phase B — Dynamic Reservation Engine (all roles): per-item live Business Status
+  // Card from the SAME centralized engine, excluding the viewed order from "earlier
+  // orders". Availability guidance is pre-execution only — it never appears once the
+  // order is inside the Execution State Group.
+  // The shortage signal (banner + row highlight) is the RED card of the Physical
+  // Inventory Engine (governed_check_product_availability_v2, physical stock only) —
+  // never the Reservation Engine's capacity/status.
+  useEffect(() => {
+    if (!data?.order || !id) return
+    const status = data.order.status
+    const skipStatuses = new Set(['draft', 'cancelled', 'returned_for_revision', ...EXECUTION_GROUP])
+    if (skipStatuses.has(status)) { setBusinessStatusByItem(null); return }
+    const token = getToken()
+    if (!token) { setBusinessStatusByItem(null); return }
+    setBusinessStatusByItem(null)
+    const items = data.items || []
+    Promise.all(items.map((item) =>
+      checkOrderItemAvailability(id, item.product_id, item.unit_quantity, item.unit_type as UnitType)
+        .then((avail) => [
+          `${item.product_id}:${item.unit_type}`,
+          buildBusinessStatusCard(avail, {
+            productName: item.product_name || undefined,
+            requestedPieces: item.piece_quantity,
+          }),
+        ] as const)
+    )).then((results) => {
+      const map = Object.fromEntries(results)
+      setBusinessStatusByItem(map)
+      if (canManage) {
+        const physicallyShort = Object.entries(map)
+          .filter(([, card]) => card.status === 'red')
+          .map(([key]) => key.split(':')[0])
+        setShortageItems(physicallyShort.length > 0 ? new Set(physicallyShort) : null)
+      }
+    }).catch(() => { setBusinessStatusByItem(null) })
+  }, [data?.order?.status, data?.order?.id, id, canManage])
 
   useEffect(() => {
     if (!data?.order || !id) return
@@ -294,6 +328,7 @@ export function OrderDetailPage() {
     toast.success(`تم تغيير الحالة إلى ${newStatus}`)
     setShortageItems(null)
     setInventorySnapshot(null)
+    setBusinessStatusByItem(null)
     loadOrder()
   }
 
@@ -324,10 +359,7 @@ export function OrderDetailPage() {
         reservation_status: 'shortage',
       }))
     })
-    const names = data?.items
-      ?.filter(i => productIds.includes(i.product_id))
-      .map(i => i.product_name || i.legacy_code || i.product_id) || []
-    const warn = details || 'بعض الأصناف تتجاوز الكمية المتاحة في المخزون'
+    const warn = details || 'بعض الأصناف تتجاوز الكمية المطلوبة منها الكمية المتاحة حاليًا'
     toast.error(warn, { duration: 4000 })
   }
 
@@ -480,11 +512,11 @@ export function OrderDetailPage() {
     if (result && typeof result === 'object' && 'error' in result && result.error) {
       if ((result as any).reservations_rejected) {
         const rejection = buildReservationRejectMessage((result as any).reservations_rejected, editItems, products)
-        toast.error(rejection || 'الكمية المطلوبة تتجاوز السعة المتاحة', { duration: 6000 })
+        toast.error(rejection || 'تعذر اعتماد الكميات المطلوبة لأنها تتجاوز الكمية المتاحة', { duration: 6000 })
         return
       }
       if ((result as any).shortages) {
-        toast.error('لا يوجد مخزون كافٍ لتعديل الطلب — برجاء تقليل الكميات', { duration: 6000 })
+        toast.error('الكميات المطلوبة تتجاوز الكمية المتاحة — برجاء تقليل الكميات', { duration: 6000 })
         return
       }
       toast.error(String((result as any).detail || (result as any).error)); return
@@ -672,6 +704,7 @@ export function OrderDetailPage() {
       onBack={() => navigate('/orders')}
       shortageProductIds={shortageItems}
       inventorySnapshot={inventorySnapshot}
+      businessStatusByItem={businessStatusByItem}
       eventLog={eventLog}
       actions={
         <div className="flex items-stretch gap-2 flex-wrap">

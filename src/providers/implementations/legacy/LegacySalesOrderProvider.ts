@@ -46,11 +46,14 @@ export class LegacySalesOrderProvider implements ISalesOrderProvider {
   }
 
   async approveOrder(order: SalesOrder): Promise<void> {
-    const { error } = await supabase.rpc('governed_approve_order', {
+    const { data, error } = await supabase.rpc('governed_approve_order', {
       p_token: this.context.token,
       p_id: order.id,
     })
     if (error) throw new ProviderException(error.message, PROVIDER_NAME, error)
+    if (data && typeof data === 'object' && 'error' in data && data.error) {
+      throw new ProviderException(String((data as { error: string }).error), PROVIDER_NAME, data)
+    }
   }
 
   async rejectOrder(orderId: string, reason: string): Promise<void> {

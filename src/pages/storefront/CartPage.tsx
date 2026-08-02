@@ -12,7 +12,8 @@ import { UNIT_LABELS } from '../../types/order-display'
 import { supabase } from '../../lib/supabase'
 import toast from 'react-hot-toast'
 import type { CartItem as CartItemType } from '../../types/storefront'
-import { checkCartAvailability, buildAvailabilityMessage } from '../../utils/cart-availability'
+import { checkCartAvailability, buildBusinessStatusCard, type AvailabilityResult } from '../../utils/cart-availability'
+import { BusinessStatusCard } from '../../components/storefront/BusinessStatusCard'
 
 const COMPANY_COLORS = [
   { bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-800', header: 'bg-blue-500' },
@@ -41,6 +42,7 @@ export function CartPage() {
   const [editingOrderType, setEditingOrderType] = useState(false)
   const [editingCustomer, setEditingCustomer] = useState(false)
   const [customers, setCustomers] = useState<any[]>([])
+  const [availabilityByItem, setAvailabilityByItem] = useState<Record<string, AvailabilityResult>>({})
 
   useEffect(() => {
     const s = useCartStore as unknown as { persist: { hasHydrated: () => boolean; onFinishHydration: (fn: () => void) => () => void } }
@@ -80,6 +82,17 @@ export function CartPage() {
 
   const selectedTier = getSelectedTier()
   const totals = getTotals()
+
+  useEffect(() => {
+    let active = true
+    Promise.all(items.map(async (item) => [
+      `${item.productId}:${item.unitType}`,
+      await checkCartAvailability(item.productId, item.unitQuantity, item.unitType),
+    ] as const)).then((results) => {
+      if (active) setAvailabilityByItem(Object.fromEntries(results))
+    })
+    return () => { active = false }
+  }, [items])
 
   const productCompanyMap = useMemo(() => {
     const map = new Map<string, { id: string; name: string }>()
@@ -320,6 +333,12 @@ export function CartPage() {
                         <div className="text-xs text-text-secondary">
                           {formatNumber(item.pieceQuantity)} قطعة
                         </div>
+                        {availabilityByItem[`${item.productId}:${item.unitType}`] && (
+                          <BusinessStatusCard
+                            data={buildBusinessStatusCard(availabilityByItem[`${item.productId}:${item.unitType}`])}
+                            className="mt-2"
+                          />
+                        )}
                       </div>
 
                       {/* Total + Controls Column */}
@@ -336,9 +355,11 @@ export function CartPage() {
                           <button
                             onClick={async () => {
                               const finalQty = item.unitQuantity + 1
+                              const key = `${item.productId}:${item.unitType}`
                               const result = await checkCartAvailability(item.productId, finalQty, item.unitType)
                               if (!result.available) {
-                                toast(buildAvailabilityMessage(result), { icon: '⚠️', duration: 6000 })
+                                setAvailabilityByItem((prev) => ({ ...prev, [key]: result }))
+                                return
                               }
                               updateQuantity(item.productId, item.unitType, finalQty)
                             }}

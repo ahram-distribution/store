@@ -1,16 +1,17 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useCartStore } from '../../store/cart'
 import { useAuthStore } from '../../store/auth'
 import { formatCurrencyShort } from '../../utils/format'
-import { formatNumber } from '../../utils/numbers'
 import { supabase } from '../../lib/supabase'
 import { sendWhatsAppFromDisplay } from '../../lib/whatsapp'
 import { buildOrderDisplayData, UNIT_LABELS } from '../../types/order-display'
 import toast from 'react-hot-toast'
 import { creditService } from '../../services/credit'
 import { lifeSignalService } from '../../services/lifeSignalService'
-import { showReservationNotice } from '../../utils/cart-availability'
+import { checkCartAvailability, buildBusinessStatusCard, type AvailabilityResult } from '../../utils/cart-availability'
+import { formatMixedQuantity } from '../../utils/quantity-format'
+import { BusinessStatusCard } from '../../components/storefront/BusinessStatusCard'
 import type { CartItem as CartItemType, ProductWithPrice, UnitType } from '../../types/storefront'
 
 const COMPANY_COLORS = [
@@ -47,6 +48,18 @@ export function OrderReviewPage() {
 
   const selectedTier = getSelectedTier()
   const totals = getTotals()
+  const [availabilityByItem, setAvailabilityByItem] = useState<Record<string, AvailabilityResult>>({})
+
+  useEffect(() => {
+    let active = true
+    Promise.all(items.map(async (item) => [
+      `${item.productId}:${item.unitType}`,
+      await checkCartAvailability(item.productId, item.unitQuantity, item.unitType),
+    ] as const)).then((results) => {
+      if (active) setAvailabilityByItem(Object.fromEntries(results))
+    })
+    return () => { active = false }
+  }, [items])
 
   const productCompanyMap = useMemo(() => {
     const map = new Map<string, { id: string; name: string }>()
@@ -129,9 +142,9 @@ export function OrderReviewPage() {
           p_id: editingOrderId,
           p_items: orderItems,
         })
-        if (replaceError) { toast.error('فشل تحديث الطلب: ' + replaceError.message); setSubmitting(false); return }
+        if (replaceError) { toast.error('تعذر تحديث الطلب الآن. يرجى المحاولة مرة أخرى.'); setSubmitting(false); return }
         if (replaceData && typeof replaceData === 'object' && 'error' in replaceData && replaceData.error) {
-          toast.error('فشل تحديث الطلب: ' + String((replaceData as any).error)); setSubmitting(false); return
+          toast.error('تعذر تحديث الطلب الآن. يرجى مراجعة الطلب ثم المحاولة.'); setSubmitting(false); return
         }
         order = { id: editingOrderId }
         lifeSignalService.notifyBusiness('order_created')
@@ -141,15 +154,14 @@ export function OrderReviewPage() {
           p_id: editingOrderId,
         })
         if (submitError) {
-          toast.error('تم تحديث الطلب ولكن فشل الإرسال: ' + submitError.message)
+          toast.error('تم تحديث الطلب، وتعذر إرساله الآن. يرجى المحاولة مرة أخرى.')
           setSubmitting(false); return
         }
         if (submitData && typeof submitData === 'object' && 'error' in submitData && submitData.error) {
-          toast.error('تعذر إرسال الطلب: ' + String((submitData as any).error), { duration: 6000 })
+          toast.error('تعذر إرسال الطلب الآن. يرجى مراجعة الطلب ثم المحاولة.', { duration: 6000 })
           setSubmitting(false)
           return
         }
-        showReservationNotice(submitData)
         toast.success('تم تحديث الطلب وإرساله بنجاح!')
       } else {
         const { data: created, error: createError } = await supabase.rpc('governed_create_order', {
@@ -165,10 +177,10 @@ export function OrderReviewPage() {
           p_execution_captured_at: null,
           p_order_type: orderType || 'cash',
         })
-        if (createError) { toast.error('فشل إنشاء الطلب: ' + createError.message); setSubmitting(false); return }
-        if (!created) { toast.error('فشل إنشاء الطلب'); setSubmitting(false); return }
+        if (createError) { toast.error('تعذر تجهيز الطلب للإرسال. يرجى المحاولة مرة أخرى.'); setSubmitting(false); return }
+        if (!created) { toast.error('تعذر تجهيز الطلب للإرسال. يرجى المحاولة مرة أخرى.'); setSubmitting(false); return }
         if (created && typeof created === 'object' && 'error' in created && created.error) {
-          toast.error('فشل إنشاء الطلب: ' + String((created as any).error)); setSubmitting(false); return
+          toast.error('تعذر تجهيز الطلب للإرسال. يرجى مراجعة الطلب ثم المحاولة.'); setSubmitting(false); return
         }
         order = created
         lifeSignalService.notifyBusiness('order_created')
@@ -188,16 +200,15 @@ export function OrderReviewPage() {
           p_id: order.id,
         })
         if (submitError) {
-          toast.error('تم إنشاء الطلب كمسودة ولكن فشل الإرسال: ' + submitError.message)
+          toast.error('تم حفظ الطلب، وتعذر إرساله الآن. يرجى المحاولة مرة أخرى.')
           setSubmitting(false)
           return
         }
         if (submitData && typeof submitData === 'object' && 'error' in submitData && submitData.error) {
-          toast.error('تعذر إرسال الطلب: ' + String((submitData as any).error), { duration: 6000 })
+          toast.error('تعذر إرسال الطلب الآن. يرجى مراجعة الطلب ثم المحاولة.', { duration: 6000 })
           setSubmitting(false)
           return
         }
-        showReservationNotice(submitData)
         toast.success('تم إرسال الطلب بنجاح!')
       }
 
@@ -282,8 +293,18 @@ export function OrderReviewPage() {
                         <span>{formatCurrencyShort(item.unitPrice)} للوحدة</span>
                       </div>
                       <div className="text-xs text-text-secondary">
-                        {formatNumber(item.pieceQuantity)} قطعة
+                        {formatMixedQuantity(
+                          item.pieceQuantity,
+                          products.find((product) => product.id === item.productId)?.cartonQuantity,
+                          item.unitType
+                        )}
                       </div>
+                      {availabilityByItem[`${item.productId}:${item.unitType}`] && (
+                        <BusinessStatusCard
+                          data={buildBusinessStatusCard(availabilityByItem[`${item.productId}:${item.unitType}`])}
+                          className="mt-2"
+                        />
+                      )}
                     </div>
                     <div className="flex items-center">
                       <span className="text-sm font-bold text-text">{formatCurrencyShort(item.totalPrice)}</span>

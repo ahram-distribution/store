@@ -9,7 +9,6 @@ import { formatCurrencyShort } from '../../utils/format'
 import { dailyDealService } from '../../services/dailyDeals'
 import { flashOfferService } from '../../services/flashOffers'
 import { buildSearchIndex, searchProducts } from '../../utils/smartSearch'
-import { showReservationNotice } from '../../utils/cart-availability'
 import type { ProductWithPrice, ProductUnitPrice, UnitType, DailyDealRecord, FlashOfferRecord, CartTotals, TierConfig } from '../../types/storefront'
 import toast from 'react-hot-toast'
 
@@ -376,9 +375,9 @@ export function OrderEditPage() {
         p_flash_offers: offersPayload,
       })
 
-      if (replaceError) { toast.error('فشل حفظ التعديلات: ' + replaceError.message); setSubmitting(false); return }
+      if (replaceError) { toast.error('تعذر حفظ التعديلات الآن. يرجى المحاولة مرة أخرى.'); setSubmitting(false); return }
       if (replaceResult && typeof replaceResult === 'object' && 'error' in replaceResult && replaceResult.error) {
-        toast.error(String((replaceResult as any).detail || (replaceResult as any).error)); setSubmitting(false); return
+        toast.error('تعذر حفظ التعديلات الآن. يرجى مراجعة الطلب ثم المحاولة.'); setSubmitting(false); return
       }
 
       // 2. Submit order
@@ -386,13 +385,12 @@ export function OrderEditPage() {
         p_token: token,
         p_id: id,
       })
-      if (submitError) { toast.error('فشل إرسال الطلب: ' + submitError.message); setSubmitting(false); return }
+      if (submitError) { toast.error('تعذر إرسال الطلب الآن. يرجى المحاولة مرة أخرى.'); setSubmitting(false); return }
       if (submitData && typeof submitData === 'object' && 'error' in submitData && submitData.error) {
-        toast.error('تعذر إرسال الطلب: ' + String((submitData as any).detail || (submitData as any).error), { duration: 6000 })
+        toast.error('تعذر إرسال الطلب الآن. يرجى مراجعة الطلب ثم المحاولة.', { duration: 6000 })
         setSubmitting(false)
         return
       }
-      showReservationNotice(submitData)
       toast.success('تم إرسال التعديلات بنجاح')
 
       // 3. Open WhatsApp (best-effort) — Source of Truth = get_unified_order

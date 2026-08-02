@@ -1,5 +1,5 @@
 import { ORDER_STATUS_LABELS, UNIT_LABELS } from '../../types/order-display'
-import type { UnifiedOrder, UnifiedCustomerSummary, UnifiedModificationEntry, UnifiedOrderItem } from '../../types/unified-order'
+import type { UnifiedOrder, UnifiedCustomerSummary, UnifiedModificationEntry, UnifiedOrderItem, OrderEventLogItem } from '../../types/unified-order'
 
 const SYSTEM_REASON_LABELS: Record<string, string> = {
   'Order created': 'تم إنشاء الطلب',
@@ -243,4 +243,135 @@ export function getLastActionLabel(events: TimelineEvent[]): { label: string; ti
   if (events.length === 1 && events[0].id === 'created') return null
   const latest = events[0]
   return { label: latest.label, time: timeAgo(latest.timestamp), actor: latest.actor }
+}
+
+export interface EventDetailRow {
+  label: string
+  value: string
+}
+
+function signedChange(ev: OrderEventLogItem): string | null {
+  if (ev.quantity_change == null) return null
+  const v = Number(ev.quantity_change)
+  return `${v > 0 ? '+' : ''}${v} قطعة`
+}
+
+/**
+ * Business-language summary for the Order Event Log. Written for representatives
+ * and managers: states what happened, why, and what it means for this order —
+ * without engine terminology and never re-using the raw engine-written reason
+ * text (legacy wording lives in inventory_movements.reason and is not rendered).
+ */
+export function describeInventoryEvent(ev: OrderEventLogItem): string {
+  const product = ev.product_name ? `«${ev.product_name}»` : 'الصنف'
+  const qty = ev.quantity_change == null ? '' : ` ${Math.abs(Number(ev.quantity_change))} قطعة`
+  switch (ev.movement_type) {
+    case 'RESERVATION_ALLOCATE':
+      return `تم تأمين الكمية المطلوبة من ${product} لهذا الطلب.`
+    case 'RESERVATION_NOTICE':
+      return `الكمية المطلوبة من ${product} تتجاوز المتاح حاليًا — سيُقبل الطلب وقد تُخفَّض الكمية عند الاعتماد.`
+    case 'RESERVATION_RELEASE':
+      return `أُعيدت كمية ${product}${qty} إلى المتاح بعد تحرير الحجز.`
+    case 'RESERVATION_UPDATE':
+      return `تم تعديل الكمية المحجوزة للصنف ${product}.`
+    case 'RESERVATION_REJECT':
+      return `لم تُؤمَّن الكمية المطلوبة من ${product} — المطلوب يتجاوز المتاح.`
+    case 'ORDER_ALLOCATION_TRIM':
+      return `عُدِّلت كمية ${product} عند الاعتماد لتطابق الكمية المتاحة.`
+    case 'ORDER_DEDUCTION':
+      return `تم خصم كمية ${product}${qty} من المخزون عند بدء التنفيذ.`
+    case 'ORDER_CANCELLATION_RESTORE':
+      return `أُلغي الطلب وأُعيدت كمية ${product}${qty} إلى المتاح.`
+    case 'ORDER_EDIT_RESTORE':
+      return `تعديل الطلب — أُعيدت كمية ${product}${qty} إلى المتاح.`
+    case 'ORDER_REVISION_RESTORE':
+      return `أُعيد الطلب للتعديل وأُعيدت كمية ${product}${qty} إلى المتاح.`
+    case 'ORDER_DELETION_RESTORE':
+      return `حُذف الطلب وأُعيدت كمية ${product}${qty} إلى المتاح.`
+    case 'ORDER_EXECUTION_ENTRY_ADJUST':
+      return `عُدِّلت كمية ${product} قبل بدء التنفيذ لتطابق الكمية المتاحة.`
+    case 'ORDER_EXECUTION_EXIT_RESTORE':
+      return `خرج الطلب من التنفيذ وأُعيدت كمية ${product}${qty} إلى المتاح.`
+    case 'ORDER_APPROVED_EXIT_RESTORE':
+      return `تغيّرت حالة الطلب وأُعيدت كمية ${product}${qty} إلى المتاح.`
+    default:
+      return `تم تسجيل تغيير على كمية ${product}.`
+  }
+}
+
+/**
+ * Optional expandable details per event — product name, requested quantity,
+ * executable quantity (when applicable), and the business reason. Kept as
+ * compact label/value rows so the summary stays short.
+ */
+export function getEventDetailRows(ev: OrderEventLogItem): EventDetailRow[] {
+  const rows: EventDetailRow[] = []
+  if (ev.product_name) {
+    rows.push({ label: 'الصنف', value: ev.product_name })
+  }
+  const change = ev.quantity_change == null ? null : Number(ev.quantity_change)
+  switch (ev.movement_type) {
+    case 'RESERVATION_ALLOCATE':
+      if (change != null) rows.push({ label: 'الكمية المؤمَّنة', value: `${Math.abs(change)} قطعة` })
+      rows.push({ label: 'السبب', value: 'تأمين الكمية عند تقديم الطلب' })
+      rows.push({ label: 'المعنى', value: 'الكمية محجوزة لهذا الطلب ولا تتأثر بالطلبات الأخرى.' })
+      break
+    case 'RESERVATION_NOTICE':
+      if (change != null) rows.push({ label: 'الكمية المطلوبة', value: `${Math.abs(change)} قطعة` })
+      rows.push({ label: 'السبب', value: 'طلبات أخرى محجوزة على نفس الصنف' })
+      rows.push({ label: 'المعنى', value: 'سيُقبل الطلب، وقد تُخفَّض الكمية عند الاعتماد حسب أولوية التقديم.' })
+      break
+    case 'RESERVATION_RELEASE':
+      if (change != null) rows.push({ label: 'الكمية المُعاد توفيرها', value: `${Math.abs(change)} قطعة` })
+      rows.push({ label: 'المعنى', value: 'الكمية عادت إلى المتاح ويمكن استخدامها في طلبات أخرى.' })
+      break
+    case 'RESERVATION_UPDATE':
+      if (change != null) rows.push({ label: 'التغيّر في الكمية', value: signedChange(ev) ?? '—' })
+      rows.push({ label: 'السبب', value: 'تعديل كمية الطلب' })
+      break
+    case 'RESERVATION_REJECT':
+      if (change != null) rows.push({ label: 'الكمية المطلوبة', value: `${Math.abs(change)} قطعة` })
+      rows.push({ label: 'السبب', value: 'الكمية المطلوبة تتجاوز المتاح حاليًا' })
+      rows.push({ label: 'المعنى', value: 'لم تُؤمَّن الكمية لهذا الطلب.' })
+      break
+    case 'ORDER_ALLOCATION_TRIM':
+      if (ev.previous_quantity != null) rows.push({ label: 'الكمية المطلوبة', value: `${ev.previous_quantity} قطعة` })
+      if (ev.new_quantity != null) rows.push({ label: 'الكمية القابلة للتنفيذ', value: `${ev.new_quantity} قطعة` })
+      rows.push({ label: 'السبب', value: 'الكمية المتاحة لا تكفي للكمية المطلوبة' })
+      rows.push({ label: 'المعنى', value: 'يُنفَّذ من الصنف بالكمية المتاحة بعد الاعتماد.' })
+      break
+    case 'ORDER_DEDUCTION':
+      if (change != null) rows.push({ label: 'الكمية المخصومة من المخزون', value: `${Math.abs(change)} قطعة` })
+      rows.push({ label: 'المعنى', value: 'دخل الطلب مرحلة التنفيذ وتم خصم الكمية من المخزون الفعلي.' })
+      break
+    case 'ORDER_CANCELLATION_RESTORE':
+      if (change != null) rows.push({ label: 'الكمية المُعاد توفيرها', value: `${Math.abs(change)} قطعة` })
+      rows.push({ label: 'السبب', value: 'إلغاء الطلب' })
+      break
+    case 'ORDER_EDIT_RESTORE':
+      if (change != null) rows.push({ label: 'الكمية المُعاد توفيرها', value: `${Math.abs(change)} قطعة` })
+      rows.push({ label: 'السبب', value: 'تعديل الطلب' })
+      break
+    case 'ORDER_REVISION_RESTORE':
+      if (change != null) rows.push({ label: 'الكمية المُعاد توفيرها', value: `${Math.abs(change)} قطعة` })
+      rows.push({ label: 'السبب', value: 'إعادة الطلب للتعديل' })
+      break
+    case 'ORDER_DELETION_RESTORE':
+      if (change != null) rows.push({ label: 'الكمية المُعاد توفيرها', value: `${Math.abs(change)} قطعة` })
+      rows.push({ label: 'السبب', value: 'حذف الطلب' })
+      break
+    case 'ORDER_EXECUTION_ENTRY_ADJUST':
+      if (change != null) rows.push({ label: 'التغيّر في الكمية', value: signedChange(ev) ?? '—' })
+      rows.push({ label: 'السبب', value: 'مطابقة الكمية مع المتاح قبل بدء التنفيذ' })
+      break
+    case 'ORDER_EXECUTION_EXIT_RESTORE':
+      if (change != null) rows.push({ label: 'الكمية المُعاد توفيرها', value: `${Math.abs(change)} قطعة` })
+      rows.push({ label: 'السبب', value: 'خروج الطلب من مرحلة التنفيذ' })
+      break
+    case 'ORDER_APPROVED_EXIT_RESTORE':
+      if (change != null) rows.push({ label: 'الكمية المُعاد توفيرها', value: `${Math.abs(change)} قطعة` })
+      rows.push({ label: 'السبب', value: 'تغيير حالة الطلب' })
+      break
+  }
+  return rows
 }

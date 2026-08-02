@@ -6,7 +6,9 @@ import { UNIT_LABELS } from '../../types/order-display'
 import { SearchHighlight } from '../shared/SearchHighlight'
 import toast from 'react-hot-toast'
 import { Package, X } from 'lucide-react'
-import { checkCartAvailability, checkProductAvailabilityV2, buildAvailabilityMessage } from '../../utils/cart-availability'
+import { checkCartAvailability, checkProductAvailabilityV2, buildBusinessStatusCard } from '../../utils/cart-availability'
+import type { AvailabilityResult } from '../../utils/cart-availability'
+import { BusinessStatusCard } from './BusinessStatusCard'
 
 const UNIT_PRIORITY: UnitType[] = ['carton', 'dozen', 'piece']
 
@@ -39,7 +41,7 @@ export function ProductCard({
 
   const [internalUnit, setInternalUnit] = useState<UnitType>(defaultUnit)
   const [internalQty, setInternalQty] = useState(0)
-  const [availabilityWarning, setAvailabilityWarning] = useState<string | null>(null)
+  const [availabilityResult, setAvailabilityResult] = useState<AvailabilityResult | null>(null)
   const checkTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const selectedUnit = controlledUnit ?? internalUnit
@@ -59,11 +61,11 @@ export function ProductCard({
 
   async function checkAvailability(qty: number) {
     if (qty <= 0 || isBlocked) {
-      setAvailabilityWarning(null)
+      setAvailabilityResult(null)
       return
     }
     const result = await checkProductAvailabilityV2(product.id, qty, selectedUnit)
-    setAvailabilityWarning(result.available ? null : buildAvailabilityMessage(result))
+    setAvailabilityResult(result)
   }
 
   function handleQuantityChange(newQty: number) {
@@ -81,7 +83,8 @@ export function ProductCard({
       if (quantity > 0) {
         const result = await checkCartAvailability(product.id, quantity, selectedUnit)
         if (!result.available) {
-          toast(buildAvailabilityMessage(result), { icon: '⚠️', duration: 6000 })
+          setAvailabilityResult(result)
+          return
         }
         onAddToCart(product, selectedUnit, quantity)
         toast.success('تمت إضافة المنتج للسلة')
@@ -230,10 +233,6 @@ export function ProductCard({
                   +
                 </button>
               </div>
-              {availabilityWarning && (
-                <p className="text-[11px] text-danger/80 text-center">{availabilityWarning}</p>
-              )}
-
               {/* Purchase Button */}
               <button
                 onClick={handleToggle}
@@ -242,6 +241,11 @@ export function ProductCard({
               >
                 شراء المنتج
               </button>
+
+              {/* Business Status Card — approved live guidance (Rev 5) */}
+              {availabilityResult && quantity > 0 && (
+                <BusinessStatusCard data={buildBusinessStatusCard(availabilityResult)} compact={!expanded} />
+              )}
             </div>
           )}
         </>

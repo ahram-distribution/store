@@ -1,5 +1,4 @@
 import { supabase } from '../lib/supabase'
-import toast from 'react-hot-toast'
 import type { UnitType } from '../types/storefront'
 import { UNIT_LABELS } from '../types/order-display'
 import { formatMixedQuantity } from './quantity-format'
@@ -11,6 +10,8 @@ export interface AvailabilityResult {
   max_allowed_pieces: number | null
   carton_quantity: number | null
   unit_type: UnitType
+  prior_reservations_exist: boolean
+  expected_executable_pieces: number | null
 }
 
 function getSessionToken(): string | null {
@@ -24,11 +25,16 @@ function getSessionToken(): string | null {
  * unit the user selected (floor whole units) plus max_allowed_pieces (full usable
  * pieces) and carton_quantity for mixed-unit messaging. It never exposes raw
  * inventory/reservation numbers to sales reps.
+ *
+ * p_exclude_order_id (Phase B — Order Details) excludes the order being viewed
+ * from "earlier orders", so a submitted order does not count its own reservation
+ * as a prior reservation. Same single engine + centralized formatter.
  */
-export async function checkProductAvailabilityV2(
+async function runAvailabilityRpc(
   productId: string,
   unitQuantity: number,
-  unitType: UnitType
+  unitType: UnitType,
+  excludeOrderId?: string | null
 ): Promise<AvailabilityResult> {
   const token = getSessionToken()
   const { data } = await supabase.rpc('governed_check_product_availability_v2', {
@@ -36,6 +42,7 @@ export async function checkProductAvailabilityV2(
     p_requested_quantity: unitQuantity,
     p_unit_type: unitType,
     p_token: token,
+    p_exclude_order_id: excludeOrderId ?? null,
   })
   if (data && typeof data === 'object') {
     return {
@@ -45,6 +52,8 @@ export async function checkProductAvailabilityV2(
       max_allowed_pieces: typeof data.max_allowed_pieces === 'number' ? data.max_allowed_pieces : null,
       carton_quantity: typeof data.carton_quantity === 'number' ? data.carton_quantity : null,
       unit_type: (data.unit_type as UnitType) || unitType,
+      prior_reservations_exist: data.prior_reservations_exist === true,
+      expected_executable_pieces: typeof data.expected_executable_pieces === 'number' ? data.expected_executable_pieces : null,
     }
   }
   return {
@@ -54,7 +63,31 @@ export async function checkProductAvailabilityV2(
     max_allowed_pieces: null,
     carton_quantity: null,
     unit_type: unitType,
+    prior_reservations_exist: false,
+    expected_executable_pieces: null,
   }
+}
+
+export async function checkProductAvailabilityV2(
+  productId: string,
+  unitQuantity: number,
+  unitType: UnitType
+): Promise<AvailabilityResult> {
+  return runAvailabilityRpc(productId, unitQuantity, unitType, null)
+}
+
+/**
+ * Order Details (Phase B): availability for an EXISTING order item — the viewed
+ * order is excluded from "earlier orders" so its own submitted reservation does
+ * not turn the card YELLOW. Same engine + formatter, never blocks.
+ */
+export async function checkOrderItemAvailability(
+  orderId: string,
+  productId: string,
+  unitQuantity: number,
+  unitType: UnitType
+): Promise<AvailabilityResult> {
+  return runAvailabilityRpc(productId, unitQuantity, unitType, orderId)
 }
 
 export async function checkCartAvailability(
@@ -63,36 +96,113 @@ export async function checkCartAvailability(
   unitType: UnitType
 ): Promise<AvailabilityResult> {
   if (unitQuantity <= 0) {
-    return { available: true, error: null, max_allowed_units: null, max_allowed_pieces: null, carton_quantity: null, unit_type: unitType }
+    return { available: true, error: null, max_allowed_units: null, max_allowed_pieces: null, carton_quantity: null, unit_type: unitType, prior_reservations_exist: false, expected_executable_pieces: null }
   }
-  return checkProductAvailabilityV2(productId, unitQuantity, unitType)
+  return runAvailabilityRpc(productId, unitQuantity, unitType, null)
 }
 
 /**
- * Approved business wording for over-quantity guidance, always in the selling unit
- * the user selected (BR-VIS-01): rep sees the maximum allowed as full usable mixed
- * units (e.g. "3 كرتونة + 270 قطعة") — never raw stock/reservation numbers.
+ * Business Status Card data (Rev 5 — frozen wording, ONE unified business language).
+ * Answers the single question under the buy button: "what happens to the quantity I chose?"
+ *
+ *   GREEN  🟢  the quantity will be fully executed — no earlier orders for the product.
+ *   YELLOW 🟡  the order is ACCEPTED, never blocked; earlier orders exist, so the card
+ *              shows the expected executable quantity if those are approved first
+ *              (same single calculation engine — Rule 1).
+ *   RED    🔴  the quantity exceeds physical stock — cannot be added; the card shows the
+ *              maximum allowed in the invoice only.
+ *
+ * Never exposes raw stock/reservation numbers (BR-VIS-01) — only smart mixed units.
  */
-export function buildAvailabilityMessage(result: AvailabilityResult): string {
-  if (result.max_allowed_pieces !== null) {
-    if (result.max_allowed_pieces <= 0) {
-      return 'الكمية المطلوبة غير متاحة حاليًا بوحدة البيع المحددة، برجاء تقليل الكمية'
-    }
-    const maxLabel = formatMixedQuantity(result.max_allowed_pieces, result.carton_quantity, result.unit_type)
-    return `الكمية المطلوبة غير متاحة حاليًا — الحد الأقصى المسموح به في هذه الفاتورة هو: ${maxLabel}`
-  }
-  if (result.max_allowed_units !== null) {
-    if (result.max_allowed_units <= 0) {
-      return 'الكمية المطلوبة غير متاحة حاليًا بوحدة البيع المحددة، برجاء تقليل الكمية'
-    }
-    const unitLabel = UNIT_LABELS[result.unit_type] || 'قطعة'
-    return `الكمية المطلوبة غير متاحة حاليًا — الحد الأقصى المسموح به ${result.max_allowed_units} ${unitLabel}`
-  }
-  return 'الكمية المطلوبة غير متاحة حاليًا، برجاء تقليل الكمية'
+export type BusinessStatus = 'green' | 'yellow' | 'red'
+
+export interface BusinessStatusCardData {
+  status: BusinessStatus | null
+  verdict: string
+  detail?: string
+  lead?: string
+  chipLabel?: string
+  /** Order Details context (BR-AUD-01): product + requested + expected executable. */
+  productName?: string
+  requestedLabel?: string
+  executableLabel?: string
 }
 
-export function showUnavailableToast(result: AvailabilityResult) {
-  toast.error(buildAvailabilityMessage(result))
+export interface BusinessCardContext {
+  productName?: string
+  requestedPieces?: number | null
+}
+
+const GREEN_LINE = 'سيتم تنفيذ هذه الكمية بالكامل.'
+const YELLOW_VERDICT = 'سيتم قبول طلبك.'
+const YELLOW_DETAIL = 'يوجد طلبات سابقة لهذا الصنف لم يتم اعتمادها بعد.'
+const YELLOW_LEAD = 'إذا تم اعتماد الطلبات السابقة أولاً، فسيكون المتاح لتنفيذ طلبك:'
+const RED_VERDICT = 'لا يمكن إضافة هذه الكمية.'
+const RED_ORDER_ITEM_VERDICT = 'الكمية المطلوبة لهذا الصنف تتجاوز الكمية المتاحة حاليًا.'
+const RED_LEAD = 'الحد الأقصى المسموح به في هذه الفاتورة هو:'
+
+/**
+ * Order Details context enrichment (BR-AUD-01): every reservation-related card
+ * must state the product, the requested quantity and the expected executable
+ * quantity — all via the Smart Quantity Formatter, never raw numbers.
+ */
+function orderItemFields(result: AvailabilityResult, context?: BusinessCardContext): Partial<BusinessStatusCardData> {
+  if (!context || (context.productName == null && context.requestedPieces == null)) return {}
+  const fields: Partial<BusinessStatusCardData> = {}
+  if (context.productName) fields.productName = context.productName
+  if (context.requestedPieces != null) {
+    fields.requestedLabel = formatMixedQuantity(context.requestedPieces, result.carton_quantity, result.unit_type)
+  }
+  return fields
+}
+
+export function buildBusinessStatusCard(result: AvailabilityResult, context?: BusinessCardContext): BusinessStatusCardData {
+  if (result.available === false) {
+    const chipLabel =
+      result.max_allowed_pieces !== null
+        ? formatMixedQuantity(result.max_allowed_pieces, result.carton_quantity, result.unit_type)
+        : result.max_allowed_units !== null
+          ? `${result.max_allowed_units} ${UNIT_LABELS[result.unit_type] || 'قطعة'}`
+          : undefined
+    const isOrderItem = Boolean(context?.productName)
+    return {
+      status: 'red',
+      verdict: isOrderItem ? RED_ORDER_ITEM_VERDICT : RED_VERDICT,
+      lead: isOrderItem ? undefined : RED_LEAD,
+      chipLabel: isOrderItem ? undefined : chipLabel,
+      ...orderItemFields(result, context),
+      executableLabel:
+        context?.requestedPieces != null && result.expected_executable_pieces != null
+          ? formatMixedQuantity(result.expected_executable_pieces, result.carton_quantity, result.unit_type)
+          : context?.requestedPieces != null
+            ? '0 قطعة'
+            : undefined,
+    }
+  }
+  if (result.prior_reservations_exist) {
+    const isOrderItem = Boolean(context?.productName)
+    const chipLabel =
+      result.expected_executable_pieces !== null && !isOrderItem
+        ? formatMixedQuantity(result.expected_executable_pieces, result.carton_quantity, result.unit_type)
+        : undefined
+    const fields = orderItemFields(result, context)
+    if (context?.requestedPieces != null && result.expected_executable_pieces != null) {
+      fields.executableLabel = formatMixedQuantity(result.expected_executable_pieces, result.carton_quantity, result.unit_type)
+    }
+    return {
+      status: 'yellow',
+      verdict: YELLOW_VERDICT,
+      detail: isOrderItem ? undefined : YELLOW_DETAIL,
+      lead: isOrderItem ? undefined : YELLOW_LEAD,
+      chipLabel,
+      ...fields,
+    }
+  }
+  const fields = orderItemFields(result, context)
+  if (context?.requestedPieces != null) {
+    fields.executableLabel = formatMixedQuantity(context.requestedPieces, result.carton_quantity, result.unit_type)
+  }
+  return { status: 'green', verdict: GREEN_LINE, ...fields }
 }
 
 /**
@@ -100,15 +210,3 @@ export function showUnavailableToast(result: AvailabilityResult) {
  * rep is told a previous reservation exists and quantities may be auto-adjusted at
  * approval. Shown after a successful submit when the RPC returns reservations_notice.
  */
-export const RESERVATION_NOTICE_TEXT =
-  'هناك فاتورة أخرى قامت بحجز كمية من هذا الصنف ولم يتم اعتمادها بعد. سيتم قبول طلبك. قد يتم تعديل الكمية تلقائيًا عند اعتماد الفواتير حسب أولوية التقديم.'
-
-export function hasReservationNotices(submitData: unknown): boolean {
-  const data = submitData as { reservations_notice?: unknown } | null
-  return Array.isArray(data?.reservations_notice) && data.reservations_notice.length > 0
-}
-
-export function showReservationNotice(submitData: unknown) {
-  if (!hasReservationNotices(submitData)) return
-  toast(RESERVATION_NOTICE_TEXT, { icon: '🟡', duration: 8000 })
-}
