@@ -578,7 +578,7 @@ export default function EmployeeWorkdayDetailPage() {
                           return (
                             <tr key={i} className={`${i % 2 === 0 ? 'bg-white' : 'bg-gray-50/60'} border-b border-gray-100 hover:bg-blue-50/40 transition-colors`}>
                               <td className="py-1.5 px-2 text-gray-400 font-bold align-middle">#{i + 1}</td>
-                              <td className="py-1.5 px-2 align-middle"><LocationDisplay lat={p.latitude} lng={p.longitude} size="sm" showAddress /></td>
+                              <td className="py-1.5 px-2 align-middle"><LocationDisplay lat={p.latitude} lng={p.longitude} size="sm" showAddress resolveAddress /></td>
                               <td className="py-1.5 px-2 text-center text-gray-500 align-middle whitespace-nowrap">{formatTime(p.time)}</td>
                               <td className="py-1.5 px-2 text-center align-middle whitespace-nowrap">
                                 {i > 0 && dist > 0 ? (
@@ -619,7 +619,7 @@ export default function EmployeeWorkdayDetailPage() {
                         </div>
                         {stop.latitude != null && stop.longitude != null && (
                           <div className="mt-0.5">
-                            <LocationDisplay lat={stop.latitude} lng={stop.longitude} size="sm" showAddress />
+                            <LocationDisplay lat={stop.latitude} lng={stop.longitude} size="sm" showAddress resolveAddress />
                           </div>
                         )}
                       </div>

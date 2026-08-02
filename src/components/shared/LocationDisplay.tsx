@@ -1,24 +1,24 @@
 import { MapPin } from 'lucide-react'
 import { locationService } from '../../services/location'
+import { ResolvedAddress } from './ResolvedAddress'
 
 interface LocationDisplayProps {
   lat: number | null | undefined
   lng: number | null | undefined
   showAddress?: boolean
   address?: string | null
+  resolveAddress?: boolean
   size?: 'sm' | 'md'
   className?: string
 }
 
-export function LocationDisplay({ lat, lng, showAddress = true, address, size = 'sm', className = '' }: LocationDisplayProps) {
-  const hasCoords = lat != null && lng != null
-
-  if (!hasCoords) return null
+export function LocationDisplay({ lat, lng, showAddress = true, address, resolveAddress = false, size = 'sm', className = '' }: LocationDisplayProps) {
+  if (lat == null || lng == null) return null
 
   const mapsUrl = locationService.buildGoogleMapsUrl(lat, lng)
   const iconSize = size === 'sm' ? 'w-3 h-3' : 'w-4 h-4'
   const textSize = size === 'sm' ? 'text-[10px]' : 'text-xs'
-  const tooltip = lat != null && lng != null ? `${lat.toFixed(6)}, ${lng.toFixed(6)}` : ''
+  const tooltip = `${lat.toFixed(6)}, ${lng.toFixed(6)}`
 
   return (
     <span className={`inline-flex items-center gap-1 ${className}`}>
@@ -36,6 +36,9 @@ export function LocationDisplay({ lat, lng, showAddress = true, address, size = 
         <span className={`${textSize} text-gray-600 leading-normal`}>
           {address}
         </span>
+      )}
+      {showAddress && resolveAddress && !address && (
+        <ResolvedAddress lat={lat} lng={lng} size={size} className="text-gray-600" />
       )}
     </span>
   )

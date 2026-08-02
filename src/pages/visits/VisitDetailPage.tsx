@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase'
 import { useVisitsStore } from '../../store/visits'
 import { formatDateTime } from '../../utils/format'
 import { StatusBadge } from '../../components/shared/StatusBadge'
+import { ResolvedAddress } from '../../components/shared/ResolvedAddress'
 import { locationService } from '../../services/location'
 import { getCurrentLocation } from '../../services/gpsService'
 import { lifeSignalService } from '../../services/lifeSignalService'
@@ -248,6 +249,9 @@ export function VisitDetailPage() {
                       <a href={locationService.buildGoogleMapsUrl(Number(visit.check_in_latitude), Number(visit.check_in_longitude))} target="_blank" rel="noopener noreferrer" className="inline-block bg-blue-600 text-white text-[11px] px-3 py-1 rounded-full font-semibold">فتح الخريطة</a>
                       {startCoords && <span className="text-blue-500 text-[10px]">({startCoords})</span>}
                     </p>
+                    <p className="mt-1">
+                      <ResolvedAddress lat={Number(visit.check_in_latitude)} lng={Number(visit.check_in_longitude)} size="md" className="text-blue-700" />
+                    </p>
                   </div>
                 )}
                 {hasEndGps && (
@@ -256,6 +260,9 @@ export function VisitDetailPage() {
                     <p className="text-[13px] flex items-center flex-wrap gap-x-2">
                       <a href={locationService.buildGoogleMapsUrl(Number(visit.check_out_latitude), Number(visit.check_out_longitude))} target="_blank" rel="noopener noreferrer" className="inline-block bg-emerald-600 text-white text-[11px] px-3 py-1 rounded-full font-semibold">فتح الخريطة</a>
                       {endCoords && <span className="text-emerald-500 text-[10px]">({endCoords})</span>}
+                    </p>
+                    <p className="mt-1">
+                      <ResolvedAddress lat={Number(visit.check_out_latitude)} lng={Number(visit.check_out_longitude)} size="md" className="text-emerald-700" />
                     </p>
                   </div>
                 )}
