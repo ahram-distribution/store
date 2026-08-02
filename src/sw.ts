@@ -380,13 +380,17 @@ self.addEventListener('fetch', (event) => {
   // PRODUCTION: skip RPC calls
   if (event.request.url.includes('/rest/v1/rpc/')) return
 
-  // PRODUCTION: SPA navigation — network-first with cache fallback
+  // PRODUCTION: SPA navigation — network-first with cache fallback.
+  // GitHub Pages serves index.html with Cache-Control: max-age=600; without
+  // bypassing the HTTP cache the SW can serve a stale index.html (old hashed
+  // bundle) right after a deploy, leaving the old version active until a manual
+  // hard refresh. 'no-store' forces a network round-trip every navigation.
   if (
     event.request.mode === 'navigate' ||
     event.request.destination === 'document'
   ) {
     event.respondWith(
-      fetch('/store/index.html').catch(() =>
+      fetch('/store/index.html', { cache: 'no-store' }).catch(() =>
         caches.match('/store/index.html')
       )
     )

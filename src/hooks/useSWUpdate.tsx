@@ -17,12 +17,12 @@ export function useSWUpdate() {
     dismissToast()
     navigator.serviceWorker.getRegistration(BASE).then((reg) => {
       if (reg?.waiting) {
-        const nav = navigator as any
+        const sw = navigator.serviceWorker
         const onControllerChange = () => {
-          nav.removeEventListener('controllerchange', onControllerChange)
+          sw.removeEventListener('controllerchange', onControllerChange)
           window.location.reload()
         }
-        nav.addEventListener('controllerchange', onControllerChange)
+        sw.addEventListener('controllerchange', onControllerChange)
         reg.waiting.postMessage({ type: 'SKIP_WAITING' })
       } else {
         window.location.reload()
