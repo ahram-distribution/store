@@ -6,7 +6,8 @@ import { formatDateTime } from '../../utils/format'
 import { StatusBadge } from '../../components/shared/StatusBadge'
 import { ResolvedAddress } from '../../components/shared/ResolvedAddress'
 import { locationService } from '../../services/location'
-import { getCurrentLocation } from '../../services/gpsService'
+import { getStrictLocation } from '../../services/gpsService'
+import { trackingEngine } from '../../services/trackingEngine'
 import { lifeSignalService } from '../../services/lifeSignalService'
 import toast from 'react-hot-toast'
 
@@ -38,6 +39,7 @@ export function VisitDetailPage() {
   const [loading, setLoading] = useState(true)
   const [notes, setNotes] = useState('')
   const [result, setResult] = useState('')
+  const [checkoutBusy, setCheckoutBusy] = useState(false)
 
   useEffect(() => {
     if (!id) return
@@ -92,14 +94,25 @@ export function VisitDetailPage() {
       return
     }
     if (!visit) return
+    if (checkoutBusy) return
+    setCheckoutBusy(true)
 
-    const gpsResult = await getCurrentLocation()
-    let locationId = null
-    let gps = null
-    if (gpsResult.success && gpsResult.location) {
-      gps = gpsResult.location
-      locationId = await locationService.saveLocation(gpsResult.location)
+    const gpsResult = await getStrictLocation()
+    if (!gpsResult.success || !gpsResult.location) {
+      setCheckoutBusy(false)
+      toast.error('لا يمكن إنهاء الزيارة قبل تسجيل موقع الانتهاء.')
+      toast.error('تعذر تحديد موقعك الحالي. تأكد من تشغيل خدمة الموقع ثم حاول مرة أخرى.')
+      return
     }
+
+    const gps = gpsResult.location
+    const locationId = await locationService.saveLocation(gps)
+    trackingEngine.recordActionPoint({
+      latitude: gps.latitude,
+      longitude: gps.longitude,
+      accuracy: gps.accuracy,
+      pointType: 'visit_checkout',
+    }).catch(() => {})
 
     updateVisit(visit.id, {
       status: 'completed',
@@ -112,14 +125,15 @@ export function VisitDetailPage() {
       await supabase.rpc('governed_checkout_visit', {
         p_token: token,
         p_visit_id: visit.id,
-        p_latitude: gps?.latitude || null,
-        p_longitude: gps?.longitude || null,
+        p_latitude: gps.latitude,
+        p_longitude: gps.longitude,
         p_visit_result: result,
         p_notes: notes || null,
       })
     }
     lifeSignalService.notifyBusiness('visit_checkout')
     setActiveVisit(null)
+    setCheckoutBusy(false)
     toast.success('تم إنهاء الزيارة')
     navigate('/visits')
   }
@@ -310,8 +324,8 @@ export function VisitDetailPage() {
             placeholder="ملاحظات الزيارة..."
             className="w-full border border-border rounded-lg px-3 py-2 text-sm resize-none h-20"
           />
-          <button onClick={handleCheckOut} className="w-full bg-accent text-white text-sm py-2.5 rounded-lg active:opacity-90 transition-colors">
-            إنهاء الزيارة
+          <button onClick={handleCheckOut} disabled={checkoutBusy} className="w-full bg-accent text-white text-sm py-2.5 rounded-lg active:opacity-90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+            {checkoutBusy ? 'جارٍ تحديد موقعك الحالي...' : 'إنهاء الزيارة'}
           </button>
         </div>
       )}

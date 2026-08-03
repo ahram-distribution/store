@@ -5,7 +5,8 @@ import { useVisitsStore } from '../../store/visits'
 import { formatDateTime } from '../../utils/format'
 import { StatusBadge } from '../../components/shared/StatusBadge'
 import { locationService } from '../../services/location'
-import { getCurrentLocation } from '../../services/gpsService'
+import { getStrictLocation } from '../../services/gpsService'
+import { trackingEngine } from '../../services/trackingEngine'
 import { LocationDisplay } from '../../components/shared/LocationDisplay'
 import { lifeSignalService } from '../../services/lifeSignalService'
 import toast from 'react-hot-toast'
@@ -45,6 +46,7 @@ export function VisitScreen() {
   const [result, setResult] = useState('')
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
+  const [locating, setLocating] = useState(false)
 
   useEffect(() => {
     if (!token) { setLoading(false); return }
@@ -106,14 +108,26 @@ export function VisitScreen() {
       return
     }
 
-    const result = await getCurrentLocation()
+    setLocating(true)
+    const result = await getStrictLocation()
+    setLocating(false)
+
+    if (!result.success || !result.location) {
+      toast.error('لا يمكن بدء الزيارة قبل تحديد موقعك الحالي.')
+      toast.error('تعذر تحديد موقعك الحالي. تأكد من تشغيل خدمة الموقع ثم حاول مرة أخرى.')
+      return
+    }
 
     let locationId: string | null = null
-    let gps = result.location
-    if (result.success && result.location) {
-      locationId = await locationService.saveLocation(result.location)
-      setStartGps({ latitude: result.location.latitude, longitude: result.location.longitude, accuracy: result.location.accuracy })
-    }
+    const gps = result.location
+    locationId = await locationService.saveLocation(gps)
+    setStartGps({ latitude: gps.latitude, longitude: gps.longitude, accuracy: gps.accuracy })
+    trackingEngine.recordActionPoint({
+      latitude: gps.latitude,
+      longitude: gps.longitude,
+      accuracy: gps.accuracy,
+      pointType: 'visit_checkin',
+    }).catch(() => {})
     if (locationId) {
       locationService.fetchLocation(locationId).then(loc => {
         if (loc?.formatted_address) setStartAddress(loc.formatted_address)
@@ -124,8 +138,8 @@ export function VisitScreen() {
       p_token: token,
       p_customer_id: customer.id,
       p_start_location_id: locationId,
-      p_latitude: gps?.latitude || null,
-      p_longitude: gps?.longitude || null,
+      p_latitude: gps.latitude,
+      p_longitude: gps.longitude,
     })
     if (error) {
       console.error('[VISIT] FAILED — RPC error: ' + error.message)
@@ -158,20 +172,33 @@ export function VisitScreen() {
       return
     }
     setSubmitting(true)
+    setLocating(true)
 
-    const gpsResult = await getCurrentLocation()
+    const gpsResult = await getStrictLocation()
+    setLocating(false)
+
+    if (!gpsResult.success || !gpsResult.location) {
+      toast.error('لا يمكن إنهاء الزيارة قبل تسجيل موقع الانتهاء.')
+      toast.error('تعذر تحديد موقعك الحالي. تأكد من تشغيل خدمة الموقع ثم حاول مرة أخرى.')
+      setSubmitting(false)
+      return
+    }
 
     let locationId: string | null = null
-    let gps = gpsResult.location
-    if (gpsResult.success && gpsResult.location) {
-      locationId = await locationService.saveLocation(gpsResult.location)
-    }
+    const gps = gpsResult.location
+    locationId = await locationService.saveLocation(gps)
+    trackingEngine.recordActionPoint({
+      latitude: gps.latitude,
+      longitude: gps.longitude,
+      accuracy: gps.accuracy,
+      pointType: 'visit_checkout',
+    }).catch(() => {})
 
     const { error } = await supabase.rpc('governed_checkout_visit', {
       p_token: token,
       p_visit_id: activeVisit.id,
-      p_latitude: gps?.latitude || null,
-      p_longitude: gps?.longitude || null,
+      p_latitude: gps.latitude,
+      p_longitude: gps.longitude,
       p_visit_result: result,
       p_notes: notes || null,
     })
@@ -242,7 +269,7 @@ export function VisitScreen() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20">
           <div className="bg-white rounded-2xl p-6 text-center shadow-xl">
             <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-2" />
-            <p className="text-sm text-text-secondary">جاري تحديد الموقع وبدء الزيارة...</p>
+            <p className="text-sm text-text-secondary">{locating ? 'جارٍ تحديد موقعك الحالي...' : 'جاري تحديد الموقع وبدء الزيارة...'}</p>
           </div>
         </div>
       )}
@@ -298,7 +325,7 @@ export function VisitScreen() {
             disabled={submitting || !result}
             className="w-full bg-accent text-white text-sm py-3 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed active:opacity-90 transition-colors"
           >
-            {submitting ? 'جاري الإنهاء...' : 'إنهاء الزيارة'}
+            {locating ? 'جارٍ تحديد موقعك الحالي...' : submitting ? 'جاري الإنهاء...' : 'إنهاء الزيارة'}
           </button>
         </div>
       )}

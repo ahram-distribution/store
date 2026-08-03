@@ -5,7 +5,8 @@ import { useVisitsStore } from '../../store/visits'
 import { StatusBadge } from '../../components/shared/StatusBadge'
 import { VisitCard } from '../../components/visits/VisitCard'
 import { locationService } from '../../services/location'
-import { getCurrentLocation } from '../../services/gpsService'
+import { getStrictLocation } from '../../services/gpsService'
+import { trackingEngine } from '../../services/trackingEngine'
 import { lifeSignalService } from '../../services/lifeSignalService'
 import SmartFilterBar, { type FilterValues } from '../../components/SmartFilterBar'
 import toast from 'react-hot-toast'
@@ -48,6 +49,7 @@ export function VisitsPage() {
 
   const [showCheckin, setShowCheckin] = useState(false)
   const [checkinCustomerId, setCheckinCustomerId] = useState('')
+  const [checkinBusy, setCheckinBusy] = useState(false)
 
   const resolveDateRange = (f: FilterValues): { from: string | null; to: string | null } => {
     if (f.datePreset === 'all') return { from: null, to: null }
@@ -115,22 +117,36 @@ export function VisitsPage() {
 
   async function handleCheckin() {
     if (!checkinCustomerId) { toast.error('اختر العميل'); return }
+    if (checkinBusy) return
     const token = getToken()
+    if (!token) return
 
-    const result = await getCurrentLocation()
+    setCheckinBusy(true)
 
-    let locationId: string | null = null
-    let gps = result.location
-    if (result.success && result.location) {
-      locationId = await locationService.saveLocation(result.location)
+    const result = await getStrictLocation()
+    if (!result.success || !result.location) {
+      setCheckinBusy(false)
+      toast.error('لا يمكن بدء الزيارة قبل تحديد موقعك الحالي.')
+      toast.error('تعذر تحديد موقعك الحالي. تأكد من تشغيل خدمة الموقع ثم حاول مرة أخرى.')
+      return
     }
+
+    const gps = result.location
+    const locationId = await locationService.saveLocation(gps)
+    trackingEngine.recordActionPoint({
+      latitude: gps.latitude,
+      longitude: gps.longitude,
+      accuracy: gps.accuracy,
+      pointType: 'visit_checkin',
+    }).catch(() => {})
 
     const { data, error } = await supabase.rpc('governed_checkin_visit', {
       p_token: token, p_customer_id: checkinCustomerId,
       p_start_location_id: locationId,
-      p_latitude: gps?.latitude || null,
-      p_longitude: gps?.longitude || null,
+      p_latitude: gps.latitude,
+      p_longitude: gps.longitude,
     })
+    setCheckinBusy(false)
     if (error) { console.error('[VISIT] VisitsPage checkin failed', error); toast.error(error.message); return }
     const resultData = data as any
     if (resultData.error) { console.error('[VISIT] VisitsPage checkin result error', resultData.error); toast.error(resultData.error); return }
@@ -185,7 +201,9 @@ export function VisitsPage() {
             {customers.map((c: any) => <option key={c.id} value={c.id}>{c.company_name}</option>)}
           </select>
           <div className="flex gap-2">
-            <button onClick={handleCheckin} className="flex-1 bg-success text-white text-xs py-2 rounded-lg">تسجيل الدخول</button>
+            <button onClick={handleCheckin} disabled={checkinBusy} className="flex-1 bg-success text-white text-xs py-2 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed">
+              {checkinBusy ? 'جارٍ تحديد موقعك الحالي...' : 'تسجيل الدخول'}
+            </button>
             <button onClick={() => setShowCheckin(false)} className="px-4 border border-border rounded-lg text-xs">إلغاء</button>
           </div>
         </div>

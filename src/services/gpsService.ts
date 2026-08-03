@@ -16,6 +16,44 @@ export interface GpsWatchCallbacks {
   onError?: (err: GeolocationPositionError) => void
 }
 
+/**
+ * Strict one-shot GPS acquisition for business-critical operations
+ * (visit check-in / check-out).
+ *
+ * Unlike getCurrentLocation — which accepts the BEST AVAILABLE fix on timeout —
+ * this rejects unless a fix satisfying the tracking accuracy policy
+ * (accuracy ≤ maxAccuracy) is obtained. A valid GPS fix requires both
+ * coordinates to be finite and accuracy within the policy threshold.
+ */
+export async function getStrictLocation(options?: {
+  maxWaitMs?: number
+  maxAccuracy?: number
+}): Promise<GpsResult> {
+  const maxWaitMs = options?.maxWaitMs ?? DEFAULT_MAX_WAIT
+  const maxAccuracy = options?.maxAccuracy ?? DEFAULT_MAX_ACCURACY
+
+  const result = await getCurrentLocation({ maxWaitMs, maxAccuracy })
+
+  if (
+    result.success &&
+    result.location &&
+    Number.isFinite(result.location.latitude) &&
+    Number.isFinite(result.location.longitude) &&
+    result.location.accuracy <= maxAccuracy
+  ) {
+    return result
+  }
+
+  return {
+    success: false,
+    location: null,
+    error: {
+      code: 'INSUFFICIENT_ACCURACY',
+      message: 'تعذر تحديد موقعك الحالي. تأكد من تشغيل خدمة الموقع ثم حاول مرة أخرى.',
+    },
+  }
+}
+
 let _lastLocation: GpsLocation | null = null
 let _watchId: number | null = null
 let _watchCallbacks: GpsWatchCallbacks | null = null
