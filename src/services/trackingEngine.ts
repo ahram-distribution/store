@@ -338,7 +338,7 @@ class TrackingEngine {
     this._lastPosition = null
   }
 
-  private _captureFromPositionImmediate(loc: { latitude: number; longitude: number; accuracy: number }) {
+  private _captureFromPositionImmediate(loc: { latitude: number; longitude: number; accuracy: number }, pointType: string = 'periodic') {
     this._lastPointAt = new Date().toISOString()
     this._telemetry.captured++
     try {
@@ -361,7 +361,7 @@ class TrackingEngine {
         heading_degrees: null,
         battery_pct: battery,
         recorded_at: new Date().toISOString(),
-        point_type: 'periodic' as const,
+        point_type: pointType,
       }
       if (navigator.onLine) {
         this._sendPoints([point]).then(() => {
@@ -531,6 +531,27 @@ class TrackingEngine {
     } else {
       failureLogger.log({ category: 'gps_unavailable', detail: 'captureNow called but no GPS position', sessionId: this._sessionId })
     }
+  }
+
+  /**
+   * Records a tracking point for a successful GPS acquisition that happened
+   * outside the periodic loop (business action / app resume). Reuses the exact
+   * periodic pipeline (online send or offline IndexedDB queue + background
+   * sync). Server-side deduplication in ensure_tracking_point() prevents
+   * duplicates from retries or overlapping sources.
+   */
+  async recordActionPoint(opts: { latitude: number; longitude: number; accuracy: number; pointType?: string }) {
+    if (!this._sessionId) {
+      const restored = await this._restoreSession()
+      if (!this._sessionId && !restored) {
+        failureLogger.log({ category: 'action_point_skipped', detail: `Action point skipped: no tracking session (${opts.pointType || 'unknown'})`, sessionId: this._sessionId })
+        return
+      }
+    }
+    this._captureFromPositionImmediate(
+      { latitude: opts.latitude, longitude: opts.longitude, accuracy: opts.accuracy },
+      opts.pointType || 'app_resume',
+    )
   }
 
   private async _recoverSessionIfNeeded() {

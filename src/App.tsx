@@ -16,7 +16,6 @@ import { ThemeProvider } from './context/ThemeContext'
 import { notificationService } from './services/notificationService'
 import { healthMonitor } from './utils/pageHealthCheck'
 import { lifeSignalService } from './services/lifeSignalService'
-import { trackingEngine } from './services/trackingEngine'
 import { useSWUpdate } from './hooks/useSWUpdate'
 
 const isDesktop = typeof navigator !== 'undefined' && navigator.userAgent.includes('Electron')
@@ -75,7 +74,7 @@ export function App() {
 
   useEffect(() => {
     const handleVisibility = () => {
-      if (document.visibilityState === 'visible' && trackingEngine.sessionId) {
+      if (document.visibilityState === 'visible') {
         lifeSignalService.handleAppResume()
       }
     }

@@ -2,6 +2,7 @@ import { supabase } from '../lib/supabase'
 import { trackingQueue } from './trackingQueue'
 import { trackingEngine } from './trackingEngine'
 import { failureLogger } from './failureLogger'
+import * as gpsService from './gpsService'
 
 export type LifeSignalType =
   | 'app_open'
@@ -24,7 +25,7 @@ async function touchActivity(sessionId: string, signalType: LifeSignalType) {
       p_session_id: sessionId,
     })
     if (error) {
-      failureLogger.log('life_signal_failed', `touch_session_activity error: ${error.message}`, { sessionId })
+      failureLogger.log({ category: 'life_signal_failed', detail: `touch_session_activity error: ${error.message}`, sessionId })
       await queueSignal(sessionId, signalType)
     }
   } else {
@@ -56,12 +57,36 @@ async function flushQueuedSignals() {
   if (ids.length > 0) await trackingQueue.removePoints(ids)
 }
 
+/**
+ * Application Activity Recovery (tracking Source 3).
+ * Whenever the app opens or resumes after a suspension / long inactivity and a
+ * valid GPS location is obtained, record an 'app_resume' tracking point through
+ * the existing tracking pipeline. Server-side deduplication prevents spam.
+ */
+async function recordActivityResumePoint() {
+  try {
+    const sessionId = await getSessionId()
+    if (!sessionId) return
+    const result = await gpsService.getCurrentLocation({ maxWaitMs: 8000, maxAccuracy: 200 })
+    if (!result.success || !result.location) return
+    await trackingEngine.recordActionPoint({
+      latitude: result.location.latitude,
+      longitude: result.location.longitude,
+      accuracy: result.location.accuracy,
+      pointType: 'app_resume',
+    })
+  } catch (err) {
+    failureLogger.log({ category: 'resume_point_failed', detail: `recordActivityResumePoint error: ${err instanceof Error ? err.message : String(err)}` })
+  }
+}
+
 export const lifeSignalService = {
   async handleAppOpen() {
     const sessionId = await getSessionId()
     if (!sessionId) return
     await touchActivity(sessionId, 'app_open')
     await flushQueuedSignals()
+    void recordActivityResumePoint()
   },
 
   async handleAppResume() {
@@ -69,6 +94,7 @@ export const lifeSignalService = {
     if (!sessionId) return
     await touchActivity(sessionId, 'app_resume')
     await flushQueuedSignals()
+    void recordActivityResumePoint()
   },
 
   async notifyBusiness(signalType: LifeSignalType) {

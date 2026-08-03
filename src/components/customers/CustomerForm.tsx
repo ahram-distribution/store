@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../../lib/supabase'
 import { toEnglishDigits } from '../../utils/format'
 import { getCurrentLocation } from '../../services/gpsService'
+import { trackingEngine } from '../../services/trackingEngine'
 import { SearchableSelect } from '../shared/SearchableSelect'
 import { CUSTOMER_BUSINESS_TYPES, validateCustomerPhone } from '../../lib/customerConstants'
 import toast from 'react-hot-toast'
@@ -82,6 +83,12 @@ export function CustomerForm({
       set('latitude', result.location.latitude)
       set('longitude', result.location.longitude)
       set('accuracyMeters', result.location.accuracy)
+      trackingEngine.recordActionPoint({
+        latitude: result.location.latitude,
+        longitude: result.location.longitude,
+        accuracy: result.location.accuracy,
+        pointType: editMode ? 'customer_location_updated' : 'customer_created',
+      }).catch(() => {})
       const acc = result.location.accuracy
       if (acc > 50) {
         toast('⚠️ دقة الموقع الحالية ضعيفة (' + acc + 'م) — يفضل إعادة المحاولة', { duration: 5000 })

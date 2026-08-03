@@ -186,6 +186,18 @@ export default function AttendanceRuntimePage() {
     }
   }, [status, startTracking])
 
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState !== 'visible') return
+      const sessionId = status?.session_id
+      if (sessionId && !trackingEngine.status.running && (status?.status === 'active' || status?.status === 'inactive_warning')) {
+        startTracking(sessionId)
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => document.removeEventListener('visibilitychange', handleVisibility)
+  }, [status, startTracking])
+
   const isBeforeWork = status?.status === null
   const isActive = (status?.status === 'active' || status?.status === 'inactive_warning') && !status?.on_break
   const isBreak = (status?.status === 'active' || status?.status === 'inactive_warning') && status?.on_break === true

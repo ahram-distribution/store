@@ -8,6 +8,8 @@ import { formatCurrencyShort, formatTime } from '../../utils/format'
 import { formatNumber } from '../../utils/numbers'
 import { LocationDisplay } from '../../components/shared/LocationDisplay'
 import { locationService } from '../../services/location'
+import { hasRebuild, previewRebuild, executeRebuild } from '../../services/rebuildTracking'
+import type { RebuildPreview } from '../../services/rebuildTracking'
 
 function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6371; const dLat = (lat2 - lat1) * Math.PI / 180; const dLng = (lng2 - lng1) * Math.PI / 180
@@ -163,82 +165,95 @@ export default function EmployeeWorkdayDetailPage() {
   const isFixed = scheduleType === 'fixed_shift'
   const presenceMinutes = isField ? (ledgerData?.schedule_info.presence_minutes ?? session?.duration_minutes) : session?.net_minutes
 
-  useEffect(() => {
+  const loadPage = useCallback(async () => {
     if (!token || !employeeId) return
-    const fetchAll = async () => {
-      const d = new Date(today); d.setDate(d.getDate() - 6)
-      const fromDate = d.toISOString().slice(0, 10)
-      let nameRes: any, historyRes: any, mapRes: any, timelineRes: any
-      try {
-        ;[nameRes, historyRes, mapRes, timelineRes] = await Promise.all([
-          supabase.rpc('get_governed_employee', { p_token: token, p_employee_id: employeeId }),
-          supabase.rpc('get_employee_workday_history', { p_token: token, p_employee_id: employeeId, p_from: fromDate, p_to: today }),
-          supabase.rpc('get_employee_day_map', { p_token: token, p_employee_id: employeeId, p_date: today }),
-          supabase.rpc('get_employee_day_timeline', { p_token: token, p_employee_id: employeeId, p_date: today }),
-        ])
-      } catch {}
-      if (nameRes?.data && typeof nameRes.data === 'object' && !('error' in (nameRes.data as Record<string, unknown>))) {
-        setEmployeeName((nameRes.data as Record<string, unknown>).full_name as string || '')
-      }
-      if (historyRes?.data && typeof historyRes.data === 'object') {
-        if ((historyRes.data as Record<string, unknown>).error === 'FORBIDDEN') {
-          setHistoryForbidden(true)
-        } else if (!('error' in (historyRes.data as Record<string, unknown>))) {
-          const h = historyRes.data as HistoryResponse
-          if (h.sessions && h.sessions.length > 0) setSession(h.sessions[0])
-          if (h.sessions) setHistorySessions(h.sessions)
-          if (h.summary) setHistorySummary(h.summary)
+    // Automatic maintenance: reconstruct missing tracking points from business
+    // events before rendering, but only once per employee workday. If an audit
+    // row already exists, skip preview and rebuild entirely.
+    try {
+      const alreadyRebuilt = await hasRebuild(employeeId, today)
+      if (!alreadyRebuilt) {
+        const pv = await previewRebuild(employeeId, today)
+        if (pv && typeof pv === 'object' && !('error' in pv) && (pv as RebuildPreview).to_create > 0) {
+          await executeRebuild(employeeId, today)
         }
       }
-      try {
-        const { data: tr } = await supabase.rpc('get_daily_target_vs_actual', {
-          p_token: token, p_employee_id: employeeId, p_date: today,
-        })
-        if (tr && typeof tr === 'object' && !('error' in (tr as Record<string, unknown>))) {
-          setTarget(tr as TargetResponse)
-          if ((tr as TargetResponse).last_7_days) setTargetWeek((tr as TargetResponse).last_7_days)
-        }
-      } catch {}
-
-      // Detect FORBIDDEN from map/timeline → hide those sections
-      const mapErr = mapRes?.data && (mapRes.data as Record<string, unknown>).error === 'FORBIDDEN'
-      const tlErr = timelineRes?.data && (timelineRes.data as Record<string, unknown>).error === 'FORBIDDEN'
-      setHasViewTimeline(!mapErr && !tlErr)
-
-      if (mapRes?.data && !mapErr && !((mapRes.data as Record<string, unknown>).error)) {
-        const raw = mapRes.data as Record<string, unknown>
-        const routePoints_raw = (raw.route_polyline ?? raw.route) as RoutePoint[] | undefined
-        const map: DayMapData = {
-          session: raw.session as DayMapData['session'],
-          route: routePoints_raw ?? [],
-          total_points: routePoints_raw?.length ?? 0,
-          total_distance_meters: (raw.total_distance_meters as number) ?? 0,
-          total_distance_km: (raw.total_distance_km as string) ?? '0',
-          visit_locations: (raw.visit_locations as VisitLocation[]) ?? [],
-          long_stops: (raw.long_stops as LongStop[]) ?? [],
-          long_stops_count: (raw.long_stops_count as number) ?? 0,
-          long_stops_total_minutes: (raw.long_stops_total_minutes as number) ?? 0,
-        }
-        setMapData(map)
-      }
-      if (timelineRes?.data && !tlErr && !((timelineRes.data as Record<string, unknown>).error)) setTimeline(timelineRes.data as TimelineData)
-
-      // Work Hours Ledger (graceful if RPC does not exist yet)
-      try {
-        const ledgerRes = await supabase.rpc('get_work_hours_ledger', {
-          p_token: token, p_employee_id: employeeId, p_from: today, p_to: today,
-        })
-        if (ledgerRes.data && typeof ledgerRes.data === 'object' && !('error' in (ledgerRes.data as Record<string, unknown>))) {
-          const lr = ledgerRes.data as WorkHoursLedgerResponse
-          setLedgerData(lr)
-          setScheduleType(lr.schedule_type)
-        }
-        } catch {} // RPC not deployed yet, safe fallback
-
-      setLoading(false)
+    } catch {}
+    const d = new Date(today); d.setDate(d.getDate() - 6)
+    const fromDate = d.toISOString().slice(0, 10)
+    let nameRes: any, historyRes: any, mapRes: any, timelineRes: any
+    try {
+      ;[nameRes, historyRes, mapRes, timelineRes] = await Promise.all([
+        supabase.rpc('get_governed_employee', { p_token: token, p_employee_id: employeeId }),
+        supabase.rpc('get_employee_workday_history', { p_token: token, p_employee_id: employeeId, p_from: fromDate, p_to: today }),
+        supabase.rpc('get_employee_day_map', { p_token: token, p_employee_id: employeeId, p_date: today }),
+        supabase.rpc('get_employee_day_timeline', { p_token: token, p_employee_id: employeeId, p_date: today }),
+      ])
+    } catch {}
+    if (nameRes?.data && typeof nameRes.data === 'object' && !('error' in (nameRes.data as Record<string, unknown>))) {
+      setEmployeeName((nameRes.data as Record<string, unknown>).full_name as string || '')
     }
-    fetchAll()
+    if (historyRes?.data && typeof historyRes.data === 'object') {
+      if ((historyRes.data as Record<string, unknown>).error === 'FORBIDDEN') {
+        setHistoryForbidden(true)
+      } else if (!('error' in (historyRes.data as Record<string, unknown>))) {
+        const h = historyRes.data as HistoryResponse
+        if (h.sessions && h.sessions.length > 0) setSession(h.sessions[0])
+        if (h.sessions) setHistorySessions(h.sessions)
+        if (h.summary) setHistorySummary(h.summary)
+      }
+    }
+    try {
+      const { data: tr } = await supabase.rpc('get_daily_target_vs_actual', {
+        p_token: token, p_employee_id: employeeId, p_date: today,
+      })
+      if (tr && typeof tr === 'object' && !('error' in (tr as Record<string, unknown>))) {
+        setTarget(tr as TargetResponse)
+        if ((tr as TargetResponse).last_7_days) setTargetWeek((tr as TargetResponse).last_7_days)
+      }
+    } catch {}
+
+    // Detect FORBIDDEN from map/timeline → hide those sections
+    const mapErr = mapRes?.data && (mapRes.data as Record<string, unknown>).error === 'FORBIDDEN'
+    const tlErr = timelineRes?.data && (timelineRes.data as Record<string, unknown>).error === 'FORBIDDEN'
+    setHasViewTimeline(!mapErr && !tlErr)
+
+    if (mapRes?.data && !mapErr && !((mapRes.data as Record<string, unknown>).error)) {
+      const raw = mapRes.data as Record<string, unknown>
+      const routePoints_raw = (raw.route_polyline ?? raw.route) as RoutePoint[] | undefined
+      const map: DayMapData = {
+        session: raw.session as DayMapData['session'],
+        route: routePoints_raw ?? [],
+        total_points: routePoints_raw?.length ?? 0,
+        total_distance_meters: (raw.total_distance_meters as number) ?? 0,
+        total_distance_km: (raw.total_distance_km as string) ?? '0',
+        visit_locations: (raw.visit_locations as VisitLocation[]) ?? [],
+        long_stops: (raw.long_stops as LongStop[]) ?? [],
+        long_stops_count: (raw.long_stops_count as number) ?? 0,
+        long_stops_total_minutes: (raw.long_stops_total_minutes as number) ?? 0,
+      }
+      setMapData(map)
+    }
+    if (timelineRes?.data && !tlErr && !((timelineRes.data as Record<string, unknown>).error)) setTimeline(timelineRes.data as TimelineData)
+
+    // Work Hours Ledger (graceful if RPC does not exist yet)
+    try {
+      const ledgerRes = await supabase.rpc('get_work_hours_ledger', {
+        p_token: token, p_employee_id: employeeId, p_from: today, p_to: today,
+      })
+      if (ledgerRes.data && typeof ledgerRes.data === 'object' && !('error' in (ledgerRes.data as Record<string, unknown>))) {
+        const lr = ledgerRes.data as WorkHoursLedgerResponse
+        setLedgerData(lr)
+        setScheduleType(lr.schedule_type)
+      }
+      } catch {} // RPC not deployed yet, safe fallback
+
+    setLoading(false)
   }, [token, employeeId, today])
+
+  useEffect(() => {
+    loadPage()
+  }, [loadPage])
 
   const routePoints: [number, number][] = (mapData?.route ?? [])
     .filter(p => p.latitude != null && p.longitude != null)

@@ -8,6 +8,7 @@ import { formatNumber, formatPercent } from '../../utils/numbers'
 import { getCustomerState, getCustomerStateLabel, CUSTOMER_STATE_LABELS } from '../../utils/systemStates'
 import { LocationRepository, LocationNormalizationService } from '../../domain/location'
 import { getCurrentLocation } from '../../services/gpsService'
+import { trackingEngine } from '../../services/trackingEngine'
 import { CustomerForm } from '../../components/customers/CustomerForm'
 import type { CustomerFormData } from '../../components/customers/CustomerForm'
 import { CustomerAddressCard } from '../../components/customers/CustomerAddressCard'
@@ -604,6 +605,11 @@ export function CustomerProfilePage() {
     const { latitude, longitude, accuracy } = result.location
     const token = getToken()
     if (!token) { toast.error('جلسة منتهية'); return }
+
+    trackingEngine.recordActionPoint({
+      latitude, longitude, accuracy,
+      pointType: 'customer_location_updated',
+    }).catch(() => {})
 
     let formattedAddress: string | null = null
     try {
