@@ -98,6 +98,10 @@ export default function SalesManagerCCPage() {
           className="flex-1 bg-accent/10 text-accent border border-accent/20 py-3 rounded-xl font-bold text-sm active:scale-[0.98] transition-all flex items-center justify-center gap-1.5">
           📍 بدء زيارة
         </button>
+        <button onClick={() => nav('/attendance/runtime')}
+          className="flex-1 bg-blue-600/10 text-blue-700 border border-blue-600/20 py-3 rounded-xl font-bold text-sm active:scale-[0.98] transition-all flex items-center justify-center gap-1.5">
+          ⏱️ تسجيل الحضور
+        </button>
       </div>
 
       {/* Team Overview Cards */}
