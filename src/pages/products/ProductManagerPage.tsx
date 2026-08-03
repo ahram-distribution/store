@@ -1,11 +1,10 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Search, X, Loader2, AlertTriangle, Trash2, Power, Image, Upload } from 'lucide-react'
+import { Plus, Search, X, Loader2, AlertTriangle, Trash2, Power, Image, Upload, ChevronDown } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useCapability } from '../../hooks/useCapability'
 import { ProductCard } from '../../components/products/ProductCard'
-import { InventoryBreakdown } from '../../components/shared/InventoryBreakdown'
-import { formatCurrencyShort, formatDateTimeStamp, toEnglishDigits } from '../../utils/format'
+import { formatCurrencyShort, toEnglishDigits } from '../../utils/format'
 import { UNIT_LABELS } from '../../types/order-display'
 import { buildSearchIndex, searchProducts } from '../../utils/smartSearch'
 import { SearchHighlight } from '../../components/shared/SearchHighlight'
@@ -56,6 +55,7 @@ export function ProductManagerPage() {
   const [scopeDialogTarget, setScopeDialogTarget] = useState<'negative_selling' | 'deduction_status' | null>(null)
   const [pendingPolicyValue, setPendingPolicyValue] = useState<any>(null)
   const [policySaving, setPolicySaving] = useState(false)
+  const [inventorySettingsOpen, setInventorySettingsOpen] = useState(false)
 
   // ── Filters ──
   const [viewState, setViewState, resetViewState] = usePersistentViewState('products-manage', {
@@ -313,6 +313,7 @@ export function ProductManagerPage() {
   })
   const [editTierDiscounts, setEditTierDiscounts] = useState<Record<string, string>>({})
   const [editSaving, setEditSaving] = useState(false)
+  const [discountsOpen, setDiscountsOpen] = useState(false)
 
   function openEdit(product: any) {
     const currentStock = product.inventory?.quantity ?? ''
@@ -358,11 +359,8 @@ export function ProductManagerPage() {
     : invCartons > 0 && invCartonQty <= 0
       ? 'حدد عدد القطع في الكرتونة أولاً'
       : null
-  const previewPieces = stockTotal ?? 0
-  const previewCartons = invCartonQty > 0 ? Math.trunc(previewPieces / invCartonQty) : 0
-  const previewCartonRem = invCartonQty > 0 ? previewPieces - previewCartons * invCartonQty : previewPieces
-  const previewDozens = Math.trunc(previewPieces / 12)
-  const previewDozenRem = previewPieces - previewDozens * 12
+  const totalCartons = stockTotal !== null && invCartonQty > 0 ? Math.trunc(stockTotal / invCartonQty) : 0
+  const totalCartonRemainder = stockTotal !== null && invCartonQty > 0 ? stockTotal % invCartonQty : 0
 
   function handleEditImageFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -561,11 +559,20 @@ export function ProductManagerPage() {
       {/* ── Global Inventory Settings ── */}
       {canManage && (
         <div className="mx-4 mt-4 bg-white rounded-xl border border-border p-3 space-y-3">
-          <div className="flex items-center gap-2">
-            <div className="w-1.5 h-1.5 rounded-full bg-primary" />
-            <h3 className="text-xs font-bold text-text">إعدادات المخزون</h3>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <button
+            type="button"
+            onClick={() => setInventorySettingsOpen((o) => !o)}
+            className="w-full flex items-center justify-between gap-2"
+          >
+            <span className="flex items-center gap-2">
+              <div className="w-1.5 h-1.5 rounded-full bg-primary" />
+              <h3 className="text-xs font-bold text-text">إعدادات المخزون</h3>
+            </span>
+            <ChevronDown className={`w-4 h-4 text-text-secondary transition-transform ${inventorySettingsOpen ? 'rotate-180' : ''}`} />
+          </button>
+          {inventorySettingsOpen && (
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {/* Negative Selling */}
             <div className="flex items-center justify-between bg-surface rounded-lg px-3 py-2.5">
               <div>
@@ -609,6 +616,8 @@ export function ProductManagerPage() {
               </select>
             </div>
           </div>
+            </>
+          )}
         </div>
       )}
 
@@ -808,211 +817,107 @@ export function ProductManagerPage() {
             </div>
             <div className="p-5 space-y-5">
 
-              {/* ── Product Summary (read-only) ── */}
-              <section className="bg-surface/40 border border-border rounded-xl p-4 space-y-3">
-                <div>
-                  <p className="text-[10px] font-medium text-text-secondary">ملخص المنتج</p>
-                  <h3 className="text-lg font-extrabold text-text leading-snug">{editTarget.product_name}</h3>
-                </div>
-                <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
-                  <div className="space-y-0.5">
-                    <span className="block text-[10px] font-medium text-text-secondary">الكود</span>
-                    <span className="block text-sm font-bold text-text" dir="ltr">{editTarget.legacy_code || '—'}</span>
-                  </div>
-                  <div className="space-y-0.5">
-                    <span className="block text-[10px] font-medium text-text-secondary">الشركة</span>
-                    <span className="block text-sm font-semibold text-text truncate">{editTarget.company_name || '—'}</span>
-                  </div>
-                </div>
-                <div className="space-y-0.5">
-                  <span className="block text-[10px] font-medium text-text-secondary">الحالة</span>
-                  <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold border ${
-                    editTarget.is_active === false
-                      ? 'text-danger border-danger/30 bg-danger/5'
-                      : editTarget.is_out_of_stock === true
-                        ? 'text-warning border-warning/30 bg-warning/5'
-                        : 'text-success border-success/30 bg-success/5'
-                  }`}>
-                    {editTarget.is_active === false ? 'مخفي' : editTarget.is_out_of_stock === true ? 'نفذت الكمية' : 'نشط'}
-                  </span>
-                </div>
-                <InventoryBreakdown
-                  quantity={Number(editTarget.inventory?.quantity ?? 0)}
-                  cartonQuantity={Number(editTarget.carton_quantity ?? 0)}
-                />
-                {editTarget.updated_at ? (
-                  <div className="flex items-center justify-between pt-1 border-t border-border">
-                    <span className="text-[10px] font-medium text-text-secondary">آخر تحديث</span>
-                    <span className="text-xs font-semibold text-text" dir="ltr">{formatDateTimeStamp(editTarget.updated_at)}</span>
-                  </div>
-                ) : null}
-              </section>
-
               {/* ── Product Information ── */}
-              <section className="bg-surface/40 border border-border rounded-xl p-4 space-y-3">
+              <section className="bg-surface/40 border border-border rounded-xl p-3 space-y-2">
                 <h3 className="text-sm font-extrabold text-text">بيانات المنتج</h3>
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-medium text-text-secondary">اسم المنتج</label>
-                  <input type="text" value={editForm.product_name}
-                    onChange={(e) => setEditForm((p: any) => ({ ...p, product_name: e.target.value }))}
-                    readOnly={!canManage} className="w-full border border-border rounded-lg px-3 py-2.5 text-sm bg-white" />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-medium text-text-secondary">الكود القديم</label>
-                  <input type="text" value={editForm.legacy_code}
-                    onChange={(e) => setEditForm((p: any) => ({ ...p, legacy_code: e.target.value }))}
-                    readOnly={!canManage} className="w-full border border-border rounded-lg px-3 py-2.5 text-sm bg-white" dir="ltr" />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-medium text-text-secondary">الوصف</label>
-                  <textarea value={editForm.description}
-                    onChange={(e) => setEditForm((p: any) => ({ ...p, description: e.target.value }))}
-                    readOnly={!canManage} className="w-full border border-border rounded-lg px-3 py-2.5 text-sm bg-white resize-none" rows={2} />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-medium text-text-secondary">الشركة</label>
-                  <SearchableSelect
-                    items={companies.map((c: any) => ({ id: c.id, name: c.company_name }))}
-                    value={editForm.company_id}
-                    onChange={(val) => setEditForm((p: any) => ({ ...p, company_id: val }))}
-                    placeholder="اختر شركة..."
-                    disabled={!canManage}
-                  />
-                </div>
-              </section>
-
-              {/* ── Product Image ── */}
-              <section className="bg-surface/40 border border-border rounded-xl p-4 space-y-3">
-                <h3 className="text-sm font-extrabold text-text">صورة المنتج</h3>
-                {editForm.image_url ? (
-                  <div className="relative w-full h-32 rounded-lg overflow-hidden border border-border bg-white mb-1">
-                    <img src={editForm.image_url} alt="" className="w-full h-full object-contain" />
-                    {canManage && (
-                      <button onClick={() => setEditForm((p: any) => ({ ...p, image_url: '' }))}
-                        className="absolute top-1 left-1 bg-black/50 text-white rounded-full p-0.5">
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    )}
+                <div className="grid grid-cols-10 gap-2">
+                  <div className="col-span-6 space-y-1 min-w-0">
+                    <label className="block text-xs font-medium text-text-secondary">اسم المنتج</label>
+                    <input type="text" value={editForm.product_name}
+                      onChange={(e) => setEditForm((p: any) => ({ ...p, product_name: e.target.value }))}
+                      readOnly={!canManage} className="w-full border border-border rounded-lg px-3 py-2.5 text-sm bg-white" />
                   </div>
-                ) : (
-                  <div className="w-full h-28 bg-white rounded-lg border border-border flex items-center justify-center mb-1">
-                    <Image className="w-8 h-8 text-text-secondary/30" />
+                  <div className="col-span-2 space-y-1 min-w-0">
+                    <label className="block text-xs font-medium text-text-secondary">الكود القديم</label>
+                    <input type="text" value={editForm.legacy_code}
+                      onChange={(e) => setEditForm((p: any) => ({ ...p, legacy_code: e.target.value }))}
+                      readOnly={!canManage} className="w-full border border-border rounded-lg px-3 py-2.5 text-sm bg-white" dir="ltr" />
                   </div>
-                )}
-                {canManage && (
-                  <div className="flex gap-2">
-                    <input type="text" value={editForm.image_url}
-                      onChange={(e) => setEditForm((p: any) => ({ ...p, image_url: e.target.value }))}
-                      placeholder="رابط الصورة..." className="flex-1 border border-border rounded-lg px-3 py-2.5 text-xs bg-white" dir="ltr" />
-                    <button type="button" onClick={() => editImageInputRef.current?.click()}
-                      className="px-3 py-2 rounded-lg border border-border text-text-secondary hover:bg-surface">
-                      <Upload className="w-4 h-4" />
-                    </button>
-                    <input ref={editImageInputRef} type="file" accept="image/*" className="hidden" onChange={handleEditImageFile} />
+                  <div className="col-span-2 space-y-1 min-w-0">
+                    <label className="block text-xs font-medium text-text-secondary">الشركة</label>
+                    <SearchableSelect
+                      items={companies.map((c: any) => ({ id: c.id, name: c.company_name }))}
+                      value={editForm.company_id}
+                      onChange={(val) => setEditForm((p: any) => ({ ...p, company_id: val }))}
+                      placeholder="اختر شركة..."
+                      disabled={!canManage}
+                    />
                   </div>
-                )}
+                </div>
               </section>
 
               {/* ── Inventory ── */}
-              <section className="bg-surface/40 border border-border rounded-xl p-4 space-y-3">
+              <section className="bg-surface/40 border border-border rounded-xl p-3 space-y-2">
                 <h3 className="text-sm font-extrabold text-text">المخزون</h3>
 
-                {/* Cartons + remaining pieces — total is auto-calculated */}
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="space-y-1.5">
+                {/* Cartons + remaining pieces + packaging + total — auto-calculated */}
+                <div className="grid grid-cols-4 gap-2">
+                  <div className="space-y-1 min-w-0">
                     <label className="block text-xs font-medium text-text-secondary">عدد الكراتين</label>
                     <input type="text" inputMode="numeric" dir="ltr" value={editForm.inventory_cartons}
                       onChange={(e) => setEditForm((p: any) => ({ ...p, inventory_cartons: toEnglishDigits(e.target.value) }))}
                       readOnly={!canManage} placeholder="0"
                       className="w-full border border-border rounded-lg px-3 py-2.5 text-sm bg-white text-right" />
                   </div>
-                  <div className="space-y-1.5">
+                  <div className="space-y-1 min-w-0">
                     <label className="block text-xs font-medium text-text-secondary">قطع متبقية</label>
                     <input type="text" inputMode="numeric" dir="ltr" value={editForm.inventory_remainder}
                       onChange={(e) => setEditForm((p: any) => ({ ...p, inventory_remainder: toEnglishDigits(e.target.value) }))}
                       readOnly={!canManage} placeholder="0"
                       className="w-full border border-border rounded-lg px-3 py-2.5 text-sm bg-white text-right" />
                   </div>
+                  <div className="space-y-1 min-w-0">
+                    <label className="block text-xs font-medium text-text-secondary">عدد القطع في الكرتونة</label>
+                    <input type="text" inputMode="numeric" dir="ltr" value={editForm.carton_quantity}
+                      onChange={(e) => setEditForm((p: any) => ({ ...p, carton_quantity: toEnglishDigits(e.target.value) }))}
+                      readOnly={!canManage} placeholder="0"
+                      className="w-full border border-border rounded-lg px-3 py-2.5 text-sm bg-white text-right" />
+                  </div>
+                  <div className="bg-success/10 rounded-lg border border-success/40 p-2 min-w-0">
+                    <span className="block text-[10px] font-medium text-text-secondary">الإجمالي</span>
+                    {!stockError && stockTotal !== null ? (
+                      <>
+                        <span className="block text-base font-extrabold text-text leading-snug">{stockTotal} قطعة</span>
+                        <span className="block text-base font-extrabold text-text leading-snug">
+                          {totalCartons} كرتونة + {totalCartonRemainder} قطعة
+                        </span>
+                      </>
+                    ) : (
+                      <span className="text-sm font-extrabold text-text leading-snug">—</span>
+                    )}
+                  </div>
                 </div>
-
-                {/* Auto-calculated total */}
-                {!stockError && stockTotal !== null && (
-                  <p className="text-xs font-semibold text-success">الإجمالي: {stockTotal} قطعة</p>
-                )}
 
                 {/* Validation message */}
                 {stockError && (
                   <p className="text-xs font-semibold text-danger">⚠️ {stockError}</p>
                 )}
-
-                <p className="text-[10px] text-text-secondary">الإدخال يستبدل المخزون الحالي (SET) وليس إضافي</p>
-
-                {/* Live preview — three cards, same inventory in different units */}
-                <div className="grid grid-cols-3 gap-2">
-                  <div className="bg-white rounded-xl border border-border p-3 flex flex-col items-center text-center gap-1.5">
-                    <span className="text-xl leading-none">📦</span>
-                    <span className="text-[11px] font-bold text-text-secondary">الكراتين</span>
-                    <span className="text-sm font-extrabold text-text leading-snug" dir="rtl">
-                      {invCartonQty > 0
-                        ? `${previewCartons} كرتونة + ${previewCartonRem} قطعة`
-                        : 'غير محدد'}
-                    </span>
-                  </div>
-                  <div className="bg-white rounded-xl border border-border p-3 flex flex-col items-center text-center gap-1.5">
-                    <span className="text-xl leading-none">📚</span>
-                    <span className="text-[11px] font-bold text-text-secondary">الدست</span>
-                    <span className="text-sm font-extrabold text-text leading-snug">
-                      {previewDozens} دستة + {previewDozenRem} قطعة
-                    </span>
-                  </div>
-                  <div className="bg-white rounded-xl border border-border p-3 flex flex-col items-center text-center gap-1.5">
-                    <span className="text-xl leading-none">🧴</span>
-                    <span className="text-[11px] font-bold text-text-secondary">القطع</span>
-                    <span className="text-sm font-extrabold text-text leading-snug">
-                      {previewPieces} قطعة
-                    </span>
-                  </div>
-                </div>
-              </section>
-
-              {/* ── Packaging ── */}
-              <section className="bg-surface/40 border border-border rounded-xl p-4 space-y-3">
-                <h3 className="text-sm font-extrabold text-text">التعبئة</h3>
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-medium text-text-secondary">عدد القطع في الكرتونة</label>
-                  <input type="text" inputMode="numeric" dir="ltr" value={editForm.carton_quantity}
-                    onChange={(e) => setEditForm((p: any) => ({ ...p, carton_quantity: toEnglishDigits(e.target.value) }))}
-                    readOnly={!canManage} placeholder="0"
-                    className="w-full border border-border rounded-lg px-3 py-2.5 text-sm bg-white text-right" />
-                </div>
               </section>
 
               {/* ── Pricing ── */}
-              <section className="bg-surface/40 border border-border rounded-xl p-4 space-y-3">
+              <section className="bg-surface/40 border border-border rounded-xl p-3 space-y-2">
                 <h3 className="text-sm font-extrabold text-text">التسعير</h3>
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-medium text-text-secondary">سعر الكرتونة</label>
-                  <input type="text" inputMode="decimal" dir="ltr" value={editForm.carton_price}
-                    onChange={(e) => setEditForm((p: any) => ({ ...p, carton_price: toEnglishDigits(e.target.value) }))}
-                    readOnly={!canManage} placeholder="0.00"
-                    className="w-full border border-border rounded-lg px-3 py-2.5 text-sm bg-white text-right" />
-                </div>
-                {computedPiecePrice !== null && (
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="bg-white rounded-lg border border-border p-3">
-                      <span className="block text-[10px] font-medium text-text-secondary">سعر القطعة</span>
-                      <span className="text-sm font-extrabold text-text">{formatCurrencyShort(computedPiecePrice)}</span>
-                    </div>
-                    <div className="bg-white rounded-lg border border-border p-3">
-                      <span className="block text-[10px] font-medium text-text-secondary">سعر الدستة</span>
-                      <span className="text-sm font-extrabold text-text">{formatCurrencyShort(computedDozenPrice!)}</span>
-                    </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="space-y-1 min-w-0">
+                    <label className="block text-xs font-medium text-text-secondary">سعر الكرتونة</label>
+                    <input type="text" inputMode="decimal" dir="ltr" value={editForm.carton_price}
+                      onChange={(e) => setEditForm((p: any) => ({ ...p, carton_price: toEnglishDigits(e.target.value) }))}
+                      readOnly={!canManage} placeholder="0.00"
+                      className="w-full border border-border rounded-lg px-3 py-2.5 text-sm bg-white text-right" />
                   </div>
-                )}
+                  <div className="bg-white rounded-lg border border-border p-2 min-w-0">
+                    <span className="block text-[10px] font-medium text-text-secondary">سعر القطعة</span>
+                    <span className="text-sm font-extrabold text-text">{computedPiecePrice !== null ? formatCurrencyShort(computedPiecePrice) : '—'}</span>
+                  </div>
+                  <div className="bg-white rounded-lg border border-border p-2 min-w-0">
+                    <span className="block text-[10px] font-medium text-text-secondary">سعر الدستة</span>
+                    <span className="text-sm font-extrabold text-text">{computedPiecePrice !== null ? formatCurrencyShort(computedDozenPrice!) : '—'}</span>
+                  </div>
+                </div>
               </section>
 
               {/* ── Selling Units ── */}
-              <section className="bg-surface/40 border border-border rounded-xl p-4 space-y-3">
+              <section className="bg-surface/40 border border-border rounded-xl p-3 space-y-2">
                 <h3 className="text-sm font-extrabold text-text">وحدات البيع النشطة</h3>
                 <div className="flex gap-2">
                   {['piece', 'dozen', 'carton'].map((u) => {
@@ -1023,7 +928,7 @@ export function ProductManagerPage() {
                         onClick={() => setEditForm((p: any) => ({
                           ...p, units: p.units.includes(u) ? p.units.filter((x: string) => x !== u) : [...p.units, u]
                         }))}
-                        className={`flex-1 px-3 py-2.5 rounded-xl border text-xs font-bold transition-colors ${
+                        className={`flex-1 px-3 py-2 rounded-xl border text-xs font-bold transition-colors ${
                           checked ? 'border-primary bg-primary/10 text-primary' : 'border-border text-text-secondary hover:bg-white/60'
                         } disabled:opacity-50`}
                       >
@@ -1035,13 +940,13 @@ export function ProductManagerPage() {
               </section>
 
               {/* ── Product Status ── */}
-              <section className="bg-surface/40 border border-border rounded-xl p-4 space-y-3">
+              <section className="bg-surface/40 border border-border rounded-xl p-3 space-y-2">
                 <h3 className="text-sm font-extrabold text-text">حالة المنتج</h3>
                 <div className="flex gap-2">
                   {[
-                    { value: 'active', label: 'نشط', desc: 'يظهر للعملاء ويمكن بيعه', color: 'text-success border-success/30 bg-success/5' },
-                    { value: 'out_of_stock', label: 'نفذت الكمية', desc: 'يظهر للعملاء مع Badge ولا يمكن شراؤه', color: 'text-warning border-warning/30 bg-warning/5' },
-                    { value: 'inactive', label: 'مخفي', desc: 'لا يظهر للعملاء نهائياً', color: 'text-danger border-danger/30 bg-danger/5' },
+                    { value: 'active', label: 'نشط', color: 'text-success border-success/30 bg-success/5' },
+                    { value: 'out_of_stock', label: 'نفذت الكمية', color: 'text-warning border-warning/30 bg-warning/5' },
+                    { value: 'inactive', label: 'مخفي', color: 'text-danger border-danger/30 bg-danger/5' },
                   ].map((opt) => {
                     const isActive = opt.value === 'active' ? (editForm.is_active && !editForm.is_out_of_stock)
                       : opt.value === 'out_of_stock' ? (editForm.is_active && editForm.is_out_of_stock)
@@ -1054,12 +959,11 @@ export function ProductManagerPage() {
                           else if (opt.value === 'out_of_stock') setEditForm((p: any) => ({ ...p, is_active: true, is_out_of_stock: true }))
                           else setEditForm((p: any) => ({ ...p, is_active: false, is_out_of_stock: false }))
                         }}
-                        className={`flex-1 rounded-xl border p-2.5 text-center transition-all ${
+                        className={`flex-1 rounded-xl border p-2 text-center transition-all ${
                           isActive ? opt.color + ' border-2 shadow-sm' : 'border-border text-text-secondary hover:bg-surface'
                         } disabled:opacity-50`}
                       >
                         <div className="text-xs font-bold">{opt.label}</div>
-                        <div className="text-[9px] mt-0.5 opacity-80">{opt.desc}</div>
                       </button>
                     )
                   })}
@@ -1068,8 +972,16 @@ export function ProductManagerPage() {
 
               {/* ── Discounts ── */}
               <section className="bg-surface/40 border border-border rounded-xl p-4 space-y-3">
-                <h3 className="text-sm font-extrabold text-text">خصم الشرائح</h3>
-                {allTiers.length === 0 ? (
+                <button
+                  type="button"
+                  onClick={() => setDiscountsOpen((o) => !o)}
+                  className="w-full flex items-center justify-between gap-2"
+                >
+                  <span className="text-sm font-extrabold text-text">خصم الشرائح</span>
+                  <ChevronDown className={`w-4 h-4 text-text-secondary transition-transform ${discountsOpen ? 'rotate-180' : ''}`} />
+                </button>
+                {discountsOpen && (
+                  allTiers.length === 0 ? (
                   <p className="text-xs text-text-secondary">لا توجد شرائح</p>
                 ) : (
                   allTiers.map((tier: any) => {
@@ -1096,7 +1008,42 @@ export function ProductManagerPage() {
                       </div>
                     )
                   })
-                )}
+                )
+              )}
+              </section>
+
+              {/* ── Product Image ── */}
+              <section className="bg-surface/40 border border-border rounded-xl p-3 space-y-2">
+                <h3 className="text-sm font-extrabold text-text">صورة المنتج</h3>
+                <div className="flex items-start gap-2">
+                  {editForm.image_url ? (
+                    <div className="relative w-24 h-24 rounded-lg overflow-hidden border border-border bg-white shrink-0">
+                      <img src={editForm.image_url} alt="" className="w-full h-full object-contain" />
+                      {canManage && (
+                        <button onClick={() => setEditForm((p: any) => ({ ...p, image_url: '' }))}
+                          className="absolute top-1 left-1 bg-black/50 text-white rounded-full p-0.5">
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="w-24 h-24 bg-white rounded-lg border border-border flex items-center justify-center shrink-0">
+                      <Image className="w-6 h-6 text-text-secondary/30" />
+                    </div>
+                  )}
+                  {canManage && (
+                    <div className="flex-1 min-w-0 flex gap-2">
+                      <input type="text" value={editForm.image_url}
+                        onChange={(e) => setEditForm((p: any) => ({ ...p, image_url: e.target.value }))}
+                        placeholder="رابط الصورة..." className="flex-1 border border-border rounded-lg px-3 py-2.5 text-xs bg-white" dir="ltr" />
+                      <button type="button" onClick={() => editImageInputRef.current?.click()}
+                        className="px-3 py-2 rounded-lg border border-border text-text-secondary hover:bg-surface shrink-0">
+                        <Upload className="w-4 h-4" />
+                      </button>
+                      <input ref={editImageInputRef} type="file" accept="image/*" className="hidden" onChange={handleEditImageFile} />
+                    </div>
+                  )}
+                </div>
               </section>
 
               {/* ── Save ── */}
