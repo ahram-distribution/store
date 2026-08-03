@@ -115,19 +115,19 @@ export const ProductCard = memo(function ProductCard({ product, onEdit, onToggle
 
       {/* Actions */}
       <div className="flex border-t border-border divide-x divide-border">
-        <button onClick={onViewDetails} className="flex-1 flex items-center justify-center gap-1 py-2.5 text-[11px] text-text-secondary hover:bg-surface transition-colors">
+        <button onClick={() => onViewDetails(product)} className="flex-1 flex items-center justify-center gap-1 py-2.5 text-[11px] text-text-secondary hover:bg-surface transition-colors">
           <Eye className="w-3.5 h-3.5" />
           عرض
         </button>
-        <button onClick={onEdit} className="flex-1 flex items-center justify-center gap-1 py-2.5 text-[11px] text-primary hover:bg-surface transition-colors">
+        <button onClick={() => onEdit(product)} className="flex-1 flex items-center justify-center gap-1 py-2.5 text-[11px] text-primary hover:bg-surface transition-colors">
           <Edit3 className="w-3.5 h-3.5" />
           تعديل
         </button>
-        <button onClick={onToggleActive} className={`flex-1 flex items-center justify-center gap-1 py-2.5 text-[11px] transition-colors hover:bg-surface ${isOutOfStock ? 'text-success' : product.is_active ? 'text-warning' : 'text-success'}`}>
+        <button onClick={() => onToggleActive(product)} className={`flex-1 flex items-center justify-center gap-1 py-2.5 text-[11px] transition-colors hover:bg-surface ${isOutOfStock ? 'text-success' : product.is_active ? 'text-warning' : 'text-success'}`}>
           <Power className="w-3.5 h-3.5" />
           {isOutOfStock ? 'تفعيل' : product.is_active ? 'إيقاف' : 'تفعيل'}
         </button>
-        <button onClick={onDelete} className="flex-1 flex items-center justify-center gap-1 py-2.5 text-[11px] text-danger hover:bg-surface transition-colors">
+        <button onClick={() => onDelete(product)} className="flex-1 flex items-center justify-center gap-1 py-2.5 text-[11px] text-danger hover:bg-surface transition-colors">
           <Trash2 className="w-3.5 h-3.5" />
           حذف
         </button>

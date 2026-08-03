@@ -182,7 +182,7 @@ export function ProductManagerPage() {
   }
 
   // ── Toggle active ──
-  async function handleToggleActive(product: any) {
+  const handleToggleActive = useCallback(async (product: any) => {
     const token = getToken()
     if (!token) return
     const isOutOfStock = product.is_out_of_stock === true && product.is_active !== false
@@ -206,14 +206,14 @@ export function ProductManagerPage() {
     useCatalogStore.getState().updateProduct(product.id, newState)
     const updatedRow = useCatalogStore.getState().products.find((p: any) => p.id === product.id)
     if (updatedRow) useCartStore.getState().syncProduct(toProductWithPrice(updatedRow))
-  }
+  }, [])
 
   // ── Hard delete ──
   const [deleteTarget, setDeleteTarget] = useState<any>(null)
   const [deletePreview, setDeletePreview] = useState<any>(null)
   const [deleting, setDeleting] = useState(false)
 
-  async function handleDeletePreview(product: any) {
+  const handleDeletePreview = useCallback(async (product: any) => {
     const token = getToken()
     if (!token) return
     setDeleteTarget(product)
@@ -228,7 +228,7 @@ export function ProductManagerPage() {
     if (result?.error === 'FORBIDDEN') { toast.error('ليس لديك صلاحية حذف المنتجات'); setDeleteTarget(null); return }
     if (result?.error) { toast.error(result.error); setDeleteTarget(null); return }
     setDeletePreview(result as any)
-  }
+  }, [])
 
   async function handleDeleteConfirm() {
     if (!deleteTarget) return
@@ -315,7 +315,7 @@ export function ProductManagerPage() {
   const [editSaving, setEditSaving] = useState(false)
   const [discountsOpen, setDiscountsOpen] = useState(false)
 
-  function openEdit(product: any) {
+  const openEdit = useCallback((product: any) => {
     const currentStock = product.inventory?.quantity ?? ''
     const cartonQty = Number(product.carton_quantity) || 0
     setEditTarget(product)
@@ -342,7 +342,11 @@ export function ProductManagerPage() {
       if (exs.length > 0) discounts[tier.id] = String(exs[0].discount_percent)
     }
     setEditTierDiscounts(discounts)
-  }
+  }, [allTiers])
+
+  const handleViewDetails = useCallback((product: any) => {
+    nav(`/products/${product.id}`)
+  }, [nav])
 
   const computedPiecePrice = editForm.carton_quantity && editForm.carton_price
     ? parseFloat(editForm.carton_price) / parseInt(editForm.carton_quantity)
@@ -692,10 +696,10 @@ export function ProductManagerPage() {
               <ProductCard
                 key={product.id}
                 product={product}
-                onEdit={() => openEdit(product)}
-                onToggleActive={() => handleToggleActive(product)}
-                onDelete={() => handleDeletePreview(product)}
-                onViewDetails={() => nav(`/products/${product.id}`)}
+                onEdit={openEdit}
+                onToggleActive={handleToggleActive}
+                onDelete={handleDeletePreview}
+                onViewDetails={handleViewDetails}
                 searchQuery={searchQuery}
               />
             ))}
