@@ -850,43 +850,37 @@ export function ProductManagerPage() {
               <section className="bg-surface/40 border border-border rounded-xl p-3 space-y-2">
                 <h3 className="text-sm font-extrabold text-text">المخزون</h3>
 
-                {/* Cartons + remaining pieces + packaging + total — auto-calculated */}
-                <div className="grid grid-cols-4 gap-2">
-                  <div className="space-y-1 min-w-0">
-                    <label className="block text-xs font-medium text-text-secondary">عدد الكراتين</label>
+                {/* Cartons + remaining pieces + packaging — total is auto-calculated below */}
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="bg-white rounded-lg border border-border p-2 min-w-0 flex flex-col justify-between gap-1">
+                    <span className="block text-[10px] font-medium text-text-secondary">عدد الكراتين</span>
                     <input type="text" inputMode="numeric" dir="ltr" value={editForm.inventory_cartons}
                       onChange={(e) => setEditForm((p: any) => ({ ...p, inventory_cartons: toEnglishDigits(e.target.value) }))}
                       readOnly={!canManage} placeholder="0"
-                      className="w-full border border-border rounded-lg px-3 py-2.5 text-sm bg-white text-right" />
+                      className="w-full text-sm bg-transparent text-right outline-none placeholder:text-text-secondary/50" />
                   </div>
-                  <div className="space-y-1 min-w-0">
-                    <label className="block text-xs font-medium text-text-secondary">قطع متبقية</label>
+                  <div className="bg-white rounded-lg border border-border p-2 min-w-0 flex flex-col justify-between gap-1">
+                    <span className="block text-[10px] font-medium text-text-secondary">قطع متبقية</span>
                     <input type="text" inputMode="numeric" dir="ltr" value={editForm.inventory_remainder}
                       onChange={(e) => setEditForm((p: any) => ({ ...p, inventory_remainder: toEnglishDigits(e.target.value) }))}
                       readOnly={!canManage} placeholder="0"
-                      className="w-full border border-border rounded-lg px-3 py-2.5 text-sm bg-white text-right" />
+                      className="w-full text-sm bg-transparent text-right outline-none placeholder:text-text-secondary/50" />
                   </div>
-                  <div className="space-y-1 min-w-0">
-                    <label className="block text-xs font-medium text-text-secondary">عدد القطع في الكرتونة</label>
+                  <div className="bg-white rounded-lg border border-border p-2 min-w-0 flex flex-col justify-between gap-1">
+                    <span className="block text-[10px] font-medium text-text-secondary">عدد القطع في الكرتونة</span>
                     <input type="text" inputMode="numeric" dir="ltr" value={editForm.carton_quantity}
                       onChange={(e) => setEditForm((p: any) => ({ ...p, carton_quantity: toEnglishDigits(e.target.value) }))}
                       readOnly={!canManage} placeholder="0"
-                      className="w-full border border-border rounded-lg px-3 py-2.5 text-sm bg-white text-right" />
-                  </div>
-                  <div className="bg-success/10 rounded-lg border border-success/40 p-2 min-w-0">
-                    <span className="block text-[10px] font-medium text-text-secondary">الإجمالي</span>
-                    {!stockError && stockTotal !== null ? (
-                      <>
-                        <span className="block text-base font-extrabold text-text leading-snug">{stockTotal} قطعة</span>
-                        <span className="block text-base font-extrabold text-text leading-snug">
-                          {totalCartons} كرتونة + {totalCartonRemainder} قطعة
-                        </span>
-                      </>
-                    ) : (
-                      <span className="text-sm font-extrabold text-text leading-snug">—</span>
-                    )}
+                      className="w-full text-sm bg-transparent text-right outline-none placeholder:text-text-secondary/50" />
                   </div>
                 </div>
+
+                {/* Auto-calculated total on one line */}
+                {!stockError && stockTotal !== null && (
+                  <p className="bg-success/10 border border-success/40 rounded-lg px-3 py-2 text-sm font-semibold text-text leading-snug">
+                    الإجمالي: بالقطع = {stockTotal} قطعة - بالكرتونه والقطع = {totalCartons} كرتونة + {totalCartonRemainder} قطعة
+                  </p>
+                )}
 
                 {/* Validation message */}
                 {stockError && (
@@ -898,18 +892,18 @@ export function ProductManagerPage() {
               <section className="bg-surface/40 border border-border rounded-xl p-3 space-y-2">
                 <h3 className="text-sm font-extrabold text-text">التسعير</h3>
                 <div className="grid grid-cols-3 gap-2">
-                  <div className="space-y-1 min-w-0">
-                    <label className="block text-xs font-medium text-text-secondary">سعر الكرتونة</label>
+                  <div className="bg-white rounded-lg border border-border p-2 min-w-0 flex flex-col justify-between gap-1">
+                    <span className="block text-[10px] font-medium text-text-secondary">سعر الكرتونة</span>
                     <input type="text" inputMode="decimal" dir="ltr" value={editForm.carton_price}
                       onChange={(e) => setEditForm((p: any) => ({ ...p, carton_price: toEnglishDigits(e.target.value) }))}
                       readOnly={!canManage} placeholder="0.00"
-                      className="w-full border border-border rounded-lg px-3 py-2.5 text-sm bg-white text-right" />
+                      className="w-full text-sm bg-transparent text-right outline-none placeholder:text-text-secondary/50" />
                   </div>
-                  <div className="bg-white rounded-lg border border-border p-2 min-w-0">
+                  <div className="bg-white rounded-lg border border-border p-2 min-w-0 flex flex-col justify-between gap-1">
                     <span className="block text-[10px] font-medium text-text-secondary">سعر القطعة</span>
                     <span className="text-sm font-extrabold text-text">{computedPiecePrice !== null ? formatCurrencyShort(computedPiecePrice) : '—'}</span>
                   </div>
-                  <div className="bg-white rounded-lg border border-border p-2 min-w-0">
+                  <div className="bg-white rounded-lg border border-border p-2 min-w-0 flex flex-col justify-between gap-1">
                     <span className="block text-[10px] font-medium text-text-secondary">سعر الدستة</span>
                     <span className="text-sm font-extrabold text-text">{computedPiecePrice !== null ? formatCurrencyShort(computedDozenPrice!) : '—'}</span>
                   </div>
@@ -1032,13 +1026,13 @@ export function ProductManagerPage() {
                     </div>
                   )}
                   {canManage && (
-                    <div className="flex-1 min-w-0 flex gap-2">
+                    <div className="flex-1 min-w-0 space-y-2">
                       <input type="text" value={editForm.image_url}
                         onChange={(e) => setEditForm((p: any) => ({ ...p, image_url: e.target.value }))}
-                        placeholder="رابط الصورة..." className="flex-1 border border-border rounded-lg px-3 py-2.5 text-xs bg-white" dir="ltr" />
+                        placeholder="رابط الصورة..." className="w-full border border-border rounded-lg px-3 py-2.5 text-xs bg-white" dir="ltr" />
                       <button type="button" onClick={() => editImageInputRef.current?.click()}
-                        className="px-3 py-2 rounded-lg border border-border text-text-secondary hover:bg-surface shrink-0">
-                        <Upload className="w-4 h-4" />
+                        className="w-full px-3 py-2 rounded-lg border border-border text-text-secondary hover:bg-surface flex items-center justify-center gap-1.5 text-xs font-semibold">
+                        <Upload className="w-4 h-4" /> رفع صورة
                       </button>
                       <input ref={editImageInputRef} type="file" accept="image/*" className="hidden" onChange={handleEditImageFile} />
                     </div>
