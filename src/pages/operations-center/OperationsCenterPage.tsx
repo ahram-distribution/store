@@ -4,7 +4,6 @@ import { User } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import Header from './components/Header'
 import TimeFilterBar from './components/TimeFilterBar'
-import type { TimeFilter } from './components/TimeFilterBar'
 import FilterBar from './components/FilterBar'
 import GlobalCounters from './components/GlobalCounters'
 import TeamStatusTabs from './components/TeamStatusTabs'
@@ -12,9 +11,6 @@ import type { TeamTab } from './components/TeamStatusTabs'
 import EmployeeCard from './components/EmployeeCard'
 import type { ActiveEmployee, NoStartEmployee, EndedEmployee } from './components/EmployeeCard'
 import ProductivityArea from './components/ProductivityArea'
-import AlertsArea from './components/AlertsArea'
-import { computeAlerts } from './components/AlertsArea'
-import MapTab from './components/MapTab'
 import HistoricalPerformancePanel from './components/HistoricalPerformancePanel'
 
 interface LiveOverview {
@@ -66,13 +62,11 @@ export default function OperationsCenterPage() {
   const [data, setData] = useState<LiveOverview | null>(null)
   const [loading, setLoading] = useState(true)
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null)
-  const [timeFilter, setTimeFilter] = useState<TimeFilter>('today')
   const [teamTab, setTeamTab] = useState<TeamTab>('active')
   const [searchQuery, setSearchQuery] = useState('')
   const [deptFilter, setDeptFilter] = useState('')
   const [areaFilter, setAreaFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
-  const [hiddenAlerts, setHiddenAlerts] = useState<Set<string>>(new Set())
   const [canConfigure, setCanConfigure] = useState(false)
 
   const token = getToken()
@@ -150,19 +144,6 @@ export default function OperationsCenterPage() {
       })
   }, [data, deptFilter, areaFilter, statusFilter, searchQuery])
 
-  const filteredNoStart = useMemo(() => {
-    if (!data) return []
-    return (data.no_start_employees ?? []).filter((e) => {
-      if (deptFilter && e.role_name !== deptFilter) return false
-      if (areaFilter) {
-        const areaLabel = e.work_location === 'field' ? 'ميداني' : e.work_location === 'office' ? 'مكتبي' : e.work_location
-        if (areaLabel !== areaFilter) return false
-      }
-      if (searchQuery && !e.name.includes(searchQuery) && !e.role_name?.includes(searchQuery)) return false
-      return true
-    })
-  }, [data, deptFilter, areaFilter, searchQuery])
-
   const filteredEnded = useMemo(() => {
     if (!data) return []
     return (data.ended_employees ?? [])
@@ -196,22 +177,8 @@ export default function OperationsCenterPage() {
     }
   }, [data])
 
-  const handleDismissAlert = useCallback((key: string) => {
-    setHiddenAlerts((prev) => {
-      const next = new Set(prev)
-      next.add(key)
-      return next
-    })
-  }, [])
-
   const handleCounterClick = useCallback((label: string) => {
-    const tabMap: Record<string, TeamTab> = {
-      'النشطون': 'active',
-      'المنتهون': 'ended',
-      'لم يبدؤوا': 'no_start',
-    }
-    const tab = tabMap[label]
-    if (tab) { setTeamTab(tab); return }
+    if (label === 'النشطون') { setTeamTab('active'); return }
     const navMap: Record<string, string> = {
       'الطلبات': '/orders?filter=today',
       'المبيعات': '/orders?filter=today',
@@ -233,12 +200,6 @@ export default function OperationsCenterPage() {
     )
   }
 
-  const isHistoryFilter = timeFilter === 'yesterday' || timeFilter === 'this_week' || timeFilter === 'custom_range_history'
-
-  const alertCount = data
-    ? (data.no_start_employees ?? []).length + (data.employees ?? []).filter((e) => e.connection_status === 'lost').length
-    : 0
-
   return (
     <div className="min-h-screen bg-gray-50 p-5" dir="rtl">
       <div className="mx-auto" style={{ maxWidth: '1440px' }}>
@@ -246,11 +207,18 @@ export default function OperationsCenterPage() {
           lastUpdate={lastUpdate}
           pollingSeconds={POLLING_INTERVAL / 1000}
           onRefresh={fetchData}
-          alertCount={alertCount}
-           canConfigure={canConfigure}
+          canConfigure={canConfigure}
         />
 
-        <TimeFilterBar active={timeFilter} onChange={setTimeFilter} />
+        <div className="flex items-center gap-2 mb-4 flex-wrap">
+          <TimeFilterBar />
+          <TeamStatusTabs
+            active={teamTab}
+            onChange={setTeamTab}
+            activeCount={data?.active_count ?? 0}
+            endedCount={data?.ended_count ?? 0}
+          />
+        </div>
 
         {!simpleMode && teamTab !== 'history' && (
           <FilterBar
@@ -268,7 +236,6 @@ export default function OperationsCenterPage() {
             activeCount={data?.active_count ?? 0}
             onBreakCount={data?.on_break_count ?? 0}
             connectionLossCount={data?.connection_loss_count ?? 0}
-            noStartCount={data?.no_start_count ?? 0}
             totalOrders={totals.orders}
             totalSales={totals.sales}
             totalNewCustomers={totals.newCustomers}
@@ -277,46 +244,14 @@ export default function OperationsCenterPage() {
           />
         )}
 
-        {teamTab !== 'history' && !isHistoryFilter && data?.team_aggregates && (
+        {teamTab !== 'history' && data?.team_aggregates && (
           <ProductivityArea
             team={data.team_aggregates}
             endedCount={data.ended_count}
             onVisitCount={data.on_visit_count}
-            timeFilter={timeFilter}
+            timeFilter="today"
           />
         )}
-
-        {teamTab !== 'history' && !isHistoryFilter && (
-          <div id="ops-alerts-area">
-            <AlertsArea
-              employees={data?.employees ?? []}
-              noStartEmployees={data?.no_start_employees ?? []}
-              endedEmployees={data?.ended_employees ?? []}
-              onVisitCount={data?.on_visit_count ?? 0}
-              lateCount={data?.late_count ?? 0}
-              zeroOrdersCount={data?.zero_orders_count ?? 0}
-              endedCount={data?.ended_count ?? 0}
-              hiddenAlerts={hiddenAlerts}
-              onDismiss={handleDismissAlert}
-            />
-          </div>
-        )}
-
-        {teamTab !== 'history' && isHistoryFilter && data && (
-          <div className="bg-white rounded-xl shadow-sm p-4 mb-4">
-            <p className="text-xs text-gray-500 text-center">وضع العرض التاريخي — المعلومات المعروضة تعكس بيانات أمس / الأسبوع</p>
-          </div>
-        )}
-
-        <TeamStatusTabs
-          active={teamTab}
-          onChange={setTeamTab}
-          activeCount={data?.active_count ?? 0}
-          endedCount={data?.ended_count ?? 0}
-          noStartCount={data?.no_start_count ?? 0}
-        />
-
-        {teamTab === 'map' && <MapTab />}
 
         {teamTab === 'history' && <HistoricalPerformancePanel />}
 
@@ -331,25 +266,6 @@ export default function OperationsCenterPage() {
               <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {filteredActive.map((e) => (
                   <EmployeeCard key={e.employee_id} variant="active" employee={e} />
-                ))}
-              </div>
-            )}
-          </>
-        )}
-
-        {teamTab === 'no_start' && (
-          <>
-            {filteredNoStart.length === 0 ? (
-              <div className="text-center py-10 text-gray-400">
-                <User className="w-12 h-12 mx-auto mb-3" />
-                {searchQuery || deptFilter || areaFilter
-                  ? 'لا يوجد موظفون يطابقون الفلتر'
-                  : 'جميع الموظفين بدؤوا يوم العمل'}
-              </div>
-            ) : (
-              <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                {filteredNoStart.map((e) => (
-                  <EmployeeCard key={e.employee_id} variant="no_start" employee={e} />
                 ))}
               </div>
             )}

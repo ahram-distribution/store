@@ -1,7 +1,7 @@
 import { formatNumber } from '../../../utils/numbers'
 
 const ICONS: Record<string, string> = {
-  'النشطون': '🟢', 'في استراحة': '☕', 'منقطع': '🔴', 'لم يبدؤوا': '⚪',
+  'النشطون': '🟢', 'في استراحة': '☕', 'منقطع': '🔴',
    'الطلبات': '📦', 'المبيعات': '💰', 'عملاء مسجلون': '👤', 'الزيارات': '📍',
   'نسبة التقدم': '📊',
 }
@@ -10,7 +10,6 @@ interface GlobalCountersProps {
   activeCount: number
   onBreakCount: number
   connectionLossCount: number
-  noStartCount: number
   totalOrders: number
   totalSales: number
   totalNewCustomers: number
@@ -27,7 +26,7 @@ interface CounterItem {
 }
 
 export default function GlobalCounters({
-  activeCount, onBreakCount, connectionLossCount, noStartCount,
+  activeCount, onBreakCount, connectionLossCount,
   totalOrders, totalSales, totalNewCustomers, totalVisits,
   teamProgressPct, onCounterClick
 }: GlobalCountersProps) {
@@ -36,7 +35,6 @@ export default function GlobalCounters({
     { icon: '🟢', label: 'النشطون', value: String(activeCount), rawValue: activeCount },
     { icon: '☕', label: 'في استراحة', value: String(onBreakCount), rawValue: onBreakCount },
     { icon: '🔴', label: 'منقطع', value: String(connectionLossCount), rawValue: connectionLossCount },
-    { icon: '⚪', label: 'لم يبدؤوا', value: String(noStartCount), rawValue: noStartCount },
     { icon: '📦', label: 'الطلبات', value: String(totalOrders), rawValue: totalOrders },
     { icon: '💰', label: 'المبيعات', value: formatNumber(totalSales), rawValue: totalSales },
     { icon: '👤', label: 'عملاء مسجلون', value: String(totalNewCustomers), rawValue: totalNewCustomers },
@@ -44,7 +42,7 @@ export default function GlobalCounters({
   ]
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-8 gap-2 mb-4">
+    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-2 mb-4">
       {counters.map((c, i) => (
         <div key={i}
           className={`bg-white rounded-xl shadow-sm p-2.5 ${onCounterClick ? 'cursor-pointer hover:shadow-md transition-shadow' : ''}`}

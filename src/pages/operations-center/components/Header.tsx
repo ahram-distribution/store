@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Monitor, Bell, RefreshCw, Settings } from 'lucide-react'
+import { Monitor, RefreshCw, Settings } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { formatTime } from '../../../utils/format'
 
@@ -7,11 +7,10 @@ interface HeaderProps {
   lastUpdate: Date | null
   pollingSeconds: number
   onRefresh: () => void
-  alertCount: number
   canConfigure?: boolean
 }
 
-export default function Header({ lastUpdate, pollingSeconds, onRefresh, alertCount, canConfigure }: HeaderProps) {
+export default function Header({ lastUpdate, pollingSeconds, onRefresh, canConfigure }: HeaderProps) {
   const navigate = useNavigate()
   const [countdown, setCountdown] = useState(pollingSeconds)
 
@@ -26,11 +25,6 @@ export default function Header({ lastUpdate, pollingSeconds, onRefresh, alertCou
     return () => clearInterval(interval)
   }, [lastUpdate])
 
-  const scrollToAlerts = () => {
-    const el = document.getElementById('ops-alerts-area')
-    if (el) el.scrollIntoView({ behavior: 'smooth' })
-  }
-
   return (
     <div className="flex items-center justify-between mb-6">
       <div className="flex items-center gap-3">
@@ -39,15 +33,6 @@ export default function Header({ lastUpdate, pollingSeconds, onRefresh, alertCou
       </div>
 
       <div className="flex items-center gap-3">
-        {alertCount > 0 && (
-          <button onClick={scrollToAlerts} className="relative p-2 hover:bg-gray-100 rounded-xl">
-            <Bell className="w-5 h-5 text-red-500" />
-            <span className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-[10px] w-4 h-4 flex items-center justify-center rounded-full font-bold">
-              {alertCount}
-            </span>
-          </button>
-        )}
-
         <button onClick={onRefresh} className="p-2 hover:bg-gray-100 rounded-xl" title="تحديث يدوي">
           <RefreshCw className="w-5 h-5 text-gray-500" />
         </button>
