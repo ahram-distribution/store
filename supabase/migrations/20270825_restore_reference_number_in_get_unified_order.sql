@@ -10,9 +10,12 @@
 --
 -- Fix: return the SAME persisted column the list reads — o.reference_number
 -- (manually entered when the order transitions submitted -> reviewing, then
--- never changes). Body is the exact current definition
--- (20270822_fix_get_unified_order_include_order_type.sql) with a single added
--- header field.
+-- never changes). Body is the current definition
+-- (20270822_fix_get_unified_order_include_order_type.sql) with one added
+-- header field. The order object is split into two jsonb_build_object calls
+-- concatenated with || because the full 51-key list exceeds PostgreSQL's
+-- 100-argument-per-function limit (error 54023), which is also why the field
+-- had been dropped from this RPC in the first place.
 -- ============================================================================
 
 DROP FUNCTION IF EXISTS public.get_unified_order(text, uuid);
@@ -98,7 +101,8 @@ BEGIN
         'execution_captured_at', o.execution_captured_at,
         'execution_location_id', o.execution_location_id,
         'tier_id', o.tier_id,
-        'effective_discount_percent', o.effective_discount_percent,
+        'effective_discount_percent', o.effective_discount_percent
+      ) || jsonb_build_object(
         'snapshot_customer_name', o.snapshot_customer_name,
         'snapshot_customer_phone', o.snapshot_customer_phone,
         'snapshot_customer_address', o.snapshot_customer_address,
