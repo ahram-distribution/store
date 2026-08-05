@@ -38,7 +38,7 @@ const DEDUCTION_STATUS_LABELS: Record<string, string> = {
 // =============================================================================
 export function ProductManagerPage() {
   const nav = useNavigate()
-  const canManage = useCapability('products.manage') && !isExecutiveDirectorUser(useAuthStore((s) => s.user))
+  const canManage = useCapability('products.manage') && !isExecutiveDirectorUser(useAuthStore.getState().user)
   const imageInputRef = useRef<HTMLInputElement>(null)
   const editImageInputRef = useRef<HTMLInputElement>(null)
 

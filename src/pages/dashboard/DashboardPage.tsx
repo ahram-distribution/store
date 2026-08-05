@@ -1,4 +1,5 @@
 import React from 'react'
+import { Navigate } from 'react-router-dom'
 import { useAuthStore } from '../../store/auth'
 import { SalesDashboard } from './SalesDashboard'
 import { SalesRepWorkDay } from '../sales-rep'
@@ -44,6 +45,10 @@ export function DashboardPage() {
 
   if (roles.includes('مشرف تنفيذي')) {
     return <ExecutiveOperationsWorkspace />
+  }
+
+  if (roles.includes('معتمد ائتماني')) {
+    return <Navigate to="/credit/collector" replace />
   }
 
   for (const { target, component } of WORKSPACE_HIERARCHY) {

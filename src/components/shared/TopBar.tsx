@@ -9,6 +9,7 @@ export function TopBar() {
   const displayName = user?.full_name || 'الأهرام'
   const isStorefront = location.pathname.startsWith('/storefront')
   const isDashboard = location.pathname === '/dashboard'
+  const isCreditCollector = user?.roles?.includes('معتمد ائتماني') ?? false
 
   const handleLogout = async () => {
     await logout()
@@ -23,13 +24,13 @@ export function TopBar() {
         </div>
         <div className="flex items-center gap-1 shrink-0">
           <NotificationBell />
-          {!isStorefront && (
+          {!isCreditCollector && !isStorefront && (
             <button onClick={() => navigate('/storefront')}
               className="text-[10px] px-2.5 py-1 rounded-full transition-colors shrink-0 text-text-secondary border border-border">
               المتجر
             </button>
           )}
-          {!isDashboard && (
+          {!isCreditCollector && !isDashboard && (
             <button onClick={() => navigate('/dashboard')}
               className="text-[10px] px-2.5 py-1 rounded-full transition-colors shrink-0 text-text-secondary border border-border">
               لوحة التحكم

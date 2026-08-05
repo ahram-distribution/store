@@ -37,6 +37,7 @@ import { CustomerAnalyticsPage } from '../pages/analytics/CustomerAnalyticsPage'
 import CustomerIntelligenceOverviewPage from '../pages/analytics/CustomerIntelligenceOverviewPage'
 import { CreditProgramsPage, CreditProgramsManagerPage, CreditApplicationsPage, CreditReviewPage, CustomerCreditPage, CreditManagementPage } from '../pages/credit'
 import { DeliveryDetailPage, CollectionFollowupPage } from '../pages/delivery'
+import { CollectorInvoicesPage, CreditInvoicesManagementPage } from '../pages/credit-collection'
 import { WarehousePage, WarehouseReviewPage, WarehousePrepDetail } from '../pages/warehouse'
 import { EmployeesPage, EmployeeProfilePage, HierarchyPage, EmployeeManagementPage } from '../pages/employees'
 import { CompanyProfilePage } from '../pages/companies'
@@ -152,6 +153,8 @@ export function AppRoutes() {
       <Route path="/credit/programs/manage" element={<ProtectedRoute requireCapability="credit.program.manage"><CreditProgramsManagerPage /></ProtectedRoute>} />
       <Route path="/credit/applications" element={<ProtectedRoute requireCapability="credit.view"><CreditApplicationsPage /></ProtectedRoute>} />
       <Route path="/credit/applications/:id" element={<ProtectedRoute requireCapability="credit.review"><CreditReviewPage /></ProtectedRoute>} />
+      <Route path="/credit/collector" element={<ProtectedRoute employeeOnly><CollectorInvoicesPage /></ProtectedRoute>} />
+      <Route path="/credit/invoices" element={<ProtectedRoute requireUpperManagement><CreditInvoicesManagementPage /></ProtectedRoute>} />
       <Route path="/warehouse" element={<ProtectedRoute requireCapability="warehouse.prepare"><WarehousePage /></ProtectedRoute>} />
       <Route path="/warehouse/review" element={<ProtectedRoute requireCapability="warehouse.prepare"><WarehouseReviewPage /></ProtectedRoute>} />
       <Route path="/warehouse/prep/:id" element={<ProtectedRoute requireCapability="warehouse.prepare"><WarehousePrepDetail /></ProtectedRoute>} />
