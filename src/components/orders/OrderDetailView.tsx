@@ -12,7 +12,7 @@ import { OrderTimelineSection } from './OrderTimelineSection'
 import { OrderEventLogSection } from './OrderEventLogSection'
 import { formatDateTime, formatCurrencyShort } from '../../utils/format'
 import { CustomerAddressCard } from '../customers/CustomerAddressCard'
-import { ORDER_STATUS_LABELS, EXECUTION_GROUP } from '../../types/order-display'
+import { ORDER_STATUS_LABELS, EXECUTION_GROUP, orderTypeLabel, orderTypeBadgeClass } from '../../types/order-display'
 import { renderDeliveryPermitHtml, printInvoice, downloadInvoicePdf } from './order-printing'
 import { buildTimelineEvents } from './order-detail.utils'
 import { copyToClipboard } from '../../utils/safeClipboard'
@@ -146,8 +146,8 @@ export function OrderDetailView({ data, actions, onBack, editMode, editItems, on
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5">
             <span style={{color:'#9CA3AF'}}>نوع الطلب:</span>
-            <span className={'text-xs px-2 py-0.5 rounded font-medium ' + ((order as any).order_type === 'credit' ? 'bg-purple-100 text-purple-700' : 'bg-emerald-100 text-emerald-700')}>
-              {(order as any).order_type === 'credit' ? 'آجل' : 'نقدي'}
+            <span className={'text-xs px-2 py-0.5 rounded font-medium ' + orderTypeBadgeClass((order as any).order_type)}>
+              {orderTypeLabel((order as any).order_type)}
             </span>
           </div>
           <div className="text-[13px] text-[#6B7280]">

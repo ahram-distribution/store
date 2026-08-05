@@ -671,6 +671,12 @@ export function OrderDetailPage() {
                 >
                   آجل
                 </button>
+                <button
+                  onClick={() => setEditOrderType('credit_extended')}
+                  className={`flex-1 text-xs px-3 py-2 rounded-lg border transition-colors ${editOrderType === 'credit_extended' ? 'bg-blue-500 text-white border-blue-500' : 'bg-white text-[#6B7280] border-[#E5E7EB]'}`}
+                >
+                  ائتمان
+                </button>
               </div>
             </div>
             <div className="flex items-center gap-3">

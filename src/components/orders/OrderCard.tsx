@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { formatCurrencyShort, formatDate } from '../../utils/format'
 import { StatusBadge } from '../shared/StatusBadge'
 import { OrderOwnershipInfo } from './OrderOwnershipInfo'
+import { orderTypeLabel, orderTypeBadgeClass } from '../../types/order-display'
 
 interface OrderCardProps {
   order: {
@@ -181,8 +182,8 @@ export const OrderCard = memo(function OrderCard({ order, onClick, orderId, isUn
 
       <div className="flex items-center gap-1.5 mt-1.5 pt-1.5 border-t border-border/50 flex-wrap">
         {order.order_type && (
-          <span className={'text-[10px] px-1.5 py-0.5 rounded font-medium ' + (order.order_type === 'credit' ? 'bg-purple-100 text-purple-700' : 'bg-emerald-100 text-emerald-700')}>
-            {order.order_type === 'credit' ? 'آجل' : 'نقدي'}
+          <span className={'text-[10px] px-1.5 py-0.5 rounded font-medium ' + orderTypeBadgeClass(order.order_type)}>
+            {orderTypeLabel(order.order_type)}
           </span>
         )}
         {order.delivery_mode && (

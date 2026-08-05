@@ -7,7 +7,7 @@ function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
 }
 
-type OrderType = 'cash' | 'credit' | null
+type OrderType = 'cash' | 'credit' | 'credit_extended' | null
 
 export function OrderNewPage() {
   const navigate = useNavigate()
@@ -66,6 +66,13 @@ export function OrderNewPage() {
               <p className="text-base font-bold text-purple-700">آجل</p>
               <p className="text-xs text-text-secondary mt-1">طلب ائتماني — دفع لاحق</p>
             </button>
+            <button
+              onClick={() => { setOrderType('credit_extended'); setOrderTypeInStore('credit_extended') }}
+              className="w-full bg-white rounded-xl border-2 border-blue-200 p-4 text-right active:bg-blue-50 transition-colors hover:border-blue-400"
+            >
+              <p className="text-base font-bold text-blue-700">ائتمان</p>
+              <p className="text-xs text-text-secondary mt-1">طلب بضمان ائتماني</p>
+            </button>
           </div>
         </div>
       </div>
@@ -99,6 +106,13 @@ export function OrderNewPage() {
               <p className="text-base font-bold text-purple-700">آجل</p>
               <p className="text-xs text-text-secondary mt-1">طلب ائتماني — دفع لاحق</p>
             </button>
+            <button
+              onClick={() => { setOrderType('credit_extended'); setOrderTypeInStore('credit_extended') }}
+              className="w-full bg-white rounded-xl border-2 border-blue-200 p-4 text-right active:bg-blue-50 transition-colors hover:border-blue-400"
+            >
+              <p className="text-base font-bold text-blue-700">ائتمان</p>
+              <p className="text-xs text-text-secondary mt-1">طلب بضمان ائتماني</p>
+            </button>
           </div>
         </div>
       </div>
@@ -115,8 +129,8 @@ export function OrderNewPage() {
         <div className="flex items-center gap-3">
           <button onClick={() => navigate('/dashboard')} className="text-text-secondary text-lg">&larr;</button>
           <h1 className="text-lg font-bold text-text">طلب جديد</h1>
-          <span className={'text-xs px-2 py-0.5 rounded font-medium ' + (orderType === 'credit' ? 'bg-purple-100 text-purple-700' : 'bg-emerald-100 text-emerald-700')}>
-            {orderType === 'credit' ? 'آجل' : 'نقدي'}
+          <span className={'text-xs px-2 py-0.5 rounded font-medium ' + (orderType === 'credit' ? 'bg-purple-100 text-purple-700' : orderType === 'credit_extended' ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700')}>
+            {orderType === 'credit' ? 'آجل' : orderType === 'credit_extended' ? 'ائتمان' : 'نقدي'}
           </span>
           <button onClick={() => setOrderType(null)} className="text-[10px] text-text-secondary underline">تغيير</button>
         </div>

@@ -51,6 +51,7 @@ const ORDER_TYPE_OPTIONS = [
   { value: '', label: 'كل الأنواع' },
   { value: 'cash', label: 'نقدي' },
   { value: 'credit', label: 'آجل' },
+  { value: 'credit_extended', label: 'ائتمان' },
 ]
 
 const STATUS_KPI_GROUPS: Record<string, { dot: string; chip: string; active: string }> = {

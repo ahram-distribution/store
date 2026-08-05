@@ -94,6 +94,26 @@ export const ORDER_STATUS_LABELS: Record<string, string> = {
   stock_review: 'مراجعة المخزون',
 }
 
+export const ORDER_TYPE_LABELS: Record<string, string> = {
+  cash: 'نقدي',
+  credit: 'آجل',
+  credit_extended: 'ائتمان',
+}
+
+export const ORDER_TYPE_BADGE_CLASSES: Record<string, string> = {
+  cash: 'bg-emerald-100 text-emerald-700',
+  credit: 'bg-purple-100 text-purple-700',
+  credit_extended: 'bg-blue-100 text-blue-700',
+}
+
+export function orderTypeLabel(type?: string | null): string {
+  return (type && ORDER_TYPE_LABELS[type]) || 'نقدي'
+}
+
+export function orderTypeBadgeClass(type?: string | null): string {
+  return (type && ORDER_TYPE_BADGE_CLASSES[type]) || 'bg-emerald-100 text-emerald-700'
+}
+
 export const UNIT_LABELS: Record<string, string> = {
   piece: 'قطعة',
   dozen: 'دستة',
