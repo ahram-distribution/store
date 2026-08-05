@@ -703,6 +703,7 @@ export function ProductManagerPage() {
                 onDelete={handleDeletePreview}
                 onViewDetails={handleViewDetails}
                 searchQuery={searchQuery}
+                canManage={canManage}
               />
             ))}
           </div>

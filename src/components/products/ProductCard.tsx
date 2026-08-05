@@ -11,6 +11,7 @@ interface ProductCardProps {
   onDelete: () => void
   onViewDetails: () => void
   searchQuery?: string
+  canManage?: boolean
 }
 
 const UNIT_LABELS: Record<string, string> = {
@@ -19,7 +20,7 @@ const UNIT_LABELS: Record<string, string> = {
   carton: 'كرتونة',
 }
 
-export const ProductCard = memo(function ProductCard({ product, onEdit, onToggleActive, onDelete, onViewDetails, searchQuery }: ProductCardProps) {
+export const ProductCard = memo(function ProductCard({ product, onEdit, onToggleActive, onDelete, onViewDetails, searchQuery, canManage = true }: ProductCardProps) {
   const isOutOfStock = product.is_out_of_stock === true && product.is_active !== false
   const units = (product.product_units || []).filter((u: any) => u.is_active !== false)
   const unitNames = units.map((u: any) => UNIT_LABELS[u.unit_type] || u.unit_type).join(' - ')
@@ -119,18 +120,22 @@ export const ProductCard = memo(function ProductCard({ product, onEdit, onToggle
           <Eye className="w-3.5 h-3.5" />
           عرض
         </button>
-        <button onClick={() => onEdit(product)} className="flex-1 flex items-center justify-center gap-1 py-2.5 text-[11px] text-primary hover:bg-surface transition-colors">
-          <Edit3 className="w-3.5 h-3.5" />
-          تعديل
-        </button>
-        <button onClick={() => onToggleActive(product)} className={`flex-1 flex items-center justify-center gap-1 py-2.5 text-[11px] transition-colors hover:bg-surface ${isOutOfStock ? 'text-success' : product.is_active ? 'text-warning' : 'text-success'}`}>
-          <Power className="w-3.5 h-3.5" />
-          {isOutOfStock ? 'تفعيل' : product.is_active ? 'إيقاف' : 'تفعيل'}
-        </button>
-        <button onClick={() => onDelete(product)} className="flex-1 flex items-center justify-center gap-1 py-2.5 text-[11px] text-danger hover:bg-surface transition-colors">
-          <Trash2 className="w-3.5 h-3.5" />
-          حذف
-        </button>
+        {canManage && (
+          <>
+            <button onClick={() => onEdit(product)} className="flex-1 flex items-center justify-center gap-1 py-2.5 text-[11px] text-primary hover:bg-surface transition-colors">
+              <Edit3 className="w-3.5 h-3.5" />
+              تعديل
+            </button>
+            <button onClick={() => onToggleActive(product)} className={`flex-1 flex items-center justify-center gap-1 py-2.5 text-[11px] transition-colors hover:bg-surface ${isOutOfStock ? 'text-success' : product.is_active ? 'text-warning' : 'text-success'}`}>
+              <Power className="w-3.5 h-3.5" />
+              {isOutOfStock ? 'تفعيل' : product.is_active ? 'إيقاف' : 'تفعيل'}
+            </button>
+            <button onClick={() => onDelete(product)} className="flex-1 flex items-center justify-center gap-1 py-2.5 text-[11px] text-danger hover:bg-surface transition-colors">
+              <Trash2 className="w-3.5 h-3.5" />
+              حذف
+            </button>
+          </>
+        )}
       </div>
     </div>
   )
