@@ -190,16 +190,16 @@ export function CartPage() {
                     آجل
                   </button>
                   <button
-                    onClick={() => { setOrderType('credit_extended'); setEditingOrderType(false) }}
+                    onClick={() => { setOrderType('ittiman'); setEditingOrderType(false) }}
                     className={`text-xs px-3 py-1 rounded-lg border transition-colors ${
-                      orderType === 'credit_extended' ? 'bg-primary text-white border-primary' : 'border-border hover:bg-surface'
+                      orderType === 'ittiman' ? 'bg-primary text-white border-primary' : 'border-border hover:bg-surface'
                     }`}
                   >
                     ائتمان
                   </button>
                 </div>
               ) : (
-                <div className="text-sm font-semibold text-text">{orderType === 'credit' ? 'آجل' : orderType === 'credit_extended' ? 'ائتمان' : orderType === 'cash' ? 'نقداً' : 'غير محدد'}</div>
+                <div className="text-sm font-semibold text-text">{orderType === 'credit' ? 'آجل' : orderType === 'ittiman' ? 'ائتمان' : orderType === 'cash' ? 'نقداً' : 'غير محدد'}</div>
               )}
             </div>
             {!editingOrderType && (

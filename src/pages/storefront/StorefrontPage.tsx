@@ -461,7 +461,7 @@ export function StorefrontPage() {
                     <span className="text-sm font-semibold text-text">آجل</span>
                   </button>
                   <button
-                    onClick={() => { setOrderType('credit_extended'); setInitStep('customer') }}
+                    onClick={() => { setOrderType('ittiman'); setInitStep('customer') }}
                     className="w-full text-right px-4 py-3 rounded-lg border border-border hover:bg-surface transition-colors"
                   >
                     <span className="text-sm font-semibold text-text">ائتمان</span>
