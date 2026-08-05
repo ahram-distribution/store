@@ -10,6 +10,8 @@ export type TargetRole =
 
 const roleMapping: Record<string, TargetRole> = {
   'الإدارة العليا': 'الإدارة العليا',
+  'الرئيس التنفيذي': 'الإدارة العليا',
+  'executive_director': 'الإدارة العليا',
 
   'مدير البيع': 'مدير بيع',
   'مدير مبيعات': 'مدير بيع',
