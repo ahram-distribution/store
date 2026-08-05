@@ -1064,7 +1064,7 @@ BEGIN
     END LOOP;
 
     -- منتجات أُزيلت من الطلب: حجزها القديم يتلاشى (previous → 0).
-    FOR v_key IN SELECT key FROM jsonb_object_keys(v_old_res_map)
+    FOR v_key IN SELECT jsonb_object_keys(v_old_res_map)
     LOOP
       IF NOT EXISTS (
         SELECT 1 FROM public.order_items

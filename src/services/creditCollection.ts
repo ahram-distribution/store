@@ -58,6 +58,8 @@ export interface CollectionHistoryItem {
   collector_name: string
   decided_by_name: string | null
   decided_at: string | null
+  latitude: number | null
+  longitude: number | null
 }
 
 export interface ManagementInvoice {
@@ -157,6 +159,15 @@ export const creditCollectionService = {
     if (!token) return null
     const { data } = await supabase.rpc('get_credit_invoices_management', { p_token: token })
     return (data as ManagementData) || null
+  },
+
+  async getInvoiceHistory(orderId: string): Promise<CollectionHistoryItem[]> {
+    const token = getToken()
+    if (!token) return []
+    const { data } = await supabase.rpc('get_credit_collection_history', { p_token: token, p_order_id: orderId })
+    if (!data || typeof data !== 'object' || Array.isArray(data)) return (data as CollectionHistoryItem[]) || []
+    if ((data as { error?: string }).error) return []
+    return []
   },
 
   async decideRequest(params: {

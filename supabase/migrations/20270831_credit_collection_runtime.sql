@@ -580,3 +580,61 @@ BEGIN
   );
 END;
 $function$;
+
+-- 9. get_credit_collection_history ---------------------------------------------
+-- Collector / upper management: permanent per-invoice collection history with
+-- amount, date/time, status, collector and approver names.
+
+DROP FUNCTION IF EXISTS public.get_credit_collection_history(text, uuid);
+
+CREATE OR REPLACE FUNCTION public.get_credit_collection_history(p_token text, p_order_id uuid)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, extensions
+AS $function$
+DECLARE
+  v_session app.sessions;
+  v_allowed boolean;
+  v_result jsonb;
+BEGIN
+  SELECT * INTO v_session FROM app.sessions WHERE token = p_token::uuid AND expires_at > now();
+  IF NOT FOUND THEN RETURN jsonb_build_object('error', 'INVALID_SESSION'); END IF;
+  IF v_session.identity_type <> 'employee' OR v_session.employee_id IS NULL THEN
+    RETURN jsonb_build_object('error', 'FORBIDDEN');
+  END IF;
+
+  SELECT public.is_credit_collector_employee(v_session.employee_id)
+      OR public.is_upper_management_employee(v_session.employee_id)
+  INTO v_allowed;
+  IF NOT v_allowed THEN RETURN jsonb_build_object('error', 'FORBIDDEN'); END IF;
+
+  SELECT COALESCE(jsonb_agg(row_to_json(sub)::jsonb ORDER BY sub.collected_at DESC), '[]'::jsonb)
+  INTO v_result
+  FROM (
+    SELECT
+      r.id AS request_id,
+      r.invoice_id,
+      o.order_number,
+      c.company_name AS customer_name,
+      r.amount,
+      r.collected_at,
+      r.status,
+      r.notes,
+      e.full_name AS collector_name,
+      d.full_name AS decided_by_name,
+      r.decided_at,
+      r.latitude,
+      r.longitude
+    FROM public.credit_collection_requests r
+    JOIN public.credit_collection_invoices ci ON ci.id = r.invoice_id
+    JOIN public.orders o ON o.id = ci.order_id
+    JOIN public.customers c ON c.id = ci.customer_id
+    JOIN public.employees e ON e.id = r.collector_id
+    LEFT JOIN public.employees d ON d.id = r.decided_by
+    WHERE ci.order_id = p_order_id
+  ) sub;
+
+  RETURN v_result;
+END;
+$function$;

@@ -4,7 +4,6 @@ import { creditCollectionService, type ManagementData, type CreditCollectionInvo
 import { formatCurrency, formatDateTime } from '../../utils/format'
 import { normalizeArabic } from '../../utils/smartSearch'
 import { CreditFilterBar, applyCreditFilters, type CreditFilters } from './CreditFilterBar'
-import toast from 'react-hot-toast'
 
 const creditStatusMeta: Record<string, { label: string; cls: string }> = {
   uncollected: { label: 'غير محصلة', cls: 'text-red-700 bg-red-50' },
@@ -32,7 +31,6 @@ export function CreditInvoicesManagementPage() {
   const [data, setData] = useState<ManagementData | null>(null)
   const [invoices, setInvoices] = useState<CreditCollectionInvoice[]>([])
   const [loading, setLoading] = useState(true)
-  const [busyId, setBusyId] = useState<string | null>(null)
   const [filters, setFilters] = useState<CreditFilters>({ datePreset: 'all', dateFrom: '', dateTo: '', status: '', search: '' })
 
   async function refresh() {
@@ -47,20 +45,6 @@ export function CreditInvoicesManagementPage() {
   useEffect(() => {
     refresh().finally(() => setLoading(false))
   }, [])
-
-  async function decide(requestId: string, decision: 'approve' | 'reject') {
-    let reason: string | undefined
-    if (decision === 'reject') {
-      reason = window.prompt('سبب الرفض (اختياري):') ?? undefined
-      if (reason === null) return
-    }
-    setBusyId(requestId)
-    const res = await creditCollectionService.decideRequest({ requestId, decision, notes: reason })
-    setBusyId(null)
-    if (res.error) { toast.error(res.error); return }
-    toast.success(decision === 'approve' ? 'تم اعتماد التحصيل وتخفيض الرصيد' : 'تم رفض الطلب')
-    await refresh()
-  }
 
   const filteredInvoices = useMemo(() => applyCreditFilters(invoices, filters), [invoices, filters])
 
@@ -164,7 +148,11 @@ export function CreditInvoicesManagementPage() {
           <div className="text-center py-12 text-text-secondary text-sm">لا توجد طلبات تحصيل معلقة</div>
         ) : (
           filteredPending.map((r) => (
-            <div key={r.request_id} className="bg-white rounded-xl border border-border p-4 space-y-3">
+            <div
+              key={r.request_id}
+              onClick={() => navigate(`/credit/invoices/${r.order_id}`)}
+              className="bg-white rounded-xl border border-border p-4 space-y-3 cursor-pointer active:bg-surface"
+            >
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-bold text-text">{r.customer_name}</p>
@@ -184,16 +172,7 @@ export function CreditInvoicesManagementPage() {
                 )}
                 {r.notes && <p>ملاحظات: {r.notes}</p>}
               </div>
-              <div className="flex gap-2">
-                <button onClick={() => decide(r.request_id, 'approve')} disabled={busyId === r.request_id}
-                  className="flex-1 bg-success text-white text-xs py-2.5 rounded-lg disabled:opacity-50">
-                  {busyId === r.request_id ? 'جاري...' : 'اعتماد وتخفيض الرصيد'}
-                </button>
-                <button onClick={() => decide(r.request_id, 'reject')} disabled={busyId === r.request_id}
-                  className="flex-1 bg-red-500 text-white text-xs py-2.5 rounded-lg disabled:opacity-50">
-                  رفض
-                </button>
-              </div>
+              <p className="text-xs text-primary font-semibold border-t border-border pt-2">فتح الفاتورة</p>
             </div>
           ))
         )
@@ -276,7 +255,11 @@ export function CreditInvoicesManagementPage() {
                 ? `https://www.google.com/maps?q=${inv.location_latitude},${inv.location_longitude}`
                 : null
               return (
-                <div key={inv.order_id} className="bg-white rounded-xl border border-border p-4 space-y-2">
+                <div
+                  key={inv.order_id}
+                  onClick={() => navigate(`/credit/invoices/${inv.order_id}`)}
+                  className="bg-white rounded-xl border border-border p-4 space-y-2 cursor-pointer active:bg-surface"
+                >
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm font-bold text-text">{inv.customer_name}</p>
@@ -311,6 +294,7 @@ export function CreditInvoicesManagementPage() {
                     )}
                     {inv.notes && <p>ملاحظات: {inv.notes}</p>}
                   </div>
+                  <p className="text-xs text-primary font-semibold border-t border-border pt-2">فتح الفاتورة</p>
                 </div>
               )
             })}
