@@ -13,7 +13,7 @@ function getToken(): string | null {
 export function EmployeesPage({ embedded }: { embedded?: boolean }) {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const currentEmpId = useAuthStore((s) => s.user?.employee_id)
+  const currentUser = useAuthStore((s) => s.user)
   const [employees, setEmployees] = useState<any[]>([])
   const [roles, setRoles] = useState<any[]>([])
   const [viewState, setViewState, resetViewState] = usePersistentViewState('employees-list', {
@@ -85,6 +85,15 @@ export function EmployeesPage({ embedded }: { embedded?: boolean }) {
     })
     return Array.from(names).sort()
   }, [employees])
+
+  const currentRoles = currentUser?.roles ?? []
+  const isExecutiveDirector = currentRoles.includes('الرئيس التنفيذي') || currentRoles.includes('executive_director')
+
+  const assignableRoles = useMemo(() => {
+    if (!isExecutiveDirector) return roles
+    const forbidden = new Set(['الإدارة العليا', 'الرئيس التنفيذي', 'executive_director', 'أمين', 'أمن', 'مشرف تنفيذي'])
+    return roles.filter((r: any) => !forbidden.has(r.name))
+  }, [roles, isExecutiveDirector])
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault()
@@ -225,7 +234,7 @@ export function EmployeesPage({ embedded }: { embedded?: boolean }) {
           <input type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} placeholder="البريد الإلكتروني" className="w-full border border-border rounded-lg px-3 py-2 text-sm" dir="ltr" />
           <textarea value={newAddress} onChange={(e) => setNewAddress(e.target.value)} placeholder="العنوان" className="w-full border border-border rounded-lg px-3 py-2 text-sm resize-none" rows={2} />
           <SearchableSelect
-            items={roles.map((r: any) => ({ id: r.id, name: r.name }))}
+            items={assignableRoles.map((r: any) => ({ id: r.id, name: r.name }))}
             value={newRoleId}
             onChange={setNewRoleId}
             placeholder="اختر الصلاحية"
@@ -310,7 +319,7 @@ export function EmployeesPage({ embedded }: { embedded?: boolean }) {
               {showRolePicker === emp.id && (
                 <div className="mt-3 border-t border-border pt-3">
                   <SearchableSelect
-                    items={roles.map((r: any) => ({ id: r.id, name: r.name }))}
+                    items={assignableRoles.map((r: any) => ({ id: r.id, name: r.name }))}
                     value=""
                     onChange={(val) => { if (val) handleChangeRole(emp.id, val) }}
                     placeholder="اختر الصلاحية الجديدة"
