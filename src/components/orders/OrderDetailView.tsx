@@ -128,14 +128,16 @@ export function OrderDetailView({ data, actions, onBack, editMode, editItems, on
           <div className="mt-2 flex justify-center">
             <StatusBadge status={order.status} size="lg" />
           </div>
-          {order.reference_number && (
-            <div className="mt-2 flex justify-center">
-              <div className="text-[13px] text-[#6B7280]">
-                <span className="font-medium">الرقم المرجعى: </span>
+          <div className="mt-2 flex justify-center">
+            <div className="text-[13px] text-[#6B7280]">
+              <span className="font-medium">الرقم المرجعى: </span>
+              {order.reference_number ? (
                 <span className="font-bold text-[#111827] font-mono">{order.reference_number}</span>
-              </div>
+              ) : (
+                <span className="text-[#9CA3AF]">—</span>
+              )}
             </div>
-          )}
+          </div>
         </div>
       </div>
 
@@ -201,6 +203,7 @@ export function OrderDetailView({ data, actions, onBack, editMode, editItems, on
           <OrderOwnershipInfo
             creatorName={order.order_creator_name}
             creatorId={order.order_creator_id}
+            createdByIdentity={order.created_by}
             creatorType={order.order_creator_type}
             creatorRole={order.order_creator_role}
             ownerId={order.owner_id}

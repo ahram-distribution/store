@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 interface OrderOwnershipInfoProps {
   creatorName: string | null | undefined
   creatorId: string | null | undefined
+  createdByIdentity?: string | null | undefined
   creatorType?: string | null | undefined
   creatorRole?: string | null | undefined
   ownerId: string | null | undefined
@@ -15,6 +16,7 @@ interface OrderOwnershipInfoProps {
 export function OrderOwnershipInfo({
   creatorName,
   creatorId,
+  createdByIdentity,
   creatorType,
   creatorRole,
   ownerId,
@@ -24,10 +26,12 @@ export function OrderOwnershipInfo({
 }: OrderOwnershipInfoProps) {
   const navigate = useNavigate()
 
-  const transferred = useMemo(
-    () => !!(creatorId && ownerId && creatorId !== ownerId),
-    [creatorId, ownerId]
-  )
+  const transferred = useMemo(() => {
+    if (!ownerId) return false
+    const creatorRefs = [creatorId, createdByIdentity].filter(Boolean)
+    if (creatorRefs.length === 0) return false
+    return creatorRefs.every((ref) => ref !== ownerId)
+  }, [creatorId, createdByIdentity, ownerId])
 
   if (!creatorName) {
     return compact ? null : <span className="text-[#6B7280]">—</span>

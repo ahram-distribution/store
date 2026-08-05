@@ -16,6 +16,7 @@ interface OrderCardProps {
     creator_name?: string
     created_by_name?: string
     created_by_id?: string | null
+    created_by?: string | null
     creator_phone?: string
     customer_owner_name?: string
     customer_owner_role?: string
@@ -101,12 +102,14 @@ export const OrderCard = memo(function OrderCard({ order, onClick, orderId, isUn
         </div>
       </div>
 
-      {order.reference_number && (
-        <p className="text-[11px] text-text-secondary mb-1">
-          <span className="text-text-muted">الرقم المرجعى: </span>
+      <p className="text-[11px] text-text-secondary mb-1">
+        <span className="text-text-muted">الرقم المرجعى: </span>
+        {order.reference_number ? (
           <span className="font-medium font-mono text-text">{order.reference_number}</span>
-        </p>
-      )}
+        ) : (
+          <span className="text-text-muted">—</span>
+        )}
+      </p>
 
       <div className="flex items-baseline gap-1.5 mb-1.5">
         <span className="text-[11px] text-text-muted">قيمة الطلب:</span>
@@ -117,6 +120,7 @@ export const OrderCard = memo(function OrderCard({ order, onClick, orderId, isUn
         <OrderOwnershipInfo
           creatorName={order.created_by_name}
           creatorId={order.created_by_id}
+          createdByIdentity={order.created_by}
           ownerId={order.owner_id}
           currentOwnerName={order.owner_name}
           label="المسؤول:"
