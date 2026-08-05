@@ -1,4 +1,6 @@
 import { useParams, useNavigate } from 'react-router-dom'
+import { useAuthStore } from '../../store/auth'
+import { isExecutiveDirectorUser } from '../../utils/roleNormalization'
 
 interface KpiCard {
   icon: string
@@ -125,9 +127,12 @@ const MODULE_CONFIGS: Record<string, ModuleConfig> = {
   },
 }
 
+const ED_FORBIDDEN_OPERATIONS = new Set(['/delivery', '/employees#roles', '/employees#permissions'])
+
 export function ModuleWorkspacePage() {
   const { moduleKey } = useParams<{ moduleKey: string }>()
   const nav = useNavigate()
+  const isEd = isExecutiveDirectorUser(useAuthStore((s) => s.user))
 
   const config = moduleKey ? MODULE_CONFIGS[moduleKey] : undefined
 
@@ -152,7 +157,7 @@ export function ModuleWorkspacePage() {
       </div>
 
       <div className="grid grid-cols-2 min-[420px]:grid-cols-3 gap-3">
-        {config.operations.map((card) => (
+        {config.operations.filter((card) => !(isEd && ED_FORBIDDEN_OPERATIONS.has(card.path))).map((card) => (
           <button key={card.path}
             onClick={() => nav(card.path)}
             className="bg-white rounded-xl border border-border p-4 text-center active:scale-[0.97] transition-all hover:shadow-sm hover:border-primary/30">

@@ -91,8 +91,8 @@ export function EmployeesPage({ embedded }: { embedded?: boolean }) {
 
   const assignableRoles = useMemo(() => {
     if (!isExecutiveDirector) return roles
-    const forbidden = new Set(['الإدارة العليا', 'الرئيس التنفيذي', 'executive_director', 'أمين', 'أمن', 'مشرف تنفيذي'])
-    return roles.filter((r: any) => !forbidden.has(r.name))
+    const allowed = new Set(['مدير البيع', 'مندوب مبيعات'])
+    return roles.filter((r: any) => allowed.has(r.name))
   }, [roles, isExecutiveDirector])
 
   async function handleAdd(e: React.FormEvent) {

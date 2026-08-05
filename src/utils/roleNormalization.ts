@@ -60,6 +60,14 @@ export function isUpperManagement(roleName: string): boolean {
   return normalizeEmployeeRole(roleName) === 'الإدارة العليا'
 }
 
+export function isExecutiveDirector(roleName: string): boolean {
+  return roleName === 'الرئيس التنفيذي' || roleName === 'executive_director'
+}
+
+export function isExecutiveDirectorUser(user: { roles?: string[] } | null | undefined): boolean {
+  return user?.roles?.some((r) => isExecutiveDirector(r)) ?? false
+}
+
 export function isCustomer(identityType: string | undefined): boolean {
   return identityType === 'customer'
 }

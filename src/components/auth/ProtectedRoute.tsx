@@ -2,7 +2,7 @@ import { Navigate } from 'react-router-dom'
 import { useAuthStore } from '../../store/auth'
 import { useState, useEffect } from 'react'
 import { authService } from '../../services/auth'
-import { isUpperManagement } from '../../utils/roleNormalization'
+import { isUpperManagement, isExecutiveDirectorUser } from '../../utils/roleNormalization'
 
 function isUpperManagementUser(user: { identity_type: string; code?: string; roles?: string[] } | null): boolean {
   if (!user || user.identity_type !== 'employee') return false
@@ -15,9 +15,10 @@ interface ProtectedRouteProps {
   employeeOnly?: boolean
   customerOnly?: boolean
   requireUpperManagement?: boolean
+  hideFromExecutiveDirector?: boolean
 }
 
-export function ProtectedRoute({ children, requireCapability, employeeOnly, customerOnly, requireUpperManagement }: ProtectedRouteProps) {
+export function ProtectedRoute({ children, requireCapability, employeeOnly, customerOnly, requireUpperManagement, hideFromExecutiveDirector }: ProtectedRouteProps) {
   const { user, token } = useAuthStore()
   const [capabilityOk, setCapabilityOk] = useState<boolean | null>(null)
 
@@ -31,6 +32,10 @@ export function ProtectedRoute({ children, requireCapability, employeeOnly, cust
       return
     }
     if (customerOnly && user.identity_type !== 'customer') {
+      setCapabilityOk(false)
+      return
+    }
+    if (hideFromExecutiveDirector && isExecutiveDirectorUser(user)) {
       setCapabilityOk(false)
       return
     }

@@ -155,7 +155,7 @@ export function AppRoutes() {
       <Route path="/warehouse" element={<ProtectedRoute requireCapability="warehouse.prepare"><WarehousePage /></ProtectedRoute>} />
       <Route path="/warehouse/review" element={<ProtectedRoute requireCapability="warehouse.prepare"><WarehouseReviewPage /></ProtectedRoute>} />
       <Route path="/warehouse/prep/:id" element={<ProtectedRoute requireCapability="warehouse.prepare"><WarehousePrepDetail /></ProtectedRoute>} />
-      <Route path="/delivery" element={<ProtectedRoute employeeOnly><ExecutiveOperationsWorkspace /></ProtectedRoute>} />
+      <Route path="/delivery" element={<ProtectedRoute employeeOnly hideFromExecutiveDirector><ExecutiveOperationsWorkspace /></ProtectedRoute>} />
       <Route path="/delivery/:id" element={<ProtectedRoute requireCapability="delivery.deliver"><DeliveryDetailPage /></ProtectedRoute>} />
       <Route path="/collections/followup" element={<ProtectedRoute requireCapability="collections.read"><CollectionFollowupPage /></ProtectedRoute>} />
 
@@ -184,7 +184,7 @@ export function AppRoutes() {
       {/* Attendance module routes */}
       <Route path="/attendance" element={<ProtectedRoute employeeOnly><AttendanceRouter /></ProtectedRoute>} />
       <Route path="/attendance/runtime" element={<ProtectedRoute employeeOnly><AttendanceRuntimePage /></ProtectedRoute>} />
-      <Route path="/attendance/settings" element={<ProtectedRoute employeeOnly requireCapability="attendance.configure"><AttendanceSettingsPage /></ProtectedRoute>} />
+      <Route path="/attendance/settings" element={<ProtectedRoute employeeOnly requireCapability="attendance.configure" hideFromExecutiveDirector><AttendanceSettingsPage /></ProtectedRoute>} />
       <Route path="/attendance/team-map" element={<ProtectedRoute employeeOnly requireCapability="attendance.view_team_map"><TeamMapPage /></ProtectedRoute>} />
       <Route path="/attendance/employee/:employeeId/:date" element={<ProtectedRoute employeeOnly requireCapability="attendance.view_history"><EmployeeWorkdayDetailPage /></ProtectedRoute>} />
       <Route path="/attendance/operations" element={<ProtectedRoute employeeOnly requireCapability="attendance.live_monitor"><OperationsCenterPage /></ProtectedRoute>} />
@@ -204,8 +204,8 @@ export function AppRoutes() {
       <Route path="/notifications" element={<ProtectedRoute><NotificationInbox /></ProtectedRoute>} />
 
       <Route path="/ops/gps-test" element={<ProtectedRoute requireUpperManagement><GpsTestPage /></ProtectedRoute>} />
-      <Route path="/coverage-map" element={<ProtectedRoute requireUpperManagement><CoverageMapPage /></ProtectedRoute>} />
-      <Route path="/data-center" element={<ProtectedRoute requireUpperManagement><DataDeletionCenter /></ProtectedRoute>} />
+      <Route path="/coverage-map" element={<ProtectedRoute requireUpperManagement hideFromExecutiveDirector><CoverageMapPage /></ProtectedRoute>} />
+      <Route path="/data-center" element={<ProtectedRoute requireUpperManagement hideFromExecutiveDirector><DataDeletionCenter /></ProtectedRoute>} />
 
       <Route path="*" element={<NotFoundPage />} />
     </Routes>

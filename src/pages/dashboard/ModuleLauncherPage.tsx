@@ -1,9 +1,13 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { SubLauncherPage, type LauncherIcon } from './SubLauncherPage'
 import { useAuthStore } from '../../store/auth'
-import { normalizeEmployeeRole } from '../../utils/roleNormalization'
+import { normalizeEmployeeRole, isExecutiveDirectorUser } from '../../utils/roleNormalization'
 
 const MODULE_HOME_TARGETS = new Set(['الإدارة العليا', 'مدير بيع'])
+
+const ED_FORBIDDEN_ICONS = new Set(['/delivery', '/employees#permissions', '/employees#roles'])
+
+const ED_FORBIDDEN_MODULES = new Set(['deals', 'settings'])
 
 const MODULE_ICONS: Record<string, { title: string; icons: LauncherIcon[] }> = {
   orders: {
@@ -110,9 +114,11 @@ export function ModuleLauncherPage() {
   const nav = useNavigate()
   const user = useAuthStore((s) => s.user)
   const isMgmt = user?.roles?.some((r) => MODULE_HOME_TARGETS.has(normalizeEmployeeRole(r))) ?? false
+  const isEd = isExecutiveDirectorUser(user)
   const icons = module === 'attendance' && !isMgmt ? [] : MODULE_ICONS[module]?.icons
+  const visibleIcons = isEd ? icons?.filter((i) => !ED_FORBIDDEN_ICONS.has(i.path)) : icons
 
-  if (!module || !MODULE_ICONS[module] || (module === 'attendance' && !isMgmt)) {
+  if (!module || !MODULE_ICONS[module] || (module === 'attendance' && !isMgmt) || (isEd && ED_FORBIDDEN_MODULES.has(module))) {
     return (
       <div className="space-y-4">
         <div className="flex items-center gap-3">
@@ -125,5 +131,5 @@ export function ModuleLauncherPage() {
   }
 
   const config = MODULE_ICONS[module]
-  return <SubLauncherPage title={config.title} icons={icons ?? config.icons} />
+  return <SubLauncherPage title={config.title} icons={visibleIcons ?? config.icons} />
 }

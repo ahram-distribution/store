@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { targetService } from '../../services/targets'
 import { useAuthStore } from '../../store/auth'
+import { isExecutiveDirectorUser } from '../../utils/roleNormalization'
 import { useEntityViewsStore } from '../../store/entityViews'
 import { MonthlyActivity } from '../../components/activity/MonthlyActivity'
 import { DeliveredOrdersKPI } from '../../components/activity/DeliveredOrdersKPI'
@@ -93,8 +94,13 @@ export default function UpperManagementDashboard() {
   const curMonthLabel = MONTHS[CUR_MONTH - 1] + ' ' + CUR_YEAR
 
   const adminPaths = ['/launcher/settings', '/ops/gps-test', '/data-center']
-  const operationalGroups = groups.filter(g => !adminPaths.includes(g.path))
-  const adminGroups = groups.filter(g => adminPaths.includes(g.path))
+  const isEd = isExecutiveDirectorUser(user)
+  const edForbiddenGroups = new Set(['/coverage-map', '/launcher/deals', '/launcher/settings', '/data-center'])
+  const edForbiddenQuick = new Set(['/employees#permissions', '/employees#roles', '/attendance/settings#work-policies'])
+  const visibleGroups = isEd ? groups.filter(g => !edForbiddenGroups.has(g.path)) : groups
+  const visibleQuickIcons = isEd ? quickIcons.filter(q => !edForbiddenQuick.has(q.path)) : quickIcons
+  const operationalGroups = visibleGroups.filter(g => !adminPaths.includes(g.path))
+  const adminGroups = visibleGroups.filter(g => adminPaths.includes(g.path))
 
   return (
     <div className="space-y-4" dir="rtl">
@@ -164,14 +170,14 @@ export default function UpperManagementDashboard() {
       )}
 
       {/* ===== 5. QUICK ACCESS ===== */}
-      {quickIcons.length > 0 && (
+      {visibleQuickIcons.length > 0 && (
         <div className="bg-white rounded-2xl border border-border shadow-sm overflow-hidden">
           <div className="bg-gradient-to-l from-accent to-amber-500 px-5 py-3.5">
             <h2 className="text-sm font-bold text-white">⚡ الوصول السريع</h2>
           </div>
           <div className="p-5">
             <div className="grid grid-cols-3 gap-4 min-[430px]:grid-cols-4">
-              {quickIcons.map((q) => (
+              {visibleQuickIcons.map((q) => (
                 <button key={q.path} onClick={() => nav(q.path)}
                   className="bg-white rounded-xl border border-border p-3.5 text-center active:bg-surface transition-all hover:shadow-md hover:border-primary/30 active:scale-95">
                   <div className="text-2xl mb-1.5">{q.icon}</div>

@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { supabase } from '../../lib/supabase'
 import { User } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
+import { useAuthStore } from '../../store/auth'
+import { isExecutiveDirectorUser } from '../../utils/roleNormalization'
 import Header from './components/Header'
 import TimeFilterBar from './components/TimeFilterBar'
 import FilterBar from './components/FilterBar'
@@ -71,11 +73,12 @@ export default function OperationsCenterPage() {
 
   const token = getToken()
   const simpleMode = new URLSearchParams(window.location.search).has('simple')
+  const isEd = isExecutiveDirectorUser(useAuthStore((s) => s.user))
 
   useEffect(() => {
     if (!token) return
     supabase.rpc('check_capability', { p_token: token.trim(), p_code: 'attendance.configure' }).then(({ data }) => {
-      if (data === true) setCanConfigure(true)
+      if (data === true && !isEd) setCanConfigure(true)
     })
   }, [token])
 

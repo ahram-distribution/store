@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { Plus, Search, X, Loader2, AlertTriangle, Trash2, Power, Image, Upload, ChevronDown } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useCapability } from '../../hooks/useCapability'
+import { useAuthStore } from '../../store/auth'
+import { isExecutiveDirectorUser } from '../../utils/roleNormalization'
 import { ProductCard } from '../../components/products/ProductCard'
 import { formatCurrencyShort, toEnglishDigits } from '../../utils/format'
 import { UNIT_LABELS } from '../../types/order-display'
@@ -36,7 +38,7 @@ const DEDUCTION_STATUS_LABELS: Record<string, string> = {
 // =============================================================================
 export function ProductManagerPage() {
   const nav = useNavigate()
-  const canManage = useCapability('products.manage')
+  const canManage = useCapability('products.manage') && !isExecutiveDirectorUser(useAuthStore((s) => s.user))
   const imageInputRef = useRef<HTMLInputElement>(null)
   const editImageInputRef = useRef<HTMLInputElement>(null)
 
@@ -684,7 +686,7 @@ export function ProductManagerPage() {
         ) : filtered.length === 0 ? (
           <div className="text-center py-16">
             <p className="text-sm text-text-secondary">لا توجد منتجات</p>
-            {!searchQuery && !companyFilter && statusFilter === 'all' && (
+            {!searchQuery && !companyFilter && statusFilter === 'all' && canManage && (
               <button onClick={() => setShowAdd(true)} className="mt-3 text-xs text-primary font-semibold">
                 + إضافة أول منتج
               </button>

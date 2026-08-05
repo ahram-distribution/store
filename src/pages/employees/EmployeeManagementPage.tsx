@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import toast from 'react-hot-toast'
+import { useAuthStore } from '../../store/auth'
+import { isExecutiveDirectorUser } from '../../utils/roleNormalization'
 import { EmployeesPage } from './EmployeesPage'
 import { HierarchyPage } from './HierarchyPage'
 import { RolesTab } from './RolesTab'
@@ -24,6 +26,8 @@ const HASH_MAP: Record<string, TabKey> = {
   '#work-policies': 'work_policies',
 }
 
+const ED_FORBIDDEN_TABS = new Set<TabKey>(['roles', 'permissions', 'work_policies'])
+
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
 }
@@ -31,9 +35,11 @@ function getToken(): string | null {
 export function EmployeeManagementPage() {
   const navigate = useNavigate()
   const location = useLocation()
+  const isEd = isExecutiveDirectorUser(useAuthStore((s) => s.user))
   const [activeTab, setActiveTab] = useState<TabKey>(() => {
     const hash = location.hash.toLowerCase()
-    return HASH_MAP[hash] || 'employees'
+    const mapped = HASH_MAP[hash]
+    return isEd && mapped && ED_FORBIDDEN_TABS.has(mapped) ? 'employees' : (mapped || 'employees')
   })
   const [wpStats, setWpStats] = useState<{ total: number; field: number; office: number; exempt: number; needs_review: number } | null>(null)
 
@@ -41,7 +47,12 @@ export function EmployeeManagementPage() {
     const hash = location.hash.toLowerCase()
     const mapped = HASH_MAP[hash]
     if (mapped && mapped !== activeTab) {
-      setActiveTab(mapped)
+      if (isEd && ED_FORBIDDEN_TABS.has(mapped)) {
+        setActiveTab('employees')
+        window.history.replaceState(null, '', '/employees')
+      } else {
+        setActiveTab(mapped)
+      }
     }
   }, [location.hash])
 
@@ -82,7 +93,7 @@ export function EmployeeManagementPage() {
       </div>
 
       <div className="flex gap-1 overflow-x-auto pb-1 border-b border-border">
-        {TABS.map((tab) => (
+        {TABS.filter((tab) => !(isEd && ED_FORBIDDEN_TABS.has(tab.key))).map((tab) => (
           <button
             key={tab.key}
             onClick={() => handleTabChange(tab.key)}

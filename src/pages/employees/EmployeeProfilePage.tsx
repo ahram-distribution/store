@@ -6,6 +6,8 @@ import { formatNumber } from '../../utils/numbers'
 import { targetService } from '../../services/targets'
 import toast from 'react-hot-toast'
 import TimeRangeFilter, { todayRange, type TimeRange } from '../../components/TimeRangeFilter'
+import { useAuthStore } from '../../store/auth'
+import { isExecutiveDirectorUser } from '../../utils/roleNormalization'
 
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
@@ -25,6 +27,7 @@ type TabKey = (typeof TABS)[number]['key']
 export function EmployeeProfilePage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const isEd = isExecutiveDirectorUser(useAuthStore((s) => s.user))
   const [activeTab, setActiveTab] = useState<TabKey>('info')
   const [employee, setEmployee] = useState<any>(null)
   const [employees, setEmployees] = useState<any[]>([])
@@ -315,7 +318,7 @@ export function EmployeeProfilePage() {
             <select value={editRoleId} onChange={(e) => setEditRoleId(e.target.value)}
               className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-white">
               <option value="">اختر الصلاحية</option>
-              {roles.map((r: any) => <option key={r.id} value={r.id}>{r.name}</option>)}
+              {roles.filter((r: any) => !isEd || r.name === 'مدير البيع' || r.name === 'مندوب مبيعات').map((r: any) => <option key={r.id} value={r.id}>{r.name}</option>)}
             </select></div>
           <div><label className="text-[10px] text-text-secondary block mb-0.5">المدير المباشر</label>
             <select value={editManagerId} onChange={(e) => setEditManagerId(e.target.value)}
@@ -388,10 +391,12 @@ export function EmployeeProfilePage() {
         <div className="bg-white rounded-xl border border-border p-4">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-sm font-bold">الصلاحيات</h2>
-            <button onClick={() => setShowCapabilityPicker(!showCapabilityPicker)}
-              className="text-[10px] bg-primary/10 text-primary px-2 py-1 rounded">
-              {showCapabilityPicker ? 'إلغاء' : 'تعديل الصلاحيات المباشرة'}
-            </button>
+            {!isEd && (
+              <button onClick={() => setShowCapabilityPicker(!showCapabilityPicker)}
+                className="text-[10px] bg-primary/10 text-primary px-2 py-1 rounded">
+                {showCapabilityPicker ? 'إلغاء' : 'تعديل الصلاحيات المباشرة'}
+              </button>
+            )}
           </div>
           {empCapabilities.length === 0 ? (
             <p className="text-xs text-text-secondary text-center py-4">لا توجد صلاحيات</p>
