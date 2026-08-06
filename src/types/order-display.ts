@@ -80,6 +80,7 @@ export interface OrderDisplayData {
 export const ORDER_STATUS_LABELS: Record<string, string> = {
   draft: 'مسودة',
   submitted: 'مقدم',
+  sales_manager_approved: 'موافقة مدير البيع',
   reviewing: 'قيد المراجعة',
   returned_for_revision: 'معاد للتعديل',
   approved: 'معتمد',

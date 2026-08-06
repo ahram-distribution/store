@@ -94,6 +94,7 @@ export function OrderDetailPage() {
   const [deleting, setDeleting] = useState(false)
 
   const canReview = useCapability('orders.review')
+  const canApprove = useCapability('orders.approve')
   const canCompletePreparation = useCapability('warehouse.complete_preparation')
   const canSendToDelivery = useCapability('transportation.send_to_delivery')
   const canManage = useCapability('orders.manage')
@@ -784,6 +785,7 @@ export function OrderDetailPage() {
               orderId={data!.order.id}
               currentStatus={data!.order.status}
               canReview={canReview}
+              canApprove={canApprove}
               canCompletePreparation={canCompletePreparation}
               canSendToDelivery={canSendToDelivery}
               canManage={canManage}

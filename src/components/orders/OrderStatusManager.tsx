@@ -37,11 +37,11 @@ function adjustmentQuantityLabel(pieces: number, cartonQuantity: number, units: 
   return formatMixedQuantity(pieces, cartonQuantity, pref)
 }
 
-const ALL_STATUSES = ['draft','submitted','reviewing','returned_for_revision','approved','preparing','prepared','ready_for_dispatch','sent_to_delivery','dispatched','deferred','cancelled','delivered','stock_review'] as const
+const ALL_STATUSES = ['draft','submitted','sales_manager_approved','reviewing','returned_for_revision','approved','preparing','prepared','ready_for_dispatch','sent_to_delivery','dispatched','deferred','cancelled','delivered','stock_review'] as const
 
 type OrderStatus = typeof ALL_STATUSES[number]
 
-const WORKFLOW_ORDER = ['draft','submitted','reviewing','returned_for_revision','approved','preparing','prepared','ready_for_dispatch','sent_to_delivery','dispatched','deferred','cancelled','delivered','stock_review']
+const WORKFLOW_ORDER = ['draft','submitted','sales_manager_approved','reviewing','returned_for_revision','approved','preparing','prepared','ready_for_dispatch','sent_to_delivery','dispatched','deferred','cancelled','delivered','stock_review']
 
 interface ShortageEntry {
   product_id: string
@@ -79,6 +79,7 @@ interface OrderStatusManagerProps {
   orderId: string
   currentStatus: string
   canReview: boolean
+  canApprove?: boolean
   canCompletePreparation: boolean
   canSendToDelivery: boolean
   canManage: boolean
@@ -107,7 +108,7 @@ function isExceptional(from: string, to: string): boolean {
   return false
 }
 
-export function OrderStatusManager({ orderId, currentStatus, canReview, canCompletePreparation, canSendToDelivery, canManage, onSuccess, onError, onShortage }: OrderStatusManagerProps) {
+export function OrderStatusManager({ orderId, currentStatus, canReview, canApprove, canCompletePreparation, canSendToDelivery, canManage, onSuccess, onError, onShortage }: OrderStatusManagerProps) {
   const [loading, setLoading] = useState<string | null>(null)
   const [showReasonModal, setShowReasonModal] = useState<string | null>(null)
   const [reason, setReason] = useState('')
@@ -121,7 +122,8 @@ export function OrderStatusManager({ orderId, currentStatus, canReview, canCompl
   function getAllowedTargets(): OrderStatus[] {
     if (canManage) return ALL_STATUSES.filter(s => s !== currentStatus)
     const targets: OrderStatus[] = []
-    if (canReview && currentStatus === 'submitted') targets.push('reviewing')
+    if (canReview && currentStatus === 'sales_manager_approved') targets.push('reviewing')
+    if (canApprove && currentStatus === 'submitted') targets.push('sales_manager_approved', 'returned_for_revision', 'cancelled')
     if (canCompletePreparation) {
       if (currentStatus === 'approved') targets.push('preparing')
       if (currentStatus === 'preparing') targets.push('prepared')
@@ -137,7 +139,7 @@ export function OrderStatusManager({ orderId, currentStatus, canReview, canCompl
     const token = getToken()
     if (!token) return
 
-    if (currentStatus === 'submitted' && target === 'reviewing') {
+    if (currentStatus === 'sales_manager_approved' && target === 'reviewing') {
       setShowRefModal(true)
       return
     }

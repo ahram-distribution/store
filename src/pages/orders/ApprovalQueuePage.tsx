@@ -17,6 +17,7 @@ export function ApprovalQueuePage() {
   const [loading, setLoading] = useState(true)
 
   const canReview = useCapability('orders.review')
+  const canApprove = useCapability('orders.approve')
   const canManage = useCapability('orders.manage')
 
   const loadOrders = useCallback(async () => {
@@ -24,7 +25,7 @@ export function ApprovalQueuePage() {
     if (!token) { setLoading(false); return }
     const { data } = await supabase.rpc('get_unified_orders', { p_token: token })
     if (data) {
-      const submitted = (Array.isArray(data) ? data : []).filter((o: any) => o.status === 'submitted')
+      const submitted = (Array.isArray(data) ? data : []).filter((o: any) => o.status === 'submitted' || o.status === 'sales_manager_approved')
       setOrders(submitted)
     }
     setLoading(false)
@@ -89,8 +90,9 @@ export function ApprovalQueuePage() {
               <div className="flex gap-2">
                 <OrderStatusManager
                   orderId={o.id}
-                  currentStatus="submitted"
+                  currentStatus={o.status}
                   canReview={canReview && !canManage}
+                  canApprove={canApprove}
                   canCompletePreparation={false}
                   canSendToDelivery={false}
                   canManage={canManage}
