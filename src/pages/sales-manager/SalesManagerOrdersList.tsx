@@ -15,14 +15,15 @@ function getToken(): string | null {
 const fmt = (n: number) => formatNumber(n)
 
 const STATUS_LABELS: Record<string, string> = {
-  pending: 'قيد الانتظار', approved: 'معتمد', submitted: 'مرسل',
+  pending: 'قيد الانتظار', approved: 'معتمد', submitted: 'مرسل', sales_manager_approved: 'موافقة مدير البيع',
   delivered: 'تم التسليم', cancelled: 'ملغي', returned: 'مرتجع',
   draft: 'مسودة', revision: 'مراجعة',
 }
 
 const STATUS_COLORS: Record<string, string> = {
   pending: 'bg-amber-100 text-amber-800', approved: 'bg-green-100 text-green-800',
-  submitted: 'bg-blue-100 text-blue-800', delivered: 'bg-emerald-100 text-emerald-800',
+  submitted: 'bg-blue-100 text-blue-800', sales_manager_approved: 'bg-blue-100 text-blue-800',
+  delivered: 'bg-emerald-100 text-emerald-800',
   cancelled: 'bg-red-100 text-red-800', returned: 'bg-purple-100 text-purple-800',
   draft: 'bg-gray-100 text-gray-600', revision: 'bg-orange-100 text-orange-800',
 }

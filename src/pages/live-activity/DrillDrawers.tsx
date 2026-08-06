@@ -73,6 +73,7 @@ function fmtTime(d: string | null | undefined): string {
 const STATUS_LABELS: Record<string, string> = {
   pending: 'قيد الانتظار', approved: 'معتمد', completed: 'مكتمل',
   cancelled: 'ملغي', deferred: 'مؤجل', active: 'نشط',
+  sales_manager_approved: 'موافقة مدير البيع',
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -82,6 +83,7 @@ const STATUS_COLORS: Record<string, string> = {
   cancelled: 'text-red-600 bg-red-50',
   deferred: 'text-gray-600 bg-gray-50',
   active: 'text-green-600 bg-green-50',
+  sales_manager_approved: 'text-blue-600 bg-blue-50',
 }
 
 export function OrdersDrill({ open, onClose, orders, titleOverride }: { open: boolean; onClose: () => void; orders: OrderDrill[]; titleOverride?: string }) {

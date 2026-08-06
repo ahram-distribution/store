@@ -17,7 +17,8 @@ const PREP_STATUS_LABELS: Record<string, string> = {
 };
 
 const ORDER_STATUS_LABELS: Record<string, string> = {
-  draft: 'مسودة', submitted: 'مقدم', reviewing: 'قيد المراجعة',
+  draft: 'مسودة', submitted: 'مقدم', sales_manager_approved: 'موافقة مدير البيع',
+  reviewing: 'قيد المراجعة',
   returned_for_revision: 'معاد للمراجعة', approved: 'معتمد',
   preparing: 'قيد التجهيز', dispatched: 'تم الشحن', delivered: 'تم التسليم',
 };

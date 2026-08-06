@@ -123,7 +123,11 @@ export function OrderStatusManager({ orderId, currentStatus, canReview, canAppro
     if (canManage) return ALL_STATUSES.filter(s => s !== currentStatus)
     const targets: OrderStatus[] = []
     if (canReview && currentStatus === 'sales_manager_approved') targets.push('reviewing')
-    if (canApprove && currentStatus === 'submitted') targets.push('sales_manager_approved', 'returned_for_revision', 'cancelled')
+    if (canApprove && (currentStatus === 'submitted' || currentStatus === 'sales_manager_approved')) {
+      for (const t of ['sales_manager_approved', 'returned_for_revision', 'cancelled'] as OrderStatus[]) {
+        if (t !== currentStatus) targets.push(t)
+      }
+    }
     if (canCompletePreparation) {
       if (currentStatus === 'approved') targets.push('preparing')
       if (currentStatus === 'preparing') targets.push('prepared')

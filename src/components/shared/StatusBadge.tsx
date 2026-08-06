@@ -8,6 +8,7 @@ interface StatusBadgeProps {
 const statusConfig: Record<string, { bg: string; text: string; label: string }> = {
   draft: { bg: 'bg-gray-100', text: 'text-gray-500', label: 'مسودة' },
   submitted: { bg: 'bg-blue-50', text: 'text-blue-600', label: 'مقدم' },
+  sales_manager_approved: { bg: 'bg-blue-50', text: 'text-blue-600', label: 'موافقة مدير البيع' },
   reviewing: { bg: 'bg-blue-50', text: 'text-blue-600', label: 'قيد المراجعة' },
   returned_for_revision: { bg: 'bg-blue-50', text: 'text-blue-600', label: 'معاد للتعديل' },
   approved: { bg: 'bg-emerald-50', text: 'text-emerald-600', label: 'معتمد' },

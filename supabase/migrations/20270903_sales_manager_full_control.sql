@@ -1,62 +1,20 @@
 -- ============================================================================
--- Sales Manager Approved (موافقة مدير البيع) — new order status
--- Inserted immediately after Submitted.
+-- Sales Manager owns the workflow until Reviewing — bidirectional rule.
 --
--- Workflow: Submitted → Sales Manager Approved → Reviewing → (Returned for
--- Revision) → Approved → existing workflow unchanged.
+-- Until the order reaches Reviewing, the Sales Manager may move the order
+-- freely, in any direction, between these four statuses:
+--   submitted / sales_manager_approved / returned_for_revision / cancelled
 --
--- Business rules:
---   • Sales Manager (مدير البيع) may ONLY do, while the order is Submitted:
---       submitted → sales_manager_approved  (orders.approve)
---       submitted → returned_for_revision   (orders.approve)
---       submitted → cancelled               (orders.approve)
---   • Review responsibility unchanged: the reviewer moves
---       sales_manager_approved → reviewing  (orders.review)
---     (was: submitted → reviewing).
+-- No transition between these four statuses requires orders.manage — all are
+-- gated by orders.approve (the Sales Manager's own capability).
+--
+-- Once the order reaches reviewing (or any later status), the Sales Manager
+-- loses all status-change permissions.
 -- ============================================================================
 
--- 1. Include the new status in the orders.status CHECK constraint
-ALTER TABLE public.orders
-  DROP CONSTRAINT IF EXISTS ck_orders_status;
-
-ALTER TABLE public.orders
-  ADD CONSTRAINT ck_orders_status
-  CHECK (status IN (
-    'draft', 'submitted', 'sales_manager_approved', 'reviewing', 'returned_for_revision',
-    'approved', 'preparing', 'prepared', 'ready_for_dispatch',
-    'sent_to_delivery', 'dispatched', 'deferred', 'cancelled',
-    'delivered', 'stock_review'
-  ));
-
--- 2. Include the new status in the order_status_history CHECK constraints
-ALTER TABLE public.order_status_history
-  DROP CONSTRAINT IF EXISTS ck_order_status_from;
-
-ALTER TABLE public.order_status_history
-  ADD CONSTRAINT ck_order_status_from
-  CHECK (from_status IN (
-    'draft', 'submitted', 'sales_manager_approved', 'reviewing', 'returned_for_revision',
-    'approved', 'preparing', 'prepared', 'ready_for_dispatch',
-    'sent_to_delivery', 'dispatched', 'deferred', 'cancelled',
-    'delivered', 'stock_review'
-  ) OR from_status IS NULL);
-
-ALTER TABLE public.order_status_history
-  DROP CONSTRAINT IF EXISTS ck_order_status_to;
-
-ALTER TABLE public.order_status_history
-  ADD CONSTRAINT ck_order_status_to
-  CHECK (to_status IN (
-    'draft', 'submitted', 'sales_manager_approved', 'reviewing', 'returned_for_revision',
-    'approved', 'preparing', 'prepared', 'ready_for_dispatch',
-    'sent_to_delivery', 'dispatched', 'deferred', 'cancelled',
-    'delivered', 'stock_review'
-  ));
-
 -- ============================================================================
--- 3. governed_change_order_status — add the new status to the transition
---    engine, extend the Sales Manager's three Submitted actions, and move the
---    review edge from (submitted → reviewing) to (sales_manager_approved → reviewing).
+-- 1. governed_change_order_status — extend the Sales Manager branch from the
+--    single `submitted` status to the four-status bidirectional managed set.
 -- ============================================================================
 CREATE OR REPLACE FUNCTION public.governed_change_order_status(
   p_token               text,
@@ -129,7 +87,9 @@ BEGIN
   ELSE
     IF v_current_status = 'sales_manager_approved' AND p_new_status = 'reviewing' THEN
       v_required_capability := 'orders.review';
-    ELSIF v_current_status = 'submitted' AND p_new_status IN ('sales_manager_approved','returned_for_revision','cancelled') THEN
+    ELSIF v_current_status IN ('submitted','sales_manager_approved','returned_for_revision','cancelled')
+          AND p_new_status IN ('submitted','sales_manager_approved','returned_for_revision','cancelled')
+          AND p_new_status <> v_current_status THEN
       v_required_capability := 'orders.approve';
     ELSIF v_current_status = 'approved' AND p_new_status = 'preparing' THEN
       v_required_capability := 'warehouse.complete_preparation';
@@ -303,27 +263,6 @@ END;
 $function$;
 
 GRANT EXECUTE ON FUNCTION public.governed_change_order_status(text, uuid, text, text, text, boolean) TO PUBLIC, anon, authenticated, service_role;
-
--- ============================================================================
--- 4. Permission adjustment — grant orders.approve to the Sales Manager role
---    Required so the Sales Manager can perform the three Submitted actions
---    (sales_manager_approved / returned_for_revision / cancelled).
--- ============================================================================
-DO $$
-DECLARE
-  v_role_id uuid;
-  v_cap_id  uuid;
-BEGIN
-  SELECT id INTO v_role_id FROM public.roles WHERE name = 'مدير البيع' LIMIT 1;
-  SELECT id INTO v_cap_id  FROM public.capabilities WHERE code = 'orders.approve' LIMIT 1;
-
-  IF v_role_id IS NOT NULL AND v_cap_id IS NOT NULL THEN
-    INSERT INTO public.role_capabilities (role_id, capability_id)
-    VALUES (v_role_id, v_cap_id)
-    ON CONFLICT (role_id, capability_id) DO NOTHING;
-  END IF;
-END;
-$$;
 
 -- ============================================================================
 -- END OF MIGRATION
