@@ -217,6 +217,7 @@ export function ActivityReportsPage() {
   const [activityVM, setActivityVM] = useState<ActivityViewModel | null>(null)
   const [activityLoading, setActivityLoading] = useState(false)
   const [activityError, setActivityError] = useState<string | null>(null)
+  const [companyTotalSales, setCompanyTotalSales] = useState<number | null>(null)
 
   const scopeRef = useRef(scope)
   scopeRef.current = scope
@@ -285,6 +286,7 @@ export function ActivityReportsPage() {
     if (import.meta.env.DEV) console.log('[ActivityReportsPage] loadData START:', { hasEmployeeId: !!f.employeeId, managerId: f.managerId, dateFrom: f.dateFrom, dateTo: f.dateTo })
     setLoading(true)
     setError(null)
+    setCompanyTotalSales(null)
 
     if (f.employeeId) {
       if (import.meta.env.DEV) console.log('[ActivityReportsPage] loadData: single employee branch')
@@ -397,6 +399,18 @@ export function ActivityReportsPage() {
       }
 
       if (import.meta.env.DEV) console.log('[ActivityReportsPage] loadData: final teamData length:', teamData.length)
+      if (!managerId) {
+        const { data: salesData } = await supabase.rpc('get_total_sales_company', {
+          p_token: tok,
+          p_from: f.dateFrom || null,
+          p_to: f.dateTo || null,
+        })
+        if (salesData && typeof salesData === 'object' && !(salesData as any).error) {
+          setCompanyTotalSales(Number((salesData as any).sales) || 0)
+        } else {
+          setCompanyTotalSales(null)
+        }
+      }
       setRows(teamData)
       setTeamCache(teamData)
       if (viewRef.current === 'employee' && selectedEmployeeRef.current) {
@@ -691,8 +705,11 @@ useEffect(() => {
       completed_visits += r.completed_visits
       registered_customers += r.registered_customers
     }
+    if (companyTotalSales != null) {
+      sales = companyTotalSales
+    }
     return { sales, orders, completed_visits, registered_customers }
-  }, [rows])
+  }, [rows, companyTotalSales])
 
   const kpiCards: KpiCardData[] = [
     { key: 'sales', label: 'إجمالي المبيعات', value: totals.sales, format: 'currency', icon: '💰', color: 'emerald' },
