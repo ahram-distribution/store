@@ -144,10 +144,22 @@ export function MonthlyActivity({ scope, managerEmployeeId, onKPIClick }: Monthl
         let totalSales = 0, totalOrders = 0, totalVisits = 0, totalCustomers = 0
         if (batchData && Array.isArray(batchData)) {
           for (const row of batchData) {
-            totalSales += Number(row.sales) || 0
+            if (scope !== 'company') totalSales += Number(row.sales) || 0
             totalOrders += Number(row.orders) || 0
             totalVisits += Number(row.visits) || 0
             totalCustomers += Number(row.customers) || 0
+          }
+        }
+
+        if (scope === 'company') {
+          const { data: salesData } = await supabase.rpc('get_total_sales_company', {
+            p_token: tok,
+            p_from: from,
+            p_to: to,
+          })
+          if (!cancelled && salesData && typeof salesData === 'object') {
+            totalSales = Number((salesData as any).sales) || 0
+            totalOrders = Number((salesData as any).count) || 0
           }
         }
         setTotals({ sales: totalSales, orders: totalOrders, visits: totalVisits, customers: totalCustomers })
