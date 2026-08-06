@@ -16,6 +16,9 @@
 --   • governed_supreme_delete_cancelled_order  — was missing
 --     inventory_movements cleanup (the reported
 --     inventory_movements_order_id_fkey error).
+--   • All three paths — was missing credit_collection_requests /
+--     credit_collection_invoices cleanup (the reported
+--     fk_cci_order FK error on orders with credit collection invoices).
 --   • governed_deletion_execute_orders         — restore condition widened to
 --     ANY(execution_status_group()); added missing auction_awards cleanup.
 --   • governed_delete_order (legacy single path) — completed dependent cleanup
@@ -76,6 +79,10 @@ BEGIN
   WHERE invoice_id IN (SELECT id FROM public.credit_invoices WHERE order_id = p_id);
   DELETE FROM public.credit_invoices WHERE order_id = p_id;
 
+  DELETE FROM public.credit_collection_requests
+  WHERE invoice_id IN (SELECT id FROM public.credit_collection_invoices WHERE order_id = p_id);
+  DELETE FROM public.credit_collection_invoices WHERE order_id = p_id;
+
   DELETE FROM public.return_items
   WHERE return_id IN (SELECT id FROM public.returns WHERE order_id = p_id);
   DELETE FROM public.returns WHERE order_id = p_id;
@@ -116,7 +123,13 @@ BEGIN
   SELECT * INTO v_session FROM app.sessions WHERE token = p_token::uuid AND expires_at > now();
   IF NOT FOUND THEN RETURN jsonb_build_object('error', 'INVALID_SESSION'); END IF;
 
-  v_is_super := public.is_supreme_management(v_session.employee_id);
+  v_is_super := public.is_supreme_management(v_session.employee_id)
+    OR EXISTS (
+      SELECT 1 FROM public.employee_roles er
+      JOIN public.roles r ON r.id = er.role_id
+      WHERE er.employee_id = v_session.employee_id
+        AND r.name IN ('الرئيس التنفيذي', 'executive_director')
+    );
   IF NOT v_is_super THEN
     RETURN jsonb_build_object('error', 'FORBIDDEN', 'detail', 'Only Supreme Management can delete cancelled orders');
   END IF;
@@ -188,6 +201,11 @@ BEGIN
 
   DELETE FROM public.credit_invoices WHERE order_id = p_order_id;
 
+  DELETE FROM public.credit_collection_requests
+  WHERE invoice_id IN (SELECT id FROM public.credit_collection_invoices WHERE order_id = p_order_id);
+
+  DELETE FROM public.credit_collection_invoices WHERE order_id = p_order_id;
+
   DELETE FROM public.auction_awards WHERE order_id = p_order_id;
 
   DELETE FROM public.order_daily_deals WHERE order_id = p_order_id;
@@ -247,6 +265,7 @@ BEGIN
         'returns', (SELECT COUNT(*)::int FROM public.returns r WHERE r.order_id = ANY(p_ids)),
         'collections', (SELECT COUNT(*)::int FROM public.collections cl WHERE cl.order_id = ANY(p_ids)),
         'credit_invoices', (SELECT COUNT(*)::int FROM public.credit_invoices ci WHERE ci.order_id = ANY(p_ids)),
+        'credit_collection_invoices', (SELECT COUNT(*)::int FROM public.credit_collection_invoices cci WHERE cci.order_id = ANY(p_ids)),
         'order_daily_deals', (SELECT COUNT(*)::int FROM public.order_daily_deals odd WHERE odd.order_id = ANY(p_ids)),
         'order_flash_offers', (SELECT COUNT(*)::int FROM public.order_flash_offers ofo WHERE ofo.order_id = ANY(p_ids)),
         'auction_awards', (SELECT COUNT(*)::int FROM public.auction_awards aa WHERE aa.order_id = ANY(p_ids)),
@@ -282,6 +301,8 @@ BEGIN
     DELETE FROM public.order_daily_deals WHERE order_id = ANY(p_ids);
     DELETE FROM public.credit_invoice_cheques WHERE invoice_id IN (SELECT id FROM public.credit_invoices WHERE order_id = ANY(p_ids));
     DELETE FROM public.credit_invoices WHERE order_id = ANY(p_ids);
+    DELETE FROM public.credit_collection_requests WHERE invoice_id IN (SELECT id FROM public.credit_collection_invoices WHERE order_id = ANY(p_ids));
+    DELETE FROM public.credit_collection_invoices WHERE order_id = ANY(p_ids);
     DELETE FROM public.treasury_transactions WHERE reference_type = 'collection' AND reference_id IN (SELECT id FROM public.collections WHERE order_id = ANY(p_ids));
     DELETE FROM public.collections WHERE order_id = ANY(p_ids);
     DELETE FROM public.return_items WHERE return_id IN (SELECT id FROM public.returns WHERE order_id = ANY(p_ids));
