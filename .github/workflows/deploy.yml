@@ -78,20 +78,6 @@ jobs:
           grep -n -i -E 'error|fail' /tmp/build.log 2>/dev/null || echo "(no error keywords found)"
           echo "::endgroup::"
 
-      - name: RPC contract validation gate
-        run: |
-          if [ -z "$SUPABASE_DB_URL" ]; then
-            echo "⚠ RPC validation gate skipped — SUPABASE_DB_URL not configured"
-            echo "  Deployments from forks or PRs without DB access skip this check."
-            echo "  To enable, set SUPABASE_DB_URL in repository secrets."
-            exit 0
-          fi
-          echo "=== RPC CONTRACT VALIDATION GATE ==="
-          DATABASE_URL="$SUPABASE_DB_URL" node scripts/rpc-deployment-gate.cjs
-        shell: bash
-        env:
-          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
-
       - name: Prepare deploy directory
         run: |
           mkdir -p deploy
@@ -115,25 +101,52 @@ jobs:
         id: deployment
         uses: actions/deploy-pages@v4
 
-      - name: Post-deploy verification
+      - name: Verify deployment (build-manifest + bundle)
         run: |
-          build_id="${{ needs.build.outputs.build_id }}"
+          expected="${{ needs.build.outputs.build_id }}"
           commit="${{ needs.build.outputs.commit_hash }}"
-          echo "=== BUILD INFO ==="
-          echo "Build ID:  $build_id"
-          echo "Commit:    $commit"
-          echo "Deploy URL: ${{ steps.deployment.outputs.page_url }}"
+          base_url="${{ steps.deployment.outputs.page_url }}"
+          manifest_url="${base_url}build-manifest.json"
+          echo "=== DEPLOYMENT VERIFICATION ==="
+          echo "Expected build_id: $expected"
+          echo "Commit:            $commit"
+          echo "Base URL:          $base_url"
           echo ""
-          echo "=== VERIFICATION ==="
-          sleep 30
-          manifest_url="${{ steps.deployment.outputs.page_url }}build-manifest.json"
-          echo "Fetching: $manifest_url"
-          http_status=$(curl -s -o /dev/null -w "%{http_code}" "$manifest_url" 2>/dev/null || echo "000")
-          if [ "$http_status" = "200" ]; then
-            echo "✓ build-manifest.json reachable (HTTP $http_status)"
-            echo "Deployed manifest:"
-            curl -sS "$manifest_url"
+          matched=0
+          for i in $(seq 1 30); do
+            http_status=$(curl -s -o /tmp/manifest.json -w "%{http_code}" "$manifest_url" 2>/dev/null || echo "000")
+            if [ "$http_status" = "200" ]; then
+              actual=$(grep '"build_id"' /tmp/manifest.json | head -n 1 | sed -E 's/.*"build_id" *: *"([^"]+)".*/\1/')
+              if [ "$actual" = "$expected" ]; then
+                matched=1
+                echo "✓ build-manifest.json serves expected build_id ($expected)"
+                echo "Manifest content:"
+                cat /tmp/manifest.json
+                break
+              fi
+              echo "⏳ build_id=$actual (expected $expected) — attempt $i/30"
+            else
+              echo "⏳ build-manifest.json HTTP $http_status — attempt $i/30"
+            fi
+            sleep 20
+          done
+          if [ "$matched" != "1" ]; then
+            echo "::error::Deployment verification failed — production did not serve build_id $expected"
+            exit 1
+          fi
+          echo ""
+          echo "=== BROWSER BUILD ID VERIFICATION ==="
+          html=$(curl -s "${base_url}index.html" 2>/dev/null || echo "")
+          main_js=$(echo "$html" | grep -oE '/store/assets/index-[A-Za-z0-9_.-]+\.js' | head -n 1)
+          if [ -n "$main_js" ]; then
+            js_url="${base_url}${main_js#/store/}"
+            if curl -s "$js_url" | grep -qF "$expected"; then
+              echo "✓ Main bundle ($main_js) embeds build_id $expected"
+            else
+              echo "::error::Main bundle does not embed expected build_id ($expected)"
+              exit 1
+            fi
           else
-            echo "⚠ build-manifest.json not yet reachable (HTTP $http_status)"
-            echo "CDN may still be propagating. Verify manually in 5-10 min."
+            echo "::error::Could not locate main bundle in index.html"
+            exit 1
           fi

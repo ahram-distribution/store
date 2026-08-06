@@ -54,21 +54,21 @@
            │     ├─ build-manifest plugin      writes sha256 hashes  │
            │     ├─ VitePWA                    47 precached assets   │
            │     └─ dist/ ready               content-hashed files   │
-           │  5. Report build manifest         build_id + hashes     │
-           │  6. Prepare deploy/               dist/* → deploy/      │
-           │  7. actions/upload-pages-artifact to Pages CDN          │
-           └──────────────────────┬──────────────────────────────────┘
-                                  │
-                                  ▼
-           ┌─────────────────────────────────────────────────────────┐
-           │  deploy job (needs build)                                │
-           │                                                         │
-           │  8. actions/deploy-pages@v4      updates GitHub Pages    │
-           │  9. Post-deploy verification                             │
-           │     ├─ sleep 30 (CDN propagation)                       │
-           │     ├─ fetch build-manifest.json from production        │
-           │     └─ log build_id + commit for comparison             │
-           └──────────────────────┬──────────────────────────────────┘
+            │  5. Report build manifest         build_id + hashes     │
+            │  6. Prepare deploy/               dist/* → deploy/      │
+            │  7. actions/upload-pages-artifact to Pages CDN          │
+            └──────────────────────┬──────────────────────────────────┘
+                                   │
+                                   ▼
+            ┌─────────────────────────────────────────────────────────┐
+            │  deploy job (needs build)                                │
+            │                                                         │
+            │  8. actions/deploy-pages@v4      updates GitHub Pages    │
+            │  9. Verify deployment (authoritative)                   │
+            │     ├─ poll build-manifest.json up to 10 min            │
+            │     ├─ FAIL unless build_id matches expected build_id   │
+            │     └─ FAIL unless main bundle embeds expected build_id │
+            └──────────────────────┬──────────────────────────────────┘
                                   │
                                   ▼
            ┌─────────────────────────────────────────────────────────┐
@@ -142,9 +142,9 @@ npx gh-pages -d dist        # bypasses CI entirely — not possible (gh-pages un
 
 After every deploy, confirm:
 
-- [ ] CI workflow completed successfully (green checkmark)
+- [ ] CI workflow completed successfully (green checkmark) — the workflow itself now fails the job unless production serves the expected `build_id`
 - [ ] `build-manifest.json` exists at `https://ahram-distribution.github.io/store/build-manifest.json`
-- [ ] `build_id` in production manifest matches CI output
+- [ ] `build_id` in production manifest matches CI output (enforced by the workflow's "Verify deployment" step)
 - [ ] `commit_hash` in production manifest matches the git commit
 - [ ] App loads at `https://ahram-distribution.github.io/store/`
 - [ ] Service Worker registers (DevTools → Application → Service Workers)
