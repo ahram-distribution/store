@@ -50,6 +50,12 @@ export function OrderReviewPage() {
   const totals = getTotals()
   const [availabilityByItem, setAvailabilityByItem] = useState<Record<string, AvailabilityResult>>({})
 
+  const cartEmpty = items.length === 0 && dealItems.length === 0 && flashOfferItems.length === 0
+
+  useEffect(() => {
+    if (cartEmpty) navigate('/cart')
+  }, [cartEmpty, navigate])
+
   useEffect(() => {
     let active = true
     Promise.all(items.map(async (item) => [
@@ -85,8 +91,7 @@ export function OrderReviewPage() {
     return Array.from(grouped.entries()).map(([id, g]) => ({ id, ...g }))
   }, [items, productCompanyMap])
 
-  if (items.length === 0 && dealItems.length === 0 && flashOfferItems.length === 0) {
-    navigate('/cart')
+  if (cartEmpty) {
     return null
   }
 
