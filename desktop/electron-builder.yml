@@ -39,7 +39,7 @@ publish:
   - provider: github
     owner: ahram-distribution
     repo: store
-    releaseType: release
+    releaseType: draft
 
 extraResources:
   - from: ../dist

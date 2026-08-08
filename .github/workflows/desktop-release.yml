@@ -88,3 +88,35 @@ jobs:
         run: |
           Get-ChildItem "desktop\release3" | Select-Object Name, Length
           if (-not (Test-Path "desktop\release3\latest.yml")) { throw "latest.yml missing - auto-update metadata not generated" }
+
+      - name: Publish draft GitHub release (draft-first flow)
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $version = (Get-Content "desktop\package.json" -Raw | ConvertFrom-Json).version
+          $tag = "v$version"
+          $headers = @{
+            Authorization = "Bearer $env:GH_TOKEN"
+            Accept        = "application/vnd.github+json"
+            "User-Agent"  = "desktop-release-workflow"
+          }
+          $release = Invoke-RestMethod -Uri "https://api.github.com/repos/ahram-distribution/store/releases/tags/$tag" -Headers $headers
+          if ($null -eq $release.id) { throw "Release $tag not found after electron-builder publish." }
+          if (-not $release.draft) { throw "Release $tag is not a draft - aborting to avoid publishing an incomplete release." }
+          $names = @($release.assets | ForEach-Object { $_.name })
+          $patterns = @("latest.yml", "*Setup-$version.exe", "*Setup-$version.exe.blockmap")
+          foreach ($pattern in $patterns) {
+            if (-not ($names | Where-Object { $_ -like $pattern })) {
+              throw "Draft release $tag is missing asset matching '$pattern'. Found: $($names -join ', ')"
+            }
+          }
+          $latest = $release.assets | Where-Object { $_.name -eq "latest.yml" } | Select-Object -First 1
+          $feed = Invoke-WebRequest -Uri $latest.browser_download_url -Headers $headers -UseBasicParsing
+          if ($feed.Content -notmatch "^version: $version") {
+            throw "latest.yml does not reference version $version."
+          }
+          Write-Host "Draft release $tag verified ($($release.assets.Count) assets). Publishing..."
+          Invoke-RestMethod -Method Patch -Uri "https://api.github.com/repos/ahram-distribution/store/releases/$($release.id)" -Headers $headers -ContentType "application/json" -Body (@{ draft = $false } | ConvertTo-Json) | Out-Null
+          Write-Host "Draft release $tag published successfully."
+
