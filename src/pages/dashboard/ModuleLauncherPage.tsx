@@ -48,6 +48,8 @@ const MODULE_ICONS: Record<string, { title: string; icons: LauncherIcon[] }> = {
     icons: [
       { icon: '👤', label: 'كل الموظفين', path: '/employees' },
       { icon: '➕', label: 'إضافة موظف', path: '/employees?add=1' },
+      { icon: '🧑‍💼', label: 'التحكم في الموارد البشرية', path: '/hr-control' },
+      { icon: '👔', label: 'شؤون العاملين', path: '/hr/employee' },
       { icon: '🔗', label: 'الهيكل البيعي', path: '/hierarchy' },
       { icon: '🎭', label: 'الأدوار', path: '/employees#roles' },
       { icon: '🔐', label: 'الصلاحيات', path: '/employees#permissions' },

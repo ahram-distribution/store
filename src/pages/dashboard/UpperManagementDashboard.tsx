@@ -77,6 +77,7 @@ export default function UpperManagementDashboard() {
     { icon: '📈', label: 'التقارير', path: '/launcher/reports', isSubLauncher: true },
     { icon: '💳', label: 'فواتير الائتمان', path: '/credit/invoices' },
     { icon: '📊', label: 'تحليل المبيعات', path: '/sales-analytics', navState: { scope: 'company' } },
+    { icon: '🧑‍💼', label: 'التحكم في الموارد البشرية', path: '/hr-control' },
     { icon: '📑', label: 'مركز التقارير', path: '__reports_center__' },
     { icon: '⚙️', label: 'الإعدادات', path: '/launcher/settings', isSubLauncher: true },
     { icon: '🗑️', label: 'مركز الحذف', path: '/data-center' },

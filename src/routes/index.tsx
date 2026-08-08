@@ -56,6 +56,7 @@ import {
 } from '../pages/attendance'
 import { AttendanceRuntimePage } from '../pages/attendance/runtime'
 import { AttendanceRouter } from '../components/attendance/AttendanceRouter'
+import { HRControlPage, EmployeeHRPage } from '../pages/hr'
 import { OperationsCenterPage } from '../pages/operations-center'
 import { SalesManagerCCPage, SalesManagerOperations, SalesManagerField, SalesManagerPersonal, SalesManagerVisitsList, SalesManagerCustomersList, SalesManagerOrdersList } from '../pages/sales-manager'
 import { SalesListPage } from '../pages/sales-list'
@@ -192,6 +193,10 @@ export function AppRoutes() {
       <Route path="/attendance/team-map" element={<ProtectedRoute employeeOnly requireCapability="attendance.view_team_map"><TeamMapPage /></ProtectedRoute>} />
       <Route path="/attendance/employee/:employeeId/:date" element={<ProtectedRoute employeeOnly requireCapability="attendance.view_history"><EmployeeWorkdayDetailPage /></ProtectedRoute>} />
       <Route path="/attendance/operations" element={<ProtectedRoute employeeOnly requireCapability="attendance.live_monitor"><OperationsCenterPage /></ProtectedRoute>} />
+
+      {/* HR Control module */}
+      <Route path="/hr-control" element={<ProtectedRoute requireUpperManagement><HRControlPage /></ProtectedRoute>} />
+      <Route path="/hr/employee" element={<ProtectedRoute employeeOnly><EmployeeHRPage /></ProtectedRoute>} />
 
       <Route path="/sales-manager-cc" element={<ProtectedRoute employeeOnly><SalesManagerCCPage /></ProtectedRoute>} />
       <Route path="/sales-manager/operations" element={<ProtectedRoute employeeOnly><SalesManagerOperations /></ProtectedRoute>} />
