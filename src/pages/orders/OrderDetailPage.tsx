@@ -8,6 +8,7 @@ import { useAuthStore } from '../../store/auth'
 import { useEntityViewsStore } from '../../store/entityViews'
 import { isUpperManagement } from '../../utils/roleNormalization'
 import { formatCurrencyShort } from '../../utils/format'
+import { resolveConfiguredUnitTypes } from '../../utils/catalog'
 import { UNIT_LABELS, EXECUTION_GROUP } from '../../types/order-display'
 import { computeProductPrices, computePieceQuantity } from '../../engine/pricing'
 import { buildSearchIndex, searchProducts } from '../../utils/smartSearch'
@@ -38,8 +39,7 @@ function mapProduct(row: any): ProductWithPrice {
   const cartonQuantity = Number(row.carton_quantity) || 0
   const piecePrice = Number(row.piece_price) || 0
   const dozenPrice = Number(row.dozen_price) || 0
-  const activeUnits = (row.product_units ?? []).filter((u: any) => u.is_active !== false)
-  const activeUnitTypes = activeUnits.map((u: any) => u.unit_type)
+  const availableUnitTypes: UnitType[] = resolveConfiguredUnitTypes(row)
   const unitPrices: ProductUnitPrice[] = [
     { unitType: 'piece', price: piecePrice },
     { unitType: 'dozen', price: dozenPrice },
@@ -60,7 +60,7 @@ function mapProduct(row: any): ProductWithPrice {
     companyId: row.company_id,
     companyName: row.company_name ?? '',
     unitPrices,
-    availableUnitTypes: activeUnitTypes,
+    availableUnitTypes,
   }
 }
 
@@ -448,6 +448,30 @@ export function OrderDetailPage() {
     }))
   }, [])
 
+  const handleUnitChange = useCallback((productId: string, oldUnit: string, newUnit: UnitType) => {
+    setEditItems(prev => prev.map(i => {
+      if (i.product_id !== productId || i.unit_type !== oldUnit) return i
+      const product = products.find(p => p.id === productId)
+      if (!product) return i
+      const prices = computeProductPrices(product, null)
+      const unitPrice = newUnit === 'piece' ? prices.piecePrice : newUnit === 'dozen' ? prices.dozenPrice : prices.cartonPrice
+      const pieceQuantity = computePieceQuantity(i.unit_quantity, newUnit, product.cartonQuantity)
+      const totalPrice = Math.round(unitPrice * i.unit_quantity * 100) / 100
+      return { ...i, unit_type: newUnit, unit_price: unitPrice, piece_quantity: pieceQuantity, total_price: totalPrice }
+    }))
+  }, [products])
+
+  const unitOptions = useMemo(() => {
+    const map: Record<string, UnitType[]> = {}
+    for (const p of products) map[p.id] = p.availableUnitTypes
+    return map
+  }, [products])
+
+  const handleDeleteSelected = useCallback((keys: Array<{ productId: string; unitType: string }>) => {
+    const targets = new Set(keys.map(k => `${k.productId}:${k.unitType}`))
+    setEditItems(prev => prev.filter(i => !targets.has(`${i.product_id}:${i.unit_type}`)))
+  }, [])
+
   const handleAddProduct = useCallback((product: ProductWithPrice, unitType: UnitType, quantity: number) => {
     setEditItems(prev => {
       const existing = prev.find(i => i.product_id === product.id && i.unit_type === unitType)
@@ -652,6 +676,9 @@ export function OrderDetailPage() {
         onQuantityChange={handleQuantityChange}
         onRemoveItem={handleRemoveItem}
         onPriceChange={handlePriceChange}
+        onUnitChange={handleUnitChange}
+        unitOptions={unitOptions}
+        onDeleteSelected={handleDeleteSelected}
         onAddProduct={() => { setShowProductSearch(true); setSelectedCompanyId(null); setSearchQuery('') }}
         shortageProductIds={shortageItems}
         eventLog={eventLog}

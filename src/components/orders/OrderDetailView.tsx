@@ -30,6 +30,9 @@ interface OrderDetailViewProps {
   onQuantityChange?: (productId: string, unitType: string, newQty: number) => void
   onRemoveItem?: (productId: string, unitType: string) => void
   onPriceChange?: (productId: string, unitType: string, newPrice: number) => void
+  onUnitChange?: (productId: string, oldUnit: string, newUnit: string) => void
+  unitOptions?: Record<string, string[]>
+  onDeleteSelected?: (keys: Array<{ productId: string; unitType: string }>) => void
   onAddProduct?: (companyName: string) => void
   editActions?: React.ReactNode
   shortageProductIds?: Set<string> | null
@@ -38,7 +41,7 @@ interface OrderDetailViewProps {
   eventLog?: OrderEventLogItem[] | null
 }
 
-export function OrderDetailView({ data, actions, onBack, editMode, editItems, onQuantityChange, onRemoveItem, onPriceChange, onAddProduct, editActions, shortageProductIds, inventorySnapshot, businessStatusByItem, eventLog }: OrderDetailViewProps) {
+export function OrderDetailView({ data, actions, onBack, editMode, editItems, onQuantityChange, onRemoveItem, onPriceChange, onUnitChange, unitOptions, onDeleteSelected, onAddProduct, editActions, shortageProductIds, inventorySnapshot, businessStatusByItem, eventLog }: OrderDetailViewProps) {
   const navigate = useNavigate()
   const { order, customer, items, collections, current_delivery, modification_history } = data
   const [overLimit, setOverLimit] = useState<boolean | null>(null)
@@ -241,6 +244,9 @@ export function OrderDetailView({ data, actions, onBack, editMode, editItems, on
         onQuantityChange={onQuantityChange}
         onRemoveItem={onRemoveItem}
         onPriceChange={onPriceChange}
+        onUnitChange={onUnitChange}
+        unitOptions={unitOptions}
+        onDeleteSelected={onDeleteSelected}
         onAddProduct={onAddProduct}
         shortageProductIds={shortageProductIds || undefined}
         businessStatusByItem={businessStatusByItem || undefined}

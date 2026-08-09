@@ -1,6 +1,6 @@
 import { Fragment, useMemo, useState } from 'react'
 import { formatCurrencyShort } from '../../utils/format'
-import { formatNumber } from '../../utils/numbers'
+import { formatNumber, toEnglishDigits } from '../../utils/numbers'
 import { UNIT_LABELS } from '../../types/order-display'
 import type { UnifiedOrderItem } from '../../types/unified-order'
 import type { BusinessStatusCardData } from '../../utils/cart-availability'
@@ -17,12 +17,34 @@ interface OrderProductsSectionProps {
   onQuantityChange?: (productId: string, unitType: string, newQty: number) => void
   onRemoveItem?: (productId: string, unitType: string) => void
   onPriceChange?: (productId: string, unitType: string, newPrice: number) => void
+  onUnitChange?: (productId: string, oldUnit: string, newUnit: string) => void
+  unitOptions?: Record<string, string[]>
+  onDeleteSelected?: (keys: Array<{ productId: string; unitType: string }>) => void
   onAddProduct?: (companyName: string) => void
   shortageProductIds?: Set<string>
   businessStatusByItem?: Record<string, BusinessStatusCardData>
 }
 
-export function OrderProductsSection({ items, mode = 'view', onQuantityChange, onRemoveItem, onPriceChange, onAddProduct, shortageProductIds, businessStatusByItem }: OrderProductsSectionProps) {
+export function OrderProductsSection({ items, mode = 'view', onQuantityChange, onRemoveItem, onPriceChange, onUnitChange, unitOptions, onDeleteSelected, onAddProduct, shortageProductIds, businessStatusByItem }: OrderProductsSectionProps) {
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const toggleSelected = (key: string) => {
+    setSelected(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
+  const handleDeleteSelected = () => {
+    if (!onDeleteSelected || selected.size === 0) return
+    if (!window.confirm(`هل أنت متأكد من حذف ${selected.size} صنف؟`)) return
+    const keys = [...selected].map(k => {
+      const sep = k.lastIndexOf(':')
+      return { productId: k.slice(0, sep), unitType: k.slice(sep + 1) }
+    })
+    onDeleteSelected(keys)
+    setSelected(new Set())
+  }
   const grandTotal = useMemo(() => items.reduce((s, i) => s + Number(i.total_price || 0), 0), [items])
   const totalPieces = useMemo(() => items.reduce((s, i) => s + Number(i.piece_quantity || 0), 0), [items])
   const totalQty = useMemo(() => items.reduce((s, i) => s + Number(i.unit_quantity || 0), 0), [items])
@@ -46,7 +68,17 @@ export function OrderProductsSection({ items, mode = 'view', onQuantityChange, o
         <div className="px-5 py-3 border-b border-[#E5E7EB] bg-[#F9FAFB] flex items-center justify-between">
           <h3 className="text-[14px] font-bold text-[#111827]">المنتجات</h3>
           {isEdit && items.length > 0 && (
-            <span className="text-[11px] text-[#6B7280]">{items.length} صنف</span>
+            <div className="flex items-center gap-3">
+              <span className="text-[11px] text-[#6B7280]">{items.length} صنف</span>
+              {selected.size > 0 && (
+                <button
+                  onClick={handleDeleteSelected}
+                  className="text-[11px] bg-[#FEF2F2] text-[#DC2626] px-2.5 py-1 rounded-lg border border-[#FECACA] hover:bg-[#FEE2E2] transition-colors font-medium"
+                >
+                  حذف المحدد ({selected.size})
+                </button>
+              )}
+            </div>
           )}
         </div>
         <div className="overflow-x-auto">
@@ -59,7 +91,7 @@ export function OrderProductsSection({ items, mode = 'view', onQuantityChange, o
                 <th className="px-3 py-3 text-center font-semibold">الكمية</th>
                 <th className="px-3 py-3 text-left font-semibold">سعر الوحدة</th>
                 <th className="px-3 py-3 text-left font-semibold">الإجمالي</th>
-                {isEdit && <th className="px-2 py-3 text-center font-semibold w-10"></th>}
+                {isEdit && <th className="px-2 py-3 text-center font-semibold w-10">تحديد</th>}
               </tr>
             </thead>
             <tbody>
@@ -98,29 +130,45 @@ export function OrderProductsSection({ items, mode = 'view', onQuantityChange, o
                           <td className="px-3 py-3">
                             <p className="font-semibold text-[#111827]">{item.product_name || 'غير متوفر'}</p>
                           </td>
-                          <td className="px-3 py-3 text-center text-[#6B7280]">{UNIT_LABELS[item.unit_type] || item.unit_type}</td>
+                          <td className="px-3 py-3 text-center">
+                            {isEdit && onUnitChange && unitOptions ? (
+                              (() => {
+                                const opts = unitOptions[item.product_id] || []
+                                const options = opts.includes(item.unit_type) ? opts : [item.unit_type, ...opts]
+                                return (
+                                  <select
+                                    value={item.unit_type}
+                                    onChange={e => {
+                                      if (e.target.value !== item.unit_type) onUnitChange(item.product_id, item.unit_type, e.target.value)
+                                    }}
+                                    className="text-[11px] font-semibold text-[#111827] border border-[#E5E7EB] rounded px-1 py-0.5 bg-white"
+                                  >
+                                    {options.map(u => (
+                                      <option key={u} value={u}>{UNIT_LABELS[u] || u}</option>
+                                    ))}
+                                  </select>
+                                )
+                              })()
+                            ) : (
+                              <span className="text-[#6B7280]">{UNIT_LABELS[item.unit_type] || item.unit_type}</span>
+                            )}
+                          </td>
                           <td className="px-3 py-3 text-center">
                             {isEdit && onQuantityChange ? (
-                              <div className="inline-flex items-center gap-1">
-                                <button
-                                  onClick={() => onQuantityChange(item.product_id, item.unit_type, -1)}
-                                  className="w-5 h-5 rounded-full bg-[#F3F4F6] text-[#6B7280] text-xs flex items-center justify-center hover:bg-[#E5E7EB] transition-colors"
-                                >−</button>
-                                <input
-                                  type="number"
-                                  value={qty}
-                                  onChange={e => {
-                                    const v = parseInt(e.target.value) || 1
-                                    if (v >= 1) onQuantityChange(item.product_id, item.unit_type, v)
-                                  }}
-                                  className="w-10 text-center text-[12px] font-semibold text-[#111827] border border-[#E5E7EB] rounded px-1 py-0.5"
-                                  min="1"
-                                />
-                                <button
-                                  onClick={() => onQuantityChange(item.product_id, item.unit_type, 1)}
-                                  className="w-5 h-5 rounded-full bg-[#F3F4F6] text-[#6B7280] text-xs flex items-center justify-center hover:bg-[#E5E7EB] transition-colors"
-                                >+</button>
-                              </div>
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                dir="ltr"
+                                lang="en"
+                                value={qty}
+                                onChange={e => {
+                                  const raw = toEnglishDigits(e.target.value).replace(/[^0-9]/g, '')
+                                  if (raw === '') return
+                                  const v = parseInt(raw, 10)
+                                  if (v >= 1) onQuantityChange(item.product_id, item.unit_type, v)
+                                }}
+                                className="w-12 text-center text-[12px] font-semibold text-[#111827] border border-[#E5E7EB] rounded px-1 py-0.5"
+                              />
                             ) : (
                               <span className="text-[#111827] font-semibold">{qty}</span>
                             )}
@@ -128,30 +176,32 @@ export function OrderProductsSection({ items, mode = 'view', onQuantityChange, o
                           <td className="px-3 py-3 text-left">
                             {isEdit && onPriceChange ? (
                               <input
-                                type="number"
+                                type="text"
+                                inputMode="decimal"
+                                dir="ltr"
+                                lang="en"
                                 value={price}
                                 onChange={e => {
-                                  const v = Number(e.target.value)
-                                  if (v >= 0) onPriceChange(item.product_id, item.unit_type, v)
+                                  const raw = toEnglishDigits(e.target.value).replace(/[^0-9.]/g, '')
+                                  if (raw === '' || raw === '.') return
+                                  const v = Number(raw)
+                                  if (Number.isFinite(v) && v >= 0) onPriceChange(item.product_id, item.unit_type, v)
                                 }}
                                 className="w-16 text-left text-[12px] font-semibold text-[#111827] border border-[#E5E7EB] rounded px-1 py-0.5"
-                                step="0.01"
-                                min="0"
                               />
                             ) : (
                               <span className="text-[#111827]">{formatCurrencyShort(price)}</span>
                             )}
                           </td>
                           <td className="px-3 py-3 text-left text-[#111827] font-bold">{formatCurrencyShort(lineTotal)}</td>
-                          {isEdit && onRemoveItem && (
+                          {isEdit && (
                             <td className="px-2 py-3 text-center">
-                              <button
-                                onClick={() => onRemoveItem(item.product_id, item.unit_type)}
-                                className="text-[#EF4444] hover:text-[#DC2626] text-xs font-semibold transition-colors"
-                                title="حذف الصنف"
-                              >
-                                ✕
-                              </button>
+                              <input
+                                type="checkbox"
+                                checked={selected.has(`${item.product_id}:${item.unit_type}`)}
+                                onChange={() => toggleSelected(`${item.product_id}:${item.unit_type}`)}
+                                className="w-4 h-4 accent-[#2563EB] cursor-pointer"
+                              />
                             </td>
                           )}
                         </tr>
