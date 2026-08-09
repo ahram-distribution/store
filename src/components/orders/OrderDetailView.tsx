@@ -14,6 +14,7 @@ import { formatDateTime, formatCurrencyShort } from '../../utils/format'
 import { CustomerAddressCard } from '../customers/CustomerAddressCard'
 import { ORDER_STATUS_LABELS, EXECUTION_GROUP, orderTypeLabel, orderTypeBadgeClass } from '../../types/order-display'
 import { renderDeliveryPermitHtml, printInvoice, downloadInvoicePdf } from './order-printing'
+import { printPreparationPermit, downloadPreparationPermitPdf } from './order-prep-printing'
 import { buildTimelineEvents } from './order-detail.utils'
 import { copyToClipboard } from '../../utils/safeClipboard'
 import { OrderOwnershipInfo } from './OrderOwnershipInfo'
@@ -89,6 +90,14 @@ export function OrderDetailView({ data, actions, onBack, editMode, editItems, on
     const createdDate = new Date(order.created_at).toLocaleDateString('ar-EG-u-nu-latn')
     const filename = `${custName} - ${createdDate}.pdf`
     await downloadInvoicePdf(html, filename)
+  }
+
+  function handlePrepPrint() {
+    printPreparationPermit(data)
+  }
+
+  async function handlePrepDownload() {
+    await downloadPreparationPermitPdf(data)
   }
 
   function handleWhatsApp() {
@@ -360,7 +369,15 @@ export function OrderDetailView({ data, actions, onBack, editMode, editItems, on
       {/* Quick Actions */}
       <div className="bg-white rounded-lg border border-[#E5E7EB] shadow-sm p-4">
         <p className="text-[13px] font-bold text-[#111827] mb-3">إجراءات</p>
-        <div className="grid grid-cols-3 md:grid-cols-5 gap-2">
+        <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-2">
+          <button onClick={handlePrepPrint}
+            className="bg-[#0d2b6b] text-white text-[12px] py-2.5 rounded-lg active:opacity-90 transition-colors hover:bg-[#003366] font-medium h-[38px]">
+            إذن تحضير للمخزن
+          </button>
+          <button onClick={handlePrepDownload}
+            className="bg-[#0d2b6b]/80 text-white text-[12px] py-2.5 rounded-lg active:opacity-90 transition-colors hover:bg-[#003366]/80 font-medium h-[38px]">
+            تحميل إذن التحضير
+          </button>
           <button onClick={() => handlePdf(false)}
             className="bg-[#2563EB] text-white text-[12px] py-2.5 rounded-lg active:opacity-90 transition-colors hover:bg-[#1D4ED8] font-medium h-[38px]">
             PDF
