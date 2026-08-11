@@ -12,6 +12,7 @@ import { formatNumber } from '../../utils/numbers'
 import { buildSearchIndex, searchProducts, type ProductSearchIndex } from '../../utils/smartSearch'
 import type { ProductWithPrice, ProductUnitPrice, TierConfig, UnitType } from '../../types/storefront'
 import { DYNAMIC_COLLECTIONS, loadCollection, type CollectionStrategy } from '../../config/dynamicCollections'
+import { resolveConfiguredUnitTypes } from '../../utils/catalog'
 
 const UNIT_PRIORITY: UnitType[] = ['carton', 'dozen', 'piece']
 
@@ -100,8 +101,8 @@ export function StorefrontPage() {
         const cartonQuantity = Number(row.carton_quantity) || 0
         const piecePrice = Number(row.piece_price) || 0
         const dozenPrice = Number(row.dozen_price) || 0
-        const activeUnits = (row.product_units ?? []).filter((u: any) => u.is_active !== false)
-        const availableUnitTypes: UnitType[] = activeUnits.map((u: any) => u.unit_type)
+        const activeUnits = resolveConfiguredUnitTypes(row)
+        const availableUnitTypes: UnitType[] = activeUnits
         const allUnitPrices: ProductUnitPrice[] = [
           { unitType: 'piece', price: piecePrice },
           { unitType: 'dozen', price: dozenPrice },

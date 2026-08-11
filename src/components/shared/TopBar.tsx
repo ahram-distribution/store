@@ -1,6 +1,7 @@
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '../../store/auth'
 import { NotificationBell } from '../notifications/NotificationBell'
+import { isDeliveryStaffUser } from '../../utils/roleNormalization'
 
 export function TopBar() {
   const navigate = useNavigate()
@@ -10,6 +11,7 @@ export function TopBar() {
   const isStorefront = location.pathname.startsWith('/storefront')
   const isDashboard = location.pathname === '/dashboard'
   const isCreditCollector = user?.roles?.includes('معتمد ائتماني') ?? false
+  const isDeliveryStaff = user ? isDeliveryStaffUser(user) : false
 
   const handleLogout = async () => {
     await logout()
@@ -24,13 +26,13 @@ export function TopBar() {
         </div>
         <div className="flex items-center gap-1 shrink-0">
           <NotificationBell />
-          {!isCreditCollector && !isStorefront && (
+          {!isCreditCollector && !isDeliveryStaff && !isStorefront && (
             <button onClick={() => navigate('/storefront')}
               className="text-[10px] px-2.5 py-1 rounded-full transition-colors shrink-0 text-text-secondary border border-border">
               المتجر
             </button>
           )}
-          {!isCreditCollector && !isDashboard && (
+          {!isCreditCollector && !isDeliveryStaff && !isDashboard && (
             <button onClick={() => navigate('/dashboard')}
               className="text-[10px] px-2.5 py-1 rounded-full transition-colors shrink-0 text-text-secondary border border-border">
               لوحة التحكم

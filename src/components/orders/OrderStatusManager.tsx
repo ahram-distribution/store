@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { supabase } from '../../lib/supabase'
-import { ORDER_STATUS_LABELS, EXECUTION_GROUP } from '../../types/order-display'
+import { ORDER_STATUS_LABELS, EXECUTION_GROUP, USER_FACING_STATUS_ORDER, UPPER_MANAGEMENT_STATUS_ORDER } from '../../types/order-display'
+import { useUpperManagement } from '../../hooks/useUpperManagement'
 import { formatMixedQuantity } from '../../utils/quantity-format'
 import type { UnitType } from '../../types/storefront'
 
@@ -118,6 +119,7 @@ export function OrderStatusManager({ orderId, currentStatus, canReview, canAppro
   const [showRefModal, setShowRefModal] = useState(false)
   const [refNumber, setRefNumber] = useState('')
   const [pendingAdjustments, setPendingAdjustments] = useState<PendingAdjustment | null>(null)
+  const isUpperManagement = useUpperManagement()
 
   function getAllowedTargets(): OrderStatus[] {
     if (canManage) return ALL_STATUSES.filter(s => s !== currentStatus)
@@ -309,12 +311,21 @@ export function OrderStatusManager({ orderId, currentStatus, canReview, canAppro
   const targets = getAllowedTargets()
   if (targets.length === 0) { return null }
 
+  // "تغيير الحالة" control: the exact role order (7 user-facing first; Upper
+  // Management additionally gets the remaining operational statuses after
+  // "ملغى"). draft is never shown. Permission-driven transition buttons below
+  // keep their existing behavior untouched.
+  const statusOrder = isUpperManagement ? UPPER_MANAGEMENT_STATUS_ORDER : USER_FACING_STATUS_ORDER
+  const orderedTargets = targets
+    .filter((t) => statusOrder.includes(t as string))
+    .sort((a, b) => statusOrder.indexOf(a as string) - statusOrder.indexOf(b as string))
+
   const standardTransitions = targets.filter(t => !isExceptional(currentStatus, t))
   const exceptionalTransitions = targets.filter(t => isExceptional(currentStatus, t))
 
   return (
     <>
-      {canManage && targets.length > 1 && (
+      {canManage && orderedTargets.length > 1 && (
         <>
           <button onClick={() => setShowDropdown(true)} disabled={loading !== null}
             className="bg-purple-600 text-white text-xs px-3 py-2.5 rounded-lg active:opacity-90 disabled:opacity-40 inline-flex items-center justify-center gap-1 whitespace-nowrap">
@@ -334,7 +345,7 @@ export function OrderStatusManager({ orderId, currentStatus, canReview, canAppro
                   <button onClick={() => setShowDropdown(false)} className="text-text-secondary text-lg leading-none">&times;</button>
                 </div>
                 <div className="flex-1 overflow-y-auto min-h-0 p-3 pb-16 space-y-0.5">
-                  {targets.map(t => (
+                  {orderedTargets.map(t => (
                     <button key={t} onClick={() => { setShowDropdown(false); handleStatusChange(t) }} disabled={loading !== null}
                       className="w-full text-right px-4 py-2.5 text-xs rounded-xl hover:bg-surface active:bg-border transition-colors flex items-center justify-between">
                       <span>{ORDER_STATUS_LABELS[t] || t}</span>

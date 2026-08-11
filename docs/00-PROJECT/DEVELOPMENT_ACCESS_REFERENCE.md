@@ -241,6 +241,31 @@ npm run dev
 
 ---
 
+## GitHub Authentication
+
+- **Authentication method:** Fine-grained Personal Access Token.
+- **Scope:** Repository `ahram-distribution/store` only.
+- **Repository permissions granted:**
+  - Actions: Read & Write
+  - Administration: Read
+  - Contents: Read & Write
+  - Environments: Read
+  - Metadata: Read
+  - Pages: Read & Write
+  - Pull Requests: Read & Write
+  - Workflows: Read & Write
+- **Account permissions:** None.
+- **Storage policy:**
+  - Never store the token in the repository.
+  - Never commit the token.
+  - Never print the token in logs.
+  - Store it only in the local credential manager or local secure environment.
+- **Operational policy:**
+  - Use this token for all GitHub API operations and deployment tasks.
+  - If authentication fails, verify the token before investigating deployment issues.
+
+---
+
 ## 7. Access Verification Checklist
 
 - [x] **Source code access:** Git remote configured, `main` branch accessible

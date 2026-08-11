@@ -5,7 +5,7 @@ import { useCartStore } from '../store/cart'
 import { ErrorBoundary } from '../components/shared/ErrorBoundary'
 import { useLocation, useNavigate, Link } from 'react-router-dom'
 import { NotificationBell } from '../components/notifications/NotificationBell'
-import { normalizeEmployeeRole } from '../utils/roleNormalization'
+import { normalizeEmployeeRole, isDeliveryStaffUser, isUpperManagement } from '../utils/roleNormalization'
 import { SyncStatusPanel } from '../desktop/components/SyncStatusPanel'
 import { AppUpdater } from '../desktop/components/AppUpdater'
 
@@ -27,9 +27,18 @@ function useDesktopNavItems() {
     ]
   }
 
+  if (user && isDeliveryStaffUser(user)) {
+    return [
+      { label: 'الرئيسية', path: '/my-deliveries' },
+      { label: 'مهماتي', path: '/my-deliveries/tasks' },
+      { label: 'الحضور والانصراف', path: '/attendance' },
+    ]
+  }
+
   const userRoles = user?.roles || []
   const normalizedRoles = userRoles.map(normalizeEmployeeRole)
   const showSalesList = SALES_LIST_ROLES.some((r) => normalizedRoles.includes(r))
+  const showShipping = userRoles.some(isUpperManagement)
 
   const items = [
     { label: 'الرئيسية', path: '/dashboard' },
@@ -37,6 +46,10 @@ function useDesktopNavItems() {
     { label: 'الطلبات', path: '/orders' },
     { label: 'الزيارات', path: '/visits' },
   ]
+
+  if (showShipping) {
+    items.push({ label: 'رحلات التوصيل', path: '/shipping/journeys' })
+  }
 
   if (showSalesList) {
     items.push({ label: 'قائمة المبيعات', path: '/sales-list' })
@@ -53,6 +66,8 @@ export function DesktopAppLayout({ children }: DesktopAppLayoutProps) {
   const navigate = useNavigate()
   const navItems = useDesktopNavItems()
   const displayName = user?.full_name || 'الأهرام'
+  const isDeliveryStaff = user && isDeliveryStaffUser(user)
+  const homePath = isDeliveryStaff ? '/my-deliveries' : '/dashboard'
 
   const handleLogout = async () => {
     await logout()
@@ -78,7 +93,7 @@ export function DesktopAppLayout({ children }: DesktopAppLayoutProps) {
       <header className="desktop-topbar">
         <div className="desktop-topbar-inner">
           <div className="desktop-topbar-left">
-            <Link to="/dashboard" className="desktop-brand">
+            <Link to={homePath} className="desktop-brand">
               <span className="desktop-brand-icon">A</span>
               <span className="desktop-brand-text">الأهرام</span>
             </Link>
@@ -110,7 +125,7 @@ export function DesktopAppLayout({ children }: DesktopAppLayoutProps) {
                 </svg>
               </button>
             )}
-            {items.length > 0 && (
+            {!isDeliveryStaff && items.length > 0 && (
               <button
                 onClick={() => navigate('/cart')}
                 className="desktop-topbar-btn"

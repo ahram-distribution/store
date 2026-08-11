@@ -7,6 +7,8 @@ export type TargetRole =
   | 'سيلز داخلي'
   | 'عميل'
   | 'مدير عمليات تنفيذية'
+  | 'مندوب توصيل'
+  | 'سائق'
 
 const roleMapping: Record<string, TargetRole> = {
   'الإدارة العليا': 'الإدارة العليا',
@@ -31,6 +33,15 @@ const roleMapping: Record<string, TargetRole> = {
   'sales_rep': 'مندوب مبيعات',
   'salesrep': 'مندوب مبيعات',
   'مندوب': 'مندوب مبيعات',
+
+  'مندوب توصيل': 'مندوب توصيل',
+  'التوصيل': 'مندوب توصيل',
+  'delivery_rep': 'مندوب توصيل',
+  'deliveryrep': 'مندوب توصيل',
+
+  'سائق': 'سائق',
+  'driver': 'سائق',
+  'السائق': 'سائق',
 
   'general_supervisor': 'مشرف عام',
   'generalsupervisor': 'مشرف عام',
@@ -70,4 +81,22 @@ export function isExecutiveDirectorUser(user: { roles?: string[] } | null | unde
 
 export function isCustomer(identityType: string | undefined): boolean {
   return identityType === 'customer'
+}
+
+export function isDeliveryRep(roleName: string): boolean {
+  return normalizeEmployeeRole(roleName) === 'مندوب توصيل'
+}
+
+export function isDriver(roleName: string): boolean {
+  return normalizeEmployeeRole(roleName) === 'سائق'
+}
+
+export function isDeliveryStaff(roleName: string): boolean {
+  const r = normalizeEmployeeRole(roleName)
+  return r === 'مندوب توصيل' || r === 'سائق'
+}
+
+export function isDeliveryStaffUser(user: { identity_type: string; roles?: string[] } | null | undefined): boolean {
+  if (!user || user.identity_type !== 'employee') return false
+  return user.roles?.some((r) => isDeliveryStaff(r)) ?? false
 }

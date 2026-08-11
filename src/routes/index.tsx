@@ -37,6 +37,15 @@ import { CustomerAnalyticsPage } from '../pages/analytics/CustomerAnalyticsPage'
 import CustomerIntelligenceOverviewPage from '../pages/analytics/CustomerIntelligenceOverviewPage'
 import { CreditProgramsPage, CreditProgramsManagerPage, CreditApplicationsPage, CreditReviewPage, CustomerCreditPage, CreditManagementPage } from '../pages/credit'
 import { DeliveryDetailPage, CollectionFollowupPage } from '../pages/delivery'
+import { DeliveryStaffHome } from '../pages/delivery/DeliveryStaffHome'
+import { DeliveryOrdersPage } from '../pages/delivery/DeliveryOrdersPage'
+import { DeliveryOrderDetailPage } from '../pages/delivery/DeliveryOrderDetailPage'
+import { JourneyDetailPage } from '../pages/delivery/JourneyDetailPage'
+import { JourneyBuildPage } from '../pages/delivery/JourneyBuildPage'
+import { JourneyListPage } from '../pages/delivery/JourneyListPage'
+import { JourneyManagePage } from '../pages/delivery/JourneyManagePage'
+import { ShippingOrdersPage } from '../pages/delivery/ShippingOrdersPage'
+import { ShippingOrderDetailPage } from '../pages/delivery/ShippingOrderDetailPage'
 import { CollectorInvoicesPage, CreditInvoicesManagementPage, CreditInvoiceDetailsPage } from '../pages/credit-collection'
 import { WarehousePage, WarehouseReviewPage, WarehousePrepDetail } from '../pages/warehouse'
 import { EmployeesPage, EmployeeProfilePage, HierarchyPage, EmployeeManagementPage } from '../pages/employees'
@@ -66,6 +75,7 @@ import { NotificationInbox } from '../components/notifications/NotificationInbox
 import { GpsTestPage } from '../pages/diagnostics'
 import CoverageMapPage from '../pages/coverage/CoverageMapPage'
 import { DataDeletionCenter } from '../pages/data-center/DataDeletionCenter'
+import { isDeliveryStaffUser } from '../utils/roleNormalization'
 
 export function AppRoutes() {
   const { token } = useAuthStore()
@@ -92,11 +102,17 @@ export function AppRoutes() {
 
   const user = useAuthStore.getState().user
 
+  const defaultHome = user && isDeliveryStaffUser(user)
+    ? '/my-deliveries'
+    : user?.identity_type === 'employee'
+      ? '/dashboard'
+      : '/storefront'
+
   return (
     <Routes>
-      <Route path="/login" element={<Navigate to={user?.identity_type === 'employee' ? '/dashboard' : '/storefront'} replace />} />
+      <Route path="/login" element={<Navigate to={defaultHome} replace />} />
 
-      <Route path="/" element={<Navigate to={user?.identity_type === 'employee' ? '/dashboard' : '/storefront'} replace />} />
+      <Route path="/" element={<Navigate to={defaultHome} replace />} />
 
       {/* Protected routes */}
       <Route path="/dashboard" element={<ProtectedRoute employeeOnly><DashboardPage /></ProtectedRoute>} />
@@ -162,6 +178,16 @@ export function AppRoutes() {
       <Route path="/warehouse/prep/:id" element={<ProtectedRoute requireCapability="warehouse.prepare"><WarehousePrepDetail /></ProtectedRoute>} />
       <Route path="/delivery" element={<ProtectedRoute employeeOnly hideFromExecutiveDirector><ExecutiveOperationsWorkspace /></ProtectedRoute>} />
       <Route path="/delivery/:id" element={<ProtectedRoute requireCapability="delivery.deliver"><DeliveryDetailPage /></ProtectedRoute>} />
+      <Route path="/my-deliveries" element={<ProtectedRoute employeeOnly requireDeliveryStaff><DeliveryStaffHome /></ProtectedRoute>} />
+      <Route path="/my-deliveries/tasks" element={<ProtectedRoute employeeOnly requireDeliveryStaff><DeliveryOrdersPage /></ProtectedRoute>} />
+      <Route path="/my-deliveries/tasks/:journeyId" element={<ProtectedRoute employeeOnly requireDeliveryStaff><JourneyDetailPage /></ProtectedRoute>} />
+      <Route path="/my-deliveries/tasks/:journeyId/order/:deliveryId" element={<ProtectedRoute employeeOnly requireDeliveryStaff><DeliveryOrderDetailPage /></ProtectedRoute>} />
+      <Route path="/my-deliveries/:id" element={<ProtectedRoute employeeOnly requireDeliveryStaff><JourneyDetailPage /></ProtectedRoute>} />
+      <Route path="/shipping" element={<ProtectedRoute employeeOnly requireUpperManagement hideFromExecutiveDirector><ShippingOrdersPage /></ProtectedRoute>} />
+      <Route path="/shipping/journeys" element={<ProtectedRoute employeeOnly requireUpperManagement hideFromExecutiveDirector><JourneyListPage /></ProtectedRoute>} />
+      <Route path="/shipping/journeys/new" element={<ProtectedRoute employeeOnly requireUpperManagement hideFromExecutiveDirector><JourneyBuildPage /></ProtectedRoute>} />
+      <Route path="/shipping/journeys/:journeyId" element={<ProtectedRoute employeeOnly requireUpperManagement hideFromExecutiveDirector><JourneyManagePage /></ProtectedRoute>} />
+      <Route path="/shipping/:id" element={<ProtectedRoute employeeOnly requireUpperManagement hideFromExecutiveDirector><ShippingOrderDetailPage /></ProtectedRoute>} />
       <Route path="/collections/followup" element={<ProtectedRoute requireCapability="collections.read"><CollectionFollowupPage /></ProtectedRoute>} />
 
       <Route path="/employees" element={<ProtectedRoute requireCapability="employees.manage"><EmployeeManagementPage /></ProtectedRoute>} />

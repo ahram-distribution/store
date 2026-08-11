@@ -14,8 +14,8 @@ export type OrderStatus = (typeof OrderStatus)[keyof typeof OrderStatus]
 
 export const OrderStatusLabel: Record<OrderStatus, string> = {
   draft: 'مسودة',
-  submitted: 'مقدم',
-  reviewing: 'قيد المراجعة',
+  submitted: 'طلب شراء',
+  reviewing: 'تم القيد بالسيستم',
   approved: 'معتمد',
   rejected: 'مرفوض',
   preparing: 'قيد التحضير',

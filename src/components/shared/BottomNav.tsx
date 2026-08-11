@@ -1,6 +1,6 @@
 import { useLocation, Link } from 'react-router-dom'
 import { useAuthStore } from '../../store/auth'
-import { normalizeEmployeeRole } from '../../utils/roleNormalization'
+import { normalizeEmployeeRole, isDeliveryStaffUser } from '../../utils/roleNormalization'
 
 const SALES_LIST_ROLES = ['الإدارة العليا', 'مدير بيع', 'مندوب مبيعات']
 
@@ -18,6 +18,14 @@ function useNavItems() {
 
   const userRoles = user?.roles || []
   const normalizedRoles = userRoles.map(normalizeEmployeeRole)
+
+  if (isDeliveryStaffUser(user)) {
+    return [
+      { label: 'الرئيسية', path: '/my-deliveries', icon: 'H' },
+      { label: 'مهماتي', path: '/my-deliveries/tasks', icon: 'O' },
+      { label: 'الحضور والانصراف', path: '/attendance', icon: 'A' },
+    ]
+  }
 
   if (userRoles.includes('معتمد ائتماني')) {
     return [

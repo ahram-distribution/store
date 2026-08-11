@@ -79,9 +79,9 @@ export interface OrderDisplayData {
 
 export const ORDER_STATUS_LABELS: Record<string, string> = {
   draft: 'مسودة',
-  submitted: 'مقدم',
+  submitted: 'طلب شراء',
   sales_manager_approved: 'موافقة مدير البيع',
-  reviewing: 'قيد المراجعة',
+  reviewing: 'تم القيد بالسيستم',
   returned_for_revision: 'معاد للتعديل',
   approved: 'معتمد',
   preparing: 'قيد التجهيز',
@@ -136,6 +136,76 @@ export const EXECUTION_GROUP: ReadonlySet<string> = new Set([
   'dispatched',
   'delivered',
 ])
+
+/**
+ * The 7 approved user-facing statuses, in the exact order used by every
+ * user-facing Order status filter and status display ordering, for EVERY user
+ * (normal users and Upper Management alike). No fallback mapping to any of
+ * these exists: an order always shows the REAL label of its technical status.
+ */
+export const USER_FACING_STATUS_ORDER: readonly string[] = [
+  'submitted',
+  'sales_manager_approved',
+  'approved',
+  'reviewing',
+  'delivered',
+  'returned_for_revision',
+  'cancelled',
+]
+
+/**
+ * Remaining internal operational statuses. They are NOT user-facing filter
+ * options; they appear ONLY in Upper Management views and ONLY after "ملغى"
+ * (see UPPER_MANAGEMENT_STATUS_ORDER). draft is intentionally not included.
+ */
+export const OPERATIONAL_STATUS_ORDER: readonly string[] = [
+  'preparing',
+  'prepared',
+  'ready_for_dispatch',
+  'sent_to_delivery',
+  'dispatched',
+  'deferred',
+  'stock_review',
+]
+
+/**
+ * Upper Management full status sequence: the 7 user-facing statuses first,
+ * followed by the remaining operational statuses after "ملغى".
+ * draft is never part of any user-facing status list/filter/control.
+ */
+export const UPPER_MANAGEMENT_STATUS_ORDER: readonly string[] = [
+  ...USER_FACING_STATUS_ORDER,
+  ...OPERATIONAL_STATUS_ORDER,
+]
+
+/** Effective Arabic status label shown in the UI (real label, no fallback mapping). */
+export function visibleStatusLabel(status: string): string {
+  return ORDER_STATUS_LABELS[status] || status || ''
+}
+
+export interface StatusFilterOption {
+  value: string
+  label: string
+}
+
+/**
+ * Status filter/selector options.
+ * - Normal users: exactly the 7 user-facing statuses.
+ * - Upper Management: the same 7 first, then the remaining operational
+ *   statuses after "ملغى". draft is never offered.
+ */
+export function statusFilterOptions(isUpperManagement = false): StatusFilterOption[] {
+  const order = isUpperManagement ? UPPER_MANAGEMENT_STATUS_ORDER : USER_FACING_STATUS_ORDER
+  return [
+    { value: '', label: 'كل الحالات' },
+    ...order.map((s) => ({ value: s, label: ORDER_STATUS_LABELS[s] || s })),
+  ]
+}
+
+/** Display order for status summaries (KPI chips) — same role rule as filters. */
+export function statusDisplayOrder(isUpperManagement = false): readonly string[] {
+  return isUpperManagement ? UPPER_MANAGEMENT_STATUS_ORDER : USER_FACING_STATUS_ORDER
+}
 
 /**
  * Build a unified OrderDisplayData.
@@ -243,7 +313,7 @@ export function buildOrderDisplayData(params: {
     orderId: o.id,
     orderNumber: o.order_number || '',
     status: o.status || '',
-    statusLabel: ORDER_STATUS_LABELS[o.status] || o.status || '',
+    statusLabel: visibleStatusLabel(o.status || ''),
     docType,
     createdAt: o.created_at || '',
 

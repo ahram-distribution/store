@@ -100,7 +100,7 @@ export function DesktopDashboard() {
           rejected: '#DC2626', cancelled: '#94A3B8', reviewing: '#D97706',
         }
         const statusLabels: Record<string, string> = {
-          draft: 'مسودة', submitted: 'مقدم', sales_manager_approved: 'موافقة مدير البيع', reviewing: 'قيد المراجعة',
+          draft: 'مسودة', submitted: 'طلب شراء', sales_manager_approved: 'موافقة مدير البيع', reviewing: 'تم القيد بالسيستم',
           approved: 'معتمد', preparing: 'قيد التحضير', dispatched: 'تم الشحن',
           delivered: 'تم التسليم', rejected: 'مرفوض', cancelled: 'ملغي',
         }

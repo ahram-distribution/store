@@ -2,7 +2,7 @@ import { Navigate } from 'react-router-dom'
 import { useAuthStore } from '../../store/auth'
 import { useState, useEffect } from 'react'
 import { authService } from '../../services/auth'
-import { isUpperManagement, isExecutiveDirectorUser } from '../../utils/roleNormalization'
+import { isUpperManagement, isExecutiveDirectorUser, isDeliveryStaffUser } from '../../utils/roleNormalization'
 
 function isUpperManagementUser(user: { identity_type: string; code?: string; roles?: string[] } | null): boolean {
   if (!user || user.identity_type !== 'employee') return false
@@ -15,10 +15,11 @@ interface ProtectedRouteProps {
   employeeOnly?: boolean
   customerOnly?: boolean
   requireUpperManagement?: boolean
+  requireDeliveryStaff?: boolean
   hideFromExecutiveDirector?: boolean
 }
 
-export function ProtectedRoute({ children, requireCapability, employeeOnly, customerOnly, requireUpperManagement, hideFromExecutiveDirector }: ProtectedRouteProps) {
+export function ProtectedRoute({ children, requireCapability, employeeOnly, customerOnly, requireUpperManagement, requireDeliveryStaff, hideFromExecutiveDirector }: ProtectedRouteProps) {
   const { user, token } = useAuthStore()
   const [capabilityOk, setCapabilityOk] = useState<boolean | null>(null)
 
@@ -41,6 +42,10 @@ export function ProtectedRoute({ children, requireCapability, employeeOnly, cust
     }
     if (requireUpperManagement) {
       setCapabilityOk(isUpperManagementUser(user))
+      return
+    }
+    if (requireDeliveryStaff) {
+      setCapabilityOk(isDeliveryStaffUser(user))
       return
     }
     if (requireCapability) {
@@ -67,7 +72,7 @@ export function ProtectedRoute({ children, requireCapability, employeeOnly, cust
   }
 
   if (!capabilityOk) {
-    const redirect = user.identity_type === 'employee' ? '/dashboard' : '/storefront'
+    const redirect = user.identity_type === 'employee' ? (isDeliveryStaffUser(user) ? '/my-deliveries' : '/dashboard') : '/storefront'
     return <Navigate to={redirect} replace />
   }
 

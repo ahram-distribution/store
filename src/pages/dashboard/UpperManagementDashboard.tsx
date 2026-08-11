@@ -39,6 +39,7 @@ export default function UpperManagementDashboard() {
   const [achievementPct, setAchievementPct] = useState(0)
   const [dashMgmt, setDashMgmt] = useState<DashMgmt | null>(null)
   const [showReportsCenter, setShowReportsCenter] = useState(false)
+  const [shippingCount, setShippingCount] = useState(0)
   const unseenOrdersCount = useEntityViewsStore((s) => s.unseenOrdersCount)
   const unseenCustomersCount = useEntityViewsStore((s) => s.unseenCustomersCount)
   const fetchUnseenCounts = useEntityViewsStore((s) => s.fetchUnseenCounts)
@@ -60,6 +61,10 @@ export default function UpperManagementDashboard() {
       if (!mgmtResult.error && mgmtResult.data) setDashMgmt(mgmtResult.data as DashMgmt)
     })
 
+    supabase.rpc('governed_get_shipping_orders', { p_token: token, p_filter: null }).then((shResult: any) => {
+      if (!shResult.error && Array.isArray(shResult.data)) setShippingCount(shResult.data.length)
+    })
+
     fetchUnseenCounts(token)
   }, [])
 
@@ -70,6 +75,7 @@ export default function UpperManagementDashboard() {
     { icon: '📍', label: 'الانتشار', path: '/coverage-map' },
     { icon: '📍', label: 'الزيارات', path: '/launcher/visits', isSubLauncher: true, badge: dashMgmt?.active_visits },
     { icon: '👥', label: 'العملاء', path: '/launcher/customers', isSubLauncher: true, badge: unseenCustomersCount },
+    { icon: '🚚', label: 'شحن الطلبات', path: '/shipping', badge: shippingCount },
     { icon: '👤', label: 'الموظفون', path: '/launcher/employees', isSubLauncher: true },
     { icon: '⏱️', label: 'الحضور والانصراف', path: '/attendance' },
     { icon: '📦', label: 'المخزون', path: '/launcher/inventory', isSubLauncher: true },

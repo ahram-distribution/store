@@ -12,6 +12,8 @@ import { ActiveFilters } from '../../components/data-list/ActiveFilters'
 import { CardGrid } from '../../components/data-list/CardGrid'
 import { EmptyState } from '../../components/data-list/EmptyState'
 import { StatusKpiBar } from '../../components/data-list/StatusKpiBar'
+import { ORDER_STATUS_LABELS, statusFilterOptions, statusDisplayOrder, visibleStatusLabel } from '../../types/order-display'
+import { useUpperManagement } from '../../hooks/useUpperManagement'
 import type { ActiveFilterItem, KpiChipConfig } from '../../types/data-list'
 
 function getToken(): string | null {
@@ -29,24 +31,6 @@ const datePresetLabels: Record<string, string> = {
   prev_month: 'الشهر السابق',
   custom: 'الفترة المخصصة',
 }
-
-const STATUS_OPTIONS = [
-  { value: '', label: 'كل الحالات' },
-  { value: 'draft', label: 'مسودة' },
-  { value: 'submitted', label: 'مقدم' },
-  { value: 'sales_manager_approved', label: 'موافقة مدير البيع' },
-  { value: 'reviewing', label: 'قيد المراجعة' },
-  { value: 'returned_for_revision', label: 'معاد للتعديل' },
-  { value: 'approved', label: 'معتمد' },
-  { value: 'preparing', label: 'قيد التجهيز' },
-  { value: 'prepared', label: 'تم التجهيز' },
-  { value: 'ready_for_dispatch', label: 'بانتظار قرار الشحن' },
-  { value: 'sent_to_delivery', label: 'أرسل للتوصيل' },
-  { value: 'dispatched', label: 'تم الشحن' },
-  { value: 'deferred', label: 'مؤجل' },
-  { value: 'cancelled', label: 'ملغي' },
-  { value: 'delivered', label: 'تم التسليم' },
-]
 
 const ORDER_TYPE_OPTIONS = [
   { value: '', label: 'كل الأنواع' },
@@ -74,6 +58,7 @@ const STATUS_KPI_GROUPS: Record<string, { dot: string; chip: string; active: str
 
 export function OrdersPage() {
   const navigate = useNavigate()
+  const isUpperManagement = useUpperManagement()
   const currentUserId = useAuthStore((s) => s.user?.identity_id)
   const currentEmpId = useAuthStore((s) => s.user?.employee_id)
   const unseenOrderIds = useEntityViewsStore((s) => s.unseenOrderIds)
@@ -95,6 +80,8 @@ export function OrdersPage() {
   })
   const { tab, statusFilter, customerFilter, orderTypeFilter, governorateFilter, filters } = viewState
   const [sfResetKey, setSfResetKey] = useState(0)
+
+  const STATUS_OPTIONS = useMemo(() => statusFilterOptions(isUpperManagement), [isUpperManagement])
 
   const smartFilterEmployees = useMemo(
     () => employees.map(e => ({ id: e.identity_id || e.id, name: e.full_name })),
@@ -196,7 +183,7 @@ export function OrdersPage() {
     }
 
     if (statusFilter) {
-      const label = STATUS_OPTIONS.find((o) => o.value === statusFilter)?.label || statusFilter
+      const label = STATUS_OPTIONS.find((o) => o.value === statusFilter)?.label || visibleStatusLabel(statusFilter) || statusFilter
       items.push({ id: 'status', label: 'الحالة', value: label, onRemove: () => setViewState({ statusFilter: '' }) })
     }
 
@@ -216,26 +203,20 @@ export function OrdersPage() {
     }
 
     return items
-  }, [tab, filters, statusFilter, customerFilter, employees, customers, governorateFilter, governorates])
-
-  const statusCounts = useMemo(() => {
-    const counts: Record<string, number> = {}
-    for (const order of sorted) {
-      const s = order.status
-      counts[s] = (counts[s] || 0) + 1
-    }
-    return counts
-  }, [sorted])
+  }, [tab, filters, statusFilter, customerFilter, employees, customers, governorateFilter, governorates, STATUS_OPTIONS])
 
   const kpiChips: KpiChipConfig[] = useMemo(() => {
+    const statusCounts: Record<string, number> = {}
+    const orderList = statusDisplayOrder(isUpperManagement)
+    for (const order of sorted) {
+      if (!orderList.includes(order.status)) continue
+      statusCounts[order.status] = (statusCounts[order.status] || 0) + 1
+    }
     return Object.entries(statusCounts)
       .filter(([, count]) => count > 0)
-      .sort(([a], [b]) => {
-        const order = ['draft', 'submitted', 'reviewing', 'returned_for_revision', 'approved', 'preparing', 'prepared', 'ready_for_dispatch', 'sent_to_delivery', 'dispatched', 'delivered', 'deferred', 'cancelled']
-        return order.indexOf(a) - order.indexOf(b)
-      })
+      .sort(([a], [b]) => orderList.indexOf(a) - orderList.indexOf(b))
       .map(([status, count]) => {
-        const label = STATUS_OPTIONS.find((o) => o.value === status)?.label || status
+        const label = ORDER_STATUS_LABELS[status] || status
         const group = STATUS_KPI_GROUPS[status] || STATUS_KPI_GROUPS.draft
         return {
           id: status,
@@ -246,7 +227,7 @@ export function OrdersPage() {
           activeChipClass: group.active,
         }
       })
-  }, [statusCounts])
+  }, [sorted, isUpperManagement])
 
   const dateRangeStr = filters.datePreset === 'custom'
     ? (filters.dateFrom || '...') + ' → ' + (filters.dateTo || '...')

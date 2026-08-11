@@ -39,7 +39,7 @@ const STATUS_FILTERS: Record<string, { value: string; label: string }[]> = {
   orders: [
     { value: '', label: 'الكل' },
     { value: 'draft', label: 'مسودة' },
-    { value: 'submitted', label: 'مقدم' },
+    { value: 'submitted', label: 'طلب شراء' },
     { value: 'approved', label: 'معتمد' },
     { value: 'preparing', label: 'قيد التجهيز' },
     { value: 'prepared', label: 'تم التجهيز' },
@@ -209,6 +209,8 @@ export function DataDeletionCenter() {
     workday_breaks: 'استراحات',
     visit_links: 'روابط الزيارات',
     delivery_tracking: 'تتبع التوصيل',
+    delivery_actions: 'إجراءات التوصيل',
+    journey_orders: 'طلبات في رحلات التوصيل',
     preparation_records: 'سجلات التجهيز',
     treasury_transactions: 'معاملات الخزينة',
     order_status_history: 'تاريخ حالة الطلب',

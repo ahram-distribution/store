@@ -102,8 +102,8 @@ export function isOrderCancelled(status?: string | null): boolean {
 
 export const ORDER_STATE_LABELS: Record<OrderState, string> = {
   draft: 'مسودة',
-  submitted: 'مقدم',
-  reviewing: 'قيد المراجعة',
+  submitted: 'طلب شراء',
+  reviewing: 'تم القيد بالسيستم',
   returned_for_revision: 'معاد للتعديل',
   approved: 'معتمد',
   preparing: 'قيد التجهيز',

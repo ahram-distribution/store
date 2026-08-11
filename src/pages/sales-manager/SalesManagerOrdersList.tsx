@@ -7,6 +7,7 @@ import SmartFilterBar, { type FilterValues } from '../../components/SmartFilterB
 import { resolveDateRangeISO } from '../../lib/dateRange'
 import { usePersistentViewState } from '../../hooks/usePersistentViewState'
 import { OrderOwnershipInfo } from '../../components/orders/OrderOwnershipInfo'
+import { ORDER_STATUS_LABELS } from '../../types/order-display'
 
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
@@ -14,18 +15,22 @@ function getToken(): string | null {
 
 const fmt = (n: number) => formatNumber(n)
 
-const STATUS_LABELS: Record<string, string> = {
-  pending: 'قيد الانتظار', approved: 'معتمد', submitted: 'مرسل', sales_manager_approved: 'موافقة مدير البيع',
-  delivered: 'تم التسليم', cancelled: 'ملغي', returned: 'مرتجع',
-  draft: 'مسودة', revision: 'مراجعة',
-}
-
 const STATUS_COLORS: Record<string, string> = {
-  pending: 'bg-amber-100 text-amber-800', approved: 'bg-green-100 text-green-800',
-  submitted: 'bg-blue-100 text-blue-800', sales_manager_approved: 'bg-blue-100 text-blue-800',
+  draft: 'bg-gray-100 text-gray-600',
+  submitted: 'bg-blue-100 text-blue-800',
+  sales_manager_approved: 'bg-blue-100 text-blue-800',
+  reviewing: 'bg-blue-100 text-blue-800',
+  returned_for_revision: 'bg-purple-100 text-purple-800',
+  approved: 'bg-green-100 text-green-800',
+  preparing: 'bg-green-100 text-green-800',
+  prepared: 'bg-green-100 text-green-800',
+  ready_for_dispatch: 'bg-green-100 text-green-800',
+  sent_to_delivery: 'bg-green-100 text-green-800',
+  dispatched: 'bg-green-100 text-green-800',
   delivered: 'bg-emerald-100 text-emerald-800',
-  cancelled: 'bg-red-100 text-red-800', returned: 'bg-purple-100 text-purple-800',
-  draft: 'bg-gray-100 text-gray-600', revision: 'bg-orange-100 text-orange-800',
+  deferred: 'bg-gray-100 text-gray-600',
+  cancelled: 'bg-red-100 text-red-800',
+  stock_review: 'bg-blue-100 text-blue-800',
 }
 
 export default function SalesManagerOrdersList() {
@@ -101,7 +106,7 @@ export default function SalesManagerOrdersList() {
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-bold text-text">{o.order_number}</span>
                 <span className={`text-[10px] px-2 py-0.5 rounded font-semibold ${STATUS_COLORS[o.status] || 'bg-gray-100 text-text-secondary'}`}>
-                  {STATUS_LABELS[o.status] || o.status}
+                  {ORDER_STATUS_LABELS[o.status] || o.status}
                 </span>
               </div>
               <p className="text-sm font-bold text-text mb-1">{o.customer_name}</p>

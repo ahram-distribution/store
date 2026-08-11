@@ -10,7 +10,7 @@ import UpperManagementDashboard from './UpperManagementDashboard'
 import { WarehouseManagerWorkspace } from './WarehouseManagerWorkspace'
 import { ExecutiveOperationsWorkspace } from './ExecutiveOperationsWorkspace'
 
-import { normalizeEmployeeRole, type TargetRole } from '../../utils/roleNormalization'
+import { normalizeEmployeeRole, isDeliveryStaffUser, type TargetRole } from '../../utils/roleNormalization'
 
 const WORKSPACE_HIERARCHY: { target: TargetRole; component: React.ReactNode }[] = [
   { target: 'الإدارة العليا', component: <UpperManagementDashboard /> },
@@ -38,6 +38,10 @@ export function DashboardPage() {
   const user = useAuthStore((s) => s.user)
   const empCode = user?.code as string | undefined
   const roles = user?.roles ?? []
+
+  if (user && isDeliveryStaffUser(user)) {
+    return <Navigate to="/my-deliveries" replace />
+  }
 
   if (empCode === 'WRQ1001') {
     return <WarehouseDashboard />
