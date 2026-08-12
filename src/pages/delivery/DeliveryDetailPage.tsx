@@ -91,6 +91,7 @@ export function DeliveryDetailPage() {
           canCompletePreparation={false}
           canSendToDelivery={false}
           canManage={true}
+          referenceNumber={detail.order?.reference_number ?? null}
           onSuccess={() => load()}
           onError={(err) => toast.error(err)}
         />

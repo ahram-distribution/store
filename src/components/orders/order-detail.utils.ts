@@ -29,6 +29,7 @@ export interface TimelineEvent {
   reason?: string | null
   fromStatus?: string | null
   toStatus?: string | null
+  referenceNumber?: string | null
   itemChanges?: ItemChange[]
 }
 
@@ -147,6 +148,7 @@ export function buildTimelineEvents(data: UnifiedOrder): TimelineEvent[] {
       reason: systemLabel || h.reason,
       fromStatus: h.from_status,
       toStatus: h.to_status,
+      referenceNumber: h.to_status === 'reviewing' ? h.reference_number : null,
     })
   }
 

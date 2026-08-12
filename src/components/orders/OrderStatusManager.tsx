@@ -84,6 +84,7 @@ interface OrderStatusManagerProps {
   canCompletePreparation: boolean
   canSendToDelivery: boolean
   canManage: boolean
+  referenceNumber?: string | null
   onSuccess?: (newStatus: string) => void
   onError?: (error: string) => void
   onShortage?: (shortages: ShortageEntry[], details?: string) => void
@@ -109,7 +110,7 @@ function isExceptional(from: string, to: string): boolean {
   return false
 }
 
-export function OrderStatusManager({ orderId, currentStatus, canReview, canApprove, canCompletePreparation, canSendToDelivery, canManage, onSuccess, onError, onShortage }: OrderStatusManagerProps) {
+export function OrderStatusManager({ orderId, currentStatus, canReview, canApprove, canCompletePreparation, canSendToDelivery, canManage, referenceNumber, onSuccess, onError, onShortage }: OrderStatusManagerProps) {
   const [loading, setLoading] = useState<string | null>(null)
   const [showReasonModal, setShowReasonModal] = useState<string | null>(null)
   const [reason, setReason] = useState('')
@@ -118,8 +119,13 @@ export function OrderStatusManager({ orderId, currentStatus, canReview, canAppro
   const [returnReason, setReturnReason] = useState('')
   const [showRefModal, setShowRefModal] = useState(false)
   const [refNumber, setRefNumber] = useState('')
+  const [pendingRefNumber, setPendingRefNumber] = useState('')
   const [pendingAdjustments, setPendingAdjustments] = useState<PendingAdjustment | null>(null)
   const isUpperManagement = useUpperManagement()
+
+  function hasExistingReferenceNumber(): boolean {
+    return typeof referenceNumber === 'string' && referenceNumber.trim().length > 0
+  }
 
   function getAllowedTargets(): OrderStatus[] {
     if (canManage) return ALL_STATUSES.filter(s => s !== currentStatus)
@@ -145,7 +151,7 @@ export function OrderStatusManager({ orderId, currentStatus, canReview, canAppro
     const token = getToken()
     if (!token) return
 
-    if (currentStatus === 'sales_manager_approved' && target === 'reviewing') {
+    if (target === 'reviewing' && !hasExistingReferenceNumber()) {
       setShowRefModal(true)
       return
     }
@@ -160,16 +166,24 @@ export function OrderStatusManager({ orderId, currentStatus, canReview, canAppro
 
   async function handleRefConfirm() {
     if (!refNumber.trim()) return
+    const ref = refNumber.trim()
     setShowRefModal(false)
-    await executeChange('reviewing', null, refNumber.trim())
     setRefNumber('')
+    if (isExceptional(currentStatus, 'reviewing')) {
+      setPendingRefNumber(ref)
+      setShowReasonModal('reviewing')
+      return
+    }
+    await executeChange('reviewing', null, ref)
   }
 
   async function handleReasonConfirm() {
     if (!showReasonModal || !reason.trim()) return
-    await executeChange(showReasonModal, reason.trim())
+    const ref = pendingRefNumber
+    await executeChange(showReasonModal, reason.trim(), ref ? ref : undefined)
     setShowReasonModal(null)
     setReason('')
+    setPendingRefNumber('')
   }
 
   async function executeChange(target: string, reasonText: string | null, referenceNumber?: string) {
@@ -411,7 +425,7 @@ export function OrderStatusManager({ orderId, currentStatus, canReview, canAppro
             <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={3} placeholder="الرجاء كتابة سبب التغيير..."
               className="w-full border border-border rounded-lg px-3 py-2 text-xs bg-white resize-none" />
             <div className="flex gap-2">
-              <button onClick={() => { setShowReasonModal(null); setReason('') }}
+              <button onClick={() => { setShowReasonModal(null); setReason(''); setPendingRefNumber('') }}
                 className="flex-1 bg-surface text-text text-xs py-2.5 rounded-lg active:opacity-80 transition-opacity">إلغاء</button>
               <button onClick={handleReasonConfirm} disabled={!reason.trim() || loading !== null}
                 className="flex-1 bg-purple-600 text-white text-xs py-2.5 rounded-lg active:opacity-90 disabled:opacity-40">تأكيد</button>

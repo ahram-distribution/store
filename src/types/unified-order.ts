@@ -141,6 +141,7 @@ export interface UnifiedStatusHistoryEntry {
   changed_at: string
   changed_by_name: string | null
   reason: string | null
+  reference_number: string | null
 }
 
 export interface UnifiedDeliveryTracking {

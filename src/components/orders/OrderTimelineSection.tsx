@@ -89,9 +89,14 @@ export function OrderTimelineSection({ timelineEvents }: OrderTimelineSectionPro
                   <span className="text-[#6B7280] text-[12px]">{formatDateTime(ev.timestamp)}</span>
                   {ev.actor && <span className="text-[#6B7280] text-[11px]">— {ev.actor}</span>}
                 </div>
-                {(ev.reason || ev.itemChanges) && (
+                {(ev.reason || ev.itemChanges || ev.referenceNumber) && (
                   <div className="mt-1.5 space-y-0.5">
                     {ev.reason && <div className="text-[12px] text-[#6B7280]">الملاحظة: {ev.reason}</div>}
+                    {ev.referenceNumber && (
+                      <div className="text-[12px] text-[#6B7280]">
+                        الرقم المرجعى: <span className="font-mono font-semibold text-[#111827]">{ev.referenceNumber}</span>
+                      </div>
+                    )}
                     {ev.itemChanges?.map((ch, i) => <ItemChangeRow key={i} change={ch} />)}
                   </div>
                 )}

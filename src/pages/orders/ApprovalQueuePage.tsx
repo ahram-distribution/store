@@ -96,6 +96,7 @@ export function ApprovalQueuePage() {
                   canCompletePreparation={false}
                   canSendToDelivery={false}
                   canManage={canManage}
+                  referenceNumber={o.reference_number}
                   onSuccess={() => {
                     toast.success('تم تحديث حالة الطلب')
                     setOrders((prev) => prev.filter((x) => x.id !== o.id))

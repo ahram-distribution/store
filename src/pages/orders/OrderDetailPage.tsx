@@ -816,6 +816,7 @@ export function OrderDetailPage() {
               canCompletePreparation={canCompletePreparation}
               canSendToDelivery={canSendToDelivery}
               canManage={canManage}
+              referenceNumber={data!.order.reference_number}
               onSuccess={handleStatusSuccess}
               onError={handleStatusError}
               onShortage={handleShortage}
