@@ -50,14 +50,21 @@ interface DrillDownProps {
   orders: any[]
   orderItems: any[]
   filterDelivered?: boolean
+  aggregateMode?: 'orders' | 'items'
   onClose: () => void
   onNavigate: (orderId: string) => void
 }
 
-function DrillDownModal({ type, entityName, orders, orderItems, filterDelivered, onClose, onNavigate }: DrillDownProps) {
+function DrillDownModal({ type, entityName, orders, orderItems, filterDelivered, aggregateMode, onClose, onNavigate }: DrillDownProps) {
   const sourceOrders = useMemo(() => {
     const filtered = filterDelivered ? filterDeliveredOrders(orders) : orders
     const map = new Map<string, DrillDownSourceOrder>()
+    const itemsByOrder = new Map<string, any[]>()
+    for (const item of orderItems) {
+      const list = itemsByOrder.get(item.order_id)
+      if (list) list.push(item)
+      else itemsByOrder.set(item.order_id, [item])
+    }
 
     if (type === 'customer') {
       for (const order of filtered) {
@@ -129,20 +136,27 @@ function DrillDownModal({ type, entityName, orders, orderItems, filterDelivered,
       }
     } else {
       for (const order of filtered) {
-        map.set(order.id, {
+        const entry: DrillDownSourceOrder = {
           id: order.id,
           order_number: order.order_number,
           customer_name: order.customer_name,
           total_amount: Number(order.total_amount) || 0,
           created_at: order.created_at,
           status: order.status,
-          matched_total: Number(order.total_amount) || 0,
-        })
+        }
+        if (aggregateMode === 'items') {
+          const orderLines = itemsByOrder.get(order.id) || []
+          entry.items = orderLines
+          entry.matched_total = orderLines.reduce((sum, it) => sum + (Number(it.total_price) || 0), 0)
+        } else {
+          entry.matched_total = Number(order.total_amount) || 0
+        }
+        map.set(order.id, entry)
       }
     }
 
     return Array.from(map.values()).sort((a, b) => ((b.created_at || '') > (a.created_at || '') ? 1 : -1))
-  }, [type, entityName, orders, orderItems, filterDelivered])
+  }, [type, entityName, orders, orderItems, filterDelivered, aggregateMode])
 
   const totalMatched = useMemo(() => sourceOrders.reduce((sum, o) => sum + (o.matched_total || 0), 0), [sourceOrders])
 
@@ -273,6 +287,36 @@ function GrandTotalFooter({ totalActivity, totalTarget, onClick, onTargetClick }
   )
 }
 
+/* ── Entities Source Modal (source records behind the count KPI) ── */
+function EntitiesSourceModal({ label, rows, onClose }: { label: string; rows: EntityRow[]; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={onClose}>
+      <div
+        className="bg-white rounded-2xl shadow-xl w-full max-w-md mx-4 max-h-[85vh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between p-4 border-b border-border">
+          <div>
+            <div className="text-sm font-bold text-text">عدد {label}: {rows.length}</div>
+            <div className="text-[11px] text-text-secondary mt-0.5">قائمة {label} المضمّنة في هذا العدد</div>
+          </div>
+          <button onClick={onClose} className="text-text-secondary hover:text-text text-lg leading-none p-1">&times;</button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-4 space-y-1.5">
+          {rows.length === 0 ? (
+            <div className="text-center py-8 text-text-secondary text-sm">لا توجد بيانات</div>
+          ) : rows.map((row) => (
+            <div key={row.name} className="flex items-center justify-between bg-surface rounded-lg border border-border px-3 py-2">
+              <span className="text-xs font-semibold text-text truncate" title={row.name}>{row.name}</span>
+              <span className="text-xs font-bold text-primary shrink-0 ml-2">{formatCurrencyWhole(row.activity)}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /* ── Main Page ── */
 export function SalesAnalyticsPage() {
   const navigate = useNavigate()
@@ -282,10 +326,11 @@ export function SalesAnalyticsPage() {
   const [analyticsData, setAnalyticsData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [employees, setEmployees] = useState<any[]>([])
-  const [drillDownParams, setDrillDownParams] = useState<{ type: 'customer' | 'company' | 'product' | 'all'; entityName: string; filterDelivered?: boolean } | null>(null)
+  const [drillDownParams, setDrillDownParams] = useState<{ type: 'customer' | 'company' | 'product' | 'all'; entityName: string; filterDelivered?: boolean; aggregateMode?: 'orders' | 'items' } | null>(null)
   const [drillDownOrders, setDrillDownOrders] = useState<any[] | null>(null)
   const [drillDownItems, setDrillDownItems] = useState<any[] | null>(null)
   const [drillDownLoading, setDrillDownLoading] = useState(false)
+  const [countSourceOpen, setCountSourceOpen] = useState(false)
 
   const scope = ((location.state as { scope?: string })?.scope ?? 'company') as 'company' | 'team' | 'self'
 
@@ -400,15 +445,25 @@ export function SalesAnalyticsPage() {
     setDrillDownLoading(true)
 
     const range = resolveDateRange(filters)
-
-    supabase.rpc('get_sales_analytics_drilldown', {
+    const drillParams: any = {
       p_token: token.trim(),
       p_entity_type: drillDownParams.type,
       p_entity_name: drillDownParams.entityName,
       p_filter_delivered: drillDownParams.filterDelivered || false,
       p_date_from: range.from,
       p_date_to: range.to,
-    }).then(({ data }) => {
+    }
+    if (filters.employeeId) {
+      drillParams.p_owner_id = filters.employeeId
+    } else if (managerTeamIds) {
+      drillParams.p_owner_ids = managerTeamIds
+    }
+    const searchApplies = drillDownParams.type === 'customer' || (drillDownParams.type === 'all' && activeTab === 'customers')
+    if (searchApplies && filters.search) {
+      drillParams.p_search = filters.search
+    }
+
+    supabase.rpc('get_sales_analytics_drilldown', drillParams).then(({ data }) => {
       if (cancelled) return
       if (data) {
         setDrillDownOrders(Array.isArray(data.orders) ? data.orders : [])
@@ -421,7 +476,7 @@ export function SalesAnalyticsPage() {
     })
 
     return () => { cancelled = true }
-  }, [drillDownParams])
+  }, [drillDownParams, filters, managerTeamIds, activeTab])
 
   /* ── Derive active rows from pre-aggregated data ── */
   const customerAgg: EntityRow[] = useMemo(() => {
@@ -459,8 +514,13 @@ export function SalesAnalyticsPage() {
   const tabEntityLabel = activeTab === 'customers' ? 'العملاء' : activeTab === 'companies' ? 'الشركات' : 'الأصناف'
 
   const openDrillDown = useCallback((type: 'customer' | 'company' | 'product' | 'all', entityName: string, filterDelivered?: boolean) => {
-    setDrillDownParams({ type, entityName, filterDelivered })
-  }, [])
+    setDrillDownParams({
+      type,
+      entityName,
+      filterDelivered,
+      aggregateMode: type === 'all' ? (activeTab === 'customers' ? 'orders' : 'items') : undefined,
+    })
+  }, [activeTab])
 
   const handleNavigateOrder = useCallback((orderId: string) => {
     setDrillDownParams(null)
@@ -524,7 +584,7 @@ export function SalesAnalyticsPage() {
 
       {/* ── Tab Header Summary ── */}
       <div className="flex items-center gap-4 text-xs text-text-secondary px-1">
-        <span>عدد {tabEntityLabel}: <strong className="text-text">{activeRows.length}</strong></span>
+        <span>عدد {tabEntityLabel}: <button onClick={() => setCountSourceOpen(true)} className="text-text font-bold cursor-pointer hover:underline">{activeRows.length}</button></span>
         <span>النشاط: <button onClick={() => openDrillDown('all', '')} className="text-primary font-bold cursor-pointer hover:underline">{formatCurrencyWhole(totalActivity)}</button></span>
         <span>المنفذ فعلي: <button onClick={() => openDrillDown('all', '', true)} className="text-success font-bold cursor-pointer hover:underline">{formatCurrencyWhole(totalTarget)}</button></span>
       </div>
@@ -567,11 +627,15 @@ export function SalesAnalyticsPage() {
             orders={drillDownOrders || []}
             orderItems={drillDownItems || []}
             filterDelivered={drillDownParams.filterDelivered}
+            aggregateMode={drillDownParams.aggregateMode}
             onClose={() => setDrillDownParams(null)}
             onNavigate={handleNavigateOrder}
           />
         )
       )}
+
+      {/* ── Entities Source Modal (for the count KPI) ── */}
+      {countSourceOpen && <EntitiesSourceModal label={tabEntityLabel} rows={activeRows} onClose={() => setCountSourceOpen(false)} />}
     </div>
   )
 }

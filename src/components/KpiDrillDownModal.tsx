@@ -5,6 +5,9 @@ import { formatInteger } from '../utils/numbers'
 interface Props {
   open: boolean
   title: string
+  subtitle?: string
+  description?: string
+  expectedValue?: string
   recordType: string
   records: any[]
   loading: boolean
@@ -22,6 +25,31 @@ function fmtMoney(n: number | null | undefined): string {
   return formatInteger(n)
 }
 
+function fmtTime(t?: string): string {
+  if (!t) return '\u2014'
+  try { return new Date(t).toLocaleTimeString('ar-EG-u-nu-latn', { hour: '2-digit', minute: '2-digit', hour12: true }) }
+  catch { return t.length >= 5 ? t.slice(0, 5) : t }
+}
+
+function fmtHours(minutes: number | null | undefined): string {
+  if (minutes == null) return '\u2014'
+  const h = Math.floor(minutes / 60)
+  const m = Math.round(minutes % 60)
+  return `${h}:${String(m).padStart(2, '0')}`
+}
+
+function fmtDist(meters: number | null | undefined): string {
+  if (meters == null || meters === 0) return '0'
+  return meters >= 1000 ? `${(meters / 1000).toFixed(1)} كم` : `${Math.round(meters)} م`
+}
+
+function fmtSessionDate(d?: string): string {
+  if (!d) return '\u2014'
+  const [y, m, day] = d.split('-')
+  if (!y || !m || !day) return d
+  return `${Number(day)}/${Number(m)}`
+}
+
 const ENTITY_TYPE_MAP: Record<string, EntityType> = {
   orders: 'order',
   customers: 'customer',
@@ -29,9 +57,35 @@ const ENTITY_TYPE_MAP: Record<string, EntityType> = {
   collections: 'collection',
 }
 
-export function KpiDrillDownModal({ open, title, recordType, records, loading, onClose, onRecordClick }: Props) {
+function computeTotals(recordType: string, records: any[]): string | null {
+  const n = records.length
+  switch (recordType) {
+    case 'orders': {
+      const sum = records.reduce((s, r) => s + (Number(r.total_amount) || 0), 0)
+      return `عدد الطلبات: ${formatInteger(n)} — إجمالي المبالغ: ${formatInteger(sum)} ج.م`
+    }
+    case 'customers':
+      return `إجمالي العملاء: ${formatInteger(n)}`
+    case 'visits':
+      return `إجمالي الزيارات: ${formatInteger(n)}`
+    case 'collections': {
+      const sum = records.reduce((s, r) => s + (Number(r.amount) || 0), 0)
+      return `عدد التحصيلات: ${formatInteger(n)} — إجمالي المبالغ: ${formatInteger(sum)} ج.م`
+    }
+    case 'sessions': {
+      const net = records.reduce((s, r) => s + (Number(r.net_minutes) || 0), 0)
+      const dist = records.reduce((s, r) => s + (Number(r.distance_meters) || 0), 0)
+      return `عدد الجلسات: ${formatInteger(n)} — إجمالي ساعات العمل: ${fmtHours(net)} — إجمالي المسافة: ${fmtDist(dist)}`
+    }
+    default:
+      return null
+  }
+}
+
+export function KpiDrillDownModal({ open, title, subtitle, description, expectedValue, recordType, records, loading, onClose, onRecordClick }: Props) {
   const entityType = ENTITY_TYPE_MAP[recordType] || 'order'
   const noRecords = !loading && records.length === 0
+  const totals = loading || noRecords ? null : computeTotals(recordType, records)
 
   if (!open) return null
 
@@ -43,10 +97,17 @@ export function KpiDrillDownModal({ open, title, recordType, records, loading, o
         onClick={(e) => e.stopPropagation()}
       >
         <div className="shrink-0 flex items-center justify-between p-4 pb-3">
-          <h2 className="text-sm font-bold">{title} — تفاصيل</h2>
+          <div>
+            <h2 className="text-sm font-bold">{title} — تفاصيل</h2>
+            {subtitle ? <div className="text-[11px] text-text-secondary mt-0.5">{subtitle}</div> : null}
+          </div>
           <button onClick={onClose} className="text-text-secondary text-lg">&times;</button>
         </div>
         <div className="flex-1 overflow-y-auto px-4 pb-4">
+
+        {description ? (
+          <div className="mb-3 bg-primary/5 border border-primary/20 rounded-lg px-3 py-2 text-[11px] leading-relaxed text-text-secondary">{description}</div>
+        ) : null}
 
         {loading ? (
           <div className="text-center py-4 text-xs text-text-secondary">جاري التحميل...</div>
@@ -158,7 +219,39 @@ export function KpiDrillDownModal({ open, title, recordType, records, loading, o
               ))}
             </tbody>
           </table>
+        ) : recordType === 'sessions' ? (
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="border-b border-border bg-surface">
+                <th className="px-2 py-1.5 text-right font-semibold text-text-secondary">التاريخ</th>
+                <th className="px-2 py-1.5 text-center font-semibold text-text-secondary">البداية</th>
+                <th className="px-2 py-1.5 text-center font-semibold text-text-secondary">النهاية</th>
+                <th className="px-2 py-1.5 text-center font-semibold text-text-secondary">ساعات العمل</th>
+                <th className="px-2 py-1.5 text-center font-semibold text-text-secondary">المسافة</th>
+                <th className="px-2 py-1.5 text-center font-semibold text-text-secondary">الزيارات</th>
+              </tr>
+            </thead>
+            <tbody>
+              {records.map((r: any, i: number) => (
+                <tr key={i} className="border-b border-border/50">
+                  <td className="px-2 py-1.5">{fmtSessionDate(r.date)}</td>
+                  <td className="px-2 py-1.5 text-center">{fmtTime(r.start_time)}</td>
+                  <td className="px-2 py-1.5 text-center">{fmtTime(r.end_time)}</td>
+                  <td className="px-2 py-1.5 text-center font-semibold">{fmtHours(r.net_minutes)}</td>
+                  <td className="px-2 py-1.5 text-center">{fmtDist(r.distance_meters)}</td>
+                  <td className="px-2 py-1.5 text-center">{r.visit_count != null ? fmtNum(r.visit_count) : '\u2014'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         ) : null}
+
+        {totals && (
+          <div className="mt-3 bg-surface border border-border/60 rounded-lg px-3 py-2 text-[11px] font-semibold text-text">
+            {totals}
+            {expectedValue ? <span className="mr-2 text-success">(الرقم المعروض: {expectedValue})</span> : null}
+          </div>
+        )}
         </div>
       </div>
     </div>

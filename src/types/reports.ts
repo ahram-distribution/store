@@ -59,6 +59,16 @@ export interface ActivityKpi {
   distanceMeters: number
 }
 
+export interface WorkdaySessionSource {
+  id?: string
+  date: string
+  start_time: string
+  end_time: string | null
+  net_minutes: number
+  distance_meters: number
+  visit_count: number | null
+}
+
 export interface DayTimelineEvent {
   time: string
   type: string
@@ -99,6 +109,7 @@ export interface ActivityViewModel {
   dateTo: string
   kpi: ActivityKpi
   dailyRows: ActivityDailyRow[]
+  sessions: WorkdaySessionSource[]
   detailData: {
     orders: any[]
     customers: any[]

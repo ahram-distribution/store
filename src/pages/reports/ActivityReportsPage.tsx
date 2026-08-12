@@ -11,7 +11,7 @@ import { exportToPdf, tableToHtml, kpiGridToHtml } from '../../services/pdfExpor
 import type { FilterState } from '../../types/filters'
 import type { ReportIdentity as IdentityData, KpiCardData } from '../../types/reports'
 import type { EntityType } from '../../modules/types'
-import type { ActivityViewModel, ActivityDailyRow, DayDetailData } from '../../types/reports'
+import type { ActivityViewModel, ActivityDailyRow, DayDetailData, WorkdaySessionSource } from '../../types/reports'
 import { cairoDateComponents, toCairoDate } from '../../lib/dateRange'
 import { formatCurrencyShort } from '../../utils/format'
 import { formatNumber, formatInteger } from '../../utils/numbers'
@@ -468,7 +468,8 @@ export function ActivityReportsPage() {
 
         const raw = sessionsRes.data as Record<string, unknown> | null
         const sessionsArray = (raw?.sessions ?? []) as Record<string, unknown>[]
-        const sessionList = sessionsArray.map((s) => ({
+        const sessionList: WorkdaySessionSource[] = sessionsArray.map((s) => ({
+          id: (s.id as string) ?? '',
           date: toCairoDate(s.date),
           start_time: (s.start_time as string) ?? '',
           end_time: (s.end_time as string) ?? null,
@@ -669,6 +670,7 @@ export function ActivityReportsPage() {
             dateTo: filters.dateTo,
             kpi,
             dailyRows,
+            sessions: sessionList,
             detailData: { orders: detailOrders, customers: detailCustomers, visits: detailVisits },
             loadDayData,
             exportPdf,

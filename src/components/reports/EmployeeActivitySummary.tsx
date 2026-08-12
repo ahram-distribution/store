@@ -75,8 +75,12 @@ export function EmployeeActivitySummary({ viewModel, onBack, onPeriodChange, rol
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [dayData, setDayData] = useState<DayDetailData | null>(null)
   const [dayDataLoading, setDayDataLoading] = useState(false)
-  const [dd, setDd] = useState<{ open: boolean; kpiType: string; title: string; records: any[]; loading: boolean; recordType: string }>({
-    open: false, kpiType: '', title: '', records: [], loading: false, recordType: '',
+  const [dd, setDd] = useState<{
+    open: boolean; kpiType: string; title: string; subtitle?: string; description?: string;
+    expectedValue?: string; records: any[]; loading: boolean; recordType: string
+  }>({
+    open: false, kpiType: '', title: '', subtitle: '', description: '', expectedValue: '',
+    records: [], loading: false, recordType: '',
   })
   const [selectedEvent, setSelectedEvent] = useState<DayTimelineEvent | null>(null)
   const [showTracking, setShowTracking] = useState(false)
@@ -85,7 +89,7 @@ export function EmployeeActivitySummary({ viewModel, onBack, onPeriodChange, rol
   const [customFrom, setCustomFrom] = useState('')
   const [customTo, setCustomTo] = useState('')
 
-  const { employee, dateFrom, dateTo, kpi, dailyRows, detailData, loadDayData, exportPdf, exportExcel } = viewModel
+  const { employee, dateFrom, dateTo, kpi, dailyRows, sessions, detailData, loadDayData, exportPdf, exportExcel } = viewModel
 
   useEffect(() => {
     if (!selectedDate) { setDayData(null); return }
@@ -97,17 +101,79 @@ export function EmployeeActivitySummary({ viewModel, onBack, onPeriodChange, rol
     return () => { cancelled = true }
   }, [selectedDate, loadDayData])
 
-  const handleKpiClick = useCallback((kpiType: string) => {
-    const recordTypeMap: Record<string, string> = { visits: 'visits', orders: 'orders', customers: 'customers', sales: 'orders' }
-    const titleMap: Record<string, string> = { visits: 'الزيارات', orders: 'الطلبات', customers: 'العملاء الجدد', sales: 'المبيعات' }
-    const recordType = recordTypeMap[kpiType] || kpiType
-    const records = kpiType === 'sales' || kpiType === 'orders'
-      ? detailData.orders
-      : kpiType === 'visits'
-        ? detailData.visits
-        : detailData.customers
-    setDd({ open: true, kpiType, title: titleMap[kpiType] || kpiType, records, loading: false, recordType })
-  }, [detailData])
+  const dayOrders = useCallback(
+    (date: string) => detailData.orders.filter((o: any) => toCairoDate(o.submitted_at) === date),
+    [detailData.orders],
+  )
+  const dayCustomers = useCallback(
+    (date: string) => detailData.customers.filter((c: any) => toCairoDate(c.created_at) === date),
+    [detailData.customers],
+  )
+  const dayVisits = useCallback(
+    (date: string) => detailData.visits.filter((v: any) => toCairoDate(v.check_in_at || v.created_at) === date),
+    [detailData.visits],
+  )
+  const daySessions = useCallback(
+    (date: string) => sessions.filter((s) => s.date === date),
+    [sessions],
+  )
+
+  const openDrillDown = useCallback((kpiType: string, scopeDate?: string) => {
+    const hasDate = !!scopeDate
+    const titleMap: Record<string, string> = {
+      sales: 'المبيعات', orders: 'الطلبات', visits: 'الزيارات', customers: 'العملاء الجدد',
+      hours: 'ساعات العمل', distance: 'المسافة',
+    }
+    const recordTypeMap: Record<string, string> = {
+      sales: 'orders', orders: 'orders', visits: 'visits', customers: 'customers',
+      hours: 'sessions', distance: 'sessions',
+    }
+    const descMap: Record<string, string> = {
+      sales: 'المبيعات = مجموع مبالغ الطلبات الموضحة أدناه. تُستبعد الطلبات المسودة (draft) والملغاة (cancelled).',
+      orders: 'الطلبات = عدد الطلبات الموضحة أدناه. تُستبعد الطلبات المسودة (draft) والملغاة (cancelled).',
+      visits: 'الزيارات = عدد الزيارات المسجلة للموظف في الفترة (من سجلات الزيارات check_in).',
+      customers: 'العملاء الجدد = عدد العملاء الذين سجّلهم الموظف في الفترة (من تاريخ الإنشاء).',
+      hours: 'ساعات العمل = مجموع ساعات الجلسات الفعلية (مدة الجلسة − فترات الراحة) من جلسات الحضور.',
+      distance: 'المسافة = مجموع المسافات المسجلة في جلسات العمل من نقاط التتبع (بالأمتار).',
+    }
+
+    let records: any[] = []
+    if (kpiType === 'sales' || kpiType === 'orders') {
+      records = hasDate ? dayOrders(scopeDate!) : detailData.orders
+    } else if (kpiType === 'visits') {
+      records = hasDate ? dayVisits(scopeDate!) : detailData.visits
+    } else if (kpiType === 'customers') {
+      records = hasDate ? dayCustomers(scopeDate!) : detailData.customers
+    } else if (kpiType === 'hours' || kpiType === 'distance') {
+      records = hasDate ? daySessions(scopeDate!) : sessions
+    }
+
+    const expectedValue = kpiType === 'sales'
+      ? fmtMoney(records.reduce((s: number, x: any) => s + (Number(x.total_amount) || 0), 0))
+      : kpiType === 'orders' || kpiType === 'visits' || kpiType === 'customers'
+        ? fmtNum(records.length)
+        : kpiType === 'hours'
+          ? fmtHours(records.reduce((s: number, x: any) => s + (Number(x.net_minutes) || 0), 0))
+          : kpiType === 'distance'
+            ? fmtDist(records.reduce((s: number, x: any) => s + (Number(x.distance_meters) || 0), 0))
+            : ''
+
+    const subtitle = hasDate
+      ? `${employee.full_name} — ${fmtDate(scopeDate)}`
+      : `${employee.full_name} — ${fmtDate(dateFrom)} إلى ${fmtDate(dateTo)}`
+
+    setDd({
+      open: true,
+      kpiType,
+      title: titleMap[kpiType] || kpiType,
+      subtitle,
+      description: descMap[kpiType] || '',
+      expectedValue,
+      records,
+      loading: false,
+      recordType: recordTypeMap[kpiType] || kpiType,
+    })
+  }, [dayOrders, dayVisits, dayCustomers, daySessions, detailData.orders, detailData.visits, detailData.customers, sessions, employee, dateFrom, dateTo])
 
   const selectedDaySession = useMemo(() => {
     if (!selectedDate) return null
@@ -128,6 +194,11 @@ export function EmployeeActivitySummary({ viewModel, onBack, onPeriodChange, rol
     if (!selectedDate) return []
     return detailData.customers.filter((c: any) => toCairoDate(c.created_at) === selectedDate)
   }, [selectedDate, detailData.customers])
+
+  const selectedDayVisits = useMemo(() => {
+    if (!selectedDate) return []
+    return detailData.visits.filter((v: any) => toCairoDate(v.check_in_at || v.created_at) === selectedDate)
+  }, [selectedDate, detailData.visits])
 
   const selectedDaySales = useMemo(
     () => selectedDayOrders.reduce((sum: number, o: any) => sum + (Number(o.total_amount) || 0), 0),
@@ -190,34 +261,36 @@ export function EmployeeActivitySummary({ viewModel, onBack, onPeriodChange, rol
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-        <button onClick={() => handleKpiClick('sales')}
+        <button onClick={() => openDrillDown('sales')}
           className="rounded-2xl p-4 bg-gradient-to-br from-emerald-50 to-green-100/60 border border-emerald-200/40 shadow-sm text-center cursor-pointer transition-all hover:scale-[1.02] hover:shadow-md">
           <div className="text-xl font-bold text-success">{fmtMoney(kpi.sales)}</div>
           <div className="text-[11px] text-text-secondary mt-1 font-medium">إجمالى المبيعات</div>
         </button>
-        <button onClick={() => handleKpiClick('orders')}
+        <button onClick={() => openDrillDown('orders')}
           className="rounded-2xl p-4 bg-gradient-to-br from-blue-50 to-indigo-100/60 border border-blue-200/40 shadow-sm text-center cursor-pointer transition-all hover:scale-[1.02] hover:shadow-md">
           <div className="text-xl font-bold text-primary">{fmtNum(kpi.orders)}</div>
           <div className="text-[11px] text-text-secondary mt-1 font-medium">إجمالى الطلبات</div>
         </button>
-        <button onClick={() => handleKpiClick('visits')}
+        <button onClick={() => openDrillDown('visits')}
           className="rounded-2xl p-4 bg-gradient-to-br from-amber-50 to-yellow-100/60 border border-amber-200/40 shadow-sm text-center cursor-pointer transition-all hover:scale-[1.02] hover:shadow-md">
           <div className="text-xl font-bold text-warning">{fmtNum(kpi.visits)}</div>
           <div className="text-[11px] text-text-secondary mt-1 font-medium">إجمالى الزيارات</div>
         </button>
-        <button onClick={() => handleKpiClick('customers')}
+        <button onClick={() => openDrillDown('customers')}
           className="rounded-2xl p-4 bg-gradient-to-br from-violet-50 to-purple-100/60 border border-violet-200/40 shadow-sm text-center cursor-pointer transition-all hover:scale-[1.02] hover:shadow-md">
           <div className="text-xl font-bold text-accent">{fmtNum(kpi.customers)}</div>
           <div className="text-[11px] text-text-secondary mt-1 font-medium">عملاء جدد</div>
         </button>
-        <div className="rounded-2xl p-4 bg-white border border-border/60 shadow-sm text-center">
+        <button onClick={() => openDrillDown('hours')}
+          className="rounded-2xl p-4 bg-white border border-border/60 shadow-sm text-center cursor-pointer transition-all hover:scale-[1.02] hover:shadow-md">
           <div className="text-xl font-bold text-success">{fmtHours(kpi.netMinutes)}</div>
           <div className="text-[11px] text-text-secondary mt-1 font-medium">ساعات العمل</div>
-        </div>
-        <div className="rounded-2xl p-4 bg-white border border-border/60 shadow-sm text-center">
+        </button>
+        <button onClick={() => openDrillDown('distance')}
+          className="rounded-2xl p-4 bg-white border border-border/60 shadow-sm text-center cursor-pointer transition-all hover:scale-[1.02] hover:shadow-md">
           <div className="text-xl font-bold text-warning">{fmtDist(kpi.distanceMeters)}</div>
           <div className="text-[11px] text-text-secondary mt-1 font-medium">المسافة</div>
-        </div>
+        </button>
       </div>
 
       <div className="flex gap-2">
@@ -259,13 +332,53 @@ export function EmployeeActivitySummary({ viewModel, onBack, onPeriodChange, rol
                     <td className="px-3 py-3 text-center whitespace-nowrap text-text-secondary">{r.start_time ? fmtTime(r.start_time) : '\u2014'}</td>
                     <td className="px-3 py-3 text-center whitespace-nowrap text-text-secondary">{r.end_time ? fmtTime(r.end_time) : '\u2014'}</td>
                     <td className="px-3 py-3 text-center font-bold whitespace-nowrap">
-                      {fmtHours(r.net_minutes)}
+                      <button
+                        onClick={(e) => { e.stopPropagation(); openDrillDown('hours', r.date) }}
+                        className="w-full text-center font-bold cursor-pointer transition-colors hover:text-primary"
+                      >
+                        {fmtHours(r.net_minutes)}
+                      </button>
                     </td>
-                    <td className="px-3 py-3 text-center whitespace-nowrap">{fmtNum(r.visits)}</td>
-                    <td className="px-3 py-3 text-center whitespace-nowrap">{fmtNum(r.orders)}</td>
-                    <td className="px-3 py-3 text-center text-success font-bold whitespace-nowrap">{fmtMoney(r.sales)}</td>
-                    <td className="px-3 py-3 text-center text-accent font-bold whitespace-nowrap">{fmtNum(r.new_customers)}</td>
-                    <td className="px-3 py-3 text-center whitespace-nowrap">{fmtDist(r.distance_meters)}</td>
+                    <td className="px-3 py-3 text-center whitespace-nowrap">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); openDrillDown('visits', r.date) }}
+                        className="w-full text-center cursor-pointer transition-colors hover:text-primary"
+                      >
+                        {fmtNum(r.visits)}
+                      </button>
+                    </td>
+                    <td className="px-3 py-3 text-center whitespace-nowrap">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); openDrillDown('orders', r.date) }}
+                        className="w-full text-center cursor-pointer transition-colors hover:text-primary"
+                      >
+                        {fmtNum(r.orders)}
+                      </button>
+                    </td>
+                    <td className="px-3 py-3 text-center text-success font-bold whitespace-nowrap">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); openDrillDown('sales', r.date) }}
+                        className="w-full text-center text-success font-bold cursor-pointer transition-colors hover:text-primary"
+                      >
+                        {fmtMoney(r.sales)}
+                      </button>
+                    </td>
+                    <td className="px-3 py-3 text-center text-accent font-bold whitespace-nowrap">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); openDrillDown('customers', r.date) }}
+                        className="w-full text-center text-accent font-bold cursor-pointer transition-colors hover:text-primary"
+                      >
+                        {fmtNum(r.new_customers)}
+                      </button>
+                    </td>
+                    <td className="px-3 py-3 text-center whitespace-nowrap">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); openDrillDown('distance', r.date) }}
+                        className="w-full text-center cursor-pointer transition-colors hover:text-primary"
+                      >
+                        {fmtDist(r.distance_meters)}
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -292,30 +405,36 @@ export function EmployeeActivitySummary({ viewModel, onBack, onPeriodChange, rol
           )}
 
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 p-4">
-            <div className="rounded-xl p-3 bg-gradient-to-br from-emerald-50 to-green-100/60 border border-emerald-200/40 shadow-sm text-center">
+            <button onClick={() => openDrillDown('sales', selectedDate)}
+              className="rounded-xl p-3 bg-gradient-to-br from-emerald-50 to-green-100/60 border border-emerald-200/40 shadow-sm text-center cursor-pointer transition-all hover:scale-[1.02] hover:shadow-md">
               <div className="text-sm font-bold text-success">{fmtMoney(selectedDaySales)}</div>
               <div className="text-[10px] text-text-secondary mt-1 font-medium">المبيعات</div>
-            </div>
-            <div className="rounded-xl p-3 bg-gradient-to-br from-blue-50 to-indigo-100/60 border border-blue-200/40 shadow-sm text-center">
+            </button>
+            <button onClick={() => openDrillDown('orders', selectedDate)}
+              className="rounded-xl p-3 bg-gradient-to-br from-blue-50 to-indigo-100/60 border border-blue-200/40 shadow-sm text-center cursor-pointer transition-all hover:scale-[1.02] hover:shadow-md">
               <div className="text-sm font-bold text-primary">{selectedDayOrders.length}</div>
               <div className="text-[10px] text-text-secondary mt-1 font-medium">الطلبات</div>
-            </div>
-            <div className="rounded-xl p-3 bg-gradient-to-br from-violet-50 to-purple-100/60 border border-violet-200/40 shadow-sm text-center">
+            </button>
+            <button onClick={() => openDrillDown('customers', selectedDate)}
+              className="rounded-xl p-3 bg-gradient-to-br from-violet-50 to-purple-100/60 border border-violet-200/40 shadow-sm text-center cursor-pointer transition-all hover:scale-[1.02] hover:shadow-md">
               <div className="text-sm font-bold text-accent">{selectedDayCustomers.length}</div>
               <div className="text-[10px] text-text-secondary mt-1 font-medium">عملاء جدد</div>
-            </div>
-            <div className="rounded-xl p-3 bg-gradient-to-br from-amber-50 to-yellow-100/60 border border-amber-200/40 shadow-sm text-center">
-              <div className="text-sm font-bold text-warning">{selectedDaySession?.visit_count || 0}</div>
+            </button>
+            <button onClick={() => openDrillDown('visits', selectedDate)}
+              className="rounded-xl p-3 bg-gradient-to-br from-amber-50 to-yellow-100/60 border border-amber-200/40 shadow-sm text-center cursor-pointer transition-all hover:scale-[1.02] hover:shadow-md">
+              <div className="text-sm font-bold text-warning">{selectedDayVisits.length}</div>
               <div className="text-[10px] text-text-secondary mt-1 font-medium">الزيارات</div>
-            </div>
-            <div className="rounded-xl p-3 bg-white border border-border/60 shadow-sm text-center">
+            </button>
+            <button onClick={() => openDrillDown('hours', selectedDate)}
+              className="rounded-xl p-3 bg-white border border-border/60 shadow-sm text-center cursor-pointer transition-all hover:scale-[1.02] hover:shadow-md">
               <div className="text-sm font-bold text-success">{selectedDaySession ? fmtHours(selectedDaySession.net_minutes) : '\u2014'}</div>
               <div className="text-[10px] text-text-secondary mt-1 font-medium">ساعات العمل</div>
-            </div>
-            <div className="rounded-xl p-3 bg-white border border-border/60 shadow-sm text-center">
+            </button>
+            <button onClick={() => openDrillDown('distance', selectedDate)}
+              className="rounded-xl p-3 bg-white border border-border/60 shadow-sm text-center cursor-pointer transition-all hover:scale-[1.02] hover:shadow-md">
               <div className="text-sm font-bold text-warning">{selectedDaySession ? fmtDist(selectedDaySession.distance_meters) : '\u2014'}</div>
               <div className="text-[10px] text-text-secondary mt-1 font-medium">المسافة</div>
-            </div>
+            </button>
           </div>
 
           {!selectedDaySession && !selectedDayOrders.length && !selectedDayCustomers.length && (
@@ -360,6 +479,9 @@ export function EmployeeActivitySummary({ viewModel, onBack, onPeriodChange, rol
       <KpiDrillDownModal
         open={dd.open}
         title={dd.title}
+        subtitle={dd.subtitle}
+        description={dd.description}
+        expectedValue={dd.expectedValue}
         recordType={dd.recordType}
         records={dd.records}
         loading={dd.loading}
