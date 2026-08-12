@@ -7,7 +7,7 @@ import { useAuthStore } from '../../store/auth'
 import { isExecutiveDirectorUser } from '../../utils/roleNormalization'
 import { ProductCard } from '../../components/products/ProductCard'
 import { formatCurrencyShort, toEnglishDigits } from '../../utils/format'
-import { UNIT_LABELS } from '../../types/order-display'
+import { ORDER_STATUS_LABELS, UNIT_LABELS } from '../../types/order-display'
 import { buildSearchIndex, searchProducts } from '../../utils/smartSearch'
 import { SearchHighlight } from '../../components/shared/SearchHighlight'
 import { SearchableSelect } from '../../components/shared/SearchableSelect'
@@ -21,17 +21,18 @@ function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
 }
 
-const DEDUCTION_STATUS_LABELS: Record<string, string> = {
-  submitted: 'عند التسليم (مقدم)',
-  reviewing: 'عند المراجعة',
-  approved: 'عند الاعتماد (معتمد)',
-  preparing: 'عند التجهيز',
-  prepared: 'بعد التجهيز',
-  ready_for_dispatch: 'عند التسليم للشحن',
-  sent_to_delivery: 'عند الإرسال للتوصيل',
-  dispatched: 'عند الشحن',
-  delivered: 'عند التسليم',
-}
+const DEDUCTION_STATUS_ORDER: readonly string[] = [
+  'submitted',
+  'sales_manager_approved',
+  'approved',
+  'reviewing',
+  'preparing',
+  'prepared',
+  'ready_for_dispatch',
+  'sent_to_delivery',
+  'dispatched',
+  'delivered',
+]
 
 // =============================================================================
 // ProductManagerPage — Full product management dashboard
@@ -58,6 +59,12 @@ export function ProductManagerPage() {
   const [pendingPolicyValue, setPendingPolicyValue] = useState<any>(null)
   const [policySaving, setPolicySaving] = useState(false)
   const [inventorySettingsOpen, setInventorySettingsOpen] = useState(false)
+
+  // A saved 'reviewing' value came from the old review-point configuration —
+  // under the approved sequence the deduction point is معتمد (approved).
+  const effectiveDeductionStatus = globalPolicies.inventory_deduction_status === 'reviewing'
+    ? 'approved'
+    : globalPolicies.inventory_deduction_status
 
   // ── Filters ──
   const [viewState, setViewState, resetViewState] = usePersistentViewState('products-manage', {
@@ -96,11 +103,21 @@ export function ProductManagerPage() {
     }))
   }, [products])
 
+  // ── Actual product status — single source of truth for the status filters.
+  // Mirrors the 3-state model used by the edit screen (نشط / نفذت الكمية / مخفي).
+  // Each product maps to exactly one state so it can never appear under two
+  // different status filters.
+  function getProductStatus(p: any): 'out_of_stock' | 'inactive' | 'active' {
+    if (p.is_out_of_stock === true && p.is_active !== false) return 'out_of_stock'
+    if (!p.is_active || p.is_visible === false) return 'inactive'
+    return 'active'
+  }
+
   const filtered = useMemo(() => {
     let list = products
-    if (statusFilter === 'active') list = list.filter((p: any) => p.is_active && !(p.is_out_of_stock === true))
-    if (statusFilter === 'out_of_stock') list = list.filter((p: any) => p.is_out_of_stock === true && p.is_active !== false)
-    if (statusFilter === 'inactive') list = list.filter((p: any) => (!p.is_active || !p.is_visible) && (p.carton_price && Number(p.carton_price) > 0))
+    if (statusFilter === 'active') list = list.filter((p: any) => getProductStatus(p) === 'active')
+    if (statusFilter === 'out_of_stock') list = list.filter((p: any) => getProductStatus(p) === 'out_of_stock')
+    if (statusFilter === 'inactive') list = list.filter((p: any) => getProductStatus(p) === 'inactive')
     if (statusFilter === 'no_price') list = list.filter((p: any) => !p.carton_price || Number(p.carton_price) <= 0)
     if (companyFilter) list = list.filter((p: any) => p.company_name === companyFilter)
     const q = searchQuery.trim()
@@ -208,6 +225,50 @@ export function ProductManagerPage() {
     useCatalogStore.getState().updateProduct(product.id, newState)
     const updatedRow = useCatalogStore.getState().products.find((p: any) => p.id === product.id)
     if (updatedRow) useCartStore.getState().syncProduct(toProductWithPrice(updatedRow))
+  }, [])
+
+  // ── Quick visibility toggle — same RPCs the edit screen uses for مخفي/نشط ──
+  const [togglingId, setTogglingId] = useState<string | null>(null)
+  const togglingRef = useRef<string | null>(null)
+
+  const handleToggleVisibility = useCallback(async (product: any) => {
+    if (togglingRef.current) return
+    const token = getToken()
+    if (!token) return
+    const isVisible = product.is_active === true && product.is_visible !== false
+    const willHide = isVisible
+    togglingRef.current = product.id
+    setTogglingId(product.id)
+    try {
+      const [visRes, stateRes] = await Promise.all([
+        supabase.rpc('governed_update_product_visibility', { p_token: token, p_id: product.id, p_is_visible: !willHide }),
+        willHide
+          ? supabase.rpc('governed_deactivate_product', { p_token: token, p_id: product.id })
+          : supabase.rpc('governed_activate_product', { p_token: token, p_id: product.id }),
+      ])
+      const failed = [visRes, stateRes].map((res: any) => {
+        if (res?.error) return res.error.message || String(res.error)
+        const d = res?.data
+        if (d && typeof d === 'object' && d.error) return String(d.error)
+        return null
+      }).find(Boolean)
+      if (failed) { toast.error(failed); return }
+      // Apply the new state immediately so the card and its filter group update at once
+      useCatalogStore.getState().updateProduct(product.id, willHide
+        ? { is_active: false, is_visible: false }
+        : { is_active: true, is_visible: true })
+      // Refresh from the DB (single source of truth) so the screen always reflects
+      // the actual product state, including any other flag the RPC changed
+      await loadData()
+      const updatedRow = useCatalogStore.getState().products.find((p: any) => p.id === product.id)
+      if (updatedRow) useCartStore.getState().syncProduct(toProductWithPrice(updatedRow))
+      toast.success(willHide ? 'تم إخفاء المنتج' : 'تم إظهار المنتج')
+    } catch (err: any) {
+      toast.error(err.message || 'حدث خطأ')
+    } finally {
+      togglingRef.current = null
+      setTogglingId(null)
+    }
   }, [])
 
   // ── Hard delete ──
@@ -601,24 +662,18 @@ export function ProductManagerPage() {
               <div className="min-w-0">
                 <span className="text-xs font-semibold text-text block">خصم المخزون عند</span>
                 <span className="text-[10px] text-text-secondary truncate block">
-                  {DEDUCTION_STATUS_LABELS[globalPolicies.inventory_deduction_status] || globalPolicies.inventory_deduction_status}
+                  {ORDER_STATUS_LABELS[effectiveDeductionStatus] || effectiveDeductionStatus}
                 </span>
               </div>
               <select
-                value={globalPolicies.inventory_deduction_status}
+                value={effectiveDeductionStatus}
                 onChange={(e) => handleDeductionStatusChange(e.target.value)}
                 disabled={policySaving}
                 className="border border-border rounded-lg px-2 py-1.5 text-xs bg-white shrink-0 ml-2"
               >
-                <option value="submitted">عند التسليم (مقدم)</option>
-                <option value="reviewing">عند المراجعة</option>
-                <option value="approved">عند الاعتماد (معتمد)</option>
-                <option value="preparing">عند التجهيز</option>
-                <option value="prepared">بعد التجهيز</option>
-                <option value="ready_for_dispatch">عند التسليم للشحن</option>
-                <option value="sent_to_delivery">عند الإرسال للتوصيل</option>
-                <option value="dispatched">عند الشحن</option>
-                <option value="delivered">عند التسليم</option>
+                {DEDUCTION_STATUS_ORDER.map((status) => (
+                  <option key={status} value={status}>{ORDER_STATUS_LABELS[status] || status}</option>
+                ))}
               </select>
             </div>
           </div>
@@ -702,6 +757,8 @@ export function ProductManagerPage() {
                 onToggleActive={handleToggleActive}
                 onDelete={handleDeletePreview}
                 onViewDetails={handleViewDetails}
+                onToggleVisibility={handleToggleVisibility}
+                toggling={togglingId === product.id}
                 searchQuery={searchQuery}
                 canManage={canManage}
               />

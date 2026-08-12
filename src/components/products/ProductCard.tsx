@@ -1,5 +1,5 @@
 import { memo } from 'react'
-import { Edit3, Eye, Power, Trash2, Star, Package, Building2, Calendar } from 'lucide-react'
+import { Edit3, Eye, Power, Trash2, Star, Package, Building2, Calendar, EyeOff, Loader2 } from 'lucide-react'
 import { formatCurrencyShort } from '../../utils/format'
 import { SearchHighlight } from '../shared/SearchHighlight'
 import { InventoryBreakdown } from '../shared/InventoryBreakdown'
@@ -10,6 +10,8 @@ interface ProductCardProps {
   onToggleActive: () => void
   onDelete: () => void
   onViewDetails: () => void
+  onToggleVisibility: (product: any) => void
+  toggling?: boolean
   searchQuery?: string
   canManage?: boolean
 }
@@ -20,7 +22,8 @@ const UNIT_LABELS: Record<string, string> = {
   carton: 'كرتونة',
 }
 
-export const ProductCard = memo(function ProductCard({ product, onEdit, onToggleActive, onDelete, onViewDetails, searchQuery, canManage = true }: ProductCardProps) {
+export const ProductCard = memo(function ProductCard({ product, onEdit, onToggleActive, onDelete, onViewDetails, onToggleVisibility, toggling, searchQuery, canManage = true }: ProductCardProps) {
+  const isVisible = product.is_active === true && product.is_visible !== false
   const isOutOfStock = product.is_out_of_stock === true && product.is_active !== false
   const units = (product.product_units || []).filter((u: any) => u.is_active !== false)
   const unitNames = units.map((u: any) => UNIT_LABELS[u.unit_type] || u.unit_type).join(' - ')
@@ -60,6 +63,22 @@ export const ProductCard = memo(function ProductCard({ product, onEdit, onToggle
             موقوف
           </div>
         ) : null}
+        {canManage && (
+          <button
+            type="button"
+            onClick={() => onToggleVisibility(product)}
+            disabled={toggling}
+            title={isVisible ? 'إخفاء المنتج' : 'إظهار المنتج'}
+            className={`absolute bottom-2 left-2 flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-[10px] font-bold shadow-sm border transition-colors disabled:opacity-60 disabled:cursor-not-allowed select-none ${
+              isVisible
+                ? 'bg-white/95 text-danger border-danger/20 hover:bg-danger hover:text-white'
+                : 'bg-white/95 text-success border-success/20 hover:bg-success hover:text-white'
+            }`}
+          >
+            {toggling ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : isVisible ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+            <span>{toggling ? 'جاري...' : isVisible ? 'إخفاء المنتج' : 'إظهار المنتج'}</span>
+          </button>
+        )}
       </div>
 
       {/* Body */}
