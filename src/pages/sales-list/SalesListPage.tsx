@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../store/auth'
 import { normalizeEmployeeRole, type TargetRole } from '../../utils/roleNormalization'
-import { isProductSaleable } from '../../services/products'
 import { buildSearchIndex, searchProducts, type ProductSearchIndex } from '../../utils/smartSearch'
 import { SearchHighlight } from '../../components/shared/SearchHighlight'
 
@@ -21,18 +20,11 @@ interface ProductRow {
   carton_price: number
   carton_quantity: number
   piece_price: number
-  dozen_price: number
-  product_units: { id: string; unit_type: string; is_active: boolean }[]
 }
 
 interface CompanyGroup {
   companyName: string
   products: ProductRow[]
-}
-
-interface UnitPriceInfo {
-  unitType: string
-  price: number
 }
 
 function formatPrice(val: number): string {
@@ -45,18 +37,13 @@ function formatPrice(val: number): string {
   return stripped ? s.slice(0, dot + 1) + stripped : s.slice(0, dot)
 }
 
-function computeUnitPrices(p: ProductRow): UnitPriceInfo[] {
-  const piecePrice = Number(p.piece_price) || 0
-  const dozenPrice = Number(p.dozen_price) || 0
-  const cartonPrice = Number(p.carton_price) || 0
-  const activeUnitTypes = (p.product_units || []).filter((u) => u.is_active !== false).map((u) => u.unit_type)
-  const rawPrices: UnitPriceInfo[] = [
-    { unitType: 'piece', price: piecePrice },
-    { unitType: 'dozen', price: dozenPrice },
-    { unitType: 'carton', price: cartonPrice },
-  ]
-
-  return rawPrices.filter((up) => activeUnitTypes.includes(up.unitType))
+// Product-level availability only — unit availability never hides the product
+// or its prices (piece/carton prices are shown for every active saleable product).
+function isProductAvailable(p: ProductRow): boolean {
+  if (!p.is_active) return false
+  if (p.is_visible === false) return false
+  if (p.is_out_of_stock) return false
+  return !!p.carton_price && Number(p.carton_price) > 0
 }
 
 function esc(s: string | null | undefined): string {
@@ -72,22 +59,22 @@ function generatePrintHtml(groups: CompanyGroup[], logoUrl: string): string {
   const timeStr = now.toLocaleTimeString('ar-EG-u-nu-latn', { hour: '2-digit', minute: '2-digit', hour12: false })
 
   function productRow(p: ProductRow, bgColor: string): string {
-    const unitPrices = computeUnitPrices(p)
     const code = esc(p.legacy_code || '---')
     const name = esc(p.product_name)
+    const piece = Number(p.piece_price) || 0
+    const carton = Number(p.carton_price) || 0
     const cellStyle = `border:1px solid #e2e8f0;padding:4px 3px;text-align:center;vertical-align:middle;background:${bgColor}`
     return `<tr>
-      <td style="width:7%;${cellStyle};font-family:monospace;direction:ltr;font-size:10px;color:#475569">${code}</td>
-      <td style="width:40%;${cellStyle};text-align:right;padding:4px 6px;font-size:11px;line-height:1.5;color:#111827">${name}</td>
-      <td style="width:18%;${cellStyle}">${unitPrices.find((u) => u.unitType === 'piece') ? `<div style="display:flex;justify-content:space-between;direction:rtl"><span style="font-size:9px;color:#6b7280">قطعة</span><span style="font-size:10px;font-weight:700;color:#111827">${formatPrice(unitPrices.find((u) => u.unitType === 'piece')!.price)}</span></div>` : '<div style="color:#d1d5db;font-size:9px">&mdash;</div>'}</td>
-      <td style="width:18%;${cellStyle}">${unitPrices.find((u) => u.unitType === 'dozen') ? `<div style="display:flex;justify-content:space-between;direction:rtl"><span style="font-size:9px;color:#6b7280">دستة</span><span style="font-size:10px;font-weight:700;color:#111827">${formatPrice(unitPrices.find((u) => u.unitType === 'dozen')!.price)}</span></div>` : '<div style="color:#d1d5db;font-size:9px">&mdash;</div>'}</td>
-      <td style="width:17%;${cellStyle}">${unitPrices.find((u) => u.unitType === 'carton') ? `<div style="display:flex;justify-content:space-between;direction:rtl"><span style="font-size:9px;color:#6b7280">كرتونة</span><span style="font-size:10px;font-weight:700;color:#111827">${formatPrice(unitPrices.find((u) => u.unitType === 'carton')!.price)}</span></div>` : '<div style="color:#d1d5db;font-size:9px">&mdash;</div>'}</td>
+      <td style="width:8%;${cellStyle};font-family:monospace;direction:ltr;font-size:10px;color:#475569">${code}</td>
+      <td style="width:60%;${cellStyle};text-align:right;padding:4px 6px;font-size:11px;line-height:1.5;color:#111827">${name}</td>
+      <td style="width:16%;${cellStyle}">${piece > 0 ? `<span style="font-size:10px;font-weight:700;color:#111827">${formatPrice(piece)}</span>` : '<span style="color:#d1d5db;font-size:9px">&mdash;</span>'}</td>
+      <td style="width:16%;${cellStyle}">${carton > 0 ? `<span style="font-size:10px;font-weight:700;color:#111827">${formatPrice(carton)}</span>` : '<span style="color:#d1d5db;font-size:9px">&mdash;</span>'}</td>
     </tr>`
   }
 
   function groupSection(g: CompanyGroup, idx: number): string {
     const bgColor = idx % 2 === 0 ? '#f8fafc' : '#f7faff'
-    const header = `<tr><td colspan="5" style="background:${bgColor};border-bottom:1px solid #e2e8f0;padding:5px 10px;border-left:1px solid #e2e8f0;border-right:1px solid #e2e8f0;border-top:none"><div style="display:flex;align-items:center;gap:6px"><span style="display:inline-block;width:6px;height:6px;border-radius:1px;background:rgba(0,82,204,0.6)"></span><span style="font-weight:700;color:#111827;font-size:11px">${esc(g.companyName)}</span><span style="font-weight:400;color:#6b7280;font-size:9px">${g.products.length} منتج</span></div></td></tr>`
+    const header = `<tr><td colspan="4" style="background:${bgColor};border-bottom:1px solid #e2e8f0;padding:5px 10px;border-left:1px solid #e2e8f0;border-right:1px solid #e2e8f0;border-top:none"><div style="display:flex;align-items:center;gap:6px"><span style="display:inline-block;width:6px;height:6px;border-radius:1px;background:rgba(0,82,204,0.6)"></span><span style="font-weight:700;color:#111827;font-size:11px">${esc(g.companyName)}</span><span style="font-weight:400;color:#6b7280;font-size:9px">${g.products.length} منتج</span></div></td></tr>`
     const body = g.products.map((p) => productRow(p, bgColor)).join('')
     return header + body
   }
@@ -110,11 +97,10 @@ function generatePrintHtml(groups: CompanyGroup[], logoUrl: string): string {
   .doc-meta { font-size: 8px; color: #9ca3af; text-align: left; margin-top: 2px; line-height: 1.6; }
   table { width: 100%; table-layout: fixed; border-collapse: collapse; margin-bottom: 6px; }
   thead tr { background: #003366; color: #fff; }
-  th { width: 7%; padding: 4px 3px; text-align: center; font-weight: 600; font-size: 10px; border: 1px solid #003366; }
-  th:nth-child(2) { width: 40%; }
-  th:nth-child(3) { width: 18%; }
-  th:nth-child(4) { width: 18%; }
-  th:nth-child(5) { width: 17%; }
+  th { width: 8%; padding: 4px 3px; text-align: center; font-weight: 600; font-size: 10px; border: 1px solid #003366; }
+  th:nth-child(2) { width: 60%; }
+  th:nth-child(3) { width: 16%; }
+  th:nth-child(4) { width: 16%; }
   thead { display: table-header-group; }
   tbody { display: table-row-group; }
   tbody tr { page-break-inside: avoid; }
@@ -145,9 +131,8 @@ function generatePrintHtml(groups: CompanyGroup[], logoUrl: string): string {
     <tr>
       <th>الكود</th>
       <th>اسم الصنف</th>
-      <th>القطعة</th>
-      <th>الدستة</th>
-      <th>الكرتونة</th>
+      <th>سعر القطعة</th>
+      <th>سعر الكرتونة</th>
     </tr>
   </thead>
   <tbody>
@@ -194,7 +179,7 @@ export default function SalesListPage() {
       .finally(() => setLoading(false))
   }, [hasAccess, authToken])
 
-  const saleableProducts = useMemo(() => products.filter(isProductSaleable), [products])
+  const saleableProducts = useMemo(() => products.filter(isProductAvailable), [products])
 
   const companyNames = useMemo(() => {
     const names = new Set<string>()
@@ -342,18 +327,17 @@ export default function SalesListPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-surface border-b border-border">
-                  <th className="w-[7%] px-2 py-2 text-center text-[10px] font-semibold text-text-secondary uppercase tracking-wider">الكود</th>
-                  <th className="w-[40%] px-3 py-2 text-right text-[10px] font-semibold text-text-secondary uppercase tracking-wider">اسم الصنف</th>
-                  <th className="w-[18%] px-2 py-2 text-center text-[10px] font-semibold text-text-secondary uppercase tracking-wider">القطعة</th>
-                  <th className="w-[18%] px-2 py-2 text-center text-[10px] font-semibold text-text-secondary uppercase tracking-wider">الدستة</th>
-                  <th className="w-[17%] px-2 py-2 text-center text-[10px] font-semibold text-text-secondary uppercase tracking-wider">الكرتونة</th>
+                  <th className="w-[8%] px-2 py-2 text-center text-[10px] font-semibold text-text-secondary uppercase tracking-wider">الكود</th>
+                  <th className="w-[60%] px-3 py-2 text-right text-[10px] font-semibold text-text-secondary uppercase tracking-wider">اسم الصنف</th>
+                  <th className="w-[16%] px-2 py-2 text-center text-[10px] font-semibold text-text-secondary uppercase tracking-wider">سعر القطعة</th>
+                  <th className="w-[16%] px-2 py-2 text-center text-[10px] font-semibold text-text-secondary uppercase tracking-wider">سعر الكرتونة</th>
                 </tr>
               </thead>
               <tbody>
                 {groupedProducts.map((group, groupIdx) => (
                   <Fragment key={group.companyName}>
                     <tr>
-                      <td colSpan={5} className={`px-3 py-1.5 border-y border-border ${groupIdx % 2 === 0 ? 'bg-[#f8fafc]' : 'bg-[#f7faff]'}`}>
+                      <td colSpan={4} className={`px-3 py-1.5 border-y border-border ${groupIdx % 2 === 0 ? 'bg-[#f8fafc]' : 'bg-[#f7faff]'}`}>
                         <div className="flex items-center gap-2">
                           <span className="inline-block w-2 h-2 rounded-sm bg-primary/60" />
                           <span className="text-xs font-bold text-text">{group.companyName}</span>
@@ -362,34 +346,25 @@ export default function SalesListPage() {
                       </td>
                     </tr>
                     {group.products.map((p) => {
-                      const unitPrices = computeUnitPrices(p)
-                      const priceByType = Object.fromEntries(unitPrices.map((up) => [up.unitType, up.price]))
                       const rowBg = groupIdx % 2 === 0 ? 'bg-[#f8fafc]' : 'bg-[#f7faff]'
                       return (
                         <tr key={p.id} className={`border-b border-border/50 ${rowBg}`}>
-                          <td className="px-2 py-1.5 text-center font-mono text-[10px] text-text-muted ltr align-middle">
+                          <td className="px-1.5 py-1.5 text-center font-mono text-[10px] text-text-muted ltr align-middle">
                             {p.legacy_code || '---'}
                           </td>
                           <td className="px-3 py-1.5 text-right text-xs text-text align-middle">
                             <SearchHighlight text={p.product_name} query={search} />
                           </td>
-                          <td className="px-2 py-1.5 text-center align-middle">
-                            {priceByType.piece != null ? (
-                              <span className="text-xs font-bold text-text">{formatPrice(priceByType.piece)}</span>
+                          <td className="px-1.5 py-1.5 text-center align-middle">
+                            {Number(p.piece_price) > 0 ? (
+                              <span className="text-xs font-bold text-text">{formatPrice(Number(p.piece_price))}</span>
                             ) : (
                               <span className="text-text-muted text-[10px]">&mdash;</span>
                             )}
                           </td>
-                          <td className="px-2 py-1.5 text-center align-middle">
-                            {priceByType.dozen != null ? (
-                              <span className="text-xs font-bold text-text">{formatPrice(priceByType.dozen)}</span>
-                            ) : (
-                              <span className="text-text-muted text-[10px]">&mdash;</span>
-                            )}
-                          </td>
-                          <td className="px-2 py-1.5 text-center align-middle">
-                            {priceByType.carton != null ? (
-                              <span className="text-xs font-bold text-text">{formatPrice(priceByType.carton)}</span>
+                          <td className="px-1.5 py-1.5 text-center align-middle">
+                            {Number(p.carton_price) > 0 ? (
+                              <span className="text-xs font-bold text-text">{formatPrice(Number(p.carton_price))}</span>
                             ) : (
                               <span className="text-text-muted text-[10px]">&mdash;</span>
                             )}
