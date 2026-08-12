@@ -144,7 +144,12 @@ export function OrdersPage() {
     if (orderTypeFilter) {
       list = list.filter((o: any) => (o.order_type || 'cash') === orderTypeFilter)
     }
-    return [...list].sort((a: any, b: any) => ((b.created_at || '') > (a.created_at || '') ? 1 : -1))
+    return [...list].sort((a: any, b: any) => {
+      const aEvent = a.updated_at || a.created_at || ''
+      const bEvent = b.updated_at || b.created_at || ''
+      if (bEvent !== aEvent) return bEvent > aEvent ? 1 : -1
+      return (b.created_at || '') > (a.created_at || '') ? 1 : -1
+    })
   }, [orders, tab, currentUserId, orderTypeFilter])
 
   const sortedTotalValue = useMemo(() => {
