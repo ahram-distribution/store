@@ -53,6 +53,22 @@ export const notificationInboxService = {
     return !error
   },
 
+  async deleteNotifications(ids: string[]): Promise<boolean> {
+    const token = useAuthStore.getState().token
+    if (!token || ids.length === 0) return false
+
+    const { error } = await supabase.rpc('delete_my_notifications', { p_token: token, p_ids: ids })
+    return !error
+  },
+
+  async deleteAllNotifications(): Promise<boolean> {
+    const token = useAuthStore.getState().token
+    if (!token) return false
+
+    const { error } = await supabase.rpc('delete_all_my_notifications', { p_token: token })
+    return !error
+  },
+
   subscribeToNotifications(callback: (notification: Notification) => void): () => void {
     const user = useAuthStore.getState().user
     const employeeId = user?.employee_id

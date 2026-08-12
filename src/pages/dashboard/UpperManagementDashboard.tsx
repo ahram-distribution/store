@@ -27,6 +27,7 @@ const now = new Date()
 const CUR_MONTH = now.getMonth() + 1
 const CUR_YEAR = now.getFullYear()
 const MONTHS = ['يناير', 'فبراير', 'مارس', 'إبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر']
+const WEEKDAYS = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت']
 
 
 function getToken(): string | null {
@@ -68,8 +69,6 @@ export default function UpperManagementDashboard() {
     fetchUnseenCounts(token)
   }, [])
 
-  const achievementValue = achievementPct
-
   const groups: LauncherGroup[] = [
     { icon: '📋', label: 'الطلبات', path: '/launcher/orders', isSubLauncher: true, badge: unseenOrdersCount },
     { icon: '📍', label: 'الانتشار', path: '/coverage-map' },
@@ -99,7 +98,8 @@ export default function UpperManagementDashboard() {
     { icon: '📊', label: 'تحليلات العملاء', path: '/analytics/customers/intelligence' },
   ]
 
-  const curMonthLabel = MONTHS[CUR_MONTH - 1] + ' ' + CUR_YEAR
+  const greeting = new Date().getHours() < 12 ? 'صباح الخير' : 'مساء الخير'
+  const curDateLabel = WEEKDAYS[now.getDay()] + ' ' + now.getDate() + ' ' + MONTHS[now.getMonth()] + ' ' + now.getFullYear()
 
   const adminPaths = ['/launcher/settings', '/ops/gps-test', '/data-center']
   const isEd = isExecutiveDirectorUser(user)
@@ -117,12 +117,10 @@ export default function UpperManagementDashboard() {
         <div className="p-5">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-xl font-bold text-white">مرحباً</h1>
-              <p className="text-sm text-white/70 mt-0.5">{user?.full_name || ''}</p>
+              <h1 className="text-xl font-bold text-white">{greeting} أستاذ {user?.full_name || ''}</h1>
             </div>
             <div className="text-left">
-              <div className="text-xs text-white/60">{curMonthLabel}</div>
-              <div className="text-xl font-bold text-gold-light mt-0.5">{achievementValue.toFixed(1)}%</div>
+              <div className="text-xs text-white">{curDateLabel}</div>
             </div>
           </div>
         </div>

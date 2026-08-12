@@ -1,14 +1,43 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useNotificationStore } from '../../store/notifications'
 import { NotificationItem } from './NotificationItem'
 import { PushPermissionButton } from './PushPermissionButton'
 
 export function NotificationInbox() {
-  const { notifications, loading, hasMore, unreadCount, fetchInitial, fetchMore, markAllRead, refresh } = useNotificationStore()
+  const { notifications, loading, hasMore, unreadCount, fetchInitial, fetchMore, markAllRead, refresh, deleteNotifications, deleteAllNotifications } = useNotificationStore()
+  const [selectMode, setSelectMode] = useState(false)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     fetchInitial()
   }, [fetchInitial])
+
+  const toggleSelect = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const cancelSelection = () => {
+    setSelectMode(false)
+    setSelected(new Set())
+  }
+
+  const handleClearAll = async () => {
+    if (!window.confirm('هل تريد مسح جميع الإشعارات؟')) return
+    await deleteAllNotifications()
+    cancelSelection()
+  }
+
+  const handleDeleteSelected = async () => {
+    if (selected.size === 0) return
+    if (!window.confirm(`هل تريد مسح الإشعارات المحددة (${selected.size})؟`)) return
+    await deleteNotifications([...selected])
+    cancelSelection()
+  }
 
   return (
     <div className="max-w-lg mx-auto">
@@ -37,6 +66,48 @@ export function NotificationInbox() {
         <PushPermissionButton />
       </div>
 
+      {/* Delete actions */}
+      {notifications.length > 0 && !selectMode && (
+        <div className="flex gap-2 mb-3">
+          <button
+            onClick={handleClearAll}
+            className="flex-1 py-2 text-xs font-medium text-danger rounded-xl border border-danger/30 bg-danger/5 hover:bg-danger/10 transition-colors"
+          >
+            🗑️ مسح الكل
+          </button>
+          <button
+            onClick={() => setSelectMode(true)}
+            className="flex-1 py-2 text-xs font-medium text-primary rounded-xl border border-primary/30 bg-primary/5 hover:bg-primary/10 transition-colors"
+          >
+            ☑️ مسح متعدد
+          </button>
+        </div>
+      )}
+
+      {/* Selection action bar */}
+      {selectMode && (
+        <div className="flex items-center justify-between gap-2 mb-3 p-3 rounded-xl border border-border bg-white">
+          <span className="text-xs font-medium text-text">
+            {selected.size > 0 ? `تم اختيار ${selected.size}` : 'اختر الرسائل للمسح'}
+          </span>
+          <div className="flex gap-2">
+            <button
+              onClick={handleDeleteSelected}
+              disabled={selected.size === 0}
+              className="px-3 py-1.5 text-xs font-medium text-white bg-danger rounded-full disabled:opacity-40 transition-colors"
+            >
+              مسح المحدد
+            </button>
+            <button
+              onClick={cancelSelection}
+              className="px-3 py-1.5 text-xs font-medium text-text-secondary rounded-full border border-border hover:bg-surface transition-colors"
+            >
+              إلغاء
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Loading state */}
       {loading && notifications.length === 0 && (
         <div className="flex justify-center py-12">
@@ -55,7 +126,13 @@ export function NotificationInbox() {
       {/* Notification list */}
       <div className="flex flex-col gap-2">
         {notifications.map((n) => (
-          <NotificationItem key={n.id} notification={n} />
+          <NotificationItem
+            key={n.id}
+            notification={n}
+            selectMode={selectMode}
+            selected={selected.has(n.id)}
+            onToggleSelect={() => toggleSelect(n.id)}
+          />
         ))}
       </div>
 

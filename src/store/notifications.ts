@@ -13,6 +13,8 @@ interface NotificationState {
   refresh: () => Promise<void>
   markRead: (id: string) => Promise<void>
   markAllRead: () => Promise<void>
+  deleteNotifications: (ids: string[]) => Promise<void>
+  deleteAllNotifications: () => Promise<void>
   prependNotification: (n: Notification) => void
   showToast: (n: Notification) => void
   dismissToast: () => void
@@ -100,6 +102,28 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
         unreadCount: 0,
       })
     }
+  },
+
+  deleteNotifications: async (ids: string[]) => {
+    if (ids.length === 0) return
+    const success = await notificationInboxService.deleteNotifications(ids)
+    if (!success) return
+
+    const { notifications, unreadCount, total } = get()
+    const idSet = new Set(ids)
+    const deletedUnread = notifications.filter((n) => idSet.has(n.id) && !n.is_read).length
+    set({
+      notifications: notifications.filter((n) => !idSet.has(n.id)),
+      unreadCount: Math.max(0, unreadCount - deletedUnread),
+      total: Math.max(0, total - ids.length),
+    })
+  },
+
+  deleteAllNotifications: async () => {
+    const success = await notificationInboxService.deleteAllNotifications()
+    if (!success) return
+
+    set({ notifications: [], unreadCount: 0, total: 0, hasMore: false })
   },
 
   prependNotification: (n: Notification) => {

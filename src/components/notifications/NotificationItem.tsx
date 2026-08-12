@@ -29,13 +29,20 @@ function timeAgo(dateStr: string): string {
 
 interface Props {
   notification: Notification
+  selectMode?: boolean
+  selected?: boolean
+  onToggleSelect?: () => void
 }
 
-export function NotificationItem({ notification }: Props) {
+export function NotificationItem({ notification, selectMode = false, selected = false, onToggleSelect }: Props) {
   const navigate = useNavigate()
   const markRead = useNotificationStore((s) => s.markRead)
 
   const handleClick = async () => {
+    if (selectMode) {
+      onToggleSelect?.()
+      return
+    }
     if (!notification.is_read) {
       await markRead(notification.id)
     }
@@ -48,9 +55,11 @@ export function NotificationItem({ notification }: Props) {
     <button
       onClick={handleClick}
       className={`w-full text-right p-3 rounded-xl transition-colors border ${
-        notification.is_read
-          ? 'bg-white border-border'
-          : 'bg-primary/5 border-primary/15'
+        selectMode && selected
+          ? 'bg-primary/10 border-primary/40'
+          : notification.is_read
+            ? 'bg-white border-border'
+            : 'bg-primary/5 border-primary/15'
       } active:scale-[0.98]`}
     >
       <div className="flex items-start gap-2.5">
@@ -60,8 +69,12 @@ export function NotificationItem({ notification }: Props) {
             <span className={`text-sm font-semibold ${notification.is_read ? 'text-text-secondary' : 'text-text'}`}>
               {notification.title}
             </span>
-            {!notification.is_read && (
-              <span className="shrink-0 w-2 h-2 rounded-full bg-primary" />
+            {selectMode ? (
+              <span className={`shrink-0 w-5 h-5 rounded-full border-2 flex items-center justify-center ${selected ? 'bg-primary border-primary' : 'border-primary/30'}`}>
+                {selected && <span className="text-white text-[10px] font-bold leading-none">✓</span>}
+              </span>
+            ) : (
+              !notification.is_read && <span className="shrink-0 w-2 h-2 rounded-full bg-primary" />
             )}
           </div>
           <p className={`text-xs mt-0.5 line-clamp-2 ${notification.is_read ? 'text-text-secondary' : 'text-text-secondary'}`}>
