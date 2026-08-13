@@ -266,7 +266,7 @@ export function buildOrderDisplayData(params: {
 
   const creatorType = o.owner_type === 'customer'
     ? 'عميل'
-    : o.created_by === o.owner_id ? 'مندوب مبيعات' : 'موظف'
+    : (o.created_by_id ?? o.order_creator_id) === o.owner_id ? 'مندوب مبيعات' : 'موظف'
 
   const creator: OrderPersonData = {
     id: pick(o, ['created_by', 'snapshot_sender_id', 'order_creator_id']),

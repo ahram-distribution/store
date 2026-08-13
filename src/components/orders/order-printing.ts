@@ -30,7 +30,7 @@ export function renderPdfHtml(data: UnifiedOrder): string {
   const creatorPhone = order.snapshot_sender_phone || ''
   const creatorAddress = order.snapshot_sender_address || ''
   const creatorLabel = order.owner_type === 'customer' ? 'عميل'
-    : order.created_by === order.owner_id ? 'مندوب مبيعات' : 'موظف'
+    : order.order_creator_id === order.owner_id ? 'مندوب مبيعات' : 'موظف'
 
   function itemsTable(): string {
     let h = '<table><thead><tr><th>كود الصنف</th><th>اسم الصنف</th><th>الشركة</th><th>الوحدة</th><th>الكمية</th><th>السعر</th><th>الإجمالي</th></tr></thead><tbody>'

@@ -138,8 +138,8 @@ export function OrdersPage() {
 
   const sorted = useMemo(() => {
     let list = orders
-    if (tab === 'my_invoices' && currentUserId) {
-      list = list.filter((o: any) => o.owner_id === currentUserId)
+    if (tab === 'my_invoices' && currentEmpId) {
+      list = list.filter((o: any) => o.owner_id === currentEmpId)
     }
     if (orderTypeFilter) {
       list = list.filter((o: any) => (o.order_type || 'cash') === orderTypeFilter)
@@ -150,7 +150,7 @@ export function OrdersPage() {
       if (bEvent !== aEvent) return bEvent > aEvent ? 1 : -1
       return (b.created_at || '') > (a.created_at || '') ? 1 : -1
     })
-  }, [orders, tab, currentUserId, orderTypeFilter])
+  }, [orders, tab, currentEmpId, orderTypeFilter])
 
   const sortedTotalValue = useMemo(() => {
     return sorted.reduce((sum: number, o: any) => sum + (Number(o.total_amount) || 0), 0)

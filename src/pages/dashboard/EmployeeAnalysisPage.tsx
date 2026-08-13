@@ -210,7 +210,7 @@ export default function EmployeeAnalysisPage() {
     const { count: custCount } = await supabase
       .from('customers')
       .select('id', { count: 'exact', head: true })
-      .in('owner_id', (emps || []).map((e: any) => e.identity_id).filter(Boolean))
+      .in('owner_id', (emps || []).map((e: any) => e.id).filter(Boolean))
       .eq('is_active', true)
     // Total orders for all team members' customers
     const teamIds = (emps || []).map((e: any) => e.id)

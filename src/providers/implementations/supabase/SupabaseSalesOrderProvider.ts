@@ -29,7 +29,7 @@ export class SupabaseSalesOrderProvider implements ISalesOrderProvider {
         company_id: order.companyId,
         customer_id: order.customerId,
         snapshot_customer_name: order.customerName,
-        owner_id: this.context.identityId,
+        owner_id: await this.resolveOwnerId(),
         created_by: this.context.identityId,
         status: 'draft',
         subtotal: order.subtotal.amount,
@@ -48,6 +48,17 @@ export class SupabaseSalesOrderProvider implements ISalesOrderProvider {
         .insert({ ...item, order_id: orderId })
       if (itemError) throw new ProviderException(itemError.message, PROVIDER_NAME, itemError)
     }
+  }
+
+  private async resolveOwnerId(): Promise<string> {
+    if (this.context.identityType !== 'employee') return this.context.identityId
+    const { data, error } = await supabase
+      .from('employees')
+      .select('id')
+      .eq('identity_id', this.context.identityId)
+      .maybeSingle()
+    if (error) throw new ProviderException(error.message, PROVIDER_NAME, error)
+    return (data?.id as string | undefined) ?? this.context.identityId
   }
 
   async submitOrder(order: SalesOrder): Promise<void> {

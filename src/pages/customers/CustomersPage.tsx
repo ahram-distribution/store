@@ -9,9 +9,26 @@ import { useEntityViewsStore } from '../../store/entityViews'
 import SmartFilterBar, { type FilterValues } from '../../components/SmartFilterBar'
 import { CustomerCard } from '../../components/customers/CustomerCard'
 import type { CustomerCardData } from '../../types/customers'
+import {
+  buildCustomerReportFilterSummary,
+  buildCustomerReportRows,
+  exportCustomersReportExcel,
+  printCustomersReport,
+  type CustomerReportFilterContext,
+  type CustomerReportMeta,
+} from '../../services/customerReport'
 
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
+}
+
+// Newest customer first by creation date; deterministic id tie-break only for
+// identical created_at values (no other secondary ordering).
+function sortCustomersNewestFirst(a: CustomerCardData, b: CustomerCardData): number {
+  const ta = a.created_at ? new Date(a.created_at).getTime() : 0
+  const tb = b.created_at ? new Date(b.created_at).getTime() : 0
+  if (tb !== ta) return tb - ta
+  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0
 }
 
 export function CustomersPage() {
@@ -106,7 +123,8 @@ export function CustomersPage() {
       setEmployees(list.map((e: any) => ({ id: e.id, name: e.full_name })))
     }
     if (custRes.data) {
-      setCustomers(Array.isArray(custRes.data) ? custRes.data : [])
+      const list = Array.isArray(custRes.data) ? custRes.data : []
+      setCustomers([...list].sort(sortCustomersNewestFirst))
     }
     setLoading(false)
   }
@@ -131,11 +149,51 @@ export function CustomersPage() {
 
   const hasActiveQuickFilter = quickFilters.noOrders || quickFilters.noVisits || quickFilters.noLocation || quickFilters.needsCorrection
 
+  const reportContext = (): CustomerReportFilterContext => ({
+    search: filters.search || '',
+    datePreset: filters.datePreset || 'all',
+    dateFrom: filters.dateFrom || '',
+    dateTo: filters.dateTo || '',
+    employeeId: filters.employeeId || '',
+    myOnly,
+    quickFilters,
+    governorateId,
+    employees,
+    governorates,
+  })
+
+  const buildReportMeta = (): CustomerReportMeta => {
+    const [y, m, d] = cairoDateComponents(new Date())
+    const stamp = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+    return {
+      title: 'تقرير العملاء',
+      generatedAt: new Date(),
+      filterLines: buildCustomerReportFilterSummary(reportContext()),
+      fileName: `تقرير_العملاء_${stamp}`,
+    }
+  }
+
+  const handleReportExcel = () => {
+    if (!customers.length) return
+    exportCustomersReportExcel(buildCustomerReportRows(customers, governorates), buildReportMeta())
+  }
+
+  const handleReportPrint = () => {
+    if (!customers.length) return
+    printCustomersReport(buildCustomerReportRows(customers, governorates), buildReportMeta())
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3">
         <button onClick={() => navigate('/dashboard')} className="text-text-secondary text-lg">&larr;</button>
         <h1 className="text-lg font-bold text-text">العملاء</h1>
+        {!loading && customers.length > 0 && (
+          <div className="flex gap-1.5">
+            <button onClick={handleReportExcel} className="bg-white border border-border rounded-lg text-[11px] px-2.5 py-1.5 font-semibold text-text hover:bg-neutral-50">📊 Excel</button>
+            <button onClick={handleReportPrint} className="bg-white border border-border rounded-lg text-[11px] px-2.5 py-1.5 font-semibold text-text hover:bg-neutral-50">🖨️ طباعة</button>
+          </div>
+        )}
         {canCreate && (
           <button onClick={() => navigate('/customers/new')} className="mr-auto bg-primary text-white text-xs px-3 py-1.5 rounded-lg font-semibold">+ إضافة عميل</button>
         )}

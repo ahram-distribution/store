@@ -9182,6 +9182,8 @@ BEGIN
       'previous_orders_total', ps.orders_total,
       'last_order_number', ps.last_order_number,
       'last_order_date', ps.last_order_date,
+      'last_order_total', ps.last_order_total,
+      'delivered_total', ps.delivered_total,
       'last_visit_date', vs.last_visit_date,
       'visit_count', vs.visit_count,
       'current_balance', (COALESCE(ps.orders_total, 0) - COALESCE(col.total_collected, 0))
@@ -9212,7 +9214,9 @@ BEGIN
         count(*)::bigint AS order_count,
         COALESCE(sum(total_amount), 0) AS orders_total,
         (array_agg(order_number ORDER BY created_at DESC))[1] AS last_order_number,
-        max(created_at) AS last_order_date
+        max(created_at) AS last_order_date,
+        (array_agg(total_amount ORDER BY created_at DESC))[1] AS last_order_total,
+        COALESCE(sum(total_amount) FILTER (WHERE o2.status = 'delivered'), 0) AS delivered_total
       FROM public.orders o2
       WHERE o2.customer_id = c.id
     ) ps ON true
@@ -9258,6 +9262,8 @@ BEGIN
       'previous_orders_total', ps.orders_total,
       'last_order_number', ps.last_order_number,
       'last_order_date', ps.last_order_date,
+      'last_order_total', ps.last_order_total,
+      'delivered_total', ps.delivered_total,
       'last_visit_date', vs.last_visit_date,
       'visit_count', vs.visit_count,
       'current_balance', (COALESCE(ps.orders_total, 0) - COALESCE(col.total_collected, 0))
@@ -9288,7 +9294,9 @@ BEGIN
         count(*)::bigint AS order_count,
         COALESCE(sum(total_amount), 0) AS orders_total,
         (array_agg(order_number ORDER BY created_at DESC))[1] AS last_order_number,
-        max(created_at) AS last_order_date
+        max(created_at) AS last_order_date,
+        (array_agg(total_amount ORDER BY created_at DESC))[1] AS last_order_total,
+        COALESCE(sum(total_amount) FILTER (WHERE o2.status = 'delivered'), 0) AS delivered_total
       FROM public.orders o2
       WHERE o2.customer_id = c.id
     ) ps ON true
@@ -9333,6 +9341,8 @@ BEGIN
     'previous_orders_total', ps.orders_total,
     'last_order_number', ps.last_order_number,
     'last_order_date', ps.last_order_date,
+    'last_order_total', ps.last_order_total,
+    'delivered_total', ps.delivered_total,
     'last_visit_date', vs.last_visit_date,
     'visit_count', vs.visit_count,
     'current_balance', (COALESCE(ps.orders_total, 0) - COALESCE(col.total_collected, 0))
@@ -9363,7 +9373,9 @@ BEGIN
       count(*)::bigint AS order_count,
       COALESCE(sum(total_amount), 0) AS orders_total,
       (array_agg(order_number ORDER BY created_at DESC))[1] AS last_order_number,
-      max(created_at) AS last_order_date
+      max(created_at) AS last_order_date,
+      (array_agg(total_amount ORDER BY created_at DESC))[1] AS last_order_total,
+      COALESCE(sum(total_amount) FILTER (WHERE o2.status = 'delivered'), 0) AS delivered_total
     FROM public.orders o2
     WHERE o2.customer_id = c.id
   ) ps ON true
@@ -10406,7 +10418,7 @@ BEGIN
       AND (p_search IS NULL OR o.order_number ILIKE '%' || p_search || '%')
       AND (p_status IS NULL OR o.status = p_status)
       AND (p_customer_id IS NULL OR o.customer_id = p_customer_id)
-      AND (p_employee_id IS NULL OR o.created_by = p_employee_id)
+      AND (p_employee_id IS NULL OR public.resolve_employee_id(o.created_by) = p_employee_id)
       AND (p_date_from IS NULL OR o.created_at >= p_date_from)
       AND (p_date_to IS NULL OR o.created_at <= p_date_to);
     RETURN COALESCE(v_result, '[]'::jsonb);
@@ -10445,7 +10457,7 @@ BEGIN
     WHERE (p_search IS NULL OR o.order_number ILIKE '%' || p_search || '%')
       AND (p_status IS NULL OR o.status = p_status)
       AND (p_customer_id IS NULL OR o.customer_id = p_customer_id)
-      AND (p_employee_id IS NULL OR o.created_by = p_employee_id)
+      AND (p_employee_id IS NULL OR public.resolve_employee_id(o.created_by) = p_employee_id)
       AND (p_date_from IS NULL OR o.created_at >= p_date_from)
       AND (p_date_to IS NULL OR o.created_at <= p_date_to);
     RETURN COALESCE(v_result, '[]'::jsonb);
@@ -10487,7 +10499,7 @@ BEGIN
     AND (p_search IS NULL OR o.order_number ILIKE '%' || p_search || '%')
     AND (p_status IS NULL OR o.status = p_status)
     AND (p_customer_id IS NULL OR o.customer_id = p_customer_id)
-    AND (p_employee_id IS NULL OR o.created_by = p_employee_id)
+    AND (p_employee_id IS NULL OR public.resolve_employee_id(o.created_by) = p_employee_id)
     AND (p_date_from IS NULL OR o.created_at >= p_date_from)
     AND (p_date_to IS NULL OR o.created_at <= p_date_to);
   RETURN COALESCE(v_result, '[]'::jsonb);
@@ -23960,7 +23972,7 @@ CREATE OR REPLACE FUNCTION public._emp_cascade_order_ids(p_ids uuid[])
  SET search_path TO 'public', 'extensions'
 AS $function$
 
-  SELECT ARRAY(SELECT id FROM public.orders WHERE created_by = ANY(p_ids))
+  SELECT ARRAY(SELECT id FROM public.orders WHERE created_by = ANY(p_ids) OR owner_id = ANY(p_ids))
 
 $function$;
 

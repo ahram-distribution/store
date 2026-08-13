@@ -21,6 +21,8 @@ export interface CustomerCardData {
   previous_orders_total: number | null
   last_order_number: string | null
   last_order_date: string | null
+  last_order_total: number | null
+  delivered_total: number | null
   last_visit_date: string | null
   visit_count: number | null
   current_balance: number | null
