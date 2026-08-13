@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../store/auth'
 import { useEntityViewsStore } from '../../store/entityViews'
-import { resolveDateRangeISO } from '../../lib/dateRange'
+import { resolveDateRangeISO, cairoDateComponents } from '../../lib/dateRange'
 import { OrderCard } from '../../components/orders/OrderCard'
 import SmartFilterBar, { type FilterValues } from '../../components/SmartFilterBar'
 import { ResultsSummary } from '../../components/data-list/ResultsSummary'
@@ -14,6 +14,13 @@ import { EmptyState } from '../../components/data-list/EmptyState'
 import { StatusKpiBar } from '../../components/data-list/StatusKpiBar'
 import { ORDER_STATUS_LABELS, statusFilterOptions, statusDisplayOrder, visibleStatusLabel } from '../../types/order-display'
 import { useUpperManagement } from '../../hooks/useUpperManagement'
+import {
+  buildOrdersReportFilterSummary,
+  buildOrdersReportRows,
+  exportOrdersReportExcel,
+  printOrdersReport,
+  type OrdersReportMeta,
+} from '../../services/ordersReport'
 import type { ActiveFilterItem, KpiChipConfig } from '../../types/data-list'
 
 function getToken(): string | null {
@@ -108,6 +115,7 @@ export function OrdersPage() {
     if (customerFilter) rpcParams.p_customer_id = customerFilter
     if (tab === 'my_orders' && currentUserId) rpcParams.p_created_by = currentUserId
     if (governorateFilter) rpcParams.p_governorate_id = governorateFilter
+    rpcParams.p_include_strict_previous = true
 
     const { data } = await supabase.rpc('get_unified_orders', rpcParams)
     if (data) setOrders(Array.isArray(data) ? data : [])
@@ -245,11 +253,55 @@ export function OrdersPage() {
     setSfResetKey(k => k + 1)
   }, [resetViewState])
 
+  const reportContext = () => ({
+    tab,
+    datePreset: filters.datePreset || 'all',
+    dateFrom: filters.dateFrom || '',
+    dateTo: filters.dateTo || '',
+    search: filters.search || '',
+    employeeId: filters.employeeId || '',
+    statusFilter,
+    customerFilter,
+    orderTypeFilter,
+    governorateFilter,
+    employees,
+    customers,
+    governorates,
+  })
+
+  const buildReportMeta = (): OrdersReportMeta => {
+    const [y, m, d] = cairoDateComponents(new Date())
+    const stamp = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+    return {
+      title: 'تقرير الطلبات',
+      subtitle: 'قائمة الطلبات المعروضة على شاشة الطلبات',
+      generatedAt: new Date(),
+      filterLines: buildOrdersReportFilterSummary(reportContext()),
+      fileName: `تقرير_الطلبات_${stamp}`,
+    }
+  }
+
+  const handleReportExcel = () => {
+    if (!sorted.length) return
+    exportOrdersReportExcel(buildOrdersReportRows(sorted, governorates), buildReportMeta())
+  }
+
+  const handleReportPrint = () => {
+    if (!sorted.length) return
+    printOrdersReport(buildOrdersReportRows(sorted, governorates), buildReportMeta())
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3">
         <button onClick={() => navigate('/dashboard')} className="text-text-secondary text-lg">&larr;</button>
         <h1 className="text-lg font-bold text-text">{tabLabel}</h1>
+        {!loading && sorted.length > 0 && (
+          <div className="flex gap-1.5">
+            <button onClick={handleReportExcel} className="bg-white border border-border rounded-lg text-[11px] px-2.5 py-1.5 font-semibold text-text hover:bg-neutral-50">📊 Excel</button>
+            <button onClick={handleReportPrint} className="bg-white border border-border rounded-lg text-[11px] px-2.5 py-1.5 font-semibold text-text hover:bg-neutral-50">🖨️ طباعة</button>
+          </div>
+        )}
         <button onClick={() => navigate('/orders/new')} className="mr-auto bg-primary text-white text-xs px-3 py-1.5 rounded-lg font-semibold">+ إنشاء طلب</button>
       </div>
 
