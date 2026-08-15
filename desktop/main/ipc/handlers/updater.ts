@@ -17,7 +17,7 @@ function ensureAutoUpdater(): void {
   if (initialized) return
   initialized = true
 
-  autoUpdater.autoDownload = false
+  autoUpdater.autoDownload = true
   autoUpdater.autoInstallOnAppQuit = true
   autoUpdater.allowPrerelease = false
   autoUpdater.allowDowngrade = false

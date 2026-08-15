@@ -434,6 +434,29 @@ CREATE INDEX IF NOT EXISTS idx_sync_metadata_table ON sync_metadata (table_name)
     Remove-Item $syncFile -Force -ErrorAction SilentlyContinue
     Write-Log "STAGE 13 PASS: Sync metadata DDL applied"
 
+    # ── STAGE 13b: Initialize schema versioning (baseline v1) ──
+    $schemaMigDdl = @"
+CREATE TABLE IF NOT EXISTS schema_migrations (
+  version integer PRIMARY KEY,
+  name varchar(200) NOT NULL,
+  description text,
+  applied_at timestamptz NOT NULL DEFAULT now(),
+  status varchar(20) NOT NULL DEFAULT 'applied',
+  error_message text
+);
+INSERT INTO schema_migrations (version, name, description, status)
+VALUES (1, 'baseline', 'Baseline schema applied by installer (production snapshot 2026-07-27)', 'applied')
+ON CONFLICT (version) DO NOTHING;
+"@
+    $schemaMigFile = Join-Path $env:TEMP "ahram_schema_migrations.sql"
+    Write-FileNoBom $schemaMigFile $schemaMigDdl
+    $schemaMigResult = & cmd /c "`"$psql`" -U $DbUser -h 127.0.0.1 -p $port -d $DbName -f `"$schemaMigFile`" 2>&1"
+    $schemaMigExit = $LASTEXITCODE
+    $schemaMigText = @($schemaMigResult) -join "`r`n"
+    if ($schemaMigExit -ne 0) { Fail-Fast "13b-schema-migrations" "psql -f schema_migrations.sql" $schemaMigExit "" $schemaMigText }
+    Remove-Item $schemaMigFile -Force -ErrorAction SilentlyContinue
+    Write-Log "STAGE 13b PASS: schema_migrations baseline v1 recorded"
+
     # ── STAGE 14: Verify expected table count ──
     $tableResult = Run-Psql -PgBinDir $pgBinDir -Port $port -User $DbUser -Database $DbName -Command "SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE'"
     $tableCount = 0

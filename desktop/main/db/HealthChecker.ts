@@ -7,9 +7,11 @@ import {
   loadDbConfig,
   ensureDirectories,
   startAhramService,
+  ensureSyncMetadataSchema,
 } from './PostgreSQLManager.js'
-import { initialSync, incrementalSync, processSyncOutbox } from './InitialSync.js'
+import { initialSync, incrementalSync, processSyncOutbox, getSyncQuarantineStatus } from './InitialSync.js'
 import { createBackup, shouldBackup } from './BackupManager.js'
+import { resolveSchemaCompatibility } from './SchemaMigrator.js'
 
 export interface DesktopHealthReport {
   postgres: PgStatus
@@ -17,9 +19,39 @@ export interface DesktopHealthReport {
   health: PgHealthCheck | null
   ready: boolean
   message: string
+  schema?: {
+    currentVersion: number
+    requiredVersion: number
+    status: string
+  } | null
+  pendingConflicts?: number
+  quarantinedTables?: string[]
+  quarantinedOutbox?: number
 }
 
 export type StatusCallback = (message: string) => void
+
+async function attachRuntimeStatus(config: PgConnection, report: DesktopHealthReport): Promise<void> {
+  try {
+    await ensureSyncMetadataSchema(config)
+  } catch (err: any) {
+    console.warn('[Health] ensureSyncMetadataSchema failed:', err.message)
+  }
+  try {
+    const q = await getSyncQuarantineStatus(config)
+    report.pendingConflicts = q.pendingConflicts
+    report.quarantinedTables = q.quarantinedTables
+    report.quarantinedOutbox = q.quarantinedOutbox
+  } catch { /* ignore */ }
+  try {
+    const compat = await resolveSchemaCompatibility(config)
+    report.schema = {
+      currentVersion: compat.state?.currentVersion ?? 0,
+      requiredVersion: compat.state?.requiredVersion ?? 0,
+      status: compat.status,
+    }
+  } catch { /* ignore */ }
+}
 
 export async function bootstrapLocalDatabase(onStatus?: StatusCallback): Promise<DesktopHealthReport> {
   ensureDirectories()
@@ -42,6 +74,7 @@ export async function bootstrapLocalDatabase(onStatus?: StatusCallback): Promise
         ready: true,
         message: `Local database ready. ${health.tableCount} tables, last sync: ${health.lastSyncAt || 'never'}`,
       }
+      await attachRuntimeStatus(config, report)
       return report
     }
 
@@ -54,11 +87,15 @@ export async function bootstrapLocalDatabase(onStatus?: StatusCallback): Promise
         const connected = await tryConnect(config)
         if (connected) {
           const health = await checkHealth(config)
-          return {
+          const report: DesktopHealthReport = {
             postgres,
-            config, health, ready: true,
+            config,
+            health,
+            ready: true,
             message: `Local database ready. ${health.tableCount} tables, last sync: ${health.lastSyncAt || 'never'}`,
           }
+          await attachRuntimeStatus(config, report)
+          return report
         }
       }
     }

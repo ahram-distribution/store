@@ -1,8 +1,28 @@
 import { execSync } from 'child_process'
 import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, appendFileSync } from 'fs'
 import { join } from 'path'
-import { app } from 'electron'
 import { randomBytes } from 'crypto'
+
+function lazyRequireApp(): any {
+  try {
+    return require('electron').app
+  } catch {
+    return null
+  }
+}
+
+export function getUserDataDir(): string {
+  const forced = process.env.AHRAM_USER_DATA
+  if (forced) return forced
+  const electronApp = lazyRequireApp()
+  if (electronApp && typeof electronApp.getPath === 'function') {
+    try {
+      return electronApp.getPath('userData')
+    } catch { /* app not ready yet */ }
+  }
+  // Plain-node fallback (verification harness / tests)
+  return join(process.env.LOCALAPPDATA || process.env.TEMP || '.', 'ahram-desktop-dev')
+}
 
 export interface PgConnection {
   host: string
@@ -46,7 +66,7 @@ const AH_SERVICE_NAME = 'ahram_pg_16'
 const AH_PG_VERSION = '16'
 const DB_CONFIG_DIR = join(process.env.PROGRAMDATA || 'C:\\ProgramData', 'ahram-desktop')
 const DATA_DIR = join(DB_CONFIG_DIR, 'pgdata')
-const BUNDLED_PG_DIR = join(app.getPath('userData'), 'pg-bin')
+const BUNDLED_PG_DIR = join(getUserDataDir(), 'pg-bin')
 const CONFIG_FILE = join(DB_CONFIG_DIR, 'db-config.json')
 const PWD_FILE = join(DB_CONFIG_DIR, 'db-pwd.enc')
 const BACKUP_DIR = join(DB_CONFIG_DIR, 'backups')
@@ -129,7 +149,7 @@ export function generatePassword(): string {
   return pwd
 }
 
-const LOG_FILE = join(app.getPath('userData'), 'logs', 'provision.log')
+const LOG_FILE = join(getUserDataDir(), 'logs', 'provision.log')
 
 export function logProvision(level: string, message: string, error?: unknown): void {
   try {
@@ -532,6 +552,9 @@ CREATE TABLE IF NOT EXISTS sync_metadata (
   error_message text,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
+  retry_count integer DEFAULT 0,
+  next_retry_at timestamptz,
+  quarantined boolean DEFAULT false,
   UNIQUE(table_name)
 );
 CREATE TABLE IF NOT EXISTS sync_outbox (
@@ -545,7 +568,8 @@ CREATE TABLE IF NOT EXISTS sync_outbox (
   synced boolean DEFAULT false,
   synced_at timestamptz,
   retry_count integer DEFAULT 0,
-  last_error text
+  last_error text,
+  quarantined boolean DEFAULT false
 );
 CREATE TABLE IF NOT EXISTS sync_conflicts (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -557,11 +581,38 @@ CREATE TABLE IF NOT EXISTS sync_conflicts (
   resolved_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now()
 );
+ALTER TABLE sync_metadata ADD COLUMN IF NOT EXISTS retry_count integer DEFAULT 0;
+ALTER TABLE sync_metadata ADD COLUMN IF NOT EXISTS next_retry_at timestamptz;
+ALTER TABLE sync_metadata ADD COLUMN IF NOT EXISTS quarantined boolean DEFAULT false;
+ALTER TABLE sync_outbox ADD COLUMN IF NOT EXISTS quarantined boolean DEFAULT false;
 ALTER TABLE sync_outbox ADD COLUMN IF NOT EXISTS employee_id uuid;
 CREATE INDEX IF NOT EXISTS idx_sync_outbox_unsynced ON sync_outbox (created_at) WHERE synced = false;
+CREATE INDEX IF NOT EXISTS idx_sync_outbox_quarantined ON sync_outbox (retry_count) WHERE quarantined = true;
 CREATE INDEX IF NOT EXISTS idx_sync_conflicts_pending ON sync_conflicts (created_at) WHERE resolution = 'pending';
+CREATE UNIQUE INDEX IF NOT EXISTS idx_sync_conflicts_unique_pending ON sync_conflicts (table_name, record_id) WHERE resolution = 'pending';
 CREATE INDEX IF NOT EXISTS idx_sync_metadata_table ON sync_metadata (table_name);
+CREATE INDEX IF NOT EXISTS idx_sync_metadata_quarantined ON sync_metadata (table_name) WHERE quarantined = true;
 `;
+
+// Idempotent: applies the sync/runtime DDL to an existing connection.
+// Safe to run on every startup (CREATE ... IF NOT EXISTS / ADD COLUMN IF NOT EXISTS).
+export async function ensureSyncMetadataSchema(config: PgConnection): Promise<void> {
+  const { Client } = require('pg')
+  const client = new Client({
+    host: config.host,
+    port: config.port,
+    database: config.database,
+    user: config.user,
+    password: config.password,
+    connectionTimeoutMillis: 10000,
+  })
+  await client.connect()
+  try {
+    await client.query(SYNC_METADATA_DDL)
+  } finally {
+    await client.end()
+  }
+}
 
 export async function getPool(config: PgConnection): Promise<any> {
   const { Pool } = require('pg')

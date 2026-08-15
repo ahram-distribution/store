@@ -1,12 +1,12 @@
 {
   "name": "ahram-desktop",
   "private": true,
-  "version": "1.2.4",
+  "version": "1.3.0",
   "main": "build/main/main.js",
   "scripts": {
     "dev": "node ../node_modules/typescript/bin/tsc -p tsconfig.json && electron .",
-    "build:ts": "node ../node_modules/typescript/bin/tsc -p tsconfig.json && copy /Y main\\db\\schema.sql build\\main\\db\\schema.sql",
-    "build": "node ../node_modules/typescript/bin/tsc -p tsconfig.json && copy /Y main\\db\\schema.sql build\\main\\db\\schema.sql && electron-builder",
+    "build:ts": "node ../node_modules/typescript/bin/tsc -p tsconfig.json && copy /Y main\\db\\schema.sql build\\main\\db\\schema.sql && xcopy /E /I /Y main\\db\\migrations build\\main\\db\\migrations",
+    "build": "node ../node_modules/typescript/bin/tsc -p tsconfig.json && copy /Y main\\db\\schema.sql build\\main\\db\\schema.sql && xcopy /E /I /Y main\\db\\migrations build\\main\\db\\migrations && electron-builder",
     "tsc": "node ../node_modules/typescript/bin/tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {

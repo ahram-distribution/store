@@ -1,0 +1,11 @@
+{
+  "baselineVersion": 1,
+  "schemaVersion": 2,
+  "migrations": [
+    {
+      "version": 2,
+      "file": "0002_get_unified_orders_strict_previous.sql",
+      "description": "Add strict previous-order statistics to get_unified_orders (9th param p_include_strict_previous)"
+    }
+  ]
+}

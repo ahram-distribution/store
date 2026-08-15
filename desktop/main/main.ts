@@ -3,7 +3,8 @@ import { createMainWindow } from './WindowManager'
 import { registerLifecycle } from './AppLifecycle'
 import { bootstrapIpc } from './ipc/bootstrap'
 import { registerPrivilegedSchemes, registerProtocolHandler } from './ProtocolHandler'
-import { bootstrapLocalDatabase, performInitialSync, performIncrementalSync } from './db/HealthChecker.js'
+import { bootstrapLocalDatabase, performInitialSync, performIncrementalSync, performBackup } from './db/HealthChecker.js'
+import { resolveSchemaCompatibility, migrateSchema } from './db/SchemaMigrator.js'
 import { executeQuery } from './db/index.js'
 
 let mainWindow: BrowserWindow | null = null
@@ -19,6 +20,53 @@ app.whenReady().then(async () => {
   console.log('[Main] Local DB result:', JSON.stringify(result))
 
   if (result.ready && result.config) {
+    // --- Schema compatibility gate: must pass before any sync runs ---
+    const appVersion = app.getVersion()
+    const compat = await resolveSchemaCompatibility(result.config, appVersion)
+    console.log('[Main] Schema compatibility:', JSON.stringify(compat))
+
+    if (compat.status === 'schema-newer') {
+      console.error('[Main] BLOCKED: local schema is newer than this app supports.')
+      await dialog.showMessageBox({
+        type: 'error',
+        title: 'Schema Incompatible',
+        message: 'تحديث قاعدة البيانات لا يتوافق مع هذا الإصدار من التطبيق.',
+        detail:
+          `Local database schema version ${compat.state?.currentVersion} is newer than what this app version supports ` +
+          `(max ${compat.state?.manifest.schemaVersion}). Install the matching version of Ahram ERP before continuing.\n\n` +
+          (compat.detail || ''),
+      })
+      app.quit()
+      return
+    }
+
+    if (compat.status === 'needs-migration') {
+      console.log('[Main] Schema migration required. Creating safety backup first...')
+      try {
+        const backup = await performBackup(result.config)
+        console.log('[Main] Pre-migration backup:', backup.message)
+      } catch (e: any) {
+        console.warn('[Main] Pre-migration backup failed (continuing):', e.message)
+      }
+
+      const migrateRes = await migrateSchema(result.config, appVersion)
+      if (!migrateRes.success) {
+        console.error('[Main] BLOCKED: schema migration failed.', migrateRes.error)
+        await dialog.showMessageBox({
+          type: 'error',
+          title: 'Schema Migration Failed',
+          message: 'فشل تحديث قاعدة البيانات المحلية.',
+          detail:
+            `Migration ${migrateRes.failed?.version} (${migrateRes.failed?.file}) failed and was rolled back.\n\n` +
+            `${migrateRes.error}\n\n` +
+            `The application will not start to protect your data. Restart the app to retry.`,
+        })
+        app.quit()
+        return
+      }
+      console.log('[Main] Schema migration applied:', migrateRes.applied.map(m => `v${m.version}`).join(', ') || '(none)')
+    }
+
     // Check if sync has ever run
     let needsInitialSync = true
     try {

@@ -79,16 +79,6 @@ export function AppUpdater() {
     }
   }, [])
 
-  const handleDownload = useCallback(async () => {
-    setPhase('downloading')
-    setError('')
-    const result = await desktopRuntime.downloadUpdate()
-    if (result?.success === false) {
-      setError(result.message ?? '')
-      setPhase('error')
-    }
-  }, [])
-
   const handleInstall = useCallback(async () => {
     await desktopRuntime.installUpdate()
   }, [])
@@ -100,24 +90,22 @@ export function AppUpdater() {
   const updateButton = (() => {
     switch (phase) {
       case 'checking':
-        return <button className="desktop-runtime-btn" disabled>جاري التحقق من التحديثات...</button>
+        return <span className="desktop-runtime-update-progress">جاري التحقق من التحديثات...</span>
       case 'available':
-        return (
-          <button className="desktop-runtime-btn desktop-runtime-btn-update" onClick={handleDownload}>
-            تثبيت الإصدار {newVersion}
-          </button>
-        )
       case 'downloading':
         return (
           <span className="desktop-runtime-update-progress">
-            جاري التحميل... {progress}%
+            يتم تحميل التحديث تلقائيًا... {phase === 'downloading' ? `${progress}%` : ''}
           </span>
         )
       case 'downloaded':
         return (
-          <button className="desktop-runtime-btn desktop-runtime-btn-update" onClick={handleInstall}>
-            إعادة التشغيل والتثبيت
-          </button>
+          <span className="desktop-runtime-update-ready">
+            سيتم تثبيت التحديث عند إغلاق التطبيق
+            <button className="desktop-runtime-btn desktop-runtime-btn-update" onClick={handleInstall}>
+              إعادة التشغيل والتثبيت الآن
+            </button>
+          </span>
         )
       case 'error':
         return (
@@ -126,14 +114,7 @@ export function AppUpdater() {
           </button>
         )
       default:
-        return (
-          <button
-            className="desktop-runtime-btn"
-            onClick={() => { initialized.current = false; checkForUpdates() }}
-          >
-            التحقق من التحديثات
-          </button>
-        )
+        return null
     }
   })()
 

@@ -34,3 +34,7 @@
   DetailPrint "Removing Ahram PostgreSQL service..."
   ExecWait 'sc.exe delete "ahram_pg_16"'
 !macroend
+
+!macro customInstallMode
+  StrCpy $isForceCurrentInstall "1"
+!macroend

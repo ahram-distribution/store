@@ -48,6 +48,8 @@ extraResources:
       - "**/*"
   - from: main/db/schema.sql
     to: schema.sql
+  - from: main/db/migrations
+    to: migrations
   - from: resources/pg-binaries.zip
     to: pg-binaries.zip
   - from: resources/provision.ps1

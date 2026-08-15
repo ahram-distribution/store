@@ -202,44 +202,159 @@ async function insertBatch(
   return total
 }
 
-async function upsertBatch(
+async function doUpsertBatch(
+  client: Client,
+  table: string,
+  columns: string[],
+  batch: Record<string, unknown>[],
+  columnTypes: Record<string, string>,
+  pkColumn: string,
+): Promise<number> {
+  if (batch.length === 0) return 0
+  const colList = columns.map(c => `"${c}"`).join(', ')
+  const placeholders: string[] = []
+  const values: unknown[] = []
+  let paramIdx = 1
+
+  for (const row of batch) {
+    const vals = columns.map(c => {
+      values.push(escapeValue(row[c], columnTypes[c]))
+      return `$${paramIdx++}`
+    })
+    placeholders.push(`(${vals.join(', ')})`)
+  }
+
+  const updateCols = columns.filter(c => c !== pkColumn && c !== 'created_at')
+  const updateClause = updateCols.map(c => `"${c}" = EXCLUDED."${c}"`).join(', ')
+
+  await client.query(
+    `INSERT INTO ${table} (${colList}) VALUES ${placeholders.join(', ')}
+     ON CONFLICT ("${pkColumn}") DO UPDATE SET ${updateClause}`,
+    values
+  )
+  return batch.length
+}
+
+// Error codes that indicate a data-level conflict we can quarantine per-row
+// instead of failing the whole table:
+//   23505 unique_violation (secondary unique index, e.g. uq_roles_name)
+//   23503 foreign_key_violation
+//   23514 check_violation
+//   23502 not_null_violation
+//   22001 string_data_right_truncation
+//   22P02 invalid_text_representation
+const RECOVERABLE_CODES = new Set(['23505', '23503', '23514', '23502', '22001', '22P02'])
+
+function isRecoverableError(err: any): boolean {
+  return !!err && typeof err.code === 'string' && RECOVERABLE_CODES.has(err.code)
+}
+
+function extractConstraintName(message: string): string | null {
+  const m = message.match(/constraint\s+"([^"]+)"/i)
+  return m ? m[1] : null
+}
+
+async function getIndexColumns(client: Client, indexName: string, table: string): Promise<string[]> {
+  const res = await client.query(
+    `SELECT a.attname
+     FROM pg_index i
+     JOIN pg_class t ON t.oid = i.indrelid
+     JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = ANY(i.indkey)
+     WHERE i.indexrelid = $1::regclass
+       AND t.oid = $2::regclass
+     ORDER BY array_position(i.indkey::int[], a.attnum::int)`,
+    [indexName, table]
+  )
+  return res.rows.map(r => r.attname as string)
+}
+
+async function quarantineRow(
+  client: Client,
+  table: string,
+  remoteRow: Record<string, unknown>,
+  err: any,
+): Promise<string> {
+  const schema = table.includes('.') ? table.split('.')[0] : 'public'
+  const name = table.includes('.') ? table.split('.')[1] : table
+  let localVersion: unknown = null
+
+  const constraintName = extractConstraintName(err.message || '')
+  if (constraintName) {
+    try {
+      const indexCols = await getIndexColumns(client, constraintName, `${schema}.${name}`)
+      if (indexCols.length > 0) {
+        const params: unknown[] = []
+        const whereParts: string[] = []
+        for (const col of indexCols) {
+          params.push(remoteRow[col] ?? null)
+          whereParts.push(`"${col}" = $${params.length}`)
+        }
+        const local = await client.query(
+          `SELECT to_jsonb(t) AS row FROM ${schema}.${name} t WHERE ${whereParts.join(' AND ')} LIMIT 1`,
+          params
+        )
+        if (local.rows.length > 0) localVersion = local.rows[0].row
+      }
+    } catch { /* best-effort conflict localization */ }
+  }
+
+  if (localVersion === null) {
+    localVersion = JSON.stringify(remoteRow)
+  }
+
+  const remoteVersion = JSON.stringify(remoteRow)
+  const recordId = (remoteRow as any).id ?? null
+  try {
+    await client.query(
+      `INSERT INTO sync_conflicts (table_name, record_id, local_version, remote_version, resolution)
+       VALUES ($1, $2, $3::jsonb, $4::jsonb, 'pending')
+       ON CONFLICT DO NOTHING`,
+      [table, recordId, localVersion, remoteVersion]
+    )
+  } catch (e: any) {
+    return `${table}: quarantine record failed (${e.message})`
+  }
+  const firstLine = (err.message || '').split('\n')[0]
+  return `${table}: ${firstLine}`
+}
+
+export async function upsertRows(
   client: Client,
   table: string,
   columns: string[],
   rows: Record<string, unknown>[],
   columnTypes: Record<string, string>,
   pkColumn: string,
-): Promise<number> {
-  if (rows.length === 0) return 0
-  const colList = columns.map(c => `"${c}"`).join(', ')
-  const batchSize = 200
-  let total = 0
+): Promise<{ total: number; quarantined: number; errors: string[]; fatal: string[] }> {
+  const result = { total: 0, quarantined: 0, errors: [] as string[], fatal: [] as string[] }
+  if (rows.length === 0) return result
 
+  const batchSize = 200
   for (let i = 0; i < rows.length; i += batchSize) {
     const batch = rows.slice(i, i + batchSize)
-    const placeholders: string[] = []
-    const values: unknown[] = []
-    let paramIdx = 1
-
-    for (const row of batch) {
-      const vals = columns.map(c => {
-        values.push(escapeValue(row[c], columnTypes[c]))
-        return `$${paramIdx++}`
-      })
-      placeholders.push(`(${vals.join(', ')})`)
+    try {
+      result.total += await doUpsertBatch(client, table, columns, batch, columnTypes, pkColumn)
+    } catch (err: any) {
+      if (isRecoverableError(err)) {
+        // Retry row-by-row; quarantine only the rows that actually conflict.
+        for (const row of batch) {
+          try {
+            result.total += await doUpsertBatch(client, table, columns, [row], columnTypes, pkColumn)
+          } catch (rowErr: any) {
+            if (isRecoverableError(rowErr)) {
+              result.quarantined++
+              result.errors.push(await quarantineRow(client, table, row, rowErr))
+            } else {
+              result.fatal.push(`${table}: ${rowErr.message}`)
+            }
+          }
+        }
+      } else {
+        result.fatal.push(`${table}: ${err.message}`)
+      }
     }
-
-    const updateCols = columns.filter(c => c !== pkColumn && c !== 'created_at')
-    const updateClause = updateCols.map(c => `"${c}" = EXCLUDED."${c}"`).join(', ')
-
-    await client.query(
-      `INSERT INTO ${table} (${colList}) VALUES ${placeholders.join(', ')}
-       ON CONFLICT ("${pkColumn}") DO UPDATE SET ${updateClause}`,
-      values
-    )
-    total += batch.length
   }
-  return total
+  return result
 }
 
 async function getPrimaryKeyColumn(client: Client, schema: string, table: string): Promise<string> {
@@ -271,7 +386,10 @@ async function getLocalTableColumns(client: Client, schema: string, table: strin
   return res.rows
 }
 
-function sync_metadata_update(
+const BACKOFF_BASE_MINUTES = 5
+const QUARANTINE_AFTER_ERRORS = 5
+
+export async function sync_metadata_update(
   client: Client,
   tableName: string,
   rowCount: number,
@@ -279,19 +397,85 @@ function sync_metadata_update(
   errorMessage?: string,
 ): Promise<any> {
   if (status === 'error') {
+    // Exponential backoff. last_sync_at is intentionally NOT advanced so the
+    // next sync re-pulls from the last successful point. At the retry cap the
+    // table is quarantined and skipped by future syncs (surfaced in reports).
     return client.query(
-      `INSERT INTO sync_metadata (table_name, last_sync_at, row_count, sync_status, error_message)
-       VALUES ($1, now(), 0, 'error', $2)
-       ON CONFLICT (table_name) DO UPDATE SET row_count = 0, sync_status = 'error', error_message = $2`,
+      `UPDATE sync_metadata SET
+         row_count = 0,
+         sync_status = 'error',
+         error_message = $2,
+         retry_count = retry_count + 1,
+         next_retry_at = now() + (interval '5 minutes' * (2 ^ LEAST(retry_count, 4))),
+         quarantined = (retry_count + 1 >= ${QUARANTINE_AFTER_ERRORS})
+       WHERE table_name = $1`,
       [tableName, errorMessage || '']
-    )
+    ).then(async (res) => {
+      if (res.rowCount === 0) {
+        await client.query(
+          `INSERT INTO sync_metadata (table_name, last_sync_at, row_count, sync_status, error_message, retry_count, next_retry_at)
+           VALUES ($1, now(), 0, 'error', $2, 1, now() + interval '5 minutes')`,
+          [tableName, errorMessage || '']
+        )
+      }
+    })
   }
   return client.query(
     `INSERT INTO sync_metadata (table_name, last_sync_at, row_count, sync_status)
      VALUES ($1, now(), $2, 'done')
-     ON CONFLICT (table_name) DO UPDATE SET last_sync_at = now(), row_count = $2, sync_status = 'done', error_message = NULL`,
+     ON CONFLICT (table_name) DO UPDATE SET
+       last_sync_at = now(), row_count = $2, sync_status = 'done',
+       error_message = NULL, retry_count = 0, next_retry_at = NULL, quarantined = false`,
     [tableName, rowCount]
   )
+}
+
+// Tables eligible for incremental sync: previously synced (or errored) tables
+// that are not quarantined and are past their backoff window.
+export async function getEligibleSyncTables(
+  client: Client
+): Promise<Array<{ table_name: string; last_sync_at: string }>> {
+  const res = await client.query(
+    `SELECT table_name, last_sync_at FROM sync_metadata
+     WHERE sync_status IN ('done','error')
+       AND quarantined = false
+       AND (next_retry_at IS NULL OR next_retry_at <= now())`
+  )
+  return res.rows as Array<{ table_name: string; last_sync_at: string }>
+}
+
+export async function getSyncQuarantineStatus(config: PgConnection): Promise<{
+  pendingConflicts: number
+  quarantinedTables: string[]
+  quarantinedOutbox: number
+}> {
+  const client = new Client({
+    host: config.host,
+    port: config.port,
+    database: config.database,
+    user: config.user,
+    password: config.password,
+    connectionTimeoutMillis: 10000,
+  })
+  await client.connect()
+  try {
+    const conflicts = await client.query(
+      `SELECT count(*)::int AS c FROM sync_conflicts WHERE resolution = 'pending'`
+    ).catch(() => ({ rows: [{ c: 0 }] }))
+    const tabs = await client.query(
+      `SELECT table_name FROM sync_metadata WHERE quarantined = true ORDER BY table_name`
+    ).catch(() => ({ rows: [] }))
+    const outbox = await client.query(
+      `SELECT count(*)::int AS c FROM sync_outbox WHERE quarantined = true`
+    ).catch(() => ({ rows: [{ c: 0 }] }))
+    return {
+      pendingConflicts: conflicts.rows[0]?.c ?? 0,
+      quarantinedTables: tabs.rows.map(r => r.table_name as string),
+      quarantinedOutbox: outbox.rows[0]?.c ?? 0,
+    }
+  } finally {
+    await client.end()
+  }
 }
 
 export async function processSyncOutbox(
@@ -331,7 +515,7 @@ export async function processSyncOutbox(
       `SELECT id, table_name, operation, record_id, payload, employee_id
        FROM sync_outbox
        WHERE synced = false
-         AND retry_count < 3
+         AND quarantined = false
        ORDER BY created_at
        LIMIT 500`
     )
@@ -381,7 +565,9 @@ export async function processSyncOutbox(
         } else {
           const errMsg = result.error || 'Unknown error'
           await client.query(
-            `UPDATE sync_outbox SET retry_count = retry_count + 1, last_error = $1 WHERE id = $2`,
+            `UPDATE sync_outbox SET retry_count = retry_count + 1, last_error = $1,
+                quarantined = (retry_count + 1 >= 3)
+             WHERE id = $2`,
             [errMsg, outboxId]
           )
           errors.push(`${tableName}/${operation}/${recordId}: ${errMsg}`)
@@ -389,7 +575,9 @@ export async function processSyncOutbox(
       } catch (err: any) {
         const errMsg = err.message
         await client.query(
-          `UPDATE sync_outbox SET retry_count = retry_count + 1, last_error = $1 WHERE id = $2`,
+          `UPDATE sync_outbox SET retry_count = retry_count + 1, last_error = $1,
+              quarantined = (retry_count + 1 >= 3)
+           WHERE id = $2`,
           [errMsg, outboxId]
         )
         errors.push(`${tableName}/${operation}/${recordId}: ${errMsg}`)
@@ -543,11 +731,9 @@ export async function incrementalSync(
   let tablesUpdated = 0
 
   try {
-    const metaRes = await client.query(
-      `SELECT table_name, last_sync_at FROM sync_metadata WHERE sync_status IN ('done','error')`
-    )
+    const eligibleTables = await getEligibleSyncTables(client)
 
-    for (const meta of metaRes.rows) {
+    for (const meta of eligibleTables) {
       const tableName = meta.table_name as string
       const lastSync = meta.last_sync_at as string
       const [schema, name] = tableName.split('.')
@@ -585,9 +771,21 @@ export async function incrementalSync(
 
         await client.query(`SET app.sync_in_progress = 'true'`)
         await client.query(`ALTER TABLE ${tableName} DISABLE TRIGGER ALL`)
-        await upsertBatch(client, tableName, columns, allRows, columnTypes, pkColumn)
+        const upsert = await upsertRows(client, tableName, columns, allRows, columnTypes, pkColumn)
         await client.query(`ALTER TABLE ${tableName} ENABLE TRIGGER ALL`)
         await client.query(`SET app.sync_in_progress = 'false'`)
+
+        if (upsert.quarantined > 0) {
+          progress.status = 'error'
+          progress.error = `${upsert.quarantined} conflicting row(s) quarantined to sync_conflicts`
+          onProgress?.(progress)
+        }
+        if (upsert.errors.length > 0) {
+          errors.push(...upsert.errors)
+        }
+        if (upsert.fatal.length > 0) {
+          throw new Error(upsert.fatal.join('; '))
+        }
 
         const countResult = await rpcCall('sync_get_row_count', { p_table_name: name })
         const actualCount = countResult.success ? (countResult.count as number) : 0
