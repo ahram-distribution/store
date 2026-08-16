@@ -9,7 +9,7 @@ import {
   startAhramService,
   ensureSyncMetadataSchema,
 } from './PostgreSQLManager.js'
-import { initialSync, incrementalSync, processSyncOutbox, getSyncQuarantineStatus } from './InitialSync.js'
+import { initialSync, incrementalSync, processSyncOutbox, getSyncQuarantineStatus, reconcileSyncState } from './InitialSync.js'
 import { createBackup, shouldBackup } from './BackupManager.js'
 import { resolveSchemaCompatibility } from './SchemaMigrator.js'
 
@@ -130,8 +130,13 @@ export async function performInitialSync(
   })
 
   if (result.success) {
+    // Reconcile any pre-existing quarantined/conflict state so the mirror
+    // converges to the remote authority on a fresh pull as well.
+    onStatus?.('Reconciling quarantined records...')
+    const reconcile = await reconcileSyncState(config)
+    const cleanParity = reconcile.remainingConflicts === 0 && reconcile.remainingOutbox === 0
     return {
-      success: true,
+      success: cleanParity && reconcile.errors.length === 0,
       message: `Sync complete: ${result.tablesSynced} tables, ${result.totalRows} total rows.`,
     }
   }
@@ -156,18 +161,36 @@ export async function performIncrementalSync(
     onStatus?.(`Pushed ${count}/${total}: ${table}`)
   })
 
+  onStatus?.('Reconciling quarantined records...')
+  const reconcile = await reconcileSyncState(config)
+
   const parts: string[] = []
   if (result.tablesUpdated > 0) parts.push(`${result.tablesUpdated} tables updated`)
   if (outboxResult.processed > 0) parts.push(`${outboxResult.processed} offline writes pushed`)
+  if (reconcile.conflictsResolved > 0) parts.push(`${reconcile.conflictsResolved} conflicts reconciled`)
+  if (reconcile.outboxResolved > 0) parts.push(`${reconcile.outboxResolved} quarantined records reconciled`)
+  if (reconcile.outboxDelivered > 0) parts.push(`${reconcile.outboxDelivered} offline writes delivered`)
 
-  const success = result.success && outboxResult.success
+  // Hard failures only. Recoverable conflicts (quarantined pull rows, server
+  // business rejections on push) are preserved in sync_conflicts / the outbox
+  // and must NOT flip the sync to a failed state or block the READY status.
+  // The reconciliation pass above converges them; the remaining counts decide
+  // whether parity has actually been reached.
+  const errorCount = result.errors.length + outboxResult.errors.length + reconcile.errors.length
+  const conflictCount = result.conflicts.length + outboxResult.conflicts.length
+  if (conflictCount > 0) {
+    console.log(`[Sync] ${conflictCount} recoverable conflict(s) preserved (not counted as errors)`)
+  }
+
+  const cleanParity = reconcile.remainingConflicts === 0 && reconcile.remainingOutbox === 0
+  const success = result.success && outboxResult.success && errorCount === 0 && cleanParity
   const msg = parts.length > 0 ? parts.join(', ') : 'No changes'
 
   return {
     success,
     message: success
       ? `Incremental sync complete: ${msg}.`
-      : `Sync completed with errors: ${result.errors.length + outboxResult.errors.length} total.`,
+      : `Sync completed with errors: ${errorCount} total.`,
   }
 }
 

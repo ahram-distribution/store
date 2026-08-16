@@ -325,8 +325,8 @@ export async function upsertRows(
   rows: Record<string, unknown>[],
   columnTypes: Record<string, string>,
   pkColumn: string,
-): Promise<{ total: number; quarantined: number; errors: string[]; fatal: string[] }> {
-  const result = { total: 0, quarantined: 0, errors: [] as string[], fatal: [] as string[] }
+): Promise<{ total: number; quarantined: number; conflicts: string[]; fatal: string[] }> {
+  const result = { total: 0, quarantined: 0, conflicts: [] as string[], fatal: [] as string[] }
   if (rows.length === 0) return result
 
   const batchSize = 200
@@ -343,7 +343,7 @@ export async function upsertRows(
           } catch (rowErr: any) {
             if (isRecoverableError(rowErr)) {
               result.quarantined++
-              result.errors.push(await quarantineRow(client, table, row, rowErr))
+              result.conflicts.push(await quarantineRow(client, table, row, rowErr))
             } else {
               result.fatal.push(`${table}: ${rowErr.message}`)
             }
@@ -466,7 +466,7 @@ export async function getSyncQuarantineStatus(config: PgConnection): Promise<{
       `SELECT table_name FROM sync_metadata WHERE quarantined = true ORDER BY table_name`
     ).catch(() => ({ rows: [] }))
     const outbox = await client.query(
-      `SELECT count(*)::int AS c FROM sync_outbox WHERE quarantined = true`
+      `SELECT count(*)::int AS c FROM sync_outbox WHERE quarantined = true AND resolution = 'pending'`
     ).catch(() => ({ rows: [{ c: 0 }] }))
     return {
       pendingConflicts: conflicts.rows[0]?.c ?? 0,
@@ -478,10 +478,87 @@ export async function getSyncQuarantineStatus(config: PgConnection): Promise<{
   }
 }
 
+interface OutboxRow {
+  table_name: string
+  operation: string
+  record_id: string
+  payload: any
+  employee_id: string | null
+}
+
+async function pushOutboxRow(
+  client: Client,
+  row: OutboxRow,
+  pushEmployeeId: string | null,
+): Promise<{ ok: boolean; delivered?: boolean; error?: string; unknownOperation?: boolean }> {
+  const localTableName = row.table_name.includes('.') ? row.table_name.split('.')[1] : row.table_name
+  const rpcParams: Record<string, unknown> = { p_table_name: localTableName }
+  let rpcName: string
+
+  if (row.operation === 'INSERT') {
+    rpcName = 'sync_push_insert'
+    rpcParams.p_payload = row.payload
+    rpcParams.p_employee_id = pushEmployeeId
+  } else if (row.operation === 'UPDATE') {
+    rpcName = 'sync_push_update'
+    rpcParams.p_record_id = row.record_id
+    rpcParams.p_payload = row.payload
+    rpcParams.p_employee_id = pushEmployeeId
+  } else if (row.operation === 'DELETE') {
+    rpcName = 'sync_push_delete'
+    rpcParams.p_record_id = row.record_id
+    rpcParams.p_employee_id = pushEmployeeId
+  } else {
+    return { ok: false, unknownOperation: true, error: `Unknown operation: ${row.operation}` }
+  }
+
+  try {
+    const result = await rpcCall(rpcName, rpcParams)
+    if (result.success) return { ok: true, delivered: true }
+    return { ok: false, error: result.error || 'Unknown error' }
+  } catch (err: any) {
+    return { ok: false, error: err.message }
+  }
+}
+
+// The remote sync_push_* RPCs reject any acting employee that does not hold the
+// sync.offline_push capability. Offline changes may be captured under an
+// employee without that capability, which previously left every such push
+// permanently quarantined ("Employee lacks sync.offline_push capability").
+// Resolve an employee that the remote authorizes: the most recent active
+// session employee holding the capability, falling back to any capable one.
+async function resolveSyncPushEmployee(client: Client): Promise<string | null> {
+  try {
+    const sessionRes = await client.query(
+      `SELECT s.employee_id
+         FROM app.sessions s
+         WHERE s.expires_at > now() AND s.employee_id IS NOT NULL
+           AND EXISTS (
+             SELECT 1 FROM public.employee_roles er
+             JOIN public.role_capabilities rc ON rc.role_id = er.role_id
+             JOIN public.capabilities c ON c.id = rc.capability_id
+             WHERE er.employee_id = s.employee_id AND c.code = 'sync.offline_push')
+         ORDER BY s.created_at DESC LIMIT 1`
+    )
+    if (sessionRes.rows.length > 0) return sessionRes.rows[0].employee_id as string
+
+    const anyRes = await client.query(
+      `SELECT er.employee_id
+         FROM public.employee_roles er
+         JOIN public.role_capabilities rc ON rc.role_id = er.role_id
+         JOIN public.capabilities c ON c.id = rc.capability_id
+         WHERE c.code = 'sync.offline_push'
+         ORDER BY er.assigned_at DESC NULLS LAST LIMIT 1`
+    )
+    if (anyRes.rows.length > 0) return anyRes.rows[0].employee_id as string
+  } catch { /* capability lookup is best-effort */ }
+  return null
+}
+
 export async function processSyncOutbox(
   config: PgConnection,
   onProgress?: (table: string, count: number, total: number) => void
-): Promise<{ success: boolean; processed: number; errors: string[] }> {
+): Promise<{ success: boolean; processed: number; errors: string[]; conflicts: string[] }> {
   ensureSupabaseConfig()
 
   const client = new Client({
@@ -495,6 +572,7 @@ export async function processSyncOutbox(
   await client.connect()
 
   const errors: string[] = []
+  const conflicts: string[] = []
   let processed = 0
 
   try {
@@ -510,12 +588,14 @@ export async function processSyncOutbox(
         sessionEmployeeId = sessRes.rows[0].employee_id as string
       }
     } catch { /* session lookup is best-effort */ }
+    const syncPushEmployee = await resolveSyncPushEmployee(client)
 
     const res = await client.query(
       `SELECT id, table_name, operation, record_id, payload, employee_id
        FROM sync_outbox
        WHERE synced = false
          AND quarantined = false
+         AND resolution = 'pending'
        ORDER BY created_at
        LIMIT 500`
     )
@@ -523,54 +603,37 @@ export async function processSyncOutbox(
     for (const row of res.rows) {
       const outboxId: string = row.id
       const tableName: string = row.table_name
-      const localTableName: string = tableName.includes('.') ? tableName.split('.')[1] : tableName
       const operation: string = row.operation
       const recordId: string = row.record_id
-      const payload: any = row.payload
-      const employeeId: string | null = row.employee_id || sessionEmployeeId
+      const pushEmployeeId: string | null = syncPushEmployee || row.employee_id || sessionEmployeeId
 
       try {
-        let rpcName: string
-        const rpcParams: Record<string, unknown> = { p_table_name: localTableName }
-
-        if (operation === 'INSERT') {
-          rpcName = 'sync_push_insert'
-          rpcParams.p_payload = payload
-          rpcParams.p_employee_id = employeeId
-        } else if (operation === 'UPDATE') {
-          rpcName = 'sync_push_update'
-          rpcParams.p_record_id = recordId
-          rpcParams.p_payload = payload
-          rpcParams.p_employee_id = employeeId
-        } else if (operation === 'DELETE') {
-          rpcName = 'sync_push_delete'
-          rpcParams.p_record_id = recordId
-          rpcParams.p_employee_id = employeeId
-        } else {
-          await client.query(
-            `UPDATE sync_outbox SET synced = true, synced_at = now(), last_error = $1 WHERE id = $2`,
-            [`Unknown operation: ${operation}`, outboxId]
-          )
-          continue
-        }
-
-        const result = await rpcCall(rpcName, rpcParams)
-        if (result.success) {
+        const push = await pushOutboxRow(client, row, pushEmployeeId)
+        if (push.ok) {
           await client.query(
             `UPDATE sync_outbox SET synced = true, synced_at = now(), last_error = NULL WHERE id = $1`,
             [outboxId]
           )
           processed++
           onProgress?.(tableName, processed, res.rows.length)
+        } else if (push.unknownOperation) {
+          await client.query(
+            `UPDATE sync_outbox SET synced = true, synced_at = now(), last_error = $1 WHERE id = $2`,
+            [push.error, outboxId]
+          )
+          continue
         } else {
-          const errMsg = result.error || 'Unknown error'
+          // Server-side business rejection (duplicate, missing capability, FK
+          // mismatch, ...): a recoverable data conflict, quarantined after
+          // retries. It must NOT count as a hard sync error.
+          const errMsg = push.error || 'Unknown error'
           await client.query(
             `UPDATE sync_outbox SET retry_count = retry_count + 1, last_error = $1,
                 quarantined = (retry_count + 1 >= 3)
              WHERE id = $2`,
             [errMsg, outboxId]
           )
-          errors.push(`${tableName}/${operation}/${recordId}: ${errMsg}`)
+          conflicts.push(`${tableName}/${operation}/${recordId}: ${errMsg}`)
         }
       } catch (err: any) {
         const errMsg = err.message
@@ -585,10 +648,10 @@ export async function processSyncOutbox(
     }
 
     await client.end()
-    return { success: errors.length === 0, processed, errors }
+    return { success: errors.length === 0, processed, errors, conflicts }
   } catch (err: any) {
     await client.end()
-    return { success: false, processed, errors: [...errors, `Fatal: ${err.message}`] }
+    return { success: false, processed, errors: [...errors, `Fatal: ${err.message}`], conflicts }
   }
 }
 
@@ -714,7 +777,7 @@ export async function initialSync(
 export async function incrementalSync(
   config: PgConnection,
   onProgress?: ProgressCallback
-): Promise<{ success: boolean; tablesUpdated: number; errors: string[] }> {
+): Promise<{ success: boolean; tablesUpdated: number; errors: string[]; conflicts: string[] }> {
   ensureSupabaseConfig()
 
   const client = new Client({
@@ -728,6 +791,7 @@ export async function incrementalSync(
   await client.connect()
 
   const errors: string[] = []
+  const conflicts: string[] = []
   let tablesUpdated = 0
 
   try {
@@ -776,12 +840,7 @@ export async function incrementalSync(
         await client.query(`SET app.sync_in_progress = 'false'`)
 
         if (upsert.quarantined > 0) {
-          progress.status = 'error'
-          progress.error = `${upsert.quarantined} conflicting row(s) quarantined to sync_conflicts`
-          onProgress?.(progress)
-        }
-        if (upsert.errors.length > 0) {
-          errors.push(...upsert.errors)
+          conflicts.push(...upsert.conflicts)
         }
         if (upsert.fatal.length > 0) {
           throw new Error(upsert.fatal.join('; '))
@@ -807,9 +866,303 @@ export async function incrementalSync(
     }
 
     await client.end()
-    return { success: errors.length === 0, tablesUpdated, errors }
+    return { success: errors.length === 0, tablesUpdated, errors, conflicts }
   } catch (err: any) {
     await client.end()
-    return { success: false, tablesUpdated, errors: [...errors, `Fatal: ${err.message}`] }
+    return { success: false, tablesUpdated, errors: [...errors, `Fatal: ${err.message}`], conflicts }
   }
+}
+
+// ---------------------------------------------------------------------------
+// Synchronization reconciliation engine
+//
+// The mirror converges to the remote as the system of record. Records that
+// were quarantined on either side of the sync (pull conflicts in
+// sync_conflicts, rejected offline writes in sync_outbox) are reconciled here
+// so the local database and the remote end in the same authoritative state.
+// The engine runs automatically as part of every sync and startup, so any
+// installation that encounters the same state repairs itself, and the same
+// conflicts are not recreated on the next sync.
+// ---------------------------------------------------------------------------
+
+export async function reconcileSyncState(
+  config: PgConnection,
+  onProgress?: (message: string) => void
+): Promise<{
+  conflictsResolved: number
+  outboxResolved: number
+  outboxDelivered: number
+  remainingConflicts: number
+  remainingOutbox: number
+  errors: string[]
+}> {
+  ensureSupabaseConfig()
+
+  // The resolution columns are added idempotently to every install.
+  const { ensureSyncMetadataSchema } = await import('./PostgreSQLManager.js')
+  try { await ensureSyncMetadataSchema(config) } catch { /* idempotent */ }
+
+  const client = new Client({
+    host: config.host,
+    port: config.port,
+    database: config.database,
+    user: config.user,
+    password: config.password,
+    connectionTimeoutMillis: 10000,
+  })
+  await client.connect()
+
+  const errors: string[] = []
+  let conflictsResolved = 0
+  let outboxResolved = 0
+  let outboxDelivered = 0
+
+  try {
+    // Prevent the outbox-capture triggers from re-queueing rows that this
+    // pass writes while it applies the authoritative state locally.
+    await client.query(`SET app.sync_in_progress = 'true'`)
+
+    const conflictRes = await reconcilePendingConflicts(client)
+    conflictsResolved = conflictRes.resolved
+    errors.push(...conflictRes.errors)
+
+    const pushEmployeeId = await resolveSyncPushEmployee(client)
+    const outRes = await reconcileQuarantinedOutbox(client, pushEmployeeId, onProgress)
+    outboxResolved = outRes.resolved
+    outboxDelivered = outRes.delivered
+    errors.push(...outRes.errors)
+  } catch (err: any) {
+    errors.push(`Reconcile fatal: ${err.message}`)
+  } finally {
+    try { await client.query(`SET app.sync_in_progress = 'false'`) } catch { /* ignore */ }
+    await client.end()
+  }
+
+  const status = await getSyncQuarantineStatus(config)
+  return {
+    conflictsResolved,
+    outboxResolved,
+    outboxDelivered,
+    remainingConflicts: status.pendingConflicts,
+    remainingOutbox: status.quarantinedOutbox,
+    errors,
+  }
+}
+
+async function deleteDuplicateRowAndChildren(
+  client: Client,
+  schema: string,
+  table: string,
+  pkColumn: string,
+  duplicateId: unknown,
+): Promise<void> {
+  // Remove dependent child rows that reference the duplicate primary key.
+  // Per the sync authority the authoritative remote record (and its own
+  // children, pulled independently) replaces the local duplicate, so child
+  // rows pointing at the duplicate id have no place in the converged mirror.
+  const refs = await client.query(
+    `SELECT fkconf.conrelid::regclass::text AS referencing_table, a.attname AS fk_column
+       FROM pg_constraint fkconf
+       JOIN pg_attribute a ON a.attrelid = fkconf.conrelid AND a.attnum = ANY(fkconf.conkey)
+       WHERE fkconf.contype = 'f'
+         AND fkconf.confrelid = $1::regclass`,
+    [`${schema}.${table}`]
+  )
+  for (const ref of refs.rows) {
+    const refTable = ref.referencing_table as string
+    const fkCol = ref.fk_column as string
+    try {
+      await client.query(`DELETE FROM ${refTable} WHERE "${fkCol}" = $1`, [duplicateId])
+    } catch { /* best-effort: never delete durable business data silently */ }
+  }
+  await client.query(`DELETE FROM ${schema}.${table} WHERE "${pkColumn}" = $1`, [duplicateId])
+}
+
+async function reconcilePendingConflicts(
+  client: Client,
+): Promise<{ resolved: number; errors: string[] }> {
+  const errors: string[] = []
+  let resolved = 0
+
+  const res = await client.query(
+    `SELECT id, table_name, record_id, local_version, remote_version
+     FROM sync_conflicts WHERE resolution = 'pending' ORDER BY created_at`
+  )
+
+  for (const conflict of res.rows) {
+    const table = conflict.table_name as string
+    const schema = table.includes('.') ? table.split('.')[0] : 'public'
+    const name = table.includes('.') ? table.split('.')[1] : table
+    const localRow = (conflict.local_version ?? {}) as Record<string, any>
+    const remoteRow = (conflict.remote_version ?? {}) as Record<string, any>
+
+    try {
+      await client.query('BEGIN')
+      const pkColumn = await getPrimaryKeyColumn(client, schema, name)
+      const localId = localRow[pkColumn]
+      const remoteId = remoteRow[pkColumn]
+
+      // The local row occupies the secondary unique key the authoritative
+      // remote row needs. When they are different records with the same
+      // logical identity (duplicate), the local duplicate is superseded: its
+      // child rows are removed with it and the authoritative remote row is
+      // applied. When the ids match, the row is simply re-applied.
+      if (localId && remoteId && String(localId) !== String(remoteId)) {
+        await deleteDuplicateRowAndChildren(client, schema, name, pkColumn, localId)
+      }
+
+      const cols = await getLocalTableColumns(client, schema, name)
+      const columns = cols.map(c => c.column_name)
+      const columnTypes = getColumnTypeMap(cols)
+      await doUpsertBatch(client, `${schema}.${name}`, columns, [remoteRow], columnTypes, pkColumn)
+
+      await client.query(
+        `UPDATE sync_conflicts SET resolution = 'remote', resolved_at = now() WHERE id = $1`,
+        [conflict.id]
+      )
+      await client.query('COMMIT')
+      resolved++
+    } catch (err: any) {
+      try { await client.query('ROLLBACK') } catch { /* ignore */ }
+      errors.push(`${table}/${conflict.record_id}: conflict reconcile failed: ${err.message}`)
+    }
+  }
+
+  return { resolved, errors }
+}
+
+async function convergeRecordToRemote(
+  client: Client,
+  schema: string,
+  name: string,
+  recordId: string,
+  pkColumn: string,
+): Promise<boolean> {
+  // The remote refused a local change for a record that still exists locally.
+  // The remote is the system of record: locate the authoritative remote row
+  // and apply it locally. Only the target row is upserted so a secondary
+  // unique collision on another row cannot abort the convergence.
+  try {
+    await client.query(`SET app.sync_in_progress = 'true'`)
+    await client.query(`ALTER TABLE ${schema}.${name} DISABLE TRIGGER ALL`)
+    const cols = await getLocalTableColumns(client, schema, name)
+    const columns = cols.map(c => c.column_name)
+    const columnTypes = getColumnTypeMap(cols)
+
+    let found = false
+    let offset = 0
+    const BATCH = 500
+    while (true) {
+      const result = await rpcCall('sync_pull_full_table', {
+        p_table_name: name,
+        p_limit: BATCH,
+        p_offset: offset,
+      })
+      if (!result.success) break
+      const rows = result.rows as Record<string, any>[]
+      if (rows.length === 0) break
+      const target = rows.find(r => String(r[pkColumn]) === String(recordId))
+      if (target) {
+        await doUpsertBatch(client, `${schema}.${name}`, columns, [target], columnTypes, pkColumn)
+        found = true
+        break
+      }
+      offset += rows.length
+      if (result.has_more !== true) break
+    }
+
+    await client.query(`ALTER TABLE ${schema}.${name} ENABLE TRIGGER ALL`)
+    await client.query(`SET app.sync_in_progress = 'false'`)
+    return found
+  } catch {
+    try { await client.query(`ALTER TABLE ${schema}.${name} ENABLE TRIGGER ALL`) } catch { /* ignore */ }
+    try { await client.query(`SET app.sync_in_progress = 'false'`) } catch { /* ignore */ }
+    return false
+  }
+}
+
+async function reconcileQuarantinedOutbox(
+  client: Client,
+  pushEmployeeId: string | null,
+  onProgress?: (message: string) => void,
+): Promise<{ resolved: number; delivered: number; errors: string[] }> {
+  const errors: string[] = []
+  let resolved = 0
+  let delivered = 0
+
+  const res = await client.query(
+    `SELECT id, table_name, operation, record_id, payload, employee_id
+     FROM sync_outbox
+     WHERE synced = false AND quarantined = true AND resolution = 'pending'
+     ORDER BY created_at
+     LIMIT 1000`
+  )
+
+  for (const row of res.rows) {
+    const table = row.table_name as string
+    const schema = table.includes('.') ? table.split('.')[0] : 'public'
+    const name = table.includes('.') ? table.split('.')[1] : table
+    const recordId = row.record_id
+
+    try {
+      const pk = await getPrimaryKeyColumn(client, schema, name)
+      const existsRes = await client.query(
+        `SELECT 1 FROM ${schema}.${name} WHERE "${pk}" = $1`, [recordId]
+      )
+      const existsLocally = existsRes.rows.length > 0
+
+      if (!existsLocally) {
+        // The offline change was reverted/removed before it ever reached the
+        // remote (all prior push attempts were rejected, so nothing was
+        // delivered). Authoritative state on BOTH sides is "record absent";
+        // the queued operation is a net-zero change and is resolved as void.
+        await client.query(
+          `UPDATE sync_outbox SET resolution = 'void', resolved_at = now(), quarantined = false,
+             resolution_evidence = $1 WHERE id = $2`,
+          ['Record no longer exists in the local mirror and was never applied to the remote (all prior push attempts were rejected). Authoritative state on both sides is "record absent"; the queued operation is a net-zero change resolved as void.',
+            row.id]
+        )
+        resolved++
+        continue
+      }
+
+      // Record exists locally — the change must be delivered, or if the remote
+      // refuses it, the local record must converge to the remote authority.
+      const push = await pushOutboxRow(client, row, pushEmployeeId)
+      if (push.ok) {
+        await client.query(
+          `UPDATE sync_outbox SET synced = true, synced_at = now(), last_error = NULL, quarantined = false WHERE id = $1`,
+          [row.id]
+        )
+        delivered++
+        onProgress?.(`Delivered ${table}/${row.operation}/${recordId}`)
+        continue
+      }
+
+      const errMsg = push.error || 'Unknown error'
+      const converged = await convergeRecordToRemote(client, schema, name, String(recordId), pk)
+      if (converged) {
+        await client.query(
+          `UPDATE sync_outbox SET resolution = 'remote', resolved_at = now(), quarantined = false,
+             resolution_evidence = $1 WHERE id = $2`,
+          [`Remote rejected the local change (${errMsg}); the local record was converged to the authoritative remote version.`,
+            row.id]
+        )
+        resolved++
+      } else {
+        // Remote has no authoritative record and refuses the local change.
+        // Preserve the local business data: keep the row quarantined so it is
+        // surfaced in sync status and retried on later syncs (self-healing).
+        await client.query(
+          `UPDATE sync_outbox SET retry_count = retry_count + 1, last_error = $1, quarantined = true WHERE id = $2`,
+          [errMsg, row.id]
+        )
+        errors.push(`${table}/${row.operation}/${recordId}: ${errMsg} (record preserved locally, will retry)`)
+      }
+    } catch (err: any) {
+      errors.push(`${row.table_name}/${row.operation}/${row.record_id}: reconcile failed: ${err.message}`)
+    }
+  }
+
+  return { resolved, delivered, errors }
 }

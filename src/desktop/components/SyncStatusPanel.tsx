@@ -9,6 +9,9 @@ export function SyncStatusPanel() {
   const [supabaseReachable, setSupabaseReachable] = useState(false)
   const [dbHealthy, setDbHealthy] = useState(false)
   const [lastSyncAt, setLastSyncAt] = useState<string | null>(null)
+  const [pendingConflicts, setPendingConflicts] = useState(0)
+  const [quarantinedTables, setQuarantinedTables] = useState<string[]>([])
+  const [quarantinedOutbox, setQuarantinedOutbox] = useState(0)
   const [syncState, setSyncState] = useState<SyncState>('idle')
   const [syncError, setSyncError] = useState('')
   const [backupState, setBackupState] = useState<BackupState>('idle')
@@ -27,6 +30,15 @@ export function SyncStatusPanel() {
       if (status.lastSyncAt) {
         setLastSyncAt(status.lastSyncAt)
       }
+    } catch {
+      if (!mountedRef.current) return
+    }
+    try {
+      const health = await desktopRuntime.getHealth()
+      if (!mountedRef.current || !health) return
+      setPendingConflicts(health.pendingConflicts ?? 0)
+      setQuarantinedTables(health.quarantinedTables ?? [])
+      setQuarantinedOutbox(health.quarantinedOutbox ?? 0)
     } catch {
       if (!mountedRef.current) return
     }
@@ -153,6 +165,18 @@ export function SyncStatusPanel() {
       <div className="desktop-runtime-last-sync">
         آخر مزامنة ناجحة: {formatDateTime(lastSyncAt)}
       </div>
+      {(pendingConflicts > 0 || quarantinedOutbox > 0) && (
+        <div className="desktop-runtime-quarantine">
+          {pendingConflicts > 0 && (
+            <span title={quarantinedTables.length > 0 ? `الجداول المحجوزة: ${quarantinedTables.join(', ')}` : ''}>
+              تعارضات قيد المزامنة: {pendingConflicts}
+            </span>
+          )}
+          {quarantinedOutbox > 0 && (
+            <span>سجلات محجوزة للتحديث: {quarantinedOutbox}</span>
+          )}
+        </div>
+      )}
       <div className="desktop-runtime-actions">
         <button
           className="desktop-runtime-btn"

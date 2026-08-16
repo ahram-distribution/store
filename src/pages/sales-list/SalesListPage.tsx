@@ -5,6 +5,7 @@ import { useAuthStore } from '../../store/auth'
 import { normalizeEmployeeRole, type TargetRole } from '../../utils/roleNormalization'
 import { buildSearchIndex, searchProducts, type ProductSearchIndex } from '../../utils/smartSearch'
 import { SearchHighlight } from '../../components/shared/SearchHighlight'
+import { exportToExcel } from '../../services/excelExporter'
 
 const ALLOWED_ROLES: TargetRole[] = ['الإدارة العليا', 'مدير بيع', 'مندوب مبيعات']
 
@@ -20,6 +21,7 @@ interface ProductRow {
   carton_price: number
   carton_quantity: number
   piece_price: number
+  dozen_price: number
 }
 
 interface CompanyGroup {
@@ -166,6 +168,7 @@ export default function SalesListPage() {
   const userRoles = user?.roles || []
   const normalizedRoles = userRoles.map(normalizeEmployeeRole)
   const hasAccess = ALLOWED_ROLES.some((r) => normalizedRoles.includes(r))
+  const isUpperMgmt = userRoles.includes('الإدارة العليا')
 
   useEffect(() => {
     if (!hasAccess) return
@@ -249,6 +252,42 @@ export default function SalesListPage() {
     }
   }, [pdfLoading, groupedProducts])
 
+  const handleDownloadExcel = useCallback(() => {
+    if (smartFiltered.length === 0) return
+    const columns: { key: string; label: string; format?: 'number' | 'currency' }[] = [
+      { key: 'legacy_code', label: 'كود الصنف' },
+      { key: 'product_name', label: 'اسم الصنف' },
+      { key: 'carton_quantity', label: 'عدد الوحدات', format: 'number' },
+      { key: 'company_name', label: 'اسم الشركة' },
+      { key: 'piece_price', label: 'سعر القطعة', format: 'currency' },
+      { key: 'dozen_price', label: 'سعر الدستة', format: 'currency' },
+      { key: 'carton_price', label: 'سعر الكرتونة', format: 'currency' },
+    ]
+    const data: Record<string, unknown>[] = smartFiltered.map((p) => ({
+      legacy_code: p.legacy_code || '',
+      product_name: p.product_name,
+      carton_quantity: Number(p.carton_quantity) || 0,
+      company_name: p.company_name || '',
+      piece_price: Number(p.piece_price) || 0,
+      dozen_price: Number(p.dozen_price) || 0,
+      carton_price: Number(p.carton_price) || 0,
+    }))
+    exportToExcel({
+      title: 'قائمة أسعار البيع',
+      subtitle: 'أسعار البيع المعتمدة للمنتجات المتاحة للبيع',
+      columns,
+      data,
+      fileName: 'قائمة_أسعار_البيع',
+      summary: [{ label: 'عدد الأصناف', value: data.length, format: 'number' }],
+      filters: [
+        `اسم الشركة: ${companyFilter || 'الكل'}`,
+        `نص البحث: ${search.trim() ? `"${search.trim()}"` : 'الكل'}`,
+      ],
+      columnWidths: [16, 38, 13, 24, 13, 13, 13],
+      presentation: { rtl: true, landscape: true, fitToWidth: true, printTitles: true },
+    })
+  }, [smartFiltered, companyFilter, search])
+
   if (!hasAccess) {
     return (
       <div className="text-center py-12 text-text-secondary text-sm">
@@ -265,28 +304,42 @@ export default function SalesListPage() {
             <button onClick={() => navigate(-1)} className="text-text-muted hover:text-text text-lg transition-colors">&larr;</button>
             <h1 className="text-lg font-bold text-text leading-tight">قائمة أسعار البيع</h1>
           </div>
-          <button
-            onClick={handleDownloadPdf}
-            disabled={pdfLoading || smartFiltered.length === 0}
-            className="flex items-center gap-2 bg-primary hover:bg-primary-dark disabled:bg-text-muted text-white text-xs px-4 py-2 rounded-lg font-semibold transition-colors shadow-sm"
-          >
-            {pdfLoading ? (
-              <>
-                <svg className="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24" fill="none">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                </svg>
-                {pdfPhase === 'preparing' ? 'جارى تجهيز قائمة الأسعار...' : 'تم إنشاء الملف... جارى التحميل...'}
-              </>
-            ) : (
-              <>
+          <div className="flex items-center gap-2">
+            {isUpperMgmt && (
+              <button
+                onClick={handleDownloadExcel}
+                disabled={smartFiltered.length === 0}
+                className="flex items-center gap-2 bg-white border border-border hover:bg-neutral-50 disabled:bg-text-muted disabled:text-white text-text text-xs px-4 py-2 rounded-lg font-semibold transition-colors shadow-sm"
+              >
                 <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
-                طباعة / حفظ PDF
-              </>
+                Excel
+              </button>
             )}
-          </button>
+            <button
+              onClick={handleDownloadPdf}
+              disabled={pdfLoading || smartFiltered.length === 0}
+              className="flex items-center gap-2 bg-primary hover:bg-primary-dark disabled:bg-text-muted text-white text-xs px-4 py-2 rounded-lg font-semibold transition-colors shadow-sm"
+            >
+              {pdfLoading ? (
+                <>
+                  <svg className="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  {pdfPhase === 'preparing' ? 'جارى تجهيز قائمة الأسعار...' : 'تم إنشاء الملف... جارى التحميل...'}
+                </>
+              ) : (
+                <>
+                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  طباعة / حفظ PDF
+                </>
+              )}
+            </button>
+          </div>
         </div>
       </div>
 

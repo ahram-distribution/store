@@ -10,6 +10,15 @@ function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
 }
 
+const DELETE_STEPS = [
+  'نقل العملاء',
+  'نقل الطلبات',
+  'نقل الزيارات',
+  'نقل بقية الممتلكات',
+  'التحقق من اكتمال النقل',
+  'حذف الحساب',
+]
+
 export function EmployeesPage({ embedded }: { embedded?: boolean }) {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
@@ -44,6 +53,10 @@ export function EmployeesPage({ embedded }: { embedded?: boolean }) {
   const [showRolePicker, setShowRolePicker] = useState<string | null>(null)
   const [showResetPw, setShowResetPw] = useState<string | null>(null)
   const [resetPwValue, setResetPwValue] = useState('')
+  const [deleteTarget, setDeleteTarget] = useState<any | null>(null)
+  const [deleteRunning, setDeleteRunning] = useState(false)
+  const [deleteStep, setDeleteStep] = useState(0)
+  const [deleteResult, setDeleteResult] = useState<any | null>(null)
 
   useEffect(() => {
     const token = getToken()
@@ -88,6 +101,7 @@ export function EmployeesPage({ embedded }: { embedded?: boolean }) {
 
   const currentRoles = currentUser?.roles ?? []
   const isExecutiveDirector = currentRoles.includes('الرئيس التنفيذي') || currentRoles.includes('executive_director')
+  const isExactUpperMgmt = currentRoles.includes('الإدارة العليا')
 
   const assignableRoles = useMemo(() => {
     if (!isExecutiveDirector) return roles
@@ -195,6 +209,43 @@ export function EmployeesPage({ embedded }: { embedded?: boolean }) {
     setResetPwValue('')
   }
 
+  async function handleConfirmDelete() {
+    if (!deleteTarget) return
+    setDeleteRunning(true)
+    setDeleteStep(0)
+    setDeleteResult(null)
+    const token = getToken()
+    let tick = 0
+    const timer = window.setInterval(() => {
+      tick += 1
+      setDeleteStep(Math.min(tick, DELETE_STEPS.length - 1))
+    }, 380)
+    try {
+      const { data, error } = await supabase.rpc('governed_delete_employee_with_transfer', {
+        p_token: token, p_employee_id: deleteTarget.id,
+      })
+      window.clearInterval(timer)
+      const result = data as any
+      if (error || result?.error) {
+        toast.error(error?.message || result?.error || 'فشل حذف الحساب')
+        setDeleteRunning(false)
+        setDeleteTarget(null)
+        return
+      }
+      setDeleteStep(DELETE_STEPS.length)
+      setDeleteRunning(false)
+      setDeleteResult(result)
+      toast.success('تم نقل جميع الممتلكات وحذف الحساب بنجاح')
+      const empRes = await supabase.rpc('get_governed_employees', { p_token: token })
+      if (empRes.data) setEmployees(Array.isArray(empRes.data) ? empRes.data : [])
+    } catch (e: any) {
+      window.clearInterval(timer)
+      toast.error(e?.message || 'فشل حذف الحساب')
+      setDeleteRunning(false)
+      setDeleteTarget(null)
+    }
+  }
+
   return (
     <div className="space-y-4">
       {!embedded && (
@@ -288,6 +339,10 @@ export function EmployeesPage({ embedded }: { embedded?: boolean }) {
                   className="text-[10px] bg-surface text-text-secondary px-2 py-1 rounded">تغيير الصلاحية</button>
                 <button onClick={() => setShowResetPw(emp.id)}
                   className="text-[10px] bg-surface text-text-secondary px-2 py-1 rounded">إعادة كلمة المرور</button>
+                {isExactUpperMgmt && currentUser?.employee_id !== emp.id && (
+                  <button onClick={() => setDeleteTarget(emp)}
+                    className="text-[10px] bg-danger/10 text-danger px-2 py-1 rounded">حذف الحساب</button>
+                )}
               </div>
 
               {editingId === emp.id && (
@@ -342,6 +397,61 @@ export function EmployeesPage({ embedded }: { embedded?: boolean }) {
               )}
             </div>
           ))}
+        </div>
+      )}
+
+      {(deleteTarget || deleteResult) && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" dir="rtl">
+          <div className="w-full max-w-md bg-white rounded-xl border border-border p-5 space-y-4">
+            {deleteRunning ? (
+              <>
+                <h3 className="text-sm font-bold text-text">جاري حذف الحساب...</h3>
+                <div className="space-y-1.5">
+                  {DELETE_STEPS.map((step, i) => (
+                    <div key={step} className={`text-xs ${i < deleteStep ? 'text-success' : i === deleteStep ? 'text-primary font-semibold' : 'text-text-secondary'}`}>
+                      {i < deleteStep ? 'تم: ' : i === deleteStep ? 'جاري: ' : ''}{step}
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : deleteResult ? (
+              <>
+                <h3 className="text-sm font-bold text-success">تم حذف الحساب ونقل جميع الممتلكات</h3>
+                <div className="text-xs space-y-1 text-text">
+                  <div><span className="font-semibold">الحساب المحذوف:</span> {deleteResult.employee_name} ({deleteResult.employee_code})</div>
+                  <div><span className="font-semibold">استلم الملكية:</span> {deleteResult.target_name} ({deleteResult.target_code})</div>
+                  <div className="border-t border-border pt-2 mt-2 grid grid-cols-2 gap-1">
+                    <div>العملاء: {deleteResult.transferred.customers}</div>
+                    <div>الطلبات: {deleteResult.transferred.orders}</div>
+                    <div>الزيارات: {deleteResult.transferred.visits}</div>
+                    <div>التحصيلات: {deleteResult.transferred.collections}</div>
+                    <div>المرتجعات: {deleteResult.transferred.returns}</div>
+                    <div>مهام التوصيل: {deleteResult.transferred.delivery_assignments}</div>
+                    <div>مهام السائقين: {deleteResult.transferred.delivery_drivers}</div>
+                    <div>المرؤوسون: {deleteResult.transferred.subordinates}</div>
+                  </div>
+                </div>
+                <button onClick={() => { setDeleteResult(null); setDeleteTarget(null); setDeleteRunning(false) }}
+                  className="w-full bg-primary text-white text-xs py-2 rounded-lg font-semibold">إغلاق</button>
+              </>
+            ) : (
+              <>
+                <h3 className="text-sm font-bold text-danger">حذف حساب الموظف</h3>
+                <p className="text-xs text-text leading-relaxed">
+                  سيتم نقل جميع الممتلكات الحالية للموظف <span className="font-bold">{deleteTarget?.full_name}</span> ({deleteTarget?.code}) —
+                  العملاء والطلبات والزيارات والتحصيلات والمرتجعات ومهام التوصيل والمرؤوسين —
+                  إلى الموظف ذو الكود <span className="font-bold" dir="ltr">EMP-2026-000037</span> ثم حذف الحساب نهائياً.
+                </p>
+                <p className="text-[11px] text-danger/80">لا يمكن التراجع عن هذا الإجراء.</p>
+                <div className="flex gap-2">
+                  <button onClick={handleConfirmDelete}
+                    className="flex-1 bg-danger text-white text-xs py-2 rounded-lg font-semibold">تأكيد وحذف الحساب</button>
+                  <button onClick={() => setDeleteTarget(null)}
+                    className="px-4 border border-border rounded-lg text-xs text-text-secondary">إلغاء</button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       )}
     </div>

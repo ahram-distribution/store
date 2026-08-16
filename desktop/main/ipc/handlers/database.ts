@@ -79,6 +79,15 @@ export function registerDatabaseHandlers(): void {
         health.offlineReady = false
       }
 
+      // Enrich with recoverable-conflict / quarantine counts (read-only)
+      try {
+        const { getSyncQuarantineStatus } = await import('../../db/InitialSync.js')
+        const q = await getSyncQuarantineStatus(config)
+        health.pendingConflicts = q.pendingConflicts
+        health.quarantinedTables = q.quarantinedTables
+        health.quarantinedOutbox = q.quarantinedOutbox
+      } catch { /* quarantine tables may not exist */ }
+
       return health
     } catch (err: any) {
       return { healthy: false, error: err.message }

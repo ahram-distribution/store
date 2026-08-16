@@ -1,11 +1,21 @@
 {
   "baselineVersion": 1,
-  "schemaVersion": 2,
+  "schemaVersion": 4,
   "migrations": [
     {
       "version": 2,
       "file": "0002_get_unified_orders_strict_previous.sql",
       "description": "Add strict previous-order statistics to get_unified_orders (9th param p_include_strict_previous)"
+    },
+    {
+      "version": 3,
+      "file": "0003_inventory_global_policies.sql",
+      "description": "Web parity: inventory global policy RPCs (get_inventory_policies, set_global_negative_selling_policy, set_global_inventory_deduction_status) + policy snapshot trigger on orders"
+    },
+    {
+      "version": 4,
+      "file": "0004_employee_delete_with_transfer.sql",
+      "description": "Upper-management delete-employee-account feature: governed_delete_employee_with_transfer RPC (atomic transfer of all current ownership to fixed EMP-2026-000037, then delete account)"
     }
   ]
 }

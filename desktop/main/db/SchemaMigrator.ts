@@ -4,6 +4,7 @@ import { join } from 'path'
 import { PgConnection } from './PostgreSQLManager'
 import {
   BASELINE_SCHEMA_FILE,
+  CriticalFunction,
   Migration,
   MigrationManifest,
   requiredSchemaVersion,
@@ -32,6 +33,48 @@ export interface MigrateResult {
   applied: Migration[]
   failed?: Migration
   error?: string
+}
+
+export interface CriticalFunctionVerification {
+  ok: boolean
+  missing: Array<{ name: string; expectedArgs: string[] }>
+}
+
+export async function verifyCriticalFunctions(
+  config: PgConnection,
+  required: CriticalFunction[]
+): Promise<CriticalFunctionVerification> {
+  if (required.length === 0) return { ok: true, missing: [] }
+
+  const client = await connect(config)
+  try {
+    const missing: Array<{ name: string; expectedArgs: string[] }> = []
+    for (const fn of required) {
+      const res = await client.query(
+        `SELECT p.proargnames
+         FROM pg_proc p
+         JOIN pg_namespace n ON n.oid = p.pronamespace
+         WHERE n.nspname = 'public' AND p.proname = $1`,
+        [fn.name]
+      )
+      const present = new Set<string>()
+      for (const row of res.rows) {
+        const names = row.proargnames as (string | null)[] | null
+        if (Array.isArray(names)) {
+          for (const name of names) {
+            if (typeof name === 'string') present.add(name)
+          }
+        }
+      }
+      const absent = fn.args.filter((name) => !present.has(name))
+      if (absent.length > 0) {
+        missing.push({ name: fn.name, expectedArgs: fn.args })
+      }
+    }
+    return { ok: missing.length === 0, missing }
+  } finally {
+    await client.end()
+  }
 }
 
 const SCHEMA_MIGRATIONS_DDL = `
@@ -167,7 +210,7 @@ export async function getSchemaState(config: PgConnection): Promise<SchemaState>
 }
 
 function appVersionOf(): string {
-  return process.env.AHRAM_APP_VERSION || process.env.npm_package_version || '1.3.0'
+  return process.env.AHRAM_APP_VERSION || process.env.npm_package_version || '1.4.0'
 }
 
 export async function resolveSchemaCompatibility(

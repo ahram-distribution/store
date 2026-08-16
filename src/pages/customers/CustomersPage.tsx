@@ -34,6 +34,8 @@ function sortCustomersNewestFirst(a: CustomerCardData, b: CustomerCardData): num
 export function CustomersPage() {
   const navigate = useNavigate()
   const canCreate = useCapability('customers.create')
+  const userRoles = useAuthStore((s) => s.user?.roles) || []
+  const isExactUpperMgmt = userRoles.includes('الإدارة العليا')
   const currentEmpId = useAuthStore((s) => s.user?.employee_id)
   const [customers, setCustomers] = useState<CustomerCardData[]>([])
   const [employees, setEmployees] = useState<{ id: string; name: string }[]>([])
@@ -188,7 +190,7 @@ export function CustomersPage() {
       <div className="flex items-center gap-3">
         <button onClick={() => navigate('/dashboard')} className="text-text-secondary text-lg">&larr;</button>
         <h1 className="text-lg font-bold text-text">العملاء</h1>
-        {!loading && customers.length > 0 && (
+        {!loading && customers.length > 0 && isExactUpperMgmt && (
           <div className="flex gap-1.5">
             <button onClick={handleReportExcel} className="bg-white border border-border rounded-lg text-[11px] px-2.5 py-1.5 font-semibold text-text hover:bg-neutral-50">📊 Excel</button>
             <button onClick={handleReportPrint} className="bg-white border border-border rounded-lg text-[11px] px-2.5 py-1.5 font-semibold text-text hover:bg-neutral-50">🖨️ طباعة</button>

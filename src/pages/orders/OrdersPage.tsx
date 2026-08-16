@@ -66,6 +66,8 @@ const STATUS_KPI_GROUPS: Record<string, { dot: string; chip: string; active: str
 export function OrdersPage() {
   const navigate = useNavigate()
   const isUpperManagement = useUpperManagement()
+  const userRoles = useAuthStore((s) => s.user?.roles) || []
+  const isExactUpperMgmt = userRoles.includes('الإدارة العليا')
   const currentUserId = useAuthStore((s) => s.user?.identity_id)
   const currentEmpId = useAuthStore((s) => s.user?.employee_id)
   const unseenOrderIds = useEntityViewsStore((s) => s.unseenOrderIds)
@@ -296,7 +298,7 @@ export function OrdersPage() {
       <div className="flex items-center gap-3">
         <button onClick={() => navigate('/dashboard')} className="text-text-secondary text-lg">&larr;</button>
         <h1 className="text-lg font-bold text-text">{tabLabel}</h1>
-        {!loading && sorted.length > 0 && (
+        {!loading && sorted.length > 0 && isExactUpperMgmt && (
           <div className="flex gap-1.5">
             <button onClick={handleReportExcel} className="bg-white border border-border rounded-lg text-[11px] px-2.5 py-1.5 font-semibold text-text hover:bg-neutral-50">📊 Excel</button>
             <button onClick={handleReportPrint} className="bg-white border border-border rounded-lg text-[11px] px-2.5 py-1.5 font-semibold text-text hover:bg-neutral-50">🖨️ طباعة</button>

@@ -6,7 +6,7 @@ import { OrderStatusManager } from '../../components/orders/OrderStatusManager'
 import { useCapability } from '../../hooks/useCapability'
 import { useAuthStore } from '../../store/auth'
 import { useEntityViewsStore } from '../../store/entityViews'
-import { isUpperManagement } from '../../utils/roleNormalization'
+import { isExecutiveDirectorUser } from '../../utils/roleNormalization'
 import { formatCurrencyShort } from '../../utils/format'
 import { resolveConfiguredUnitTypes } from '../../utils/catalog'
 import { UNIT_LABELS, EXECUTION_GROUP } from '../../types/order-display'
@@ -100,6 +100,7 @@ export function OrderDetailPage() {
   const canManage = useCapability('orders.manage')
 
   const isSupreme = isSupremeManagementUser()
+  const isExecDirector = isExecutiveDirectorUser(user)
 
   const canTransfer = useMemo(() => {
     if (isSupreme || canManage) return true
@@ -748,7 +749,7 @@ export function OrderDetailPage() {
               تعديل الطلب
             </button>
           )}
-          {isSupreme && (
+          {isSupreme && !isExecDirector && (
             <button onClick={startEdit}
               className="inline-flex items-center gap-1 bg-accent text-white text-xs px-3 py-2.5 rounded-lg active:opacity-90 shrink-0">
               تحرير الطلب

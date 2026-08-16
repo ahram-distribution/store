@@ -6,6 +6,16 @@ interface ConnectivityResult {
   error?: string
 }
 
+interface HealthResult {
+  healthy: boolean
+  lastSyncAt?: string | null
+  offlineReady?: boolean
+  pendingConflicts?: number
+  quarantinedTables?: string[]
+  quarantinedOutbox?: number
+  error?: string
+}
+
 interface BackupDestinationResult {
   canceled: boolean
   filePath: string | null
@@ -80,7 +90,7 @@ export const desktopRuntime = {
     return api.selectBackupDestination()
   },
 
-  getHealth() {
+  getHealth(): Promise<HealthResult | null> {
     const api = getDbApi()
     if (!api) return Promise.resolve(null)
     return api.health()

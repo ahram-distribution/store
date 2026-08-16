@@ -49,6 +49,9 @@ export interface PgHealthCheck {
   tableCount: number
   lastSyncAt: string | null
   offlineReady?: boolean
+  pendingConflicts?: number
+  quarantinedTables?: string[]
+  quarantinedOutbox?: number
   error?: string
 }
 
@@ -569,7 +572,10 @@ CREATE TABLE IF NOT EXISTS sync_outbox (
   synced_at timestamptz,
   retry_count integer DEFAULT 0,
   last_error text,
-  quarantined boolean DEFAULT false
+  quarantined boolean DEFAULT false,
+  resolution varchar(20) DEFAULT 'pending',
+  resolution_evidence text,
+  resolved_at timestamptz
 );
 CREATE TABLE IF NOT EXISTS sync_conflicts (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -586,8 +592,14 @@ ALTER TABLE sync_metadata ADD COLUMN IF NOT EXISTS next_retry_at timestamptz;
 ALTER TABLE sync_metadata ADD COLUMN IF NOT EXISTS quarantined boolean DEFAULT false;
 ALTER TABLE sync_outbox ADD COLUMN IF NOT EXISTS quarantined boolean DEFAULT false;
 ALTER TABLE sync_outbox ADD COLUMN IF NOT EXISTS employee_id uuid;
+ALTER TABLE sync_outbox ADD COLUMN IF NOT EXISTS resolution varchar(20) DEFAULT 'pending';
+ALTER TABLE sync_outbox ADD COLUMN IF NOT EXISTS resolution_evidence text;
+ALTER TABLE sync_outbox ADD COLUMN IF NOT EXISTS resolved_at timestamptz;
+ALTER TABLE sync_outbox DROP CONSTRAINT IF EXISTS sync_outbox_resolution_check;
+ALTER TABLE sync_outbox ADD CONSTRAINT sync_outbox_resolution_check CHECK (resolution IN ('pending', 'local', 'remote', 'merged', 'void'));
 CREATE INDEX IF NOT EXISTS idx_sync_outbox_unsynced ON sync_outbox (created_at) WHERE synced = false;
 CREATE INDEX IF NOT EXISTS idx_sync_outbox_quarantined ON sync_outbox (retry_count) WHERE quarantined = true;
+CREATE INDEX IF NOT EXISTS idx_sync_outbox_pending ON sync_outbox (created_at) WHERE resolution = 'pending';
 CREATE INDEX IF NOT EXISTS idx_sync_conflicts_pending ON sync_conflicts (created_at) WHERE resolution = 'pending';
 CREATE UNIQUE INDEX IF NOT EXISTS idx_sync_conflicts_unique_pending ON sync_conflicts (table_name, record_id) WHERE resolution = 'pending';
 CREATE INDEX IF NOT EXISTS idx_sync_metadata_table ON sync_metadata (table_name);
