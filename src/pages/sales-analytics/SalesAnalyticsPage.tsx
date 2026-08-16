@@ -7,6 +7,8 @@ import { resolveDateRangeISO } from '../../lib/dateRange'
 import { supabase } from '../../lib/supabase'
 import { filterDelivered as filterDeliveredOrders } from '../../lib/deliveredOrders'
 import type { FilterState } from '../../types/filters'
+import { exportSalesAnalyticsExcel } from '../../services/salesAnalyticsReport'
+import { isExecutiveDirectorUser } from '../../utils/roleNormalization'
 
 function formatNumber(n: number): string {
   if (!Number.isFinite(n)) return '0'
@@ -23,6 +25,16 @@ const TAB_LABELS: Record<Tab, string> = {
   customers: 'المبيعات حسب العملاء',
   companies: 'المبيعات حسب الشركات',
   products: 'المبيعات حسب الأصناف',
+}
+
+const DATE_PRESET_LABELS: Record<string, string> = {
+  all: 'كل الفترات',
+  today: 'اليوم',
+  yesterday: 'أمس',
+  week: 'آخر 7 أيام',
+  month: 'هذا الشهر',
+  prev_month: 'الشهر السابق',
+  custom: 'فترة مخصصة',
 }
 
 interface EntityRow {
@@ -322,6 +334,9 @@ export function SalesAnalyticsPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const user = useAuthStore((s) => s.user)
+  const userRoles = useAuthStore((s) => s.user?.roles) || []
+  const isUpperManagement = userRoles.includes('الإدارة العليا')
+  const isExecDirector = isExecutiveDirectorUser(user)
   const [activeTab, setActiveTab] = useState<Tab>('customers')
   const [analyticsData, setAnalyticsData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
@@ -335,6 +350,9 @@ export function SalesAnalyticsPage() {
   const scope = ((location.state as { scope?: string })?.scope ?? 'company') as 'company' | 'team' | 'self'
 
   const initialFilter = useMemo<FilterState>(() => {
+    if (isExecDirector) {
+      return { datePreset: 'month', dateFrom: '', dateTo: '', search: '', managerId: null, employeeId: '__team__' }
+    }
     if (scope === 'self') {
       return { datePreset: 'month', dateFrom: '', dateTo: '', search: '', managerId: null, employeeId: user?.employee_id || null }
     }
@@ -342,7 +360,7 @@ export function SalesAnalyticsPage() {
       return { datePreset: 'month', dateFrom: '', dateTo: '', search: '', managerId: user?.employee_id || null, employeeId: null }
     }
     return { datePreset: 'month', dateFrom: '', dateTo: '', search: '', managerId: null, employeeId: null }
-  }, [scope, user?.employee_id])
+  }, [scope, user?.employee_id, isExecDirector])
 
   const [filters, setFilters] = useState<FilterState>(initialFilter)
 
@@ -364,6 +382,12 @@ export function SalesAnalyticsPage() {
   }, [employees, scope, user?.employee_id])
 
   const employeeOptions = useMemo(() => {
+    if (isExecDirector) {
+      return [
+        { value: '__team__', label: 'كل الفريق' },
+        { value: '__self__', label: 'نفسه' },
+      ]
+    }
     const toOpt = (e: any) => ({ value: e.id, label: e.full_name || e.code || e.id })
     if (scope === 'team') {
       const myEmployeeId = user?.employee_id
@@ -385,20 +409,45 @@ export function SalesAnalyticsPage() {
       return employees.filter((e: any) => e.manager_id === filters.managerId).map(toOpt)
     }
     return employees.map(toOpt)
-  }, [employees, scope, user?.employee_id, filters.managerId])
+  }, [employees, scope, user?.employee_id, filters.managerId, isExecDirector])
+
+  /* Executive Director team = his full recursive subtree (server-authoritative:
+     get_governed_employees returns the session subtree via app.get_subtree_ids). */
+  const execSubtreeIds = useMemo(() => {
+    if (!isExecDirector) return null
+    const ids = employees.map((e: any) => e.id as string)
+    if (user?.employee_id && !ids.includes(user.employee_id)) ids.push(user.employee_id)
+    return ids.length > 0 ? ids : null
+  }, [isExecDirector, employees, user?.employee_id])
+
+  /* Recursive subtree of a manager over the server-authoritative employee list
+     (get_governed_employees = app.get_subtree_ids output). "كل الفريق" must
+     ALWAYS be the COMPLETE recursive subtree of the selected/active manager —
+     never a one-level manager_id filter. */
+  const collectSubtreeIds = useCallback((managerId: string, list: any[]): string[] => {
+    const ids: string[] = []
+    const seen = new Set<string>()
+    const stack = [managerId]
+    while (stack.length > 0) {
+      const id = stack.pop() as string
+      if (seen.has(id)) continue
+      seen.add(id)
+      ids.push(id)
+      for (const e of list) {
+        if (e.manager_id === id) stack.push(e.id as string)
+      }
+    }
+    return ids
+  }, [])
 
   const managerTeamIds = useMemo(() => {
     if (!filters.managerId) return null
-    const teamMembers = employees.filter((e: any) => e.manager_id === filters.managerId)
-    const ids = teamMembers.map((e: any) => e.id as string)
-    if (scope === 'team' && user?.employee_id && !ids.includes(user.employee_id)) {
+    const ids = collectSubtreeIds(filters.managerId, employees)
+    if (filters.managerId === user?.employee_id && !ids.includes(user.employee_id)) {
       ids.push(user.employee_id)
     }
-    if (scope === 'company' && !ids.includes(filters.managerId)) {
-      ids.push(filters.managerId)
-    }
     return ids.length > 0 ? ids : null
-  }, [employees, filters.managerId, scope, user?.employee_id])
+  }, [employees, filters.managerId, collectSubtreeIds, user?.employee_id])
 
   const resolveDateRange = (f: FilterState): { from: string | null; to: string | null } => {
     if (f.datePreset === 'all') return { from: null, to: null }
@@ -413,7 +462,14 @@ export function SalesAnalyticsPage() {
     const range = resolveDateRange(filters)
     const params: any = { p_token: token.trim() }
     if (filters.search) params.p_search = filters.search
-    if (filters.employeeId) {
+    if (isExecDirector) {
+      if (filters.employeeId === '__self__') {
+        params.p_owner_id = user?.employee_id
+      } else {
+        if (employees.length === 0) { setLoading(false); return }
+        params.p_owner_ids = execSubtreeIds
+      }
+    } else if (filters.employeeId) {
       params.p_owner_id = filters.employeeId
     } else if (managerTeamIds) {
       params.p_owner_ids = managerTeamIds
@@ -424,7 +480,7 @@ export function SalesAnalyticsPage() {
     const { data } = await supabase.rpc('get_sales_analytics', params)
     if (data) setAnalyticsData(data)
     setLoading(false)
-  }, [filters, managerTeamIds])
+  }, [filters, managerTeamIds, isExecDirector, execSubtreeIds, employees.length, user?.employee_id])
 
   useEffect(() => { fetchData() }, [fetchData])
 
@@ -453,7 +509,13 @@ export function SalesAnalyticsPage() {
       p_date_from: range.from,
       p_date_to: range.to,
     }
-    if (filters.employeeId) {
+    if (isExecDirector) {
+      if (filters.employeeId === '__self__') {
+        drillParams.p_owner_id = user?.employee_id
+      } else if (execSubtreeIds) {
+        drillParams.p_owner_ids = execSubtreeIds
+      }
+    } else if (filters.employeeId) {
       drillParams.p_owner_id = filters.employeeId
     } else if (managerTeamIds) {
       drillParams.p_owner_ids = managerTeamIds
@@ -476,7 +538,7 @@ export function SalesAnalyticsPage() {
     })
 
     return () => { cancelled = true }
-  }, [drillDownParams, filters, managerTeamIds, activeTab])
+  }, [drillDownParams, filters, managerTeamIds, activeTab, isExecDirector, execSubtreeIds, user?.employee_id])
 
   /* ── Derive active rows from pre-aggregated data ── */
   const customerAgg: EntityRow[] = useMemo(() => {
@@ -527,6 +589,44 @@ export function SalesAnalyticsPage() {
     navigate(`/orders/${orderId}`)
   }, [navigate])
 
+  const buildFilterSummary = useCallback((): string[] => {
+    const lines: string[] = []
+    if (filters.search && filters.search.trim()) lines.push(`بحث: "${filters.search.trim()}"`)
+    if (isExecDirector) {
+      lines.push(filters.employeeId === '__self__' ? 'النطاق: نفسه' : 'النطاق: كل الفريق (فريق الرئيس التنفيذي)')
+    } else if (scope === 'self') {
+      lines.push('النطاق: أنا فقط')
+    } else if (scope === 'team') {
+      lines.push('النطاق: فريقي')
+    } else {
+      lines.push('النطاق: الشركة بالكامل')
+    }
+    if (filters.managerId) {
+      const mgr = employees.find((e: any) => e.id === filters.managerId)
+      lines.push(`المدير: ${mgr ? mgr.full_name : 'غير محدد'}`)
+    }
+    if (filters.employeeId && !isExecDirector) {
+      const emp = employees.find((e: any) => e.id === filters.employeeId)
+      lines.push(`المندوب: ${emp ? emp.full_name : 'غير محدد'}`)
+    }
+    if (filters.datePreset === 'custom' && filters.dateFrom && filters.dateTo) {
+      lines.push(`الفترة: ${filters.dateFrom} إلى ${filters.dateTo}`)
+    } else {
+      lines.push(`الفترة: ${DATE_PRESET_LABELS[filters.datePreset] ?? 'كل الفترات'}`)
+    }
+    return lines
+  }, [filters, scope, employees, isExecDirector])
+
+  const handleExportExcel = useCallback(() => {
+    exportSalesAnalyticsExcel({
+      tab: activeTab,
+      tabLabel: TAB_LABELS[activeTab],
+      rows: activeRows,
+      totals: { activity: totalActivity, target: totalTarget },
+      filters: buildFilterSummary(),
+    })
+  }, [activeTab, activeRows, totalActivity, totalTarget, buildFilterSummary])
+
   return (
     <div className="space-y-4">
       {/* ── Header ── */}
@@ -542,13 +642,13 @@ export function SalesAnalyticsPage() {
         showSearch
         showMonthSelector
         showDateRange
-        showManagerFilter={scope === 'company'}
-        showEmployeeFilter={scope !== 'self'}
+        showManagerFilter={scope === 'company' && !isExecDirector}
+        showEmployeeFilter={isExecDirector || scope !== 'self'}
         managerOptions={managerOptions}
         employeeOptions={employeeOptions}
         searchPlaceholder="بحث بالاسم أو الكود..."
         managerPlaceholder="كل المديرين"
-        employeePlaceholder={scope === 'team' || filters.managerId ? 'كل الفريق' : 'كل المناديب'}
+        employeePlaceholder={isExecDirector ? 'نطاق التقرير' : (scope === 'team' || filters.managerId ? 'كل الفريق' : 'كل المناديب')}
       />
 
       {/* ── Top Summary Cards ── */}
@@ -587,6 +687,9 @@ export function SalesAnalyticsPage() {
         <span>عدد {tabEntityLabel}: <button onClick={() => setCountSourceOpen(true)} className="text-text font-bold cursor-pointer hover:underline">{activeRows.length}</button></span>
         <span>النشاط: <button onClick={() => openDrillDown('all', '')} className="text-primary font-bold cursor-pointer hover:underline">{formatCurrencyWhole(totalActivity)}</button></span>
         <span>المنفذ فعلي: <button onClick={() => openDrillDown('all', '', true)} className="text-success font-bold cursor-pointer hover:underline">{formatCurrencyWhole(totalTarget)}</button></span>
+        {isUpperManagement && (
+          <button onClick={handleExportExcel} className="ms-auto bg-white border border-border rounded-lg text-[11px] px-2.5 py-1.5 font-semibold text-text hover:bg-neutral-50">📊 Excel</button>
+        )}
       </div>
 
       {/* ── Entity List ── */}
