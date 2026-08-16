@@ -85,9 +85,10 @@ export function OrdersPage() {
     customerFilter: '',
     orderTypeFilter: '',
     governorateFilter: '',
+    dateSource: 'created',
     filters: { datePreset: 'all', dateFrom: '', dateTo: '', search: '', employeeId: '' } as FilterValues,
   })
-  const { tab, statusFilter, customerFilter, orderTypeFilter, governorateFilter, filters } = viewState
+  const { tab, statusFilter, customerFilter, orderTypeFilter, governorateFilter, dateSource, filters } = viewState
   const [sfResetKey, setSfResetKey] = useState(0)
 
   const STATUS_OPTIONS = useMemo(() => statusFilterOptions(isUpperManagement), [isUpperManagement])
@@ -118,14 +119,15 @@ export function OrdersPage() {
     if (tab === 'my_orders' && currentUserId) rpcParams.p_created_by = currentUserId
     if (governorateFilter) rpcParams.p_governorate_id = governorateFilter
     rpcParams.p_include_strict_previous = true
+    if (dateSource === 'event') rpcParams.p_date_source = 'event'
 
     const { data } = await supabase.rpc('get_unified_orders', rpcParams)
     if (data) setOrders(Array.isArray(data) ? data : [])
     setLoading(false)
     setInitialLoaded(true)
-  }, [filters, statusFilter, customerFilter, tab, currentUserId, governorateFilter])
+  }, [filters, statusFilter, customerFilter, tab, currentUserId, governorateFilter, dateSource])
 
-  useEffect(() => { fetchOrders() }, [filters, statusFilter, customerFilter, tab, governorateFilter])
+  useEffect(() => { fetchOrders() }, [filters, statusFilter, customerFilter, tab, governorateFilter, dateSource])
 
   useEffect(() => {
     const token = getToken()
@@ -155,12 +157,12 @@ export function OrdersPage() {
       list = list.filter((o: any) => (o.order_type || 'cash') === orderTypeFilter)
     }
     return [...list].sort((a: any, b: any) => {
-      const aEvent = a.updated_at || a.created_at || ''
-      const bEvent = b.updated_at || b.created_at || ''
-      if (bEvent !== aEvent) return bEvent > aEvent ? 1 : -1
+      const keyA = dateSource === 'event' ? (a.last_event_ts || a.created_at || '') : (a.created_at || '')
+      const keyB = dateSource === 'event' ? (b.last_event_ts || b.created_at || '') : (b.created_at || '')
+      if (keyB !== keyA) return keyB > keyA ? 1 : -1
       return (b.created_at || '') > (a.created_at || '') ? 1 : -1
     })
-  }, [orders, tab, currentEmpId, orderTypeFilter])
+  }, [orders, tab, currentEmpId, orderTypeFilter, dateSource])
 
   const sortedTotalValue = useMemo(() => {
     return sorted.reduce((sum: number, o: any) => sum + (Number(o.total_amount) || 0), 0)
@@ -184,6 +186,12 @@ export function OrdersPage() {
 
     if (filters.datePreset !== 'all') {
       items.push({ id: 'date', label: 'الفترة', value: datePresetLabels[filters.datePreset] || filters.datePreset })
+    }
+    if (dateSource === 'event') {
+      items.push({
+        id: 'dateSource', label: 'نوع التاريخ', value: 'آخر حدث تشغيلي',
+        onRemove: () => setViewState({ dateSource: 'created' }),
+      })
     }
     if (filters.datePreset === 'custom') {
       if (filters.dateFrom) items.push({ id: 'dateFrom', label: 'من', value: filters.dateFrom })
@@ -218,7 +226,7 @@ export function OrdersPage() {
     }
 
     return items
-  }, [tab, filters, statusFilter, customerFilter, employees, customers, governorateFilter, governorates, STATUS_OPTIONS])
+  }, [tab, filters, statusFilter, customerFilter, employees, customers, governorateFilter, governorates, STATUS_OPTIONS, dateSource])
 
   const kpiChips: KpiChipConfig[] = useMemo(() => {
     const statusCounts: Record<string, number> = {}
@@ -323,6 +331,15 @@ export function OrdersPage() {
         initialFilters={filters}
         onFilterChange={(f) => setViewState({ filters: f })}
       />
+
+      <div className="flex items-center gap-2">
+        <span className="text-xs text-text-secondary">نوع التاريخ:</span>
+        <select value={dateSource} onChange={(e) => setViewState({ dateSource: e.target.value })}
+          className="border border-border rounded-lg px-2 py-1.5 text-xs bg-white">
+          <option value="created">وقت إنشاء الطلب</option>
+          <option value="event">آخر حدث تشغيلي</option>
+        </select>
+      </div>
 
       <div className="flex gap-2">
         <select value={statusFilter} onChange={(e) => setViewState({ statusFilter: e.target.value })}

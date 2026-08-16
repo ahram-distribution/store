@@ -1,6 +1,6 @@
 {
   "baselineVersion": 1,
-  "schemaVersion": 4,
+  "schemaVersion": 5,
   "migrations": [
     {
       "version": 2,
@@ -16,6 +16,11 @@
       "version": 4,
       "file": "0004_employee_delete_with_transfer.sql",
       "description": "Upper-management delete-employee-account feature: governed_delete_employee_with_transfer RPC (atomic transfer of all current ownership to fixed EMP-2026-000037, then delete account)"
+    },
+    {
+      "version": 5,
+      "file": "0005_orders_date_source_event.sql",
+      "description": "Orders date filter date-source selector: get_unified_orders 10th param p_date_source ('created' default | 'event' = latest operational event from existing order history)"
     }
   ]
 }
