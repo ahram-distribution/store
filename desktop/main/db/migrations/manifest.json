@@ -1,6 +1,6 @@
 {
   "baselineVersion": 1,
-  "schemaVersion": 5,
+  "schemaVersion": 7,
   "migrations": [
     {
       "version": 2,
@@ -21,6 +21,16 @@
       "version": 5,
       "file": "0005_orders_date_source_event.sql",
       "description": "Orders date filter date-source selector: get_unified_orders 10th param p_date_source ('created' default | 'event' = latest operational event from existing order history)"
+    },
+    {
+      "version": 6,
+      "file": "0006_web_parity_roundtrip.sql",
+      "description": "Web parity round-trip (build 80952a3): 9 tables, 6 columns, runtime+event_views schemas, 503 public + 7 runtime functions replaced to remote bodies, 3 triggers, single-root unique index"
+    },
+    {
+      "version": 7,
+      "file": "0007_inventory_deduction_threshold.sql",
+      "description": "Phase B: configurable inventory deduction threshold, no auto-reduce, always check stock, threshold-based deduct/restore"
     }
   ]
 }

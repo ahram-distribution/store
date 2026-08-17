@@ -19,6 +19,7 @@ export interface OrdersReportRow {
   last_order_date: string
   status: string
   order_number: string
+  reference_number: string
 }
 
 export interface OrdersReportTotals {
@@ -54,6 +55,7 @@ export const ORDERS_REPORT_COLUMNS: OrdersReportColumn[] = [
   { key: 'last_order_date', label: 'تاريخ آخر طلب سابق' },
   { key: 'status', label: 'حالة الطلب' },
   { key: 'order_number', label: 'رقم الطلب' },
+  { key: 'reference_number', label: 'الرقم المرجعي' },
 ]
 
 const DATE_PRESET_LABELS: Record<string, string> = {
@@ -127,6 +129,7 @@ export function buildOrdersReportRows(orders: any[], governorates: { id: string;
     last_order_date: fmtDate(o.strict_previous_order_date),
     status: visibleStatusLabel(o.status || ''),
     order_number: safeStr(o.order_number),
+    reference_number: safeStr(o.reference_number),
   }))
 }
 
@@ -245,6 +248,7 @@ function reportTableHtml(rows: OrdersReportRow[]): string {
         <td>${esc(r.last_order_date)}</td>
         <td>${esc(r.status)}</td>
         <td class="cell-order-no" dir="ltr">${esc(r.order_number)}</td>
+        <td class="cell-order-no" dir="ltr">${esc(r.reference_number)}</td>
       </tr>`).join('')
   return `
     <table class="report-table">
@@ -336,6 +340,7 @@ export function exportOrdersReportExcel(rows: OrdersReportRow[], meta: OrdersRep
     last_order_date: r.last_order_date,
     status: r.status,
     order_number: r.order_number,
+    reference_number: r.reference_number,
   }))
 
   const summary: { label: string; value: number; format?: 'number' | 'currency' }[] = [
@@ -343,7 +348,7 @@ export function exportOrdersReportExcel(rows: OrdersReportRow[], meta: OrdersRep
     { label: 'إجمالي قيمة الطلبات', value: totals.totalValue, format: 'currency' },
   ]
 
-  const columnWidths = [26, 12, 14, 26, 14, 15, 18, 12, 14, 12, 14, 16, 16]
+  const columnWidths = [26, 12, 14, 26, 14, 15, 18, 12, 14, 12, 14, 16, 16, 14]
 
   exportToExcel({
     title: meta.title,

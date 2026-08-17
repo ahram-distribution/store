@@ -6,14 +6,15 @@ const SYSTEM_REASON_LABELS: Record<string, string> = {
 }
 
 const ITEM_CHANGE_LABELS: Record<string, string> = {
-  added: 'تمت إضافة صنف',
-  removed: 'تم حذف صنف',
-  quantity_changed: 'تم تغيير كمية الصنف',
+  added: 'إضافة صنف',
+  removed: 'حذف صنف',
+  quantity_changed: 'تعديل كمية صنف',
 }
 
 export interface ItemChange {
   product_id: string
   product_name: string
+  product_code: string | null
   unit_name: string
   action: 'added' | 'removed' | 'quantity_changed'
   old_qty?: number
@@ -89,16 +90,17 @@ function computeItemChanges(m: UnifiedModificationEntry, items: UnifiedOrderItem
     const oldItem = oldItems[pid]
     const newItem = newItems[pid]
     const cur = productMap[pid]
-    const product_name = cur?.product_name || 'منتج'
+    const product_name = cur?.product_name || newItem?.product_name || oldItem?.product_name || 'منتج'
+    const product_code = cur?.legacy_code || newItem?.legacy_code || oldItem?.legacy_code || null
     const unit_type = cur?.unit_type || oldItem?.unit_type || newItem?.unit_type || 'piece'
     const unit_name = UNIT_LABELS[unit_type] || unit_type
     if (oldItem && !newItem) {
-      changes.push({ product_id: pid, product_name, unit_name, action: 'removed', old_qty: Number(oldItem.unit_quantity || 0) })
+      changes.push({ product_id: pid, product_name, product_code, unit_name, action: 'removed', old_qty: Number(oldItem.unit_quantity || 0) })
     } else if (!oldItem && newItem) {
-      changes.push({ product_id: pid, product_name, unit_name, action: 'added', new_qty: Number(newItem.unit_quantity || 0) })
+      changes.push({ product_id: pid, product_name, product_code, unit_name, action: 'added', new_qty: Number(newItem.unit_quantity || 0) })
     } else if (oldItem && newItem && Number(oldItem.unit_quantity || 0) !== Number(newItem.unit_quantity || 0)) {
       changes.push({
-        product_id: pid, product_name, unit_name, action: 'quantity_changed',
+        product_id: pid, product_name, product_code, unit_name, action: 'quantity_changed',
         old_qty: Number(oldItem.unit_quantity || 0), new_qty: Number(newItem.unit_quantity || 0),
       })
     }

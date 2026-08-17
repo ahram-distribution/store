@@ -457,29 +457,21 @@ export function OrderStatusManager({ orderId, currentStatus, canReview, canAppro
       {pendingAdjustments && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 px-4 py-6 overflow-y-auto">
           <div className="bg-white rounded-xl w-full max-w-lg p-5 space-y-4 my-auto">
-            <h3 className="text-sm font-bold text-text">تعديل الكميات قبل دخول مرحلة التنفيذ</h3>
+            <h3 className="text-sm font-bold text-text">تنبيه: مراجعة مخزون الأصناف</h3>
             <p className="text-[11px] text-text-secondary">
-              الكميات المطلوبة تتجاوز الكمية المتاحة حاليًا. سيتم اعتماد الأصناف التالية بالكمية القابلة للتنفيذ قبل <span className="font-semibold text-amber-600">{ORDER_STATUS_LABELS[pendingAdjustments.target] || pendingAdjustments.target}</span>:
+              يرجى مراجعة مخزون الأصناف التالية قبل الاعتماد:
             </p>
             <div className="space-y-2 max-h-64 overflow-y-auto">
               {pendingAdjustments.adjustments.map(a => (
                 <div key={a.product_id} className="border border-border rounded-lg p-3 bg-surface/50">
                   <p className="text-xs font-bold text-text">{a.product_name}</p>
-                  {a.action === 'remove' ? (
-                    <p className="text-[11px] text-danger mt-1">
-                      الكمية الأصلية: <span className="font-semibold">{adjustmentQuantityLabel(a.requested_pieces, a.carton_quantity, a.requested_units)}</span> — لا توجد كمية قابلة للتنفيذ؛ سيتم إزالة الصنف من الطلب.
-                    </p>
-                  ) : (
-                    <p className="text-[11px] text-text-secondary mt-1 leading-relaxed">
-                      الكمية الأصلية: <span className="font-semibold">{adjustmentQuantityLabel(a.requested_pieces, a.carton_quantity, a.requested_units)}</span>
-                      <br />
-                      الكمية النهائية القابلة للتنفيذ: <span className="font-semibold">{adjustmentQuantityLabel(a.executable_pieces, a.carton_quantity, a.executable_units)}</span>
-                    </p>
-                  )}
+                  <p className="text-[11px] text-danger mt-1">
+                    يرجى مراجعة مخزون هذا الصنف — الكمية المطلوبة: <span className="font-semibold">{adjustmentQuantityLabel(a.requested_pieces, a.carton_quantity, a.requested_units)}</span>، المتاح: <span className="font-semibold">{adjustmentQuantityLabel(a.available_pieces, a.carton_quantity, [])}</span>
+                  </p>
                 </div>
               ))}
             </div>
-            <p className="text-[10px] text-danger/70">سيتم تسجيل هذه التعديلات في سجل الطلب قبل دخول مرحلة التنفيذ.</p>
+            <p className="text-[10px] text-danger/70">النظام لن يعدل الكميات تلقائيًا. يرجى تعديل كميات الأصناف يدويًا.</p>
             <div className="flex gap-2">
               <button onClick={handleAdjustmentCancel} disabled={loading !== null}
                 className="flex-1 bg-surface text-text text-xs py-2.5 rounded-lg active:opacity-80 transition-opacity">إلغاء</button>
