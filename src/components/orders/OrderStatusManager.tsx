@@ -329,7 +329,7 @@ export function OrderStatusManager({ orderId, currentStatus, canReview, canAppro
   // Management additionally gets the remaining operational statuses after
   // "ملغى"). draft is never shown. Permission-driven transition buttons below
   // keep their existing behavior untouched.
-  const statusOrder = isUpperManagement ? UPPER_MANAGEMENT_STATUS_ORDER : USER_FACING_STATUS_ORDER
+  const statusOrder = (isUpperManagement || canManage) ? UPPER_MANAGEMENT_STATUS_ORDER : USER_FACING_STATUS_ORDER
   const orderedTargets = targets
     .filter((t) => statusOrder.includes(t as string))
     .sort((a, b) => statusOrder.indexOf(a as string) - statusOrder.indexOf(b as string))
