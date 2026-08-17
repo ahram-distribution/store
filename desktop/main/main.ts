@@ -2,11 +2,12 @@ import { app, BrowserWindow, dialog } from 'electron'
 import { createMainWindow } from './WindowManager'
 import { registerLifecycle } from './AppLifecycle'
 import { bootstrapIpc } from './ipc/bootstrap'
-import { registerPrivilegedSchemes, registerProtocolHandler } from './ProtocolHandler'
+import { registerPrivilegedSchemes, registerProtocolHandler, setActiveRendererDirectory } from './ProtocolHandler'
 import { bootstrapLocalDatabase, performInitialSync, performIncrementalSync, performBackup } from './db/HealthChecker.js'
 import { resolveSchemaCompatibility, migrateSchema, verifyCriticalFunctions } from './db/SchemaMigrator.js'
 import { requiredCriticalFunctions } from './db/schemaManifest.js'
 import { executeQuery } from './db/index.js'
+import { activatePendingRenderer, performFullUpdateCycle, getActiveRendererPath } from './update/index.js'
 
 let mainWindow: BrowserWindow | null = null
 
@@ -210,6 +211,27 @@ app.whenReady().then(async () => {
     } catch (e: any) {
       console.warn('[Main] Failed to start connectivity monitor:', e.message)
     }
+
+    // --- Auto-update: activate any pending renderer from previous download ---
+    try {
+      const activated = await activatePendingRenderer()
+      if (activated) {
+        console.log('[Main] Pending renderer update activated — restart required')
+      }
+    } catch (e: any) {
+      console.warn('[Main] Failed to activate pending renderer:', e.message)
+    }
+
+    // --- Auto-update: check for new releases in background ---
+    const dbConfigForUpdate = result.config
+    performFullUpdateCycle(dbConfigForUpdate).then(info => {
+      console.log('[Main] Update check result:', info.status, info.message || '')
+      if (info.status === 'restart-required') {
+        console.log('[Main] Updates available — restart recommended')
+      }
+    }).catch(e => {
+      console.warn('[Main] Update check failed (non-fatal):', e?.message || e)
+    })
   } else if (result.ready && !result.config) {
     console.warn('[Main] DB ready but no config — will try again at runtime')
   } else {
@@ -220,6 +242,13 @@ app.whenReady().then(async () => {
       message: 'The local database could not be set up.',
       detail: `${result.message}\n\nCheck %ProgramData%\\ahram-desktop\\logs\\provision.log for details.\n\nThe application will continue without offline database support.`,
     })
+  }
+
+  // --- Activate auto-updated renderer if available ---
+  const activeRenderer = getActiveRendererPath()
+  if (activeRenderer) {
+    setActiveRendererDirectory(activeRenderer)
+    console.log('[Main] Serving from updated renderer:', activeRenderer)
   }
 
   mainWindow = createMainWindow()

@@ -141,4 +141,16 @@ export const desktopRuntime = {
     api.onDownloaded(callback)
     return () => { /* preload listeners persist for app lifetime */ }
   },
+
+  async runFullUpdateCycle(): Promise<{ success: boolean; status?: string; message?: string; version?: string; buildId?: string }> {
+    const api = getUpdateApi()
+    if (!api) return { success: false, message: 'Desktop API not available' }
+    return api.fullCycle()
+  },
+
+  async restartApp(): Promise<void> {
+    const api = getUpdateApi()
+    if (!api) return
+    await api.restart()
+  },
 }

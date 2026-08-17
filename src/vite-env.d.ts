@@ -48,7 +48,11 @@ interface Window {
       check: () => Promise<{ success: boolean; message?: string; updateAvailable?: boolean; version?: string; currentVersion?: string }>
       download: () => Promise<{ success: boolean; message?: string }>
       install: () => Promise<{ success: boolean }>
-      onStatus: (callback: (data: { status: string; version?: string; currentVersion?: string; message?: string }) => void) => void
+      fullCycle: () => Promise<{ success: boolean; status?: string; message?: string; version?: string; buildId?: string }>
+      activateRenderer: () => Promise<{ success: boolean }>
+      quitAndInstall: () => Promise<{ success: boolean }>
+      restart: () => Promise<{ success: boolean }>
+      onStatus: (callback: (data: { status: string; version?: string; currentVersion?: string; message?: string; buildId?: string }) => void) => void
       onProgress: (callback: (data: { percent: number; transferred?: number; total?: number; bytesPerSecond?: number }) => void) => void
       onDownloaded: (callback: (data: { version: string; currentVersion: string }) => void) => void
     }

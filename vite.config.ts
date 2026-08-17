@@ -111,10 +111,22 @@ export default defineConfig({
             assets[file] = crypto.createHash('sha256').update(content).digest('hex')
           }
         }
+
+        let requiredSchemaVersion = 7
+        try {
+          const desktopManifestPath = path.resolve(__dirname, 'desktop', 'main', 'db', 'migrations', 'manifest.json')
+          if (fs.existsSync(desktopManifestPath)) {
+            const dm = JSON.parse(fs.readFileSync(desktopManifestPath, 'utf8'))
+            if (typeof dm.schemaVersion === 'number') requiredSchemaVersion = dm.schemaVersion
+          }
+        } catch { /* use default */ }
+
         const manifest = {
           build_id: process.env.BUILD_ID || 'dev',
           commit_hash: process.env.COMMIT_HASH || 'dev',
           build_date: new Date().toISOString(),
+          app_version: process.env.VITE_APP_VERSION || '1.0.0',
+          required_schema_version: requiredSchemaVersion,
           assets,
         }
         fs.writeFileSync(path.join(distDir, 'build-manifest.json'), JSON.stringify(manifest, null, 2))

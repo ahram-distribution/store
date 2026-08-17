@@ -57,11 +57,16 @@ contextBridge.exposeInMainWorld('api', {
     check: () => ipcRenderer.invoke('update:check'),
     download: () => ipcRenderer.invoke('update:download'),
     install: () => ipcRenderer.invoke('update:install'),
+    fullCycle: () => ipcRenderer.invoke('update:full-cycle'),
+    activateRenderer: () => ipcRenderer.invoke('update:activate-renderer'),
+    quitAndInstall: () => ipcRenderer.invoke('update:quit-and-install'),
+    restart: () => ipcRenderer.invoke('update:restart'),
     onStatus: (callback: (data: {
       status: string
       version?: string
       currentVersion?: string
       message?: string
+      buildId?: string
     }) => void) => {
       ipcRenderer.on('update:status', (_event, data) => callback(data))
     },

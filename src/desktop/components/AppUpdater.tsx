@@ -5,9 +5,13 @@ type UpdatePhase =
   | 'loading'
   | 'idle'
   | 'checking'
+  | 'downloading-renderer'
+  | 'downloading-migrations'
+  | 'applying-migrations'
   | 'available'
   | 'downloading'
   | 'downloaded'
+  | 'restart-required'
   | 'error'
   | 'unsupported'
 
@@ -17,6 +21,7 @@ export function AppUpdater() {
   const [newVersion, setNewVersion] = useState<string | null>(null)
   const [progress, setProgress] = useState(0)
   const [error, setError] = useState('')
+  const [detailMessage, setDetailMessage] = useState('')
 
   const initialized = useRef(false)
 
@@ -27,11 +32,12 @@ export function AppUpdater() {
         setPhase('unsupported')
       } else {
         setPhase('idle')
-        checkForUpdates()
+        runFullCycle()
       }
     })
 
     desktopRuntime.onUpdateStatus((data) => {
+      setDetailMessage(data.message || '')
       switch (data.status) {
         case 'checking':
           setPhase('checking')
@@ -42,6 +48,20 @@ export function AppUpdater() {
           break
         case 'not-available':
           setPhase('idle')
+          break
+        case 'downloading-renderer':
+          setPhase('downloading-renderer')
+          setProgress(0)
+          break
+        case 'downloading-migrations':
+          setPhase('downloading-migrations')
+          break
+        case 'applying-migrations':
+          setPhase('applying-migrations')
+          break
+        case 'restart-required':
+          setNewVersion(data.version ?? null)
+          setPhase('restart-required')
           break
         case 'error':
           setError(data.message ?? '')
@@ -63,25 +83,39 @@ export function AppUpdater() {
     })
   }, [])
 
-  const checkForUpdates = useCallback(async () => {
+  const runFullCycle = useCallback(async () => {
     if (initialized.current) return
     initialized.current = true
     try {
-      const result = await desktopRuntime.checkForUpdates()
-      if (result?.updateAvailable) {
-        setNewVersion(result.version ?? null)
-        setPhase('available')
-      } else if (result?.success === false && result.message) {
+      await desktopRuntime.runFullUpdateCycle()
+    } catch {
+      // Non-fatal: falls back to electron-updater check
+      try {
+        const result = await desktopRuntime.checkForUpdates()
+        if (result?.updateAvailable) {
+          setNewVersion(result.version ?? null)
+          setPhase('available')
+        }
+      } catch {
         setPhase('unsupported')
       }
-    } catch {
-      setPhase('unsupported')
     }
   }, [])
 
   const handleInstall = useCallback(async () => {
     await desktopRuntime.installUpdate()
   }, [])
+
+  const handleRestart = useCallback(async () => {
+    await desktopRuntime.restartApp()
+  }, [])
+
+  const handleRetry = useCallback(async () => {
+    initialized.current = false
+    setPhase('idle')
+    setError('')
+    runFullCycle()
+  }, [runFullCycle])
 
   if (phase === 'unsupported' || phase === 'loading') {
     return null
@@ -91,6 +125,24 @@ export function AppUpdater() {
     switch (phase) {
       case 'checking':
         return <span className="desktop-runtime-update-progress">جاري التحقق من التحديثات...</span>
+      case 'downloading-renderer':
+        return (
+          <span className="desktop-runtime-update-progress">
+            جاري تحميل تحديث الواجهة... {progress > 0 ? `${progress}%` : ''}
+          </span>
+        )
+      case 'downloading-migrations':
+        return (
+          <span className="desktop-runtime-update-progress">
+            جاري تحميل تحديثات قاعدة البيانات...
+          </span>
+        )
+      case 'applying-migrations':
+        return (
+          <span className="desktop-runtime-update-progress">
+            جاري تطبيق تحديثات قاعدة البيانات...
+          </span>
+        )
       case 'available':
       case 'downloading':
         return (
@@ -107,9 +159,18 @@ export function AppUpdater() {
             </button>
           </span>
         )
+      case 'restart-required':
+        return (
+          <span className="desktop-runtime-update-ready">
+            {detailMessage || 'تحديث جديد جاهز'}
+            <button className="desktop-runtime-btn desktop-runtime-btn-update" onClick={handleRestart}>
+              إعادة التشغيل الآن
+            </button>
+          </span>
+        )
       case 'error':
         return (
-          <button className="desktop-runtime-btn" onClick={() => desktopRuntime.checkForUpdates()}>
+          <button className="desktop-runtime-btn" onClick={handleRetry}>
             إعادة المحاولة
           </button>
         )

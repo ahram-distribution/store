@@ -1,5 +1,6 @@
 import { ipcMain, app, BrowserWindow } from 'electron'
 import { autoUpdater } from 'electron-updater'
+import { performFullUpdateCycle, activatePendingRenderer } from '../../update/index.js'
 
 let initialized = false
 let checking = false
@@ -135,6 +136,47 @@ export function registerUpdaterHandlers(): void {
 
   ipcMain.handle('update:install', () => {
     autoUpdater.quitAndInstall(false, true)
+    return { success: true }
+  })
+
+  ipcMain.handle('update:full-cycle', async () => {
+    if (!app.isPackaged) {
+      return { success: false, message: 'Full update cycle is only available in the packaged application.' }
+    }
+    try {
+      const info = await performFullUpdateCycle()
+      return {
+        success: true,
+        status: info.status,
+        message: info.message,
+        version: info.version,
+        buildId: info.buildId,
+      }
+    } catch (err: any) {
+      return {
+        success: false,
+        message: err?.message ?? 'Update cycle failed.',
+      }
+    }
+  })
+
+  ipcMain.handle('update:activate-renderer', async () => {
+    try {
+      const activated = await activatePendingRenderer()
+      return { success: activated }
+    } catch (err: any) {
+      return { success: false, message: err?.message ?? 'Activation failed.' }
+    }
+  })
+
+  ipcMain.handle('update:quit-and-install', () => {
+    autoUpdater.quitAndInstall(false, true)
+    return { success: true }
+  })
+
+  ipcMain.handle('update:restart', () => {
+    app.relaunch()
+    app.quit()
     return { success: true }
   })
 }
