@@ -170,10 +170,14 @@ async function downloadNewRenderer(
   })
 
   if (!result.success) {
+    const errMsg = result.errors[0] || 'unknown error'
     console.error(`[Update] Renderer download failed: ${result.errors.join(', ')}`)
+    const errState = loadUpdateState()
+    errState.lastError = `Renderer download failed: ${errMsg}`
+    saveUpdateState(errState)
     notifyUpdate({
       status: 'error',
-      message: `Renderer download failed: ${result.errors[0] || 'unknown error'}`,
+      message: `Renderer download failed: ${errMsg}`,
     })
     return false
   }

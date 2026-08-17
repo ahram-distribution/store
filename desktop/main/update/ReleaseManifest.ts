@@ -58,6 +58,7 @@ export function compareManifests(
 }
 
 function compareVersions(a: string, b: string): number {
+  if (!a || !b) return 0
   const pa = a.split('.').map(n => parseInt(n, 10) || 0)
   const pb = b.split('.').map(n => parseInt(n, 10) || 0)
   for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
