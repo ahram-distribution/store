@@ -25,7 +25,7 @@ export function ApprovalQueuePage() {
     if (!token) { setLoading(false); return }
     const { data } = await supabase.rpc('get_unified_orders', { p_token: token })
     if (data) {
-      const submitted = (Array.isArray(data) ? data : []).filter((o: any) => o.status === 'submitted' || o.status === 'sales_manager_approved')
+      const submitted = (Array.isArray(data) ? data : []).filter((o: any) => o.status === 'submitted')
       setOrders(submitted)
     }
     setLoading(false)

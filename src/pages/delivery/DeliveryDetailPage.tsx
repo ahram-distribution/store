@@ -86,7 +86,7 @@ export function DeliveryDetailPage() {
       {canManage && (
         <OrderStatusManager
           orderId={dt?.order_id}
-          currentStatus={dt?.status || 'sent_to_delivery'}
+          currentStatus={dt?.status || 'dispatched'}
           canReview={false}
           canCompletePreparation={false}
           canSendToDelivery={false}

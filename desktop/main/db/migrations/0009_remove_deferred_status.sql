@@ -1,0 +1,9 @@
+-- ============================================================================
+-- Migration 0009: Remove "deferred" order status
+--
+-- Final active workflow: submitted → reviewing → approved → preparing → prepared → dispatched → delivered
+--
+-- No schema changes needed (status is varchar(30), no CHECK constraint).
+-- This migration exists for documentation and manifest sync with
+-- Supabase migration 20270923_remove_deferred_status.sql.
+-- ============================================================================

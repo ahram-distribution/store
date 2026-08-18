@@ -80,19 +80,14 @@ export interface OrderDisplayData {
 export const ORDER_STATUS_LABELS: Record<string, string> = {
   draft: 'مسودة',
   submitted: 'طلب شراء',
-  sales_manager_approved: 'موافقة مدير البيع',
   reviewing: 'تم القيد بالسيستم',
   returned_for_revision: 'معاد للتعديل',
   approved: 'معتمد',
   preparing: 'قيد التجهيز',
   prepared: 'تم التجهيز',
-  ready_for_dispatch: 'بانتظار القرار',
-  sent_to_delivery: 'أرسل للتوصيل',
-  deferred: 'مؤجل',
   dispatched: 'تم الشحن',
   delivered: 'تم التسليم',
   cancelled: 'ملغي',
-  stock_review: 'مراجعة المخزون',
 }
 
 export const ORDER_TYPE_LABELS: Record<string, string> = {
@@ -131,8 +126,6 @@ export const EXECUTION_GROUP: ReadonlySet<string> = new Set([
   'approved',
   'preparing',
   'prepared',
-  'ready_for_dispatch',
-  'sent_to_delivery',
   'dispatched',
   'delivered',
 ])
@@ -145,7 +138,6 @@ export const EXECUTION_GROUP: ReadonlySet<string> = new Set([
  */
 export const USER_FACING_STATUS_ORDER: readonly string[] = [
   'submitted',
-  'sales_manager_approved',
   'approved',
   'reviewing',
   'delivered',
@@ -161,11 +153,7 @@ export const USER_FACING_STATUS_ORDER: readonly string[] = [
 export const OPERATIONAL_STATUS_ORDER: readonly string[] = [
   'preparing',
   'prepared',
-  'ready_for_dispatch',
-  'sent_to_delivery',
   'dispatched',
-  'deferred',
-  'stock_review',
 ]
 
 /**

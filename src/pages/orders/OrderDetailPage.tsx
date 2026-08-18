@@ -276,7 +276,7 @@ export function OrderDetailPage() {
   useEffect(() => {
     if (!data?.order || !id) return
     const s = data.order.status
-    const isEditMode = s === 'returned_for_revision' || s === 'stock_review' || (s === 'draft' && (data.order.revision_number || 0) >= 1)
+    const isEditMode = s === 'returned_for_revision' || (s === 'draft' && (data.order.revision_number || 0) >= 1)
     if (!isEditMode) return
     const token = getToken()
     if (!token) return
@@ -583,7 +583,7 @@ export function OrderDetailPage() {
   if (loading) return <div className="text-center py-12 text-text-secondary text-sm">جاري التحميل...</div>
   if (!data) return <div className="text-center py-12 text-text-secondary text-sm">الطلب غير موجود</div>
 
-  const canEdit = data.order.status === 'returned_for_revision' || data.order.status === 'stock_review' || (data.order.status === 'draft' && (data.order.revision_number || 0) >= 1)
+  const canEdit = data.order.status === 'returned_for_revision' || (data.order.status === 'draft' && (data.order.revision_number || 0) >= 1)
   const isCancelled = data.order.status === 'cancelled'
 
   if (editMode && showProductSearch) {

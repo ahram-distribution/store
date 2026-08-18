@@ -23,13 +23,10 @@ function getToken(): string | null {
 
 const DEDUCTION_STATUS_ORDER: readonly string[] = [
   'submitted',
-  'sales_manager_approved',
   'approved',
   'reviewing',
   'preparing',
   'prepared',
-  'ready_for_dispatch',
-  'sent_to_delivery',
   'dispatched',
   'delivered',
 ]
@@ -178,7 +175,7 @@ export function ProductManagerPage() {
         if (result?.error) { toast.error(result.error); setPolicySaving(false); return }
         setGlobalPolicies(prev => ({ ...prev, negative_selling_allowed: pendingPolicyValue }))
         if (result?.moved_to_stock_review > 0) {
-          toast.success(`تم تغيير السياسة. تم نقل ${result.moved_to_stock_review} طلب لمراجعة المخزون`)
+          toast.success(`تم تغيير السياسة. تم نقل ${result.moved_to_stock_review} طلب للمراجعة`)
         } else {
           toast.success('تم تغيير سياسة البيع بالسالب')
         }

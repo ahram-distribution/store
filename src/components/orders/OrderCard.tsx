@@ -51,10 +51,7 @@ const cardAccent: Record<string, string> = {
   approved: 'border-r-emerald-300',
   preparing: 'border-r-emerald-400',
   prepared: 'border-r-emerald-400',
-  ready_for_dispatch: 'border-r-emerald-300',
-  sent_to_delivery: 'border-r-emerald-400',
   dispatched: 'border-r-emerald-500',
-  deferred: 'border-r-gray-300',
   cancelled: 'border-r-red-300',
   delivered: 'border-r-emerald-500',
 }

@@ -38,11 +38,11 @@ function adjustmentQuantityLabel(pieces: number, cartonQuantity: number, units: 
   return formatMixedQuantity(pieces, cartonQuantity, pref)
 }
 
-const ALL_STATUSES = ['draft','submitted','sales_manager_approved','reviewing','returned_for_revision','approved','preparing','prepared','ready_for_dispatch','sent_to_delivery','dispatched','deferred','cancelled','delivered','stock_review'] as const
+const ALL_STATUSES = ['draft','submitted','reviewing','returned_for_revision','approved','preparing','prepared','dispatched','cancelled','delivered'] as const
 
 type OrderStatus = typeof ALL_STATUSES[number]
 
-const WORKFLOW_ORDER = ['draft','submitted','sales_manager_approved','reviewing','returned_for_revision','approved','preparing','prepared','ready_for_dispatch','sent_to_delivery','dispatched','deferred','cancelled','delivered','stock_review']
+const WORKFLOW_ORDER = ['draft','submitted','reviewing','returned_for_revision','approved','preparing','prepared','dispatched','cancelled','delivered']
 
 interface ShortageEntry {
   product_id: string
@@ -101,10 +101,6 @@ function isAdjacent(from: string, to: string): boolean {
 function isExceptional(from: string, to: string): boolean {
   if (from === to) return false
   if (from === 'cancelled' || to === 'cancelled') return true
-  if (from === 'deferred' || to === 'deferred') return true
-  // Stock Review → Submitted is the normal resubmission path (not exceptional)
-  if (from === 'stock_review' && to === 'submitted') return false
-  if (from === 'stock_review') return true
   if (!isForward(from, to)) return true
   if (!isAdjacent(from, to)) return true
   return false
@@ -130,9 +126,9 @@ export function OrderStatusManager({ orderId, currentStatus, canReview, canAppro
   function getAllowedTargets(): OrderStatus[] {
     if (canManage) return ALL_STATUSES.filter(s => s !== currentStatus)
     const targets: OrderStatus[] = []
-    if (canReview && currentStatus === 'sales_manager_approved') targets.push('reviewing')
-    if (canApprove && (currentStatus === 'submitted' || currentStatus === 'sales_manager_approved')) {
-      for (const t of ['sales_manager_approved', 'returned_for_revision', 'cancelled'] as OrderStatus[]) {
+    if (canReview && currentStatus === 'submitted') targets.push('reviewing')
+    if (canApprove && currentStatus === 'submitted') {
+      for (const t of ['returned_for_revision', 'cancelled'] as OrderStatus[]) {
         if (t !== currentStatus) targets.push(t)
       }
     }
@@ -141,8 +137,7 @@ export function OrderStatusManager({ orderId, currentStatus, canReview, canAppro
       if (currentStatus === 'preparing') targets.push('prepared')
     }
     if (canSendToDelivery) {
-      if (currentStatus === 'prepared') targets.push('sent_to_delivery')
-      if (currentStatus === 'ready_for_dispatch') targets.push('sent_to_delivery')
+      if (currentStatus === 'prepared') targets.push('dispatched')
     }
     return targets
   }

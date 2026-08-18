@@ -65,7 +65,6 @@ export function getCurrentOwner(data: UnifiedOrder): string {
       return delivery?.assigned_to_name ? `مندوب التوصيل: ${delivery.assigned_to_name}` : 'مندوب التوصيل'
     case 'delivered': return 'تم التسليم'
     case 'cancelled': return 'ملغي'
-    case 'deferred': return data.order.defer_reason ? `مؤجل — ${data.order.defer_reason}` : 'مؤجل'
     default: return status
   }
 }

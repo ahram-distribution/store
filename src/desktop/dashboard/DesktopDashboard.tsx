@@ -96,11 +96,11 @@ export function DesktopDashboard() {
       width: 110,
       render: (v: string) => {
         const statusColors: Record<string, string> = {
-          submitted: '#0284C7', sales_manager_approved: '#0284C7', approved: '#059669', delivered: '#059669',
+          submitted: '#0284C7', approved: '#059669', delivered: '#059669',
           rejected: '#DC2626', cancelled: '#94A3B8', reviewing: '#D97706',
         }
         const statusLabels: Record<string, string> = {
-          draft: 'مسودة', submitted: 'طلب شراء', sales_manager_approved: 'موافقة مدير البيع', reviewing: 'تم القيد بالسيستم',
+          draft: 'مسودة', submitted: 'طلب شراء', reviewing: 'تم القيد بالسيستم',
           approved: 'معتمد', preparing: 'قيد التحضير', dispatched: 'تم الشحن',
           delivered: 'تم التسليم', rejected: 'مرفوض', cancelled: 'ملغي',
         }

@@ -14,7 +14,6 @@ const LEGACY_STATUS_MAP: Record<string, OrderStatus> = {
   ready_for_dispatch: OrderStatus.Preparing,
   sent_to_delivery: OrderStatus.Dispatched,
   dispatched: OrderStatus.Dispatched,
-  deferred: OrderStatus.Draft,
   cancelled: OrderStatus.Cancelled,
   delivered: OrderStatus.Delivered,
 }

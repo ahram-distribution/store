@@ -1,6 +1,6 @@
 {
   "baselineVersion": 1,
-  "schemaVersion": 7,
+  "schemaVersion": 9,
   "migrations": [
     {
       "version": 2,
@@ -31,6 +31,16 @@
       "version": 7,
       "file": "0007_inventory_deduction_threshold.sql",
       "description": "Phase B: configurable inventory deduction threshold, no auto-reduce, always check stock, threshold-based deduct/restore"
+    },
+    {
+      "version": 8,
+      "file": "0008_remove_four_order_statuses.sql",
+      "description": "Remove four order statuses: sales_manager_approved, ready_for_dispatch, sent_to_delivery, stock_review. New workflow: submitted → reviewing → approved → preparing → prepared → dispatched → delivered"
+    },
+    {
+      "version": 9,
+      "file": "0009_remove_deferred_status.sql",
+      "description": "Remove deferred order status. Final workflow: submitted → reviewing → approved → preparing → prepared → dispatched → delivered"
     }
   ]
 }
