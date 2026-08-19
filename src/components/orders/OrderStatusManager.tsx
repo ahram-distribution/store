@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { supabase } from '../../lib/supabase'
-import { ORDER_STATUS_LABELS, EXECUTION_GROUP, USER_FACING_STATUS_ORDER, UPPER_MANAGEMENT_STATUS_ORDER } from '../../types/order-display'
-import { useUpperManagement } from '../../hooks/useUpperManagement'
+import { ORDER_STATUS_LABELS, EXECUTION_GROUP } from '../../types/order-display'
 import { formatMixedQuantity } from '../../utils/quantity-format'
 import type { UnitType } from '../../types/storefront'
 
@@ -38,11 +37,20 @@ function adjustmentQuantityLabel(pieces: number, cartonQuantity: number, units: 
   return formatMixedQuantity(pieces, cartonQuantity, pref)
 }
 
-const ALL_STATUSES = ['draft','submitted','reviewing','returned_for_revision','approved','preparing','prepared','dispatched','cancelled','delivered'] as const
+/** The canonical 8 user-facing order statuses. draft is internal-only and never offered. */
+const CANONICAL_STATUSES = ['submitted','approved','reviewing','preparing','prepared','delivered','returned_for_revision','cancelled'] as const
 
-type OrderStatus = typeof ALL_STATUSES[number]
-
-const WORKFLOW_ORDER = ['draft','submitted','reviewing','returned_for_revision','approved','preparing','prepared','dispatched','cancelled','delivered']
+/** Capsule colors — same hue language as StatusBadge (soft = target, active = strong outline). */
+const STATUS_CAPSULE_STYLE: Record<string, { soft: string; ring: string; glow: string }> = {
+  submitted: { soft: 'bg-blue-50 text-blue-700 border-blue-200', ring: 'ring-blue-600', glow: 'shadow-[0_0_8px_2px_rgba(37,99,235,0.28)]' },
+  approved: { soft: 'bg-emerald-50 text-emerald-700 border-emerald-200', ring: 'ring-emerald-600', glow: 'shadow-[0_0_8px_2px_rgba(5,150,105,0.28)]' },
+  reviewing: { soft: 'bg-blue-50 text-blue-700 border-blue-200', ring: 'ring-blue-600', glow: 'shadow-[0_0_8px_2px_rgba(37,99,235,0.28)]' },
+  preparing: { soft: 'bg-emerald-50 text-emerald-700 border-emerald-200', ring: 'ring-emerald-600', glow: 'shadow-[0_0_8px_2px_rgba(5,150,105,0.28)]' },
+  prepared: { soft: 'bg-emerald-50 text-emerald-700 border-emerald-200', ring: 'ring-emerald-600', glow: 'shadow-[0_0_8px_2px_rgba(5,150,105,0.28)]' },
+  delivered: { soft: 'bg-emerald-50 text-emerald-700 border-emerald-200', ring: 'ring-emerald-600', glow: 'shadow-[0_0_8px_2px_rgba(5,150,105,0.28)]' },
+  returned_for_revision: { soft: 'bg-amber-50 text-amber-700 border-amber-200', ring: 'ring-amber-500', glow: 'shadow-[0_0_8px_2px_rgba(245,158,11,0.28)]' },
+  cancelled: { soft: 'bg-red-50 text-red-700 border-red-200', ring: 'ring-red-500', glow: 'shadow-[0_0_8px_2px_rgba(239,68,68,0.28)]' },
+}
 
 interface ShortageEntry {
   product_id: string
@@ -85,74 +93,40 @@ interface OrderStatusManagerProps {
   canSendToDelivery: boolean
   canManage: boolean
   referenceNumber?: string | null
+  hideRevisionButton?: boolean
   onSuccess?: (newStatus: string) => void
   onError?: (error: string) => void
   onShortage?: (shortages: ShortageEntry[], details?: string) => void
 }
 
-function isForward(from: string, to: string): boolean {
-  return WORKFLOW_ORDER.indexOf(to) > WORKFLOW_ORDER.indexOf(from)
-}
-
-function isAdjacent(from: string, to: string): boolean {
-  return Math.abs(WORKFLOW_ORDER.indexOf(to) - WORKFLOW_ORDER.indexOf(from)) === 1
-}
-
-function isExceptional(from: string, to: string): boolean {
-  if (from === to) return false
-  if (from === 'cancelled' || to === 'cancelled') return true
-  if (!isForward(from, to)) return true
-  if (!isAdjacent(from, to)) return true
-  return false
-}
-
-export function OrderStatusManager({ orderId, currentStatus, canReview, canApprove, canCompletePreparation, canSendToDelivery, canManage, referenceNumber, onSuccess, onError, onShortage }: OrderStatusManagerProps) {
+export function OrderStatusManager({ orderId, currentStatus, canReview, canApprove, canCompletePreparation, canSendToDelivery, canManage, referenceNumber, hideRevisionButton, onSuccess, onError, onShortage }: OrderStatusManagerProps) {
   const [loading, setLoading] = useState<string | null>(null)
-  const [showReasonModal, setShowReasonModal] = useState<string | null>(null)
-  const [reason, setReason] = useState('')
-  const [showDropdown, setShowDropdown] = useState(false)
   const [showReturnModal, setShowReturnModal] = useState(false)
   const [returnReason, setReturnReason] = useState('')
   const [showRefModal, setShowRefModal] = useState(false)
   const [refNumber, setRefNumber] = useState('')
   const [pendingRefNumber, setPendingRefNumber] = useState('')
   const [pendingAdjustments, setPendingAdjustments] = useState<PendingAdjustment | null>(null)
-  const isUpperManagement = useUpperManagement()
 
   function hasExistingReferenceNumber(): boolean {
     return typeof referenceNumber === 'string' && referenceNumber.trim().length > 0
   }
 
-  function getAllowedTargets(): OrderStatus[] {
-    if (canManage) return ALL_STATUSES.filter(s => s !== currentStatus)
-    const targets: OrderStatus[] = []
-    if (canReview && currentStatus === 'submitted') targets.push('reviewing')
-    if (canApprove && currentStatus === 'submitted') {
-      for (const t of ['returned_for_revision', 'cancelled'] as OrderStatus[]) {
-        if (t !== currentStatus) targets.push(t)
-      }
-    }
-    if (canCompletePreparation) {
-      if (currentStatus === 'approved') targets.push('preparing')
-      if (currentStatus === 'preparing') targets.push('prepared')
-    }
-    if (canSendToDelivery) {
-      if (currentStatus === 'prepared') targets.push('dispatched')
-    }
-    return targets
-  }
-
+  /**
+   * All canonical 8 statuses are offered as transition targets (minus the
+   * current status). The backend RPC enforces authorization/capability rules.
+   * There is NO exceptional-change concept: no adjacency restriction, no
+   * reason requirement for status changes.
+   */
   async function handleStatusChange(target: string) {
+    if (target === currentStatus) return
     const token = getToken()
     if (!token) return
 
+    // Reference-number dialog: ONLY when target is reviewing (تم القيد بالسيستم)
+    // and the order does not already have a reference number.
     if (target === 'reviewing' && !hasExistingReferenceNumber()) {
       setShowRefModal(true)
-      return
-    }
-
-    if (isExceptional(currentStatus, target)) {
-      setShowReasonModal(target)
       return
     }
 
@@ -164,21 +138,7 @@ export function OrderStatusManager({ orderId, currentStatus, canReview, canAppro
     const ref = refNumber.trim()
     setShowRefModal(false)
     setRefNumber('')
-    if (isExceptional(currentStatus, 'reviewing')) {
-      setPendingRefNumber(ref)
-      setShowReasonModal('reviewing')
-      return
-    }
     await executeChange('reviewing', null, ref)
-  }
-
-  async function handleReasonConfirm() {
-    if (!showReasonModal || !reason.trim()) return
-    const ref = pendingRefNumber
-    await executeChange(showReasonModal, reason.trim(), ref ? ref : undefined)
-    setShowReasonModal(null)
-    setReason('')
-    setPendingRefNumber('')
   }
 
   async function executeChange(target: string, reasonText: string | null, referenceNumber?: string) {
@@ -215,7 +175,11 @@ export function OrderStatusManager({ orderId, currentStatus, canReview, canAppro
     if (!token) return
     setLoading(target)
 
-    if (target === 'approved') {
+    // Preserve the approval-specific business logic (reservation release,
+    // deduction eligibility, execution adjustments) for the normal
+    // submitted/reviewing → approved path. All other canonical transitions go
+    // through governed_change_order_status.
+    if (target === 'approved' && (currentStatus === 'submitted' || currentStatus === 'reviewing')) {
       const { data, error } = await supabase.rpc('governed_approve_order', {
         p_token: token,
         p_id: orderId,
@@ -288,6 +252,10 @@ export function OrderStatusManager({ orderId, currentStatus, canReview, canAppro
     setPendingAdjustments(null)
   }
 
+  /** Dedicated revision flow: governed_return_order_for_revision increments
+   *  revision_number, restores inventory, re-activates deals/offers and
+   *  returns the order to internal draft for full editing. This is a distinct
+   *  business action (not an exceptional status change) and keeps its reason. */
   async function handleReturnForRevision() {
     if (!returnReason.trim()) return
     setLoading('returned_for_revision')
@@ -317,73 +285,41 @@ export function OrderStatusManager({ orderId, currentStatus, canReview, canAppro
     setLoading(null)
   }
 
-  const targets = getAllowedTargets()
-  if (targets.length === 0) { return null }
-
-  // "تغيير الحالة" control: the exact role order (7 user-facing first; Upper
-  // Management additionally gets the remaining operational statuses after
-  // "ملغى"). draft is never shown. Permission-driven transition buttons below
-  // keep their existing behavior untouched.
-  const statusOrder = (isUpperManagement || canManage) ? UPPER_MANAGEMENT_STATUS_ORDER : USER_FACING_STATUS_ORDER
-  const orderedTargets = targets
-    .filter((t) => statusOrder.includes(t as string))
-    .sort((a, b) => statusOrder.indexOf(a as string) - statusOrder.indexOf(b as string))
-
-  const standardTransitions = targets.filter(t => !isExceptional(currentStatus, t))
-  const exceptionalTransitions = targets.filter(t => isExceptional(currentStatus, t))
+  function renderCapsule(t: string) {
+    const style = STATUS_CAPSULE_STYLE[t] || { soft: 'bg-gray-100 text-gray-600 border-gray-200', ring: 'ring-gray-500', glow: 'shadow-md' }
+    if (t === currentStatus) {
+      return (
+        <span key={t} className={`${style.soft} ${style.ring} ${style.glow} rounded-lg border px-3 py-2.5 text-xs font-bold inline-flex items-center cursor-default ring-2 ring-offset-1`}>
+          {ORDER_STATUS_LABELS[t] || t}
+        </span>
+      )
+    }
+    return (
+      <button key={t} onClick={() => handleStatusChange(t)} disabled={loading !== null}
+        className={`${style.soft} rounded-lg border px-3 py-2.5 text-xs font-semibold inline-flex items-center whitespace-nowrap shadow-sm transition-colors hover:brightness-95 active:opacity-80 disabled:opacity-40 disabled:cursor-not-allowed`}>
+        {loading === t ? 'جاري...' : ORDER_STATUS_LABELS[t] || t}
+      </button>
+    )
+  }
 
   return (
     <>
-      {canManage && orderedTargets.length > 1 && (
-        <>
-          <button onClick={() => setShowDropdown(true)} disabled={loading !== null}
-            className="bg-purple-600 text-white text-xs px-3 py-2.5 rounded-lg active:opacity-90 disabled:opacity-40 inline-flex items-center justify-center gap-1 whitespace-nowrap">
-            {loading ? 'جاري...' : 'تغيير الحالة'}
-          </button>
-          {currentStatus !== 'returned_for_revision' && currentStatus !== 'draft' && currentStatus !== 'cancelled' && (
+      <div className="flex flex-col gap-1.5 max-w-full bg-white border border-border/60 rounded-xl px-2.5 py-2 shadow-sm">
+        <div className="flex flex-wrap items-center gap-1.5">
+          {CANONICAL_STATUSES.slice(0, 4).map(renderCapsule)}
+        </div>
+        <div className="flex flex-wrap items-center gap-1.5">
+          {CANONICAL_STATUSES.slice(4).map(renderCapsule)}
+        </div>
+        {!hideRevisionButton && currentStatus !== 'returned_for_revision' && currentStatus !== 'cancelled' && (
+          <div className="flex flex-wrap items-center gap-1.5">
             <button onClick={() => setShowReturnModal(true)} disabled={loading !== null}
-              className="bg-amber-500 text-white text-xs px-3 py-2.5 rounded-lg active:opacity-90 disabled:opacity-40 inline-flex items-center justify-center gap-1 whitespace-nowrap">
+              className="bg-amber-500 text-white text-xs px-3 py-2.5 rounded-lg active:opacity-90 disabled:opacity-40 inline-flex items-center justify-center gap-1 whitespace-nowrap font-semibold">
               {loading === 'returned_for_revision' ? 'جاري...' : 'إعادة الطلب للتعديل'}
             </button>
-          )}
-          {showDropdown && (
-            <div className="fixed inset-0 z-[60] flex flex-col justify-end bg-black/40" onClick={() => setShowDropdown(false)}>
-              <div className="bg-white rounded-t-2xl max-h-[calc(100dvh-6rem)] flex flex-col" onClick={e => e.stopPropagation()}>
-                <div className="flex items-center justify-between px-5 pt-4 pb-2 border-b border-border">
-                  <span className="text-sm font-bold text-text">تغيير الحالة</span>
-                  <button onClick={() => setShowDropdown(false)} className="text-text-secondary text-lg leading-none">&times;</button>
-                </div>
-                <div className="flex-1 overflow-y-auto min-h-0 p-3 pb-16 space-y-0.5">
-                  {orderedTargets.map(t => (
-                    <button key={t} onClick={() => { setShowDropdown(false); handleStatusChange(t) }} disabled={loading !== null}
-                      className="w-full text-right px-4 py-2.5 text-xs rounded-xl hover:bg-surface active:bg-border transition-colors flex items-center justify-between">
-                      <span>{ORDER_STATUS_LABELS[t] || t}</span>
-                      {isExceptional(currentStatus, t) && <span className="text-[9px] text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">استثنائي</span>}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-        </>
-      )}
-
-      {!canManage && (
-        <div className="flex gap-2 flex-wrap">
-          {standardTransitions.map(t => (
-            <button key={t} onClick={() => handleStatusChange(t)} disabled={loading !== null}
-              className="bg-primary text-white text-xs px-3 py-2.5 rounded-lg active:opacity-90 disabled:opacity-40 whitespace-nowrap">
-              {loading === t ? 'جاري...' : ORDER_STATUS_LABELS[t] || t}
-            </button>
-          ))}
-          {exceptionalTransitions.map(t => (
-            <button key={t} onClick={() => handleStatusChange(t)} disabled={loading !== null}
-              className="bg-amber-500 text-white text-xs px-3 py-2.5 rounded-lg active:opacity-90 disabled:opacity-40 whitespace-nowrap">
-              {loading === t ? 'جاري...' : ORDER_STATUS_LABELS[t] || t}
-            </button>
-          ))}
-        </div>
-      )}
+          </div>
+        )}
+      </div>
 
       {showRefModal && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 px-4">
@@ -405,25 +341,6 @@ export function OrderStatusManager({ orderId, currentStatus, canReview, canAppro
                 className="flex-1 bg-surface text-text text-xs py-2.5 rounded-lg active:opacity-80 transition-opacity">إلغاء</button>
               <button onClick={handleRefConfirm} disabled={!refNumber.trim() || loading !== null}
                 className="flex-1 bg-primary text-white text-xs py-2.5 rounded-lg active:opacity-90 disabled:opacity-40">تأكيد</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showReasonModal && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 px-4">
-          <div className="bg-white rounded-xl w-full max-w-sm p-5 space-y-4">
-            <h3 className="text-sm font-bold text-text">تغيير استثنائي</h3>
-            <p className="text-xs text-text-secondary">
-              من <span className="font-semibold text-amber-600">{ORDER_STATUS_LABELS[currentStatus]}</span> إلى <span className="font-semibold text-amber-600">{ORDER_STATUS_LABELS[showReasonModal]}</span>
-            </p>
-            <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={3} placeholder="الرجاء كتابة سبب التغيير..."
-              className="w-full border border-border rounded-lg px-3 py-2 text-xs bg-white resize-none" />
-            <div className="flex gap-2">
-              <button onClick={() => { setShowReasonModal(null); setReason(''); setPendingRefNumber('') }}
-                className="flex-1 bg-surface text-text text-xs py-2.5 rounded-lg active:opacity-80 transition-opacity">إلغاء</button>
-              <button onClick={handleReasonConfirm} disabled={!reason.trim() || loading !== null}
-                className="flex-1 bg-purple-600 text-white text-xs py-2.5 rounded-lg active:opacity-90 disabled:opacity-40">تأكيد</button>
             </div>
           </div>
         </div>
