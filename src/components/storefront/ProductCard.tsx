@@ -53,7 +53,7 @@ export function ProductCard({
   const isBlocked = !product.isActive || product.isOutOfStock
 
   const isNewlyAvailable = product.recentlyAvailableAt
-    ? (Date.now() - new Date(product.recentlyAvailableAt).getTime()) < 7 * 24 * 60 * 60 * 1000
+    ? (Date.now() - new Date(product.recentlyAvailableAt).getTime()) < 2 * 24 * 60 * 60 * 1000
     : false
 
   const itemKey = `${product.id}:${selectedUnit}`
