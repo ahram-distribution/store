@@ -475,7 +475,7 @@ export default function WarehousePage() {
                   </>
                 )}
                 {r.status === 'failed' && (
-                  <span className="w-full text-center text-red-600 rounded-xl py-2 text-xs font-semibold bg-red-50">ملغي</span>
+                  <span className="w-full text-center text-red-600 rounded-xl py-2 text-xs font-semibold bg-red-50">ملغى</span>
                 )}
               </div>
               {canManage && (

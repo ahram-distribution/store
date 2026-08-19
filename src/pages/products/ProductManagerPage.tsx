@@ -27,7 +27,6 @@ const DEDUCTION_STATUS_ORDER: readonly string[] = [
   'reviewing',
   'preparing',
   'prepared',
-  'dispatched',
   'delivered',
 ]
 

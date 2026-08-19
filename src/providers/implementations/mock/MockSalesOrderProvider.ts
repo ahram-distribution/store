@@ -46,7 +46,7 @@ export class MockSalesOrderProvider implements ISalesOrderProvider, IProvider {
       customerId: 'cust-1',
       customerName: 'Mock Customer',
       salesRepId: 'emp-1',
-      status: OrderStatus.Draft,
+      status: OrderStatus.Submitted,
       lines: [],
       subtotal: createMoney(0),
       discount: createMoney(0),

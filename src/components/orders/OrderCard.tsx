@@ -44,16 +44,14 @@ interface OrderCardProps {
 }
 
 const cardAccent: Record<string, string> = {
-  draft: 'border-r-gray-200',
   submitted: 'border-r-blue-300',
-  reviewing: 'border-r-blue-400',
-  returned_for_revision: 'border-r-blue-300',
   approved: 'border-r-emerald-300',
+  reviewing: 'border-r-blue-400',
   preparing: 'border-r-emerald-400',
   prepared: 'border-r-emerald-400',
-  dispatched: 'border-r-emerald-500',
-  cancelled: 'border-r-red-300',
   delivered: 'border-r-emerald-500',
+  returned_for_revision: 'border-r-amber-400',
+  cancelled: 'border-r-red-300',
 }
 
 

@@ -181,7 +181,7 @@ export function OrderDetailPage() {
   useEffect(() => {
     if (!data?.order || !id || !canManage) return
     const status = data.order.status
-    const skipStatuses = new Set(['draft', 'cancelled', 'returned_for_revision', ...EXECUTION_GROUP])
+    const skipStatuses = new Set(['cancelled', 'returned_for_revision', ...EXECUTION_GROUP])
     if (skipStatuses.has(status)) { setInventorySnapshot(null); setShortageItems(null); return }
     const token = getToken()
     if (!token) return
@@ -247,7 +247,7 @@ export function OrderDetailPage() {
   useEffect(() => {
     if (!data?.order || !id) return
     const status = data.order.status
-    const skipStatuses = new Set(['draft', 'cancelled', 'returned_for_revision', ...EXECUTION_GROUP])
+    const skipStatuses = new Set(['cancelled', 'returned_for_revision', ...EXECUTION_GROUP])
     if (skipStatuses.has(status)) { setBusinessStatusByItem(null); return }
     const token = getToken()
     if (!token) { setBusinessStatusByItem(null); return }
@@ -820,12 +820,6 @@ export function OrderDetailPage() {
               </button>
             </div>
           )}
-          {canTransfer && !transferMode && (
-            <button onClick={() => setTransferMode(true)}
-              className="inline-flex items-center gap-1 bg-white border border-border text-text-secondary text-xs px-3 py-2.5 rounded-lg active:opacity-90 shrink-0 hover:bg-surface transition-colors">
-              نقل ملكية الطلب
-            </button>
-          )}
           {canTransfer && transferMode && (
             <div className="flex items-stretch gap-2 flex-wrap w-full">
               <div className="flex-1 min-w-[200px]">
@@ -864,6 +858,7 @@ export function OrderDetailPage() {
               canSendToDelivery={canSendToDelivery}
               canManage={canManage}
               referenceNumber={data!.order.reference_number}
+              hideRevisionButton
               onSuccess={handleStatusSuccess}
               onError={handleStatusError}
               onShortage={handleShortage}

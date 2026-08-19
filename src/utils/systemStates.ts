@@ -44,42 +44,38 @@ export function guardAttendanceState(endTime?: string | null): StateModel<Attend
 
 // ─── 2. ORDERS ────────────────────────────────────────────
 export const ORDER_STATES = {
-  DRAFT: 'draft',
   SUBMITTED: 'submitted',
-  REVIEWING: 'reviewing',
-  RETURNED: 'returned_for_revision',
   APPROVED: 'approved',
+  REVIEWING: 'reviewing',
   PREPARING: 'preparing',
   PREPARED: 'prepared',
-  DISPATCHED: 'dispatched',
   DELIVERED: 'delivered',
+  RETURNED: 'returned_for_revision',
   CANCELLED: 'cancelled',
 } as const
 export type OrderState = (typeof ORDER_STATES)[keyof typeof ORDER_STATES]
 
 export const ORDER_CALC_STATES: OrderState[] = [
   ORDER_STATES.APPROVED,
+  ORDER_STATES.REVIEWING,
   ORDER_STATES.PREPARING,
   ORDER_STATES.PREPARED,
-  ORDER_STATES.DISPATCHED,
   ORDER_STATES.DELIVERED,
 ]
 
 export const ORDER_ACTIVE_STATES: OrderState[] = [
-  ORDER_STATES.DRAFT,
   ORDER_STATES.SUBMITTED,
-  ORDER_STATES.REVIEWING,
-  ORDER_STATES.RETURNED,
   ORDER_STATES.APPROVED,
+  ORDER_STATES.REVIEWING,
   ORDER_STATES.PREPARING,
   ORDER_STATES.PREPARED,
-  ORDER_STATES.DISPATCHED,
+  ORDER_STATES.RETURNED,
 ]
 
 export function getOrderState(status?: string | null): OrderState {
   const s = status as OrderState
   if (s && Object.values(ORDER_STATES).includes(s)) return s
-  return ORDER_STATES.DRAFT
+  return ORDER_STATES.SUBMITTED
 }
 
 export function guardOrderState(status?: string | null): StateModel<OrderState> {
@@ -95,16 +91,14 @@ export function isOrderCancelled(status?: string | null): boolean {
 }
 
 export const ORDER_STATE_LABELS: Record<OrderState, string> = {
-  draft: 'مسودة',
   submitted: 'طلب شراء',
-  reviewing: 'تم القيد بالسيستم',
-  returned_for_revision: 'معاد للتعديل',
   approved: 'معتمد',
+  reviewing: 'تم القيد بالسيستم',
   preparing: 'قيد التجهيز',
   prepared: 'تم التجهيز',
-  dispatched: 'تم الشحن',
   delivered: 'تم التسليم',
-  cancelled: 'ملغي',
+  returned_for_revision: 'معاد للتعديل',
+  cancelled: 'ملغى',
 }
 
 export function getOrderStateLabel(status?: string | null): string {

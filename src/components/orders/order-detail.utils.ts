@@ -58,13 +58,9 @@ export function getCurrentOwner(data: UnifiedOrder): string {
     case 'returned_for_revision': return 'مندوب المبيعات'
     case 'approved': return 'بانتظار المخزن'
     case 'preparing': return 'المخزن'
-    case 'prepared': return 'بانتظار مدير البيع (قرار الشحن)'
-    case 'ready_for_dispatch': return 'بانتظار مدير البيع (إسناد التوصيل)'
-    case 'sent_to_delivery':
-    case 'dispatched':
-      return delivery?.assigned_to_name ? `مندوب التوصيل: ${delivery.assigned_to_name}` : 'مندوب التوصيل'
+    case 'prepared': return 'بانتظار مدير البيع (قرار التسليم)'
     case 'delivered': return 'تم التسليم'
-    case 'cancelled': return 'ملغي'
+    case 'cancelled': return 'ملغى'
     default: return status
   }
 }

@@ -4,23 +4,23 @@ import { OrderStatus } from '../../domain/enums/OrderStatus'
 import type { UnitType } from '../../domain/enums/UnitType'
 
 const LEGACY_STATUS_MAP: Record<string, OrderStatus> = {
-  draft: OrderStatus.Draft,
+  draft: OrderStatus.Submitted,
   submitted: OrderStatus.Submitted,
   reviewing: OrderStatus.Reviewing,
-  returned_for_revision: OrderStatus.Reviewing,
+  returned_for_revision: OrderStatus.ReturnedForRevision,
   approved: OrderStatus.Approved,
   preparing: OrderStatus.Preparing,
-  prepared: OrderStatus.Preparing,
+  prepared: OrderStatus.Prepared,
   ready_for_dispatch: OrderStatus.Preparing,
-  sent_to_delivery: OrderStatus.Dispatched,
-  dispatched: OrderStatus.Dispatched,
+  sent_to_delivery: OrderStatus.Delivered,
+  dispatched: OrderStatus.Delivered,
   cancelled: OrderStatus.Cancelled,
   delivered: OrderStatus.Delivered,
 }
 
 export class SalesOrderMapper {
   static mapStatus(legacy: string): OrderStatus {
-    return LEGACY_STATUS_MAP[legacy] ?? OrderStatus.Draft
+    return LEGACY_STATUS_MAP[legacy] ?? OrderStatus.Submitted
   }
 
   static fromUnifiedOrder(data: any): SalesOrder {

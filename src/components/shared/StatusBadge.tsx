@@ -7,15 +7,13 @@ interface StatusBadgeProps {
 }
 
 const statusStyle: Record<string, { bg: string; text: string }> = {
-  draft: { bg: 'bg-gray-100', text: 'text-gray-500' },
   submitted: { bg: 'bg-blue-50', text: 'text-blue-600' },
-  reviewing: { bg: 'bg-blue-50', text: 'text-blue-600' },
-  returned_for_revision: { bg: 'bg-blue-50', text: 'text-blue-600' },
   approved: { bg: 'bg-emerald-50', text: 'text-emerald-600' },
+  reviewing: { bg: 'bg-blue-50', text: 'text-blue-600' },
   preparing: { bg: 'bg-emerald-50', text: 'text-emerald-600' },
   prepared: { bg: 'bg-emerald-50', text: 'text-emerald-600' },
-  dispatched: { bg: 'bg-emerald-50', text: 'text-emerald-600' },
   delivered: { bg: 'bg-emerald-50', text: 'text-emerald-600' },
+  returned_for_revision: { bg: 'bg-amber-50', text: 'text-amber-600' },
   cancelled: { bg: 'bg-red-50', text: 'text-red-600' },
   active: { bg: 'bg-emerald-50', text: 'text-emerald-600' },
   completed: { bg: 'bg-blue-50', text: 'text-blue-600' },

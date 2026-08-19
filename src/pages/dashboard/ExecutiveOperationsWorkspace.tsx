@@ -11,7 +11,7 @@ function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
 }
 
-type TabFilter = 'all' | 'approved' | 'preparing' | 'prepared' | 'dispatched' | 'delivered'
+type TabFilter = 'all' | 'approved' | 'reviewing' | 'preparing' | 'prepared' | 'delivered'
 type DateFilter = 'all' | 'today' | 'yesterday' | 'this_week' | 'this_month' | 'custom'
 
 interface KPIs {
@@ -50,13 +50,13 @@ interface QueueItem {
   customer_owner_role: string | null
 }
 
-const TAB_IDS: TabFilter[] = ['all', 'approved', 'preparing', 'prepared', 'dispatched', 'delivered']
+const TAB_IDS: TabFilter[] = ['all', 'approved', 'reviewing', 'preparing', 'prepared', 'delivered']
 const TAB_LABELS: Record<string, string> = {
   all: 'الكل',
-  approved: 'بانتظار التجهيز',
+  approved: 'بانتظار القيد',
+  reviewing: 'تم القيد بالسيستم',
   preparing: 'قيد التجهيز',
   prepared: 'تم التجهيز',
-  dispatched: 'قيد التوصيل',
   delivered: 'تم التسليم',
 }
 
@@ -72,10 +72,10 @@ const COLORS: Record<string, string> = {
 }
 
 const KPI_CONFIG: { key: keyof KPIs; label: string; icon: string; color: string; filterStatus?: string }[] = [
-  { key: 'waiting_preparation', label: 'بانتظار التجهيز', icon: '📦', color: COLORS.waiting_preparation, filterStatus: 'approved' },
+  { key: 'waiting_preparation', label: 'بانتظار القيد', icon: '📋', color: COLORS.waiting_preparation, filterStatus: 'approved' },
   { key: 'in_preparation', label: 'جارى التجهيز', icon: '⚙️', color: COLORS.in_preparation, filterStatus: 'preparing' },
-  { key: 'ready_for_dispatch', label: 'جاهز للشحن', icon: '🚚', color: COLORS.ready_for_dispatch, filterStatus: 'prepared' },
-  { key: 'in_delivery', label: 'لدى التوصيل', icon: '📬', color: COLORS.in_delivery, filterStatus: 'dispatched' },
+  { key: 'ready_for_dispatch', label: 'جاهز للتسليم', icon: '📦', color: COLORS.ready_for_dispatch, filterStatus: 'prepared' },
+  { key: 'in_delivery', label: 'تم التسليم', icon: '✅', color: COLORS.in_delivery, filterStatus: 'delivered' },
   { key: 'delivered', label: 'تم التسليم', icon: '✅', color: COLORS.delivered, filterStatus: 'delivered' },
   { key: 'uncollected', label: 'غير محصل', icon: '💰', color: COLORS.uncollected },
   { key: 'partially_collected', label: 'محصل جزئى', icon: '💳', color: COLORS.partially_collected },
@@ -542,7 +542,7 @@ export function ExecutiveOperationsWorkspace() {
             شحن
           </button>
         )}
-        {st === 'dispatched' && orderDetail.current_delivery && (
+        {st === 'prepared' && orderDetail.current_delivery && (
           <button onClick={handleCompleteDelivery}
             className="bg-success text-white text-[10px] px-2.5 py-1.5 rounded-lg font-semibold">
             تسليم
@@ -554,7 +554,7 @@ export function ExecutiveOperationsWorkspace() {
             تحصيل
           </button>
         )}
-        {!['delivered', 'cancelled', 'draft', 'returned_for_revision'].includes(st) && (
+        {!['delivered', 'cancelled', 'returned_for_revision'].includes(st) && (
           <button onClick={() => setShowReturnDialog(true)}
             className="bg-red-500 text-white text-[10px] px-2.5 py-1.5 rounded-lg font-semibold">
             إعادة للتعديل

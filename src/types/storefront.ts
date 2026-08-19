@@ -1,5 +1,5 @@
 export type UnitType = 'piece' | 'dozen' | 'carton'
-export type OrderStatus = 'draft' | 'submitted' | 'reviewing' | 'returned_for_revision' | 'approved' | 'preparing' | 'dispatched' | 'delivered'
+export type OrderStatus = 'submitted' | 'approved' | 'reviewing' | 'preparing' | 'prepared' | 'delivered' | 'returned_for_revision' | 'cancelled'
 export type VisitStatus = 'active' | 'completed' | 'cancelled'
 export type CollectionMethod = 'cash' | 'bank_transfer' | 'cheque' | 'deposit'
 export type AuctionStatus = 'pending' | 'live' | 'ended' | 'awarded' | 'cancelled'

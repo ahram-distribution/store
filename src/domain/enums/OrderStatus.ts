@@ -1,45 +1,42 @@
 export const OrderStatus = {
-  Draft: 'draft',
   Submitted: 'submitted',
-  Reviewing: 'reviewing',
   Approved: 'approved',
-  Rejected: 'rejected',
+  Reviewing: 'reviewing',
   Preparing: 'preparing',
-  Dispatched: 'dispatched',
+  Prepared: 'prepared',
   Delivered: 'delivered',
+  ReturnedForRevision: 'returned_for_revision',
   Cancelled: 'cancelled',
 } as const
 
 export type OrderStatus = (typeof OrderStatus)[keyof typeof OrderStatus]
 
 export const OrderStatusLabel: Record<OrderStatus, string> = {
-  draft: 'مسودة',
   submitted: 'طلب شراء',
-  reviewing: 'تم القيد بالسيستم',
   approved: 'معتمد',
-  rejected: 'مرفوض',
-  preparing: 'قيد التحضير',
-  dispatched: 'تم الشحن',
+  reviewing: 'تم القيد بالسيستم',
+  preparing: 'قيد التجهيز',
+  prepared: 'تم التجهيز',
   delivered: 'تم التسليم',
-  cancelled: 'ملغي',
+  returned_for_revision: 'معاد للتعديل',
+  cancelled: 'ملغى',
 }
 
 export function isTerminalStatus(status: OrderStatus): boolean {
   return status === OrderStatus.Delivered
-    || status === OrderStatus.Rejected
+    || status === OrderStatus.ReturnedForRevision
     || status === OrderStatus.Cancelled
 }
 
 export function isValidTransition(from: OrderStatus, to: OrderStatus): boolean {
   const transitions: Record<OrderStatus, OrderStatus[]> = {
-    draft: [OrderStatus.Submitted, OrderStatus.Cancelled],
-    submitted: [OrderStatus.Reviewing, OrderStatus.Rejected],
-    reviewing: [OrderStatus.Approved, OrderStatus.Rejected],
-    approved: [OrderStatus.Preparing, OrderStatus.Cancelled],
-    rejected: [],
-    preparing: [OrderStatus.Dispatched],
-    dispatched: [OrderStatus.Delivered],
+    submitted: [OrderStatus.Approved, OrderStatus.Reviewing, OrderStatus.ReturnedForRevision, OrderStatus.Cancelled],
+    approved: [OrderStatus.Reviewing, OrderStatus.ReturnedForRevision, OrderStatus.Cancelled],
+    reviewing: [OrderStatus.Preparing, OrderStatus.ReturnedForRevision, OrderStatus.Cancelled],
+    preparing: [OrderStatus.Prepared, OrderStatus.ReturnedForRevision, OrderStatus.Cancelled],
+    prepared: [OrderStatus.Delivered, OrderStatus.ReturnedForRevision, OrderStatus.Cancelled],
     delivered: [],
+    returned_for_revision: [OrderStatus.Submitted, OrderStatus.Cancelled],
     cancelled: [],
   }
   return transitions[from]?.includes(to) ?? false

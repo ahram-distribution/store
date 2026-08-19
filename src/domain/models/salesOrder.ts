@@ -64,7 +64,7 @@ export function createSalesOrder(
   const grandTotal = subtractMoney(subtotal, disc)
   return {
     id, orderNumber: '', companyId, customerId, customerName, ownerName, salesRepId,
-    status: OrderStatus.Draft,
+    status: OrderStatus.Submitted,
     lines,
     subtotal,
     discount: disc,
@@ -105,11 +105,11 @@ export function approveOrder(order: SalesOrder): { order: SalesOrder; event: Dom
 }
 
 export function rejectOrder(order: SalesOrder, reason: string): { order: SalesOrder; event: DomainEvent } {
-  if (!isValidTransition(order.status, OrderStatus.Rejected)) {
+  if (!isValidTransition(order.status, OrderStatus.ReturnedForRevision)) {
     throw new Error(`Cannot reject order in status ${order.status}`)
   }
-  const updated: SalesOrder = { ...order, status: OrderStatus.Rejected, updatedAt: new Date() }
-  const event = createDomainEvent('sales_order.approved', order.id, 'sales_order', { previousStatus: order.status, reason })
+  const updated: SalesOrder = { ...order, status: OrderStatus.ReturnedForRevision, updatedAt: new Date() }
+  const event = createDomainEvent('sales_order.returned', order.id, 'sales_order', { previousStatus: order.status, reason })
   return { order: updated, event }
 }
 
@@ -123,7 +123,7 @@ export function cancelOrder(order: SalesOrder): { order: SalesOrder; event: Doma
 }
 
 export function recordPayment(order: SalesOrder, amount: Money): SalesOrder {
-  if (order.status !== OrderStatus.Approved && order.status !== OrderStatus.Draft) {
+  if (order.status !== OrderStatus.Approved && order.status !== OrderStatus.Submitted) {
     throw new Error(`Cannot record payment for order in status ${order.status}`)
   }
   const newPaid = addMoney(order.paidAmount, amount)
@@ -132,8 +132,8 @@ export function recordPayment(order: SalesOrder, amount: Money): SalesOrder {
 }
 
 export function addLineToOrder(order: SalesOrder, line: OrderLine): SalesOrder {
-  if (order.status !== OrderStatus.Draft) {
-    throw new Error('Can only add lines to draft orders')
+  if (order.status !== OrderStatus.Submitted) {
+    throw new Error('Can only add lines to submitted orders')
   }
   const newLines = [...order.lines, line]
   const subtotal = addMoney(order.subtotal, line.total)

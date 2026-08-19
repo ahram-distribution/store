@@ -17,10 +17,10 @@ const PREP_STATUS_LABELS: Record<string, string> = {
 };
 
 const ORDER_STATUS_LABELS: Record<string, string> = {
-  draft: 'مسودة', submitted: 'طلب شراء',
+  submitted: 'طلب شراء', approved: 'معتمد',
   reviewing: 'تم القيد بالسيستم',
-  returned_for_revision: 'معاد للمراجعة', approved: 'معتمد',
-  preparing: 'قيد التجهيز', dispatched: 'تم الشحن', delivered: 'تم التسليم',
+  preparing: 'قيد التجهيز', prepared: 'تم التجهيز', delivered: 'تم التسليم',
+  returned_for_revision: 'معاد للتعديل', cancelled: 'ملغى',
 };
 
 const EXCEPTION_TYPE_LABELS: Record<string, string> = {

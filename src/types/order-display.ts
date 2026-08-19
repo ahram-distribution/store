@@ -80,14 +80,13 @@ export interface OrderDisplayData {
 export const ORDER_STATUS_LABELS: Record<string, string> = {
   draft: 'مسودة',
   submitted: 'طلب شراء',
-  reviewing: 'تم القيد بالسيستم',
-  returned_for_revision: 'معاد للتعديل',
   approved: 'معتمد',
+  reviewing: 'تم القيد بالسيستم',
   preparing: 'قيد التجهيز',
   prepared: 'تم التجهيز',
-  dispatched: 'تم الشحن',
   delivered: 'تم التسليم',
-  cancelled: 'ملغي',
+  returned_for_revision: 'معاد للتعديل',
+  cancelled: 'ملغى',
 }
 
 export const ORDER_TYPE_LABELS: Record<string, string> = {
@@ -124,9 +123,9 @@ export const UNIT_LABELS: Record<string, string> = {
  */
 export const EXECUTION_GROUP: ReadonlySet<string> = new Set([
   'approved',
+  'reviewing',
   'preparing',
   'prepared',
-  'dispatched',
   'delivered',
 ])
 
@@ -140,6 +139,8 @@ export const USER_FACING_STATUS_ORDER: readonly string[] = [
   'submitted',
   'approved',
   'reviewing',
+  'preparing',
+  'prepared',
   'delivered',
   'returned_for_revision',
   'cancelled',
@@ -150,11 +151,7 @@ export const USER_FACING_STATUS_ORDER: readonly string[] = [
  * options; they appear ONLY in Upper Management views and ONLY after "ملغى"
  * (see UPPER_MANAGEMENT_STATUS_ORDER). draft is intentionally not included.
  */
-export const OPERATIONAL_STATUS_ORDER: readonly string[] = [
-  'preparing',
-  'prepared',
-  'dispatched',
-]
+export const OPERATIONAL_STATUS_ORDER: readonly string[] = []
 
 /**
  * Upper Management full status sequence: the 7 user-facing statuses first,
