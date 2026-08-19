@@ -304,20 +304,13 @@ export function OrderStatusManager({ orderId, currentStatus, canReview, canAppro
 
   return (
     <>
-      <div className="flex flex-col gap-1.5 max-w-full bg-white border border-border/60 rounded-xl px-2.5 py-2 shadow-sm">
-        <div className="flex flex-wrap items-center gap-1.5">
-          {CANONICAL_STATUSES.slice(0, 4).map(renderCapsule)}
-        </div>
-        <div className="flex flex-wrap items-center gap-1.5">
-          {CANONICAL_STATUSES.slice(4).map(renderCapsule)}
-        </div>
+      <div className="flex flex-nowrap items-center gap-1.5 max-w-full overflow-x-auto bg-white border border-border/60 rounded-xl px-2.5 py-2 shadow-sm">
+        {CANONICAL_STATUSES.map(renderCapsule)}
         {!hideRevisionButton && currentStatus !== 'returned_for_revision' && currentStatus !== 'cancelled' && (
-          <div className="flex flex-wrap items-center gap-1.5">
-            <button onClick={() => setShowReturnModal(true)} disabled={loading !== null}
-              className="bg-amber-500 text-white text-xs px-3 py-2.5 rounded-lg active:opacity-90 disabled:opacity-40 inline-flex items-center justify-center gap-1 whitespace-nowrap font-semibold">
-              {loading === 'returned_for_revision' ? 'جاري...' : 'إعادة الطلب للتعديل'}
-            </button>
-          </div>
+          <button onClick={() => setShowReturnModal(true)} disabled={loading !== null}
+            className="bg-amber-500 text-white text-xs px-3 py-2.5 rounded-lg active:opacity-90 disabled:opacity-40 inline-flex items-center justify-center gap-1 whitespace-nowrap font-semibold shrink-0">
+            {loading === 'returned_for_revision' ? 'جاري...' : 'إعادة الطلب للتعديل'}
+          </button>
         )}
       </div>
 
