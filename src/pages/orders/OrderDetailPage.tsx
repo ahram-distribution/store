@@ -110,7 +110,6 @@ export function OrderDetailPage() {
 
   const [editItems, setEditItems] = useState<UnifiedOrderItem[]>([])
   const [editNotes, setEditNotes] = useState<string>('')
-  const [editOrderType, setEditOrderType] = useState<string>('cash')
   const [submitting, setSubmitting] = useState(false)
   const [products, setProducts] = useState<ProductWithPrice[]>([])
   const [companies, setCompanies] = useState<any[]>([])
@@ -423,7 +422,6 @@ export function OrderDetailPage() {
     if (!data) return
     setEditItems(data.items.map(i => ({ ...i })))
     setEditNotes(data.order.notes || '')
-    setEditOrderType((data.order as any).order_type || 'cash')
     setEditMode(true)
   }
 
@@ -439,14 +437,6 @@ export function OrderDetailPage() {
 
   const handleRemoveItem = useCallback((productId: string, unitType: string) => {
     setEditItems(prev => prev.filter(i => !(i.product_id === productId && i.unit_type === unitType)))
-  }, [])
-
-  const handlePriceChange = useCallback((productId: string, unitType: string, newPrice: number) => {
-    setEditItems(prev => prev.map(i => {
-      if (i.product_id !== productId || i.unit_type !== unitType) return i
-      const total = newPrice * i.unit_quantity
-      return { ...i, unit_price: newPrice, total_price: Math.round(total * 100) / 100 }
-    }))
   }, [])
 
   const handleUnitChange = useCallback((productId: string, oldUnit: string, newUnit: UnitType) => {
@@ -519,30 +509,28 @@ export function OrderDetailPage() {
       unit_type: i.unit_type,
       unit_quantity: i.unit_quantity,
       piece_quantity: i.piece_quantity,
-      unit_price: Math.round(i.unit_price * 100) / 100,
-      total_price: Math.round(i.total_price * 100) / 100,
     }))
 
-    const { data: result, error } = await supabase.rpc('governed_supreme_edit_order', {
+    const { data: result, error } = await supabase.rpc('governed_executive_edit_purchase_order', {
       p_token: token,
       p_order_id: id,
       p_items: payload,
       p_notes: editNotes || null,
-      p_discount_amount: null,
-      p_reason: 'تعديل بواسطة الإدارة العليا',
-      p_order_type: editOrderType,
     })
 
     setSubmitting(false)
     if (error) { toast.error('فشل حفظ التعديلات: ' + error.message); return }
     if (result && typeof result === 'object' && 'error' in result && result.error) {
-      if ((result as any).reservations_rejected) {
-        const rejection = buildReservationRejectMessage((result as any).reservations_rejected, editItems, products)
-        toast.error(rejection || 'تعذر اعتماد الكميات المطلوبة لأنها تتجاوز الكمية المتاحة', { duration: 6000 })
+      if ((result as any).error === 'STATUS_CHANGED') {
+        toast.error('تغيرت حالة الطلب أثناء التعديل. الطلب لم يعد طلب شراء.', { duration: 5000 })
+        setEditMode(false)
+        loadOrder()
         return
       }
-      if ((result as any).shortages) {
-        toast.error('الكميات المطلوبة تتجاوز الكمية المتاحة — برجاء تقليل الكميات', { duration: 6000 })
+      if ((result as any).error === 'INVALID_STATUS') {
+        toast.error('لا يمكن تعديل هذا الطلب — الحالة الحالية: ' + ((result as any).current_status || ''))
+        setEditMode(false)
+        loadOrder()
         return
       }
       toast.error(String((result as any).detail || (result as any).error)); return
@@ -676,7 +664,6 @@ export function OrderDetailPage() {
         editItems={editItems}
         onQuantityChange={handleQuantityChange}
         onRemoveItem={handleRemoveItem}
-        onPriceChange={handlePriceChange}
         onUnitChange={handleUnitChange}
         unitOptions={unitOptions}
         onDeleteSelected={handleDeleteSelected}
@@ -685,29 +672,6 @@ export function OrderDetailPage() {
         eventLog={eventLog}
         editActions={
           <div className="space-y-3">
-            <div className="bg-white rounded-xl border border-[#E5E7EB] p-3">
-              <h3 className="text-sm font-semibold text-[#111827] mb-2">نوع الطلب</h3>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setEditOrderType('cash')}
-                  className={`flex-1 text-xs px-3 py-2 rounded-lg border transition-colors ${editOrderType === 'cash' ? 'bg-emerald-500 text-white border-emerald-500' : 'bg-white text-[#6B7280] border-[#E5E7EB]'}`}
-                >
-                  نقدي
-                </button>
-                <button
-                  onClick={() => setEditOrderType('credit')}
-                  className={`flex-1 text-xs px-3 py-2 rounded-lg border transition-colors ${editOrderType === 'credit' ? 'bg-purple-500 text-white border-purple-500' : 'bg-white text-[#6B7280] border-[#E5E7EB]'}`}
-                >
-                  آجل
-                </button>
-                <button
-                  onClick={() => setEditOrderType('ittiman')}
-                  className={`flex-1 text-xs px-3 py-2 rounded-lg border transition-colors ${editOrderType === 'ittiman' ? 'bg-blue-500 text-white border-blue-500' : 'bg-white text-[#6B7280] border-[#E5E7EB]'}`}
-                >
-                  ائتمان
-                </button>
-              </div>
-            </div>
             <div className="flex items-center gap-3">
               <div className="flex-1 text-xs text-[#6B7280]">
                 <span className="font-semibold text-[#111827]">{editItems.length}</span> صنف · <span className="font-semibold text-[#059669]">{formatCurrencyShort(editTotal)}</span>
@@ -749,7 +713,7 @@ export function OrderDetailPage() {
               تعديل الطلب
             </button>
           )}
-          {isSupreme && !isExecDirector && (
+          {isSupreme && data.order.status === 'submitted' && (
             <button onClick={startEdit}
               className="inline-flex items-center gap-1 bg-accent text-white text-xs px-3 py-2.5 rounded-lg active:opacity-90 shrink-0">
               تحرير الطلب
