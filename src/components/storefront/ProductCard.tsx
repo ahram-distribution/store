@@ -173,13 +173,21 @@ export function ProductCard({
           {!product.isActive ? 'غير متوفر حالياً' : 'نفذت الكمية'}
         </div>
       ) : (
-        <div className={`flex flex-col gap-0.5 text-text-secondary ${expanded ? 'text-sm' : 'text-xs'}`}>
-          {product.unitPrices.map((up) => (
-            <div key={up.unitType} className="flex items-center justify-between">
-              <span>{UNIT_LABELS[up.unitType]}</span>
-              <span className="font-medium text-text">{formatCurrencyShort(up.price)}</span>
-            </div>
-          ))}
+        <div className={`flex flex-col gap-0.5 ${expanded ? 'text-sm' : 'text-xs'}`}>
+          {product.unitPrices.map((up) => {
+            const available = sellingUnits.includes(up.unitType)
+            return (
+              <div key={up.unitType} className="flex items-center justify-between">
+                <span className={available ? 'text-[#059669]' : 'text-[#DC2626]/60'}>
+                  {UNIT_LABELS[up.unitType]}
+                  {!available && <span className="text-[9px] mr-1 opacity-70">غير متوفر</span>}
+                </span>
+                <span className={`${available ? 'text-[#059669] font-bold text-sm' : 'text-[#DC2626]/60 font-normal text-[10px]'}`}>
+                  {formatCurrencyShort(up.price)}
+                </span>
+              </div>
+            )
+          })}
         </div>
       )}
 
