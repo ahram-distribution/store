@@ -158,7 +158,14 @@ export function ProductCard({
         )}
       </div>
 
-      {/* Unit Prices — filtered to active selling units only */}
+      {/* Product Code */}
+      {product.legacyCode && (
+        <div className={`text-text-secondary ${expanded ? 'text-xs' : 'text-[10px]'}`}>
+          كود الصنف: <span className="font-medium text-text">{product.legacyCode}</span>
+        </div>
+      )}
+
+      {/* Unit Prices — piece + carton always shown, others by availability */}
       {isBlocked ? (
         <div className={`text-xs rounded px-2 py-1.5 ${
           product.isOutOfStock ? 'bg-warning/10 text-warning' : 'bg-red-50 text-danger'

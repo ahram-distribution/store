@@ -108,7 +108,7 @@ export function StorefrontPage() {
           { unitType: 'dozen', price: dozenPrice },
           { unitType: 'carton', price: cartonPrice },
         ]
-        const unitPrices = allUnitPrices.filter((up) => availableUnitTypes.includes(up.unitType))
+        const unitPrices = allUnitPrices.filter((up) => up.unitType === 'piece' || up.unitType === 'carton' || availableUnitTypes.includes(up.unitType))
         return {
           id: row.id,
           productName: row.product_name,
