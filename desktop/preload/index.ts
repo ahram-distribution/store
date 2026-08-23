@@ -61,6 +61,7 @@ contextBridge.exposeInMainWorld('api', {
     activateRenderer: () => ipcRenderer.invoke('update:activate-renderer'),
     quitAndInstall: () => ipcRenderer.invoke('update:quit-and-install'),
     restart: () => ipcRenderer.invoke('update:restart'),
+    confirmReady: () => ipcRenderer.send('renderer:confirm-ready'),
     onStatus: (callback: (data: {
       status: string
       version?: string

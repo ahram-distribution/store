@@ -18,6 +18,7 @@ const REQUIRED_SCHEMA_MAP: Array<{ sinceAppVersion: string; schemaVersion: numbe
   { sinceAppVersion: '0.0.0', schemaVersion: 1 },
   { sinceAppVersion: '1.3.0', schemaVersion: 2 },
   { sinceAppVersion: '1.4.0', schemaVersion: 3 },
+  { sinceAppVersion: '1.5.0', schemaVersion: 10 },
 ]
 
 function compareVersions(a: string, b: string): number {

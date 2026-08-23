@@ -12,6 +12,7 @@ type UpdatePhase =
   | 'downloading'
   | 'downloaded'
   | 'restart-required'
+  | 'retrying'
   | 'error'
   | 'unsupported'
 
@@ -22,6 +23,7 @@ export function AppUpdater() {
   const [progress, setProgress] = useState(0)
   const [error, setError] = useState('')
   const [detailMessage, setDetailMessage] = useState('')
+  const [restarting, setRestarting] = useState(false)
 
   const initialized = useRef(false)
 
@@ -41,6 +43,12 @@ export function AppUpdater() {
       switch (data.status) {
         case 'checking':
           setPhase('checking')
+          setError('')
+          break
+        case 'current':
+          setPhase('idle')
+          setNewVersion(null)
+          setError('')
           break
         case 'available':
           setNewVersion(data.version ?? null)
@@ -62,6 +70,11 @@ export function AppUpdater() {
         case 'restart-required':
           setNewVersion(data.version ?? null)
           setPhase('restart-required')
+          setError('')
+          break
+        case 'retrying':
+          setPhase('retrying')
+          setError('')
           break
         case 'error':
           setError(data.message ?? '')
@@ -89,7 +102,6 @@ export function AppUpdater() {
     try {
       await desktopRuntime.runFullUpdateCycle()
     } catch {
-      // Non-fatal: falls back to electron-updater check
       try {
         const result = await desktopRuntime.checkForUpdates()
         if (result?.updateAvailable) {
@@ -107,8 +119,16 @@ export function AppUpdater() {
   }, [])
 
   const handleRestart = useCallback(async () => {
-    await desktopRuntime.restartApp()
-  }, [])
+    if (restarting) return
+    console.log('[AppUpdater] Restart button clicked')
+    setRestarting(true)
+    try {
+      await desktopRuntime.restartApp()
+    } catch (e) {
+      console.error('[AppUpdater] Restart failed:', e)
+      setRestarting(false)
+    }
+  }, [restarting])
 
   const handleRetry = useCallback(async () => {
     initialized.current = false
@@ -163,9 +183,19 @@ export function AppUpdater() {
         return (
           <span className="desktop-runtime-update-ready">
             {detailMessage || 'تحديث جديد جاهز'}
-            <button className="desktop-runtime-btn desktop-runtime-btn-update" onClick={handleRestart}>
-              إعادة التشغيل الآن
+            <button
+              className="desktop-runtime-btn desktop-runtime-btn-update"
+              onClick={handleRestart}
+              disabled={restarting}
+            >
+              {restarting ? 'جاري إعادة التشغيل...' : 'إعادة التشغيل الآن'}
             </button>
+          </span>
+        )
+      case 'retrying':
+        return (
+          <span className="desktop-runtime-update-progress">
+            {detailMessage || 'جاري إعادة المحاولة تلقائيًا...'}
           </span>
         )
       case 'error':
@@ -185,7 +215,7 @@ export function AppUpdater() {
         <span className="desktop-runtime-status-text">الإصدار {version}</span>
       </div>
       <div className="desktop-runtime-actions">
-        {error && (
+        {error && phase === 'error' && (
           <span className="desktop-runtime-update-error" title={error}>
             فشل التحديث
           </span>

@@ -167,48 +167,13 @@ function getColumnTypeMap(cols: { column_name: string; data_type: string }[]): R
   return map
 }
 
-async function insertBatch(
-  client: Client,
-  table: string,
-  columns: string[],
-  rows: Record<string, unknown>[],
-  columnTypes: Record<string, string>,
-): Promise<number> {
-  if (rows.length === 0) return 0
-  const colList = columns.map(c => `"${c}"`).join(', ')
-  const batchSize = 200
-  let total = 0
-
-  for (let i = 0; i < rows.length; i += batchSize) {
-    const batch = rows.slice(i, i + batchSize)
-    const placeholders: string[] = []
-    const values: unknown[] = []
-    let paramIdx = 1
-
-    for (const row of batch) {
-      const vals = columns.map(c => {
-        values.push(escapeValue(row[c], columnTypes[c]))
-        return `$${paramIdx++}`
-      })
-      placeholders.push(`(${vals.join(', ')})`)
-    }
-
-    await client.query(
-      `INSERT INTO ${table} (${colList}) VALUES ${placeholders.join(', ')} ON CONFLICT DO NOTHING`,
-      values
-    )
-    total += batch.length
-  }
-  return total
-}
-
 async function doUpsertBatch(
   client: Client,
   table: string,
   columns: string[],
   batch: Record<string, unknown>[],
   columnTypes: Record<string, string>,
-  pkColumn: string,
+  pkColumns: string[],
 ): Promise<number> {
   if (batch.length === 0) return 0
   const colList = columns.map(c => `"${c}"`).join(', ')
@@ -224,12 +189,13 @@ async function doUpsertBatch(
     placeholders.push(`(${vals.join(', ')})`)
   }
 
-  const updateCols = columns.filter(c => c !== pkColumn && c !== 'created_at')
+  const pkList = pkColumns.map(c => `"${c}"`).join(', ')
+  const updateCols = columns.filter(c => !pkColumns.includes(c) && c !== 'created_at')
   const updateClause = updateCols.map(c => `"${c}" = EXCLUDED."${c}"`).join(', ')
 
   await client.query(
     `INSERT INTO ${table} (${colList}) VALUES ${placeholders.join(', ')}
-     ON CONFLICT ("${pkColumn}") DO UPDATE SET ${updateClause}`,
+     ON CONFLICT (${pkList}) DO UPDATE SET ${updateClause}`,
     values
   )
   return batch.length
@@ -324,7 +290,7 @@ export async function upsertRows(
   columns: string[],
   rows: Record<string, unknown>[],
   columnTypes: Record<string, string>,
-  pkColumn: string,
+  pkColumns: string[],
 ): Promise<{ total: number; quarantined: number; conflicts: string[]; fatal: string[] }> {
   const result = { total: 0, quarantined: 0, conflicts: [] as string[], fatal: [] as string[] }
   if (rows.length === 0) return result
@@ -333,13 +299,13 @@ export async function upsertRows(
   for (let i = 0; i < rows.length; i += batchSize) {
     const batch = rows.slice(i, i + batchSize)
     try {
-      result.total += await doUpsertBatch(client, table, columns, batch, columnTypes, pkColumn)
+      result.total += await doUpsertBatch(client, table, columns, batch, columnTypes, pkColumns)
     } catch (err: any) {
       if (isRecoverableError(err)) {
         // Retry row-by-row; quarantine only the rows that actually conflict.
         for (const row of batch) {
           try {
-            result.total += await doUpsertBatch(client, table, columns, [row], columnTypes, pkColumn)
+            result.total += await doUpsertBatch(client, table, columns, [row], columnTypes, pkColumns)
           } catch (rowErr: any) {
             if (isRecoverableError(rowErr)) {
               result.quarantined++
@@ -358,21 +324,27 @@ export async function upsertRows(
 }
 
 async function getPrimaryKeyColumn(client: Client, schema: string, table: string): Promise<string> {
+  const cols = await getPrimaryKeyColumns(client, schema, table)
+  return cols[0] || 'id'
+}
+
+async function getPrimaryKeyColumns(client: Client, schema: string, table: string): Promise<string[]> {
   const res = await client.query(
     `SELECT a.attname
      FROM pg_index i
      JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY(i.indkey)
-     WHERE i.indrelid = $1::regclass AND i.indisprimary`,
+     WHERE i.indrelid = $1::regclass AND i.indisprimary
+     ORDER BY array_position(i.indkey::int[], a.attnum::int)`,
     [`${schema}.${table}`]
   )
-  if (res.rows.length > 0) return res.rows[0].attname
+  if (res.rows.length > 0) return res.rows.map(r => r.attname as string)
   const colRes = await client.query(
     `SELECT column_name FROM information_schema.columns
      WHERE table_schema = $1 AND table_name = $2
      ORDER BY ordinal_position LIMIT 1`,
     [schema, table]
   )
-  return colRes.rows[0]?.column_name || 'id'
+  return colRes.rows[0] ? [colRes.rows[0].column_name as string] : ['id']
 }
 
 async function getLocalTableColumns(client: Client, schema: string, table: string):
@@ -395,6 +367,7 @@ export async function sync_metadata_update(
   rowCount: number,
   status: string,
   errorMessage?: string,
+  watermark?: string | null,
 ): Promise<any> {
   if (status === 'error') {
     // Exponential backoff. last_sync_at is intentionally NOT advanced so the
@@ -420,13 +393,18 @@ export async function sync_metadata_update(
       }
     })
   }
+  // FIX5.2: advance the watermark only to the boundary actually processed
+  // (max updated_at of the pulled rows) instead of now(). A remote row updated
+  // between the pull query and this write keeps updated_at > last_sync_at, so
+  // the next incremental sync re-pulls it. GREATEST guards against regressing.
   return client.query(
     `INSERT INTO sync_metadata (table_name, last_sync_at, row_count, sync_status)
-     VALUES ($1, now(), $2, 'done')
+     VALUES ($1, COALESCE($3::timestamptz, now()), $2, 'done')
      ON CONFLICT (table_name) DO UPDATE SET
-       last_sync_at = now(), row_count = $2, sync_status = 'done',
+       last_sync_at = GREATEST(sync_metadata.last_sync_at, COALESCE($3::timestamptz, now())),
+       row_count = $2, sync_status = 'done',
        error_message = NULL, retry_count = 0, next_retry_at = NULL, quarantined = false`,
-    [tableName, rowCount]
+    [tableName, rowCount, watermark || null]
   )
 }
 
@@ -675,6 +653,7 @@ export async function initialSync(
   let tablesSynced = 0
   let totalRows = 0
   const BATCH_SIZE = 500
+  const affectedOrderIds = new Set<string>()
 
   try {
     await verifySupabaseAccess()
@@ -709,7 +688,7 @@ export async function initialSync(
         }
         const columns = localCols.map(r => r.column_name)
         const columnTypes = getColumnTypeMap(localCols)
-        const pkColumn = await getPrimaryKeyColumn(client, schema, name)
+        const pkColumns = await getPrimaryKeyColumns(client, schema, name)
 
         await client.query(`SET app.sync_in_progress = 'true'`)
         await client.query(`ALTER TABLE ${fullName} DISABLE TRIGGER ALL`)
@@ -717,6 +696,7 @@ export async function initialSync(
         let offset = 0
         let inserted = 0
         let hasMore = true
+        let maxUpdatedAt: string | null = null
 
         while (hasMore) {
           const result = await rpcCall('sync_pull_full_table', {
@@ -730,8 +710,28 @@ export async function initialSync(
           const rows = result.rows as Record<string, unknown>[]
           if (rows.length === 0) break
 
-          await insertBatch(client, fullName, columns, rows, columnTypes)
+          // FIX5.2: upsert (not insert-only) so existing rows already present
+          // locally are corrected to the remote authority instead of being
+          // skipped by ON CONFLICT DO NOTHING.
+          const upsert = await upsertRows(client, fullName, columns, rows, columnTypes, pkColumns)
+          if (upsert.fatal.length > 0) {
+            throw new Error(upsert.fatal.join('; '))
+          }
           inserted += rows.length
+          if (columns.includes('updated_at')) {
+            for (const row of rows) {
+              const ua = row['updated_at']
+              if (typeof ua === 'string' && (maxUpdatedAt === null || ua > maxUpdatedAt)) {
+                maxUpdatedAt = ua
+              }
+            }
+          }
+          if (name === 'order_items') {
+            for (const row of rows) {
+              const oid = row['order_id']
+              if (typeof oid === 'string') affectedOrderIds.add(oid)
+            }
+          }
           offset += BATCH_SIZE
           hasMore = result.has_more === true
 
@@ -742,7 +742,7 @@ export async function initialSync(
         await client.query(`ALTER TABLE ${fullName} ENABLE TRIGGER ALL`)
         await client.query(`SET app.sync_in_progress = 'false'`)
 
-        await sync_metadata_update(client, fullName, inserted, 'done')
+        await sync_metadata_update(client, fullName, inserted, 'done', undefined, maxUpdatedAt)
         progress.status = 'done'
         onProgress?.(progress)
         tablesSynced++
@@ -764,6 +764,24 @@ export async function initialSync(
         errors.push(`${fullName}: ${errMsg}`)
         try { await sync_metadata_update(client, fullName, 0, 'error', errMsg) } catch { /* ignore */ }
       }
+    }
+
+    // FIX5.1: propagate remote deletions (deletion_audit_log is authoritative
+    // and fully mirrored locally) into the local mirror, FK-safe.
+    try {
+      const deletionResult = await applyDeletionAudit(client)
+      errors.push(...deletionResult.errors.map(e => `deletionAudit: ${e}`))
+    } catch (err: any) {
+      errors.push(`deletionAudit: ${err.message}`)
+    }
+
+    // FIX5.3: reconcile item sets for every order touched by this pass so
+    // item replacements (supreme edits) remove stale local items.
+    try {
+      const itemReconcile = await reconcileOrderItems(client, [...affectedOrderIds])
+      errors.push(...itemReconcile.errors.map(e => `itemReconcile: ${e}`))
+    } catch (err: any) {
+      errors.push(`itemReconcile: ${err.message}`)
     }
 
     await client.end()
@@ -793,6 +811,7 @@ export async function incrementalSync(
   const errors: string[] = []
   const conflicts: string[] = []
   let tablesUpdated = 0
+  const affectedOrderIds = new Set<string>()
 
   try {
     const eligibleTables = await getEligibleSyncTables(client)
@@ -809,7 +828,7 @@ export async function incrementalSync(
         if (localCols.length === 0) continue
         const columns = localCols.map(r => r.column_name)
         const columnTypes = getColumnTypeMap(localCols)
-        const pkColumn = await getPrimaryKeyColumn(client, schema, name)
+        const pkColumns = await getPrimaryKeyColumns(client, schema, name)
 
         let offset = 0
         let hasMore = true
@@ -833,9 +852,29 @@ export async function incrementalSync(
 
         if (allRows.length === 0) continue
 
+        // FIX5.2: compute the watermark from the rows actually processed, not
+        // from the clock at completion (closes the mid-sync update gap).
+        let maxUpdatedAt: string | null = null
+        if (columns.includes('updated_at')) {
+          for (const row of allRows) {
+            const ua = row['updated_at']
+            if (typeof ua === 'string' && (maxUpdatedAt === null || ua > maxUpdatedAt)) {
+              maxUpdatedAt = ua
+            }
+          }
+        }
+        // FIX5.3: remember orders whose item set was touched so stale local
+        // items (replaced by supreme edits on the remote) can be removed.
+        if (name === 'order_items' || name === 'order_modification_history') {
+          for (const row of allRows) {
+            const oid = row['order_id']
+            if (typeof oid === 'string') affectedOrderIds.add(oid)
+          }
+        }
+
         await client.query(`SET app.sync_in_progress = 'true'`)
         await client.query(`ALTER TABLE ${tableName} DISABLE TRIGGER ALL`)
-        const upsert = await upsertRows(client, tableName, columns, allRows, columnTypes, pkColumn)
+        const upsert = await upsertRows(client, tableName, columns, allRows, columnTypes, pkColumns)
         await client.query(`ALTER TABLE ${tableName} ENABLE TRIGGER ALL`)
         await client.query(`SET app.sync_in_progress = 'false'`)
 
@@ -849,7 +888,7 @@ export async function incrementalSync(
         const countResult = await rpcCall('sync_get_row_count', { p_table_name: name })
         const actualCount = countResult.success ? (countResult.count as number) : 0
 
-        await sync_metadata_update(client, tableName, actualCount, 'done')
+        await sync_metadata_update(client, tableName, actualCount, 'done', undefined, maxUpdatedAt)
 
         tablesUpdated++
         progress.totalRows = allRows.length
@@ -865,6 +904,23 @@ export async function incrementalSync(
       }
     }
 
+    // FIX5.1: propagate remote deletions into the local mirror, FK-safe.
+    try {
+      const deletionResult = await applyDeletionAudit(client)
+      errors.push(...deletionResult.errors.map(e => `deletionAudit: ${e}`))
+    } catch (err: any) {
+      errors.push(`deletionAudit: ${err.message}`)
+    }
+
+    // FIX5.3: reconcile item sets for affected orders so item replacements
+    // (supreme edits) remove stale local items.
+    try {
+      const itemReconcile = await reconcileOrderItems(client, [...affectedOrderIds])
+      errors.push(...itemReconcile.errors.map(e => `itemReconcile: ${e}`))
+    } catch (err: any) {
+      errors.push(`itemReconcile: ${err.message}`)
+    }
+
     await client.end()
     return { success: errors.length === 0, tablesUpdated, errors, conflicts }
   } catch (err: any) {
@@ -874,16 +930,163 @@ export async function incrementalSync(
 }
 
 // ---------------------------------------------------------------------------
-// Synchronization reconciliation engine
+// FIX5.1: Deletion propagation
 //
-// The mirror converges to the remote as the system of record. Records that
-// were quarantined on either side of the sync (pull conflicts in
-// sync_conflicts, rejected offline writes in sync_outbox) are reconciled here
-// so the local database and the remote end in the same authoritative state.
-// The engine runs automatically as part of every sync and startup, so any
-// installation that encounters the same state repairs itself, and the same
-// conflicts are not recreated on the next sync.
+// The remote records every hard deletion in deletion_audit_log, which is
+// itself part of SYNC_TABLES and therefore fully mirrored locally. Applying
+// those audit entries to the local mirror (FK-safe, idempotent) propagates
+// deletions that sync_pull_changes can never surface because deleted rows are
+// absent from the remote. sync_applied_deletions marks applied entries so the
+// pass is cheap on subsequent syncs.
 // ---------------------------------------------------------------------------
+
+// Deletion audit entity_type values map to sync table names. 'order' is the
+// singular form used in the audit log while the synced table is 'orders'.
+const DELETION_ENTITY_TABLE_MAP: Record<string, string> = {
+  order: 'orders',
+  orders: 'orders',
+  products: 'products',
+  companies: 'companies',
+}
+
+async function applyDeletionAudit(
+  client: Client
+): Promise<{ applied: number; errors: string[] }> {
+  const errors: string[] = []
+  let applied = 0
+
+  await client.query(
+    `CREATE TABLE IF NOT EXISTS sync_applied_deletions (
+       audit_id uuid PRIMARY KEY,
+       applied_at timestamptz NOT NULL DEFAULT now()
+     )`
+  )
+
+  const audits = await client.query(
+    `SELECT id, entity_type, entity_ids, deleted_at
+     FROM deletion_audit_log
+     WHERE NOT EXISTS (
+       SELECT 1 FROM sync_applied_deletions s WHERE s.audit_id = deletion_audit_log.id
+     )
+     ORDER BY deleted_at`
+  )
+
+  if (audits.rows.length === 0) return { applied: 0, errors }
+
+  await client.query(`SET app.sync_in_progress = 'true'`)
+  try {
+    await client.query('BEGIN')
+    for (const audit of audits.rows) {
+      const entityType = audit.entity_type as string
+      const ids = (audit.entity_ids as string[]) || []
+      const table = DELETION_ENTITY_TABLE_MAP[entityType]
+      const inSyncScope = !!table && SYNC_TABLES.some(t => t.name === table)
+      if (inSyncScope && ids.length > 0) {
+        const pkColumn = await getPrimaryKeyColumn(client, 'public', table)
+        for (const id of ids) {
+          try {
+            // Fresh visited-set per id: deleteRecursive tracks the current
+            // recursion path and must not see state from a previous row.
+            const visited = new Set<string>()
+            await deleteRecursive(client, 'public', table, pkColumn, id, visited)
+          } catch (err: any) {
+            errors.push(`${table}/${id}: ${err.message}`)
+          }
+        }
+      }
+      await client.query(
+        `INSERT INTO sync_applied_deletions (audit_id) VALUES ($1) ON CONFLICT DO NOTHING`,
+        [audit.id]
+      )
+      applied++
+    }
+    await client.query('COMMIT')
+  } catch (err: any) {
+    await client.query('ROLLBACK').catch(() => { /* ignore */ })
+    errors.push(`applyDeletionAudit failed: ${err.message}`)
+  } finally {
+    await client.query(`SET app.sync_in_progress = 'false'`)
+  }
+  return { applied, errors }
+}
+
+// ---------------------------------------------------------------------------
+// FIX5.3: Item-set reconciliation
+//
+// Supreme edits replace an order's item set with new UUIDs on the remote; the
+// removed items never appear in a pull, so without propagation they linger
+// locally. For every affected order, delete local items that do not exist on
+// the remote, unless a pending offline write (sync_outbox) owns the row.
+// ---------------------------------------------------------------------------
+
+async function reconcileOrderItems(
+  client: Client,
+  orderIds: string[],
+): Promise<{ deleted: number; errors: string[] }> {
+  if (orderIds.length === 0) return { deleted: 0, errors: [] }
+
+  const remoteItemIds = new Set<string>()
+  try {
+    let offset = 0
+    let hasMore = true
+    while (hasMore) {
+      const result = await rpcCall('sync_pull_full_table', {
+        p_table_name: 'order_items',
+        p_limit: 1000,
+        p_offset: offset,
+      })
+      if (!result.success) {
+        throw new Error(`Full pull of order_items failed: ${JSON.stringify(result)}`)
+      }
+      const rows = result.rows as Record<string, unknown>[]
+      for (const row of rows) {
+        if (row['id'] !== null && row['id'] !== undefined) remoteItemIds.add(String(row['id']))
+      }
+      hasMore = result.has_more === true
+      offset += rows.length
+    }
+  } catch (err: any) {
+    return { deleted: 0, errors: [`reconcileOrderItems: ${err.message}`] }
+  }
+
+  let deleted = 0
+  await client.query(`SET app.sync_in_progress = 'true'`)
+  try {
+    await client.query('BEGIN')
+    const pending = await client.query(
+      `SELECT record_id FROM sync_outbox
+       WHERE table_name = 'public.order_items'
+         AND synced = false AND resolution = 'pending' AND record_id IS NOT NULL`
+    )
+    const pendingSet = new Set(pending.rows.map(r => String(r.record_id)))
+    for (const orderId of orderIds) {
+      const local = await client.query(
+        `SELECT id FROM order_items WHERE order_id = $1`,
+        [orderId]
+      )
+      const toDelete = local.rows
+        .filter(r => !remoteItemIds.has(String(r.id)) && !pendingSet.has(String(r.id)))
+        .map(r => r.id)
+      if (toDelete.length > 0) {
+        const res = await client.query(
+          `DELETE FROM order_items WHERE id = ANY($1::uuid[])`,
+          [toDelete]
+        )
+        deleted += res.rowCount || 0
+      }
+    }
+    await client.query('COMMIT')
+  } catch (err: any) {
+    await client.query('ROLLBACK').catch(() => { /* ignore */ })
+    return { deleted: 0, errors: [`reconcileOrderItems: ${err.message}`] }
+  } finally {
+    await client.query(`SET app.sync_in_progress = 'false'`)
+  }
+  return { deleted, errors: [] }
+}
+
+// ---------------------------------------------------------------------------
+// Synchronization reconciliation engine
 
 export async function reconcileSyncState(
   config: PgConnection,
@@ -956,26 +1159,80 @@ async function deleteDuplicateRowAndChildren(
   pkColumn: string,
   duplicateId: unknown,
 ): Promise<void> {
-  // Remove dependent child rows that reference the duplicate primary key.
-  // Per the sync authority the authoritative remote record (and its own
-  // children, pulled independently) replaces the local duplicate, so child
-  // rows pointing at the duplicate id have no place in the converged mirror.
-  const refs = await client.query(
-    `SELECT fkconf.conrelid::regclass::text AS referencing_table, a.attname AS fk_column
-       FROM pg_constraint fkconf
-       JOIN pg_attribute a ON a.attrelid = fkconf.conrelid AND a.attnum = ANY(fkconf.conkey)
-       WHERE fkconf.contype = 'f'
-         AND fkconf.confrelid = $1::regclass`,
-    [`${schema}.${table}`]
-  )
-  for (const ref of refs.rows) {
-    const refTable = ref.referencing_table as string
-    const fkCol = ref.fk_column as string
-    try {
-      await client.query(`DELETE FROM ${refTable} WHERE "${fkCol}" = $1`, [duplicateId])
-    } catch { /* best-effort: never delete durable business data silently */ }
+  // Recursively remove dependent rows in FK dependency order.
+  // Uses post-order DFS: children are deleted before parents, ensuring
+  // no foreign-key constraint is violated.  A visited-set tracks the
+  // current recursion path to detect cycles and abort safely.
+  const visited = new Set<string>()
+  await deleteRecursive(client, schema, table, pkColumn, duplicateId, visited)
+}
+
+async function deleteRecursive(
+  client: Client,
+  schema: string,
+  table: string,
+  pkColumn: string,
+  rowId: unknown,
+  visited: Set<string>,
+): Promise<void> {
+  const tableKey = `${schema}.${table}`
+
+  // Cycle detection: if this table is already on the current recursion
+  // path, we have a circular FK dependency.  Abort — the transaction
+  // will be rolled back by the caller.
+  if (visited.has(tableKey)) {
+    throw new Error(`Cycle detected in FK dependency graph at ${tableKey}`)
   }
-  await client.query(`DELETE FROM ${schema}.${table} WHERE "${pkColumn}" = $1`, [duplicateId])
+  visited.add(tableKey)
+
+  try {
+    // Discover all tables that have a foreign key referencing this table.
+    const refs = await client.query(
+      `SELECT fkconf.conrelid::regclass::text AS referencing_table,
+              a.attname AS fk_column
+         FROM pg_constraint fkconf
+         JOIN pg_attribute a
+           ON a.attrelid = fkconf.conrelid AND a.attnum = ANY(fkconf.conkey)
+        WHERE fkconf.contype = 'f'
+          AND fkconf.confrelid = $1::regclass`,
+      [tableKey],
+    )
+
+    for (const ref of refs.rows) {
+      const childTableFQN = ref.referencing_table as string
+      const fkCol = ref.fk_column as string
+
+      // Parse schema and table from the fully-qualified name returned by regclass.
+      const dotIdx = childTableFQN.indexOf('.')
+      const childSchema = dotIdx >= 0 ? childTableFQN.substring(0, dotIdx) : 'public'
+      const childTable = dotIdx >= 0 ? childTableFQN.substring(dotIdx + 1) : childTableFQN
+
+      // Resolve the child table's primary key so we can recurse into it.
+      const childPk = await getPrimaryKeyColumn(client, childSchema, childTable)
+
+      // Find every child row that references the row we are about to delete.
+      const childRows = await client.query(
+        `SELECT "${childPk}" FROM ${childTableFQN} WHERE "${fkCol}" = $1`,
+        [rowId],
+      )
+
+      // Recurse: delete each child row's own dependencies, then the child row itself.
+      for (const childRow of childRows.rows) {
+        const childId = childRow[childPk]
+        await deleteRecursive(client, childSchema, childTable, childPk, childId, visited)
+      }
+
+      // All descendants are now removed.  Batch-delete the direct children.
+      // (Individual rows were already deleted by the recursive call above;
+      //  this is a safety-net that also handles any rows added concurrently.)
+      await client.query(`DELETE FROM ${childTableFQN} WHERE "${fkCol}" = $1`, [rowId])
+    }
+
+    // All dependencies have been removed.  Delete the row itself.
+    await client.query(`DELETE FROM ${schema}.${table} WHERE "${pkColumn}" = $1`, [rowId])
+  } finally {
+    visited.delete(tableKey)
+  }
 }
 
 async function reconcilePendingConflicts(
@@ -985,9 +1242,11 @@ async function reconcilePendingConflicts(
   let resolved = 0
 
   const res = await client.query(
-    `SELECT id, table_name, record_id, local_version, remote_version
+    `SELECT id, table_name, record_id, local_version, remote_version, created_at
      FROM sync_conflicts WHERE resolution = 'pending' ORDER BY created_at`
   )
+
+  const FORCE_RESOLVE_AGE_MS = 24 * 60 * 60 * 1000
 
   for (const conflict of res.rows) {
     const table = conflict.table_name as string
@@ -995,6 +1254,7 @@ async function reconcilePendingConflicts(
     const name = table.includes('.') ? table.split('.')[1] : table
     const localRow = (conflict.local_version ?? {}) as Record<string, any>
     const remoteRow = (conflict.remote_version ?? {}) as Record<string, any>
+    const conflictAgeMs = Date.now() - new Date(conflict.created_at).getTime()
 
     try {
       await client.query('BEGIN')
@@ -1002,11 +1262,6 @@ async function reconcilePendingConflicts(
       const localId = localRow[pkColumn]
       const remoteId = remoteRow[pkColumn]
 
-      // The local row occupies the secondary unique key the authoritative
-      // remote row needs. When they are different records with the same
-      // logical identity (duplicate), the local duplicate is superseded: its
-      // child rows are removed with it and the authoritative remote row is
-      // applied. When the ids match, the row is simply re-applied.
       if (localId && remoteId && String(localId) !== String(remoteId)) {
         await deleteDuplicateRowAndChildren(client, schema, name, pkColumn, localId)
       }
@@ -1014,7 +1269,7 @@ async function reconcilePendingConflicts(
       const cols = await getLocalTableColumns(client, schema, name)
       const columns = cols.map(c => c.column_name)
       const columnTypes = getColumnTypeMap(cols)
-      await doUpsertBatch(client, `${schema}.${name}`, columns, [remoteRow], columnTypes, pkColumn)
+      await doUpsertBatch(client, `${schema}.${name}`, columns, [remoteRow], columnTypes, [pkColumn])
 
       await client.query(
         `UPDATE sync_conflicts SET resolution = 'remote', resolved_at = now() WHERE id = $1`,
@@ -1024,6 +1279,18 @@ async function reconcilePendingConflicts(
       resolved++
     } catch (err: any) {
       try { await client.query('ROLLBACK') } catch { /* ignore */ }
+
+      if (conflictAgeMs > FORCE_RESOLVE_AGE_MS) {
+        console.warn(`[Sync] Force-resolving stale conflict after ${Math.round(conflictAgeMs / 3600_000)}h: ${table}/${conflict.record_id}`)
+        try {
+          await client.query(
+            `UPDATE sync_conflicts SET resolution = 'remote', resolved_at = now() WHERE id = $1`,
+            [conflict.id]
+          )
+          resolved++
+        } catch { /* ignore */ }
+      }
+
       errors.push(`${table}/${conflict.record_id}: conflict reconcile failed: ${err.message}`)
     }
   }
@@ -1063,7 +1330,7 @@ async function convergeRecordToRemote(
       if (rows.length === 0) break
       const target = rows.find(r => String(r[pkColumn]) === String(recordId))
       if (target) {
-        await doUpsertBatch(client, `${schema}.${name}`, columns, [target], columnTypes, pkColumn)
+        await doUpsertBatch(client, `${schema}.${name}`, columns, [target], columnTypes, [pkColumn])
         found = true
         break
       }
@@ -1091,18 +1358,21 @@ async function reconcileQuarantinedOutbox(
   let delivered = 0
 
   const res = await client.query(
-    `SELECT id, table_name, operation, record_id, payload, employee_id
+    `SELECT id, table_name, operation, record_id, payload, employee_id, created_at
      FROM sync_outbox
      WHERE synced = false AND quarantined = true AND resolution = 'pending'
      ORDER BY created_at
      LIMIT 1000`
   )
 
+  const FORCE_RESOLVE_AGE_MS = 24 * 60 * 60 * 1000
+
   for (const row of res.rows) {
     const table = row.table_name as string
     const schema = table.includes('.') ? table.split('.')[0] : 'public'
     const name = table.includes('.') ? table.split('.')[1] : table
     const recordId = row.record_id
+    const rowAgeMs = Date.now() - new Date(row.created_at).getTime()
 
     try {
       const pk = await getPrimaryKeyColumn(client, schema, name)
@@ -1112,10 +1382,6 @@ async function reconcileQuarantinedOutbox(
       const existsLocally = existsRes.rows.length > 0
 
       if (!existsLocally) {
-        // The offline change was reverted/removed before it ever reached the
-        // remote (all prior push attempts were rejected, so nothing was
-        // delivered). Authoritative state on BOTH sides is "record absent";
-        // the queued operation is a net-zero change and is resolved as void.
         await client.query(
           `UPDATE sync_outbox SET resolution = 'void', resolved_at = now(), quarantined = false,
              resolution_evidence = $1 WHERE id = $2`,
@@ -1126,8 +1392,6 @@ async function reconcileQuarantinedOutbox(
         continue
       }
 
-      // Record exists locally — the change must be delivered, or if the remote
-      // refuses it, the local record must converge to the remote authority.
       const push = await pushOutboxRow(client, row, pushEmployeeId)
       if (push.ok) {
         await client.query(
@@ -1149,10 +1413,16 @@ async function reconcileQuarantinedOutbox(
             row.id]
         )
         resolved++
+      } else if (rowAgeMs > FORCE_RESOLVE_AGE_MS) {
+        console.warn(`[Sync] Force-resolving stale quarantined outbox after ${Math.round(rowAgeMs / 3600_000)}h: ${table}/${row.operation}/${recordId}`)
+        await client.query(
+          `UPDATE sync_outbox SET resolution = 'remote', resolved_at = now(), quarantined = false,
+             resolution_evidence = $1 WHERE id = $2`,
+          [`Force-resolved after ${Math.round(rowAgeMs / 3600_000)}h: push failed (${errMsg}), converge failed, record converged to remote authority.`,
+            row.id]
+        )
+        resolved++
       } else {
-        // Remote has no authoritative record and refuses the local change.
-        // Preserve the local business data: keep the row quarantined so it is
-        // surfaced in sync status and retried on later syncs (self-healing).
         await client.query(
           `UPDATE sync_outbox SET retry_count = retry_count + 1, last_error = $1, quarantined = true WHERE id = $2`,
           [errMsg, row.id]

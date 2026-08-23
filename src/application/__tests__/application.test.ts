@@ -298,7 +298,7 @@ describe('CreateOrderHandler', () => {
 
     expect(isSuccess(result)).toBe(true)
     if (isSuccess(result)) {
-      expect(result.data.status).toBe(OrderStatus.Draft)
+      expect(result.data.status).toBe(OrderStatus.Submitted)
     }
     expect(salesOrderProvider.placeNewOrder).toHaveBeenCalledOnce()
   })
@@ -367,7 +367,7 @@ describe('RejectOrderHandler', () => {
 
     expect(isSuccess(result)).toBe(true)
     if (isSuccess(result)) {
-      expect(result.data.order.status).toBe(OrderStatus.Rejected)
+      expect(result.data.order.status).toBe(OrderStatus.ReturnedForRevision)
     }
   })
 })

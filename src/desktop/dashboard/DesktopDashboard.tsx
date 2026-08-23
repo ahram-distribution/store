@@ -100,9 +100,9 @@ export function DesktopDashboard() {
           rejected: '#DC2626', cancelled: '#94A3B8', reviewing: '#D97706',
         }
         const statusLabels: Record<string, string> = {
-          draft: 'مسودة', submitted: 'طلب شراء', reviewing: 'تم القيد بالسيستم',
-          approved: 'معتمد', preparing: 'قيد التحضير', dispatched: 'تم الشحن',
-          delivered: 'تم التسليم', rejected: 'مرفوض', cancelled: 'ملغي',
+          submitted: 'طلب شراء', approved: 'معتمد', reviewing: 'تم القيد بالسيستم',
+          preparing: 'قيد التجهيز', prepared: 'تم التجهيز', delivered: 'تم التسليم',
+          returned_for_revision: 'معاد للتعديل', cancelled: 'ملغى',
         }
         return (
           <span style={{

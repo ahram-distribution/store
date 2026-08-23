@@ -45,7 +45,7 @@ const sampleUnifiedOrder = () => ({
     snapshot_customer_name: 'Test Customer',
     owner_id: 'emp-1',
     created_by: 'emp-1',
-    status: 'draft',
+    status: 'submitted',
     subtotal: 1000,
     discount_amount: 0,
     total_amount: 1000,
@@ -176,7 +176,7 @@ describe('LegacySalesOrderProvider', () => {
     const result = await provider.getOrderById('ord-1')
     expect(result).not.toBeNull()
     expect(result!.id).toBe('ord-1')
-    expect(result!.status).toBe(OrderStatus.Draft)
+    expect(result!.status).toBe(OrderStatus.Submitted)
     expect(result!.lines).toHaveLength(1)
     expect(result!.lines[0].productId).toBe('p1')
   })

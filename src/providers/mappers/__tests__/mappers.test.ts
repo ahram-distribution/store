@@ -54,14 +54,16 @@ describe('SalesOrderMapper', () => {
   })
 
   it('maps status correctly for all known statuses', () => {
-    expect(SalesOrderMapper.mapStatus('draft')).toBe(OrderStatus.Draft)
+    expect(SalesOrderMapper.mapStatus('draft')).toBe(OrderStatus.Submitted)
     expect(SalesOrderMapper.mapStatus('submitted')).toBe(OrderStatus.Submitted)
     expect(SalesOrderMapper.mapStatus('approved')).toBe(OrderStatus.Approved)
-    expect(SalesOrderMapper.mapStatus('cancelled')).toBe(OrderStatus.Cancelled)
-    expect(SalesOrderMapper.mapStatus('delivered')).toBe(OrderStatus.Delivered)
+    expect(SalesOrderMapper.mapStatus('reviewing')).toBe(OrderStatus.Reviewing)
     expect(SalesOrderMapper.mapStatus('preparing')).toBe(OrderStatus.Preparing)
-    expect(SalesOrderMapper.mapStatus('dispatched')).toBe(OrderStatus.Dispatched)
-    expect(SalesOrderMapper.mapStatus('unknown_status')).toBe(OrderStatus.Draft)
+    expect(SalesOrderMapper.mapStatus('prepared')).toBe(OrderStatus.Prepared)
+    expect(SalesOrderMapper.mapStatus('delivered')).toBe(OrderStatus.Delivered)
+    expect(SalesOrderMapper.mapStatus('cancelled')).toBe(OrderStatus.Cancelled)
+    expect(SalesOrderMapper.mapStatus('dispatched')).toBe(OrderStatus.Delivered)
+    expect(SalesOrderMapper.mapStatus('unknown_status')).toBe(OrderStatus.Submitted)
   })
 })
 

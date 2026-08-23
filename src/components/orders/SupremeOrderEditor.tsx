@@ -245,6 +245,10 @@ export function SupremeOrderEditor({ orderId, initialItems, initialNotes, initia
       return
     }
     if (data && typeof data === 'object' && 'error' in data && data.error) {
+      if ((data as any).shortages) {
+        toast.error('الكميات المطلوبة تتجاوز الكمية المتاحة — برجاء تقليل الكميات', { duration: 6000 })
+        return
+      }
       toast.error(String((data as any).detail || (data as any).error))
       return
     }

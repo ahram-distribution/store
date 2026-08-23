@@ -4,7 +4,12 @@ import { join } from 'path'
 import { fetchReleaseManifest, compareManifests, type ManifestComparison, type ReleaseManifest } from './ReleaseManifest'
 import { downloadRendererAssets } from './RendererUpdater'
 import { fetchRemoteMigrationsManifest, downloadMigrationFiles, applyRemoteMigrations } from './MigrationUpdater'
-import { loadUpdateState, saveUpdateState, pendingRendererDir, setActiveRendererBuild, isRendererCached } from './UpdateState'
+import {
+  loadUpdateState, saveUpdateState, pendingRendererDir,
+  setActiveRendererBuild, isRendererCached, rendererCacheDir,
+  clearRetryState, incrementRetryState, isRetryBlocked,
+  type UpdateState,
+} from './UpdateState'
 import type { PgConnection } from '../db/PostgreSQLManager'
 
 export type UpdateStatus =
@@ -15,6 +20,7 @@ export type UpdateStatus =
   | 'applying-migrations'
   | 'applying-renderer'
   | 'restart-required'
+  | 'retrying'
   | 'error'
   | 'current'
 
@@ -27,6 +33,12 @@ export interface UpdateInfo {
   progress?: number
   comparison?: ManifestComparison
 }
+
+// D22: Single-writer mutex — only one update cycle may execute at a time.
+// Concurrent requests coalesce onto the same running Promise.
+let activeCyclePromise: Promise<UpdateInfo> | null = null
+let activationInProgress = false
+let rollbackInProgress = false
 
 function notifyWindows(channel: string, data: Record<string, unknown>): void {
   BrowserWindow.getAllWindows().forEach(win => {
@@ -45,15 +57,6 @@ function notifyUpdate(info: UpdateInfo): void {
     buildId: info.buildId,
     progress: info.progress,
   })
-}
-
-function getLocalBuildId(): string | null {
-  try {
-    const state = loadUpdateState()
-    return state.appliedBuildId
-  } catch {
-    return null
-  }
 }
 
 function getLocalSchemaVersion(): number {
@@ -98,12 +101,15 @@ export async function checkForUpdates(dbConfig?: PgConnection | null): Promise<U
   }
 
   const comparison = compareManifests(manifest, localBuildId, localSchemaVersion, localAppVersion)
+  const somethingChanged = comparison.rendererChanged || comparison.schemaNeedsUpgrade
 
   state.lastCheckedBuildId = manifest.build_id
   state.lastCheckedAt = new Date().toISOString()
-  saveUpdateState(state)
 
   if (comparison.isCurrent) {
+    clearRetryState(state)
+    state.lastSuccessfulCheckAt = new Date().toISOString()
+    saveUpdateState(state)
     const info: UpdateInfo = {
       status: 'current',
       currentVersion: localAppVersion,
@@ -116,6 +122,7 @@ export async function checkForUpdates(dbConfig?: PgConnection | null): Promise<U
   }
 
   if (comparison.appNeedsUpgrade) {
+    saveUpdateState(state)
     const info: UpdateInfo = {
       status: 'restart-required',
       version: manifest.app_version,
@@ -128,24 +135,64 @@ export async function checkForUpdates(dbConfig?: PgConnection | null): Promise<U
     return info
   }
 
+  if (isRetryBlocked(state)) {
+    saveUpdateState(state)
+    const info: UpdateInfo = {
+      status: 'retrying',
+      currentVersion: localAppVersion,
+      buildId: manifest.build_id,
+      message: `Update temporarily delayed. Will retry automatically.`,
+      comparison,
+    }
+    notifyUpdate(info)
+    return info
+  }
+
+  let rendererOk = !comparison.rendererChanged
+  let migrationsOk = !comparison.schemaNeedsUpgrade
+
   if (comparison.rendererChanged) {
-    await downloadNewRenderer(manifest, localBuildId)
+    rendererOk = await downloadNewRenderer(manifest, localBuildId)
   }
 
   if (comparison.schemaNeedsUpgrade && dbConfig) {
-    await downloadAndApplyMigrations(dbConfig, manifest.required_schema_version)
+    migrationsOk = await downloadAndApplyMigrations(dbConfig, manifest.required_schema_version)
   }
 
-  const info: UpdateInfo = {
-    status: 'restart-required',
-    version: manifest.app_version,
+  if (rendererOk && migrationsOk && somethingChanged) {
+    const finalState = loadUpdateState()
+    clearRetryState(finalState)
+    finalState.lastSuccessfulCheckAt = new Date().toISOString()
+    saveUpdateState(finalState)
+    const info: UpdateInfo = {
+      status: 'restart-required',
+      version: manifest.app_version,
+      currentVersion: localAppVersion,
+      buildId: manifest.build_id,
+      message: 'Updates applied. Restart to activate.',
+      comparison,
+    }
+    notifyUpdate(info)
+    return info
+  }
+
+  const retryState = loadUpdateState()
+  incrementRetryState(retryState)
+  saveUpdateState(retryState)
+
+  const reasons: string[] = []
+  if (comparison.rendererChanged && !rendererOk) reasons.push('renderer')
+  if (comparison.schemaNeedsUpgrade && !migrationsOk) reasons.push('migrations')
+
+  const retryInfo: UpdateInfo = {
+    status: 'retrying',
     currentVersion: localAppVersion,
     buildId: manifest.build_id,
-    message: 'Updates applied. Restart to activate.',
+    message: `Update partially failed (${reasons.join(', ')}). Will retry automatically.`,
     comparison,
   }
-  notifyUpdate(info)
-  return info
+  notifyUpdate(retryInfo)
+  return retryInfo
 }
 
 async function downloadNewRenderer(
@@ -159,7 +206,7 @@ async function downloadNewRenderer(
 
   notifyUpdate({ status: 'downloading-renderer', buildId: manifest.build_id })
 
-  const targetDir = pendingRendererDir()
+  const targetDir = rendererCacheDir(manifest.build_id)
 
   const result = await downloadRendererAssets(manifest, targetDir, (done, total) => {
     notifyUpdate({
@@ -172,13 +219,6 @@ async function downloadNewRenderer(
   if (!result.success) {
     const errMsg = result.errors[0] || 'unknown error'
     console.error(`[Update] Renderer download failed: ${result.errors.join(', ')}`)
-    const errState = loadUpdateState()
-    errState.lastError = `Renderer download failed: ${errMsg}`
-    saveUpdateState(errState)
-    notifyUpdate({
-      status: 'error',
-      message: `Renderer download failed: ${errMsg}`,
-    })
     return false
   }
 
@@ -219,10 +259,6 @@ async function downloadAndApplyMigrations(
   const result = await applyRemoteMigrations(config, downloaded)
   if (result.failed) {
     console.error(`[Update] Migration failed: ${result.failed}`)
-    notifyUpdate({
-      status: 'error',
-      message: `Database migration failed: ${result.failed}`,
-    })
     return false
   }
 
@@ -231,6 +267,20 @@ async function downloadAndApplyMigrations(
 }
 
 export async function activatePendingRenderer(): Promise<boolean> {
+  // D22: Reject concurrent activation attempts
+  if (activationInProgress) {
+    console.warn('[Update] Activation already in progress — rejecting duplicate request')
+    return false
+  }
+  activationInProgress = true
+  try {
+    return await doActivatePendingRenderer()
+  } finally {
+    activationInProgress = false
+  }
+}
+
+async function doActivatePendingRenderer(): Promise<boolean> {
   const state = loadUpdateState()
   if (!state.pendingRendererBuildId) return false
 
@@ -240,32 +290,81 @@ export async function activatePendingRenderer(): Promise<boolean> {
     return false
   }
 
+  state.previousAppliedBuildId = state.appliedBuildId
+
   setActiveRendererBuild(buildId)
 
   state.appliedBuildId = buildId
   state.appliedAt = new Date().toISOString()
   state.pendingRendererBuildId = null
+  clearRetryState(state)
   saveUpdateState(state)
 
-  console.log(`[Update] Renderer ${buildId} activated`)
+  console.log(`[Update] Renderer ${buildId} activated (previous: ${state.previousAppliedBuildId || 'none'})`)
   return true
 }
 
 export async function performFullUpdateCycle(dbConfig?: PgConnection | null): Promise<UpdateInfo> {
+  // D22: Coalesce concurrent requests — return the existing promise if a cycle is active
+  if (activeCyclePromise) {
+    return activeCyclePromise
+  }
+
+  activeCyclePromise = executeCycle(dbConfig).finally(() => {
+    activeCyclePromise = null
+  })
+
+  return activeCyclePromise
+}
+
+async function executeCycle(dbConfig?: PgConnection | null): Promise<UpdateInfo> {
   try {
     const result = await checkForUpdates(dbConfig)
     return result
   } catch (err: any) {
     const state = loadUpdateState()
     state.lastError = err.message
+    incrementRetryState(state)
     saveUpdateState(state)
 
     const info: UpdateInfo = {
-      status: 'error',
-      message: `Update check failed: ${err.message}`,
+      status: 'retrying',
+      message: `Update check failed: ${err.message}. Will retry.`,
     }
     notifyUpdate(info)
     return info
+  }
+}
+
+export function rollbackToPreviousRenderer(): boolean {
+  // D22: Reject concurrent rollback attempts
+  if (rollbackInProgress) {
+    console.warn('[Update] Rollback already in progress — rejecting duplicate request')
+    return false
+  }
+  rollbackInProgress = true
+  try {
+    const state = loadUpdateState()
+    if (!state.previousAppliedBuildId) {
+      console.warn('[Update] No previous renderer to rollback to')
+      return false
+    }
+    if (!isRendererCached(state.previousAppliedBuildId)) {
+      console.warn(`[Update] Previous renderer ${state.previousAppliedBuildId} not in cache`)
+      return false
+    }
+
+    setActiveRendererBuild(state.previousAppliedBuildId)
+    state.appliedBuildId = state.previousAppliedBuildId
+    state.previousAppliedBuildId = null
+    state.pendingRendererBuildId = null
+    clearRetryState(state)
+    saveUpdateState(state)
+
+    console.log(`[Update] Rolled back to renderer ${state.appliedBuildId}`)
+    return true
+  } finally {
+    rollbackInProgress = false
   }
 }
 

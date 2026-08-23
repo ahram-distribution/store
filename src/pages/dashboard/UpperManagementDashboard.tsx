@@ -78,6 +78,7 @@ export default function UpperManagementDashboard() {
     { icon: '👤', label: 'الموظفون', path: '/launcher/employees', isSubLauncher: true },
     { icon: '⏱️', label: 'الحضور والانصراف', path: '/attendance' },
     { icon: '📦', label: 'المخزون', path: '/launcher/inventory', isSubLauncher: true },
+    { icon: '🧮', label: 'سهل', path: '/sahl' },
     { icon: '🏷️', label: 'الأقسام', path: '/launcher/deals', isSubLauncher: true },
     { icon: '📈', label: 'التقارير', path: '/launcher/reports', isSubLauncher: true },
     { icon: '💳', label: 'فواتير الائتمان', path: '/credit/invoices' },

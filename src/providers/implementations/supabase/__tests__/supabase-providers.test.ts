@@ -112,7 +112,7 @@ const sampleOrderRow = () => ({
   snapshot_customer_name: 'Test Customer',
   owner_id: 'emp-1',
   created_by: 'emp-1',
-  status: 'draft',
+  status: 'submitted',
   order_number: null,
   subtotal: 1000,
   discount_amount: 0,
@@ -264,7 +264,7 @@ describe('SupabaseSalesOrderProvider', () => {
     const result = await provider.getOrderById('ord-1')
     expect(result).not.toBeNull()
     expect(result!.id).toBe('ord-1')
-    expect(result!.status).toBe(OrderStatus.Draft)
+    expect(result!.status).toBe(OrderStatus.Submitted)
     expect(result!.lines).toHaveLength(1)
     expect(mockChain.select).toHaveBeenCalledWith('*, order_items(*)')
   })

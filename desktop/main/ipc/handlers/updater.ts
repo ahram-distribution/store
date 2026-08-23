@@ -5,6 +5,8 @@ import { performFullUpdateCycle, activatePendingRenderer } from '../../update/in
 let initialized = false
 let checking = false
 let downloading = false
+let activating = false
+let restarting = false
 
 function notifyWindows(channel: string, data: Record<string, unknown>): void {
   BrowserWindow.getAllWindows().forEach(win => {
@@ -143,8 +145,13 @@ export function registerUpdaterHandlers(): void {
     if (!app.isPackaged) {
       return { success: false, message: 'Full update cycle is only available in the packaged application.' }
     }
+    if (checking) {
+      return { success: false, message: 'An update check is already in progress.' }
+    }
+    checking = true
     try {
       const info = await performFullUpdateCycle()
+      checking = false
       return {
         success: true,
         status: info.status,
@@ -153,6 +160,7 @@ export function registerUpdaterHandlers(): void {
         buildId: info.buildId,
       }
     } catch (err: any) {
+      checking = false
       return {
         success: false,
         message: err?.message ?? 'Update cycle failed.',
@@ -161,10 +169,16 @@ export function registerUpdaterHandlers(): void {
   })
 
   ipcMain.handle('update:activate-renderer', async () => {
+    if (activating) {
+      return { success: false, message: 'Activation already in progress.' }
+    }
+    activating = true
     try {
       const activated = await activatePendingRenderer()
+      activating = false
       return { success: activated }
     } catch (err: any) {
+      activating = false
       return { success: false, message: err?.message ?? 'Activation failed.' }
     }
   })
@@ -175,8 +189,23 @@ export function registerUpdaterHandlers(): void {
   })
 
   ipcMain.handle('update:restart', () => {
-    app.relaunch()
-    app.quit()
-    return { success: true }
+    console.log('[Update] Restart IPC received')
+    if (restarting) {
+      console.log('[Update] Restart rejected: already in progress')
+      return { success: false, message: 'Restart already in progress.' }
+    }
+    restarting = true
+    try {
+      console.log('[Update] Restart accepted — invoking relaunch')
+      app.relaunch()
+      console.log('[Update] app.relaunch() invoked, invoking app.quit()')
+      app.quit()
+      console.log('[Update] app.quit() invoked — process will exit')
+      return { success: true }
+    } catch (e) {
+      restarting = false
+      console.error('[Update] Restart failed:', e)
+      return { success: false, message: String(e) }
+    }
   })
 }

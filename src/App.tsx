@@ -39,6 +39,12 @@ export function App() {
   }, [restoreSession])
 
   useEffect(() => {
+    if (splashDone && typeof window !== 'undefined' && (window as any).api?.update?.confirmReady) {
+      (window as any).api.update.confirmReady()
+    }
+  }, [splashDone])
+
+  useEffect(() => {
     if (!loading) {
       notificationService.register().then(() => notificationService.addListeners())
       lifeSignalService.handleAppOpen()

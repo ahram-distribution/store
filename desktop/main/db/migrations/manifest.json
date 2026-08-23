@@ -1,6 +1,6 @@
 {
   "baselineVersion": 1,
-  "schemaVersion": 9,
+  "schemaVersion": 10,
   "migrations": [
     {
       "version": 2,
@@ -41,6 +41,11 @@
       "version": 9,
       "file": "0009_remove_deferred_status.sql",
       "description": "Remove deferred order status. Final workflow: submitted → reviewing → approved → preparing → prepared → dispatched → delivered"
+    },
+    {
+      "version": 10,
+      "file": "0010_sync_watermark_repair.sql",
+      "description": "FIX5 sync repair: set sync_requires_full_refresh gate + invalidate offline_ready so the corrected sync engine (deletion propagation, watermark integrity, item-set reconciliation) converges the local mirror on next startup"
     }
   ]
 }

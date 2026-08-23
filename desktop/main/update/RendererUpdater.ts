@@ -5,6 +5,7 @@ import { createHash } from 'crypto'
 import type { ReleaseManifest } from './ReleaseManifest'
 
 const BASE_URL = 'https://ahram-distribution.github.io/store/'
+const ASSETS_URL = 'https://ahram-distribution.github.io/store/assets/'
 const ASSET_TIMEOUT_MS = 15000
 const MAX_PARALLEL = 4
 
@@ -29,6 +30,25 @@ export async function downloadRendererAssets(
   const errors: string[] = []
 
   writeFileSync(join(targetDir, '_manifest.json'), JSON.stringify(manifest, null, 2), 'utf8')
+
+  const extraFiles = [
+    { name: 'index.html', isAsset: false },
+    { name: 'build-manifest.json', isAsset: false },
+  ]
+  for (const ef of extraFiles) {
+    if (!existsSync(join(targetDir, ef.name))) {
+      try {
+        const ctrl = new AbortController()
+        const timer = setTimeout(() => ctrl.abort(), ASSET_TIMEOUT_MS)
+        const res = await fetch(`${BASE_URL}${ef.name}`, { signal: ctrl.signal })
+        clearTimeout(timer)
+        if (res.ok) {
+          const buf = Buffer.from(await res.arrayBuffer())
+          writeFileSync(join(targetDir, ef.name), buf)
+        }
+      } catch { /* non-fatal */ }
+    }
+  }
 
   for (let i = 0; i < assetEntries.length; i += MAX_PARALLEL) {
     const batch = assetEntries.slice(i, i + MAX_PARALLEL)
@@ -62,11 +82,11 @@ async function downloadAsset(
   expectedHash: string,
   targetDir: string,
 ): Promise<boolean> {
-  const filePath = join(targetDir, filename)
-  const dir = join(targetDir, ...filename.split('/').slice(0, -1))
+  const filePath = join(targetDir, 'assets', filename)
+  const dir = join(targetDir, 'assets', ...filename.split('/').slice(0, -1))
   if (dir && !existsSync(dir)) mkdirSync(dir, { recursive: true })
 
-  const url = `${BASE_URL}${filename}`
+  const url = `${ASSETS_URL}${filename}`
   const ctrl = new AbortController()
   const timer = setTimeout(() => ctrl.abort(), ASSET_TIMEOUT_MS)
 

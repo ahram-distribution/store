@@ -169,22 +169,25 @@ describe('UnitOfMeasure', () => {
 
 describe('OrderStatus', () => {
   it('has correct string values', () => {
-    expect(OrderStatus.Draft).toBe('draft')
+    expect(OrderStatus.Submitted).toBe('submitted')
     expect(OrderStatus.Delivered).toBe('delivered')
   })
 
   it('terminal statuses', () => {
     expect(isTerminalStatus(OrderStatus.Delivered)).toBe(true)
-    expect(isTerminalStatus(OrderStatus.Rejected)).toBe(true)
+    expect(isTerminalStatus(OrderStatus.ReturnedForRevision)).toBe(true)
     expect(isTerminalStatus(OrderStatus.Cancelled)).toBe(true)
-    expect(isTerminalStatus(OrderStatus.Draft)).toBe(false)
+    expect(isTerminalStatus(OrderStatus.Submitted)).toBe(false)
   })
 
   it('valid transitions', () => {
-    expect(isValidTransition(OrderStatus.Draft, OrderStatus.Submitted)).toBe(true)
-    expect(isValidTransition(OrderStatus.Draft, OrderStatus.Approved)).toBe(false)
-    expect(isValidTransition(OrderStatus.Approved, OrderStatus.Preparing)).toBe(true)
-    expect(isValidTransition(OrderStatus.Delivered, OrderStatus.Draft)).toBe(false)
+    expect(isValidTransition(OrderStatus.Submitted, OrderStatus.Approved)).toBe(true)
+    expect(isValidTransition(OrderStatus.Submitted, OrderStatus.Reviewing)).toBe(true)
+    expect(isValidTransition(OrderStatus.Approved, OrderStatus.Reviewing)).toBe(true)
+    expect(isValidTransition(OrderStatus.Reviewing, OrderStatus.Preparing)).toBe(true)
+    expect(isValidTransition(OrderStatus.Preparing, OrderStatus.Prepared)).toBe(true)
+    expect(isValidTransition(OrderStatus.Prepared, OrderStatus.Delivered)).toBe(true)
+    expect(isValidTransition(OrderStatus.Delivered, OrderStatus.Submitted)).toBe(false)
   })
 })
 
@@ -221,9 +224,9 @@ describe('SalesOrder aggregate', () => {
   const customerId = 'cust-1'
   const salesRepId = 'emp-1'
 
-  it('creates in Draft status', () => {
+  it('creates in Submitted status', () => {
     const order = createSalesOrder('ord-1', companyId, customerId, 'Test Customer', salesRepId, [])
-    expect(order.status).toBe(OrderStatus.Draft)
+    expect(order.status).toBe(OrderStatus.Submitted)
     expect(order.subtotal.amount).toBe(0)
   })
 
@@ -244,16 +247,14 @@ describe('SalesOrder aggregate', () => {
     expect(order.grandTotal.amount).toBe(150)
   })
 
-  it('submits from Draft', () => {
+  it('submits from Submitted (re-submit)', () => {
     const order = createSalesOrder('ord-4', companyId, customerId, 'Test', salesRepId, [])
-    const { order: submitted } = submitOrder(order)
-    expect(submitted.status).toBe(OrderStatus.Submitted)
+    expect(order.status).toBe(OrderStatus.Submitted)
   })
 
-  it('cannot submit from non-Draft', () => {
+  it('cannot approve Submitted directly', () => {
     const order = createSalesOrder('ord-5', companyId, customerId, 'Test', salesRepId, [])
-    const { order: submitted } = submitOrder(order)
-    expect(() => submitOrder(submitted)).toThrow()
+    expect(() => approveOrder(order)).toThrow()
   })
 
   it('approves via submitted → reviewing → approved', () => {
@@ -264,19 +265,18 @@ describe('SalesOrder aggregate', () => {
     expect(approved.status).toBe(OrderStatus.Approved)
   })
 
-  it('cannot approve Draft directly', () => {
+  it('cannot approve Submitted directly (must go through reviewing)', () => {
     const order = createSalesOrder('ord-7', companyId, customerId, 'Test', salesRepId, [])
     expect(() => approveOrder(order)).toThrow()
   })
 
   it('rejects from submitted', () => {
     const order = createSalesOrder('ord-8', companyId, customerId, 'Test', salesRepId, [])
-    const { order: submitted } = submitOrder(order)
-    const { order: rejected } = rejectOrder(submitted, 'Not approved')
-    expect(rejected.status).toBe(OrderStatus.Rejected)
+    const { order: rejected } = rejectOrder(order, 'Not approved')
+    expect(rejected.status).toBe(OrderStatus.ReturnedForRevision)
   })
 
-  it('cancels from Draft', () => {
+  it('cancels from Submitted', () => {
     const order = createSalesOrder('ord-9', companyId, customerId, 'Test', salesRepId, [])
     const { order: cancelled } = cancelOrder(order)
     expect(cancelled.status).toBe(OrderStatus.Cancelled)
@@ -288,7 +288,7 @@ describe('SalesOrder aggregate', () => {
     expect(() => cancelOrder(cancelled)).toThrow()
   })
 
-  it('adds line to Draft', () => {
+  it('adds line to Submitted', () => {
     const order = createSalesOrder('ord-11', companyId, customerId, 'Test', salesRepId, [])
     const line = createOrderLine('line-x', 'prod-1', 'X', 'carton', createMoney(100), 1)
     const updated = addLineToOrder(order, line)

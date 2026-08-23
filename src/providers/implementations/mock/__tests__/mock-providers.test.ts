@@ -27,7 +27,7 @@ describe('MockSalesOrderProvider', () => {
     const result = await provider.getOrderById('test-1')
     expect(result).not.toBeNull()
     expect(result!.id).toBe('test-1')
-    expect(result!.status).toBe(OrderStatus.Draft)
+    expect(result!.status).toBe(OrderStatus.Submitted)
   })
 
   it('getOrderById returns null for nonexistent', async () => {

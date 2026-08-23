@@ -2,6 +2,7 @@ export {
   checkForUpdates,
   performFullUpdateCycle,
   activatePendingRenderer,
+  rollbackToPreviousRenderer,
   loadUpdateState,
   getActiveRendererPath,
 } from './UpdateCoordinator'
