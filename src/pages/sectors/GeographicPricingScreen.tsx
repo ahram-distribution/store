@@ -7,15 +7,18 @@ import toast from 'react-hot-toast'
 import { supabase } from '../../lib/supabase'
 import type { Sector, GeographicPriceRule, GeographicCustomerCount } from '../../types/sectors'
 
-const SCOPE_LABELS: Record<string, string> = {
-  sector: 'قطاع',
-  governorate: 'محافظة',
-  company_sector: 'شركة + قطاع',
-  product_sector: 'صنف + قطاع',
-  company_governorate: 'شركة + محافظة',
-  product_governorate: 'صنف + محافظة',
-  product_company_governorate: 'صنف + شركة + محافظة',
-}
+const SCOPE_OPTIONS: { value: string; label: string }[] = [
+  { value: 'sector', label: 'القطاع بالكامل' },
+  { value: 'governorate', label: 'محافظة بالكامل' },
+  { value: 'company_sector', label: 'شركات محددة داخل القطاع' },
+  { value: 'company_governorate', label: 'شركات محددة داخل المحافظة' },
+  { value: 'product_sector', label: 'أصناف محددة داخل القطاع' },
+  { value: 'product_governorate', label: 'أصناف محددة داخل المحافظة' },
+]
+
+const SCOPE_LABELS: Record<string, string> = Object.fromEntries(
+  SCOPE_OPTIONS.map(o => [o.value, o.label])
+)
 
 const PRIORITY_LEVELS = ['صنف+شركة+محافظة', 'صنف+محافظة', 'شركة+محافظة', 'محافظة', 'قطاع', 'السعر الأصلي']
 
@@ -27,8 +30,6 @@ export function GeographicPricingScreen() {
   const [governorates, setGovernorates] = useState<any[]>([])
   const [companies, setCompanies] = useState<any[]>([])
   const [allProducts, setAllProducts] = useState<any[]>([])
-  const [selectedCompanyProducts, setSelectedCompanyProducts] = useState<any[]>([])
-  const [loadingCompanyProducts, setLoadingCompanyProducts] = useState(false)
   const [customerCounts, setCustomerCounts] = useState<GeographicCustomerCount[]>([])
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
@@ -37,7 +38,7 @@ export function GeographicPricingScreen() {
   const [editingRule, setEditingRule] = useState<GeographicPriceRule | null>(null)
   const [ruleName, setRuleName] = useState('')
   const [ruleAdj, setRuleAdj] = useState('')
-  const [ruleScope, setRuleScope] = useState<string>('sector')
+  const [ruleScope, setRuleScope] = useState<string>('')
   const [ruleSectorId, setRuleSectorId] = useState('')
   const [ruleGovId, setRuleGovId] = useState('')
   const [ruleCompanyIds, setRuleCompanyIds] = useState<string[]>([])
@@ -74,27 +75,9 @@ export function GeographicPricingScreen() {
   useEffect(() => { loadData() }, [])
 
   const showSectorField = ['sector', 'company_sector', 'product_sector'].includes(ruleScope)
-  const showGovFields = ['governorate', 'company_governorate', 'product_governorate', 'product_company_governorate'].includes(ruleScope)
-  const showCompanyField = ['company_governorate', 'product_company_governorate', 'company_sector', 'product_sector'].includes(ruleScope)
-  const showProductField = ['product_governorate', 'product_company_governorate', 'product_sector'].includes(ruleScope)
-
-  useEffect(() => {
-    if (ruleCompanyIds.length === 0) {
-      setSelectedCompanyProducts([])
-      return
-    }
-    setLoadingCompanyProducts(true)
-    supabase.from('products')
-      .select('id, product_name')
-      .eq('is_active', true)
-      .in('company_id', ruleCompanyIds)
-      .order('product_name')
-      .then(({ data }) => { if (data) setSelectedCompanyProducts(data) })
-      .catch(() => setSelectedCompanyProducts([]))
-      .finally(() => setLoadingCompanyProducts(false))
-  }, [ruleCompanyIds])
-
-  const products = showCompanyField && ruleCompanyIds.length > 0 ? selectedCompanyProducts : allProducts
+  const showGovField = ['governorate', 'company_governorate', 'product_governorate'].includes(ruleScope)
+  const showCompanyField = ['company_sector', 'company_governorate'].includes(ruleScope)
+  const showProductField = ['product_sector', 'product_governorate'].includes(ruleScope)
 
   const activeRules = rules.filter(r => r.is_active)
   const govWithCustomers = useMemo(() => {
@@ -105,31 +88,31 @@ export function GeographicPricingScreen() {
   const activeSectors = sectors.filter(s => s.is_active)
 
   async function handleSave() {
-    if (!ruleName.trim() || !ruleAdj) { toast.error('اسم القاعدة ونسبة التعديل مطلوبان'); return }
+    if (!ruleName.trim()) { toast.error('اسم القاعدة مطلوب'); return }
+    if (!ruleAdj && ruleAdj !== '0') { toast.error('نسبة التغير مطلوبة'); return }
+    if (!ruleScope) { toast.error('اختر نطاق القاعدة'); return }
+    if (showSectorField && !ruleSectorId) { toast.error('اختر القطاع'); return }
+    if (showGovField && !ruleGovId) { toast.error('اختر المحافظة'); return }
+    if (showCompanyField && ruleCompanyIds.length === 0) { toast.error('اختر شركة واحدة على الأقل'); return }
+    if (showProductField && ruleProductIds.length === 0) { toast.error('اختر صنف واحد على الأقل'); return }
+
     setSubmitting(true)
     try {
+      const payload: Record<string, unknown> = {
+        rule_name: ruleName,
+        adjustment_percent: parseFloat(ruleAdj),
+        scope: ruleScope,
+        sector_id: showSectorField ? ruleSectorId : null,
+        governorate_id: showGovField ? ruleGovId : null,
+        company_ids: showCompanyField ? ruleCompanyIds : [],
+        product_ids: showProductField ? ruleProductIds : [],
+      }
+
       if (editingRule) {
-        const patch: Record<string, unknown> = {
-          rule_name: ruleName,
-          adjustment_percent: parseFloat(ruleAdj),
-          scope: ruleScope,
-          sector_id: showSectorField ? ruleSectorId || null : null,
-          governorate_id: showGovFields ? ruleGovId || null : null,
-          company_ids: showCompanyField ? ruleCompanyIds : [],
-          product_ids: showProductField ? ruleProductIds : [],
-        }
-        await sectorsService.updateGeographicPriceRule(editingRule.id, patch as any)
+        await sectorsService.updateGeographicPriceRule(editingRule.id, payload as any)
         toast.success('تم تعديل القاعدة')
       } else {
-        await sectorsService.createGeographicPriceRule({
-          rule_name: ruleName,
-          adjustment_percent: parseFloat(ruleAdj),
-          scope: ruleScope,
-          sector_id: ruleSectorId || undefined,
-          governorate_id: ruleGovId || undefined,
-          company_ids: showCompanyField ? ruleCompanyIds : [],
-          product_ids: showProductField ? ruleProductIds : [],
-        })
+        await sectorsService.createGeographicPriceRule(payload as any)
         toast.success('تم إنشاء القاعدة')
       }
       setShowForm(false)
@@ -154,7 +137,7 @@ export function GeographicPricingScreen() {
   }
 
   function resetForm() {
-    setRuleName(''); setRuleAdj(''); setRuleScope('sector')
+    setRuleName(''); setRuleAdj(''); setRuleScope('')
     setRuleSectorId(''); setRuleGovId(''); setRuleCompanyIds([]); setRuleProductIds([])
   }
 
@@ -178,18 +161,10 @@ export function GeographicPricingScreen() {
 
   function handleScopeChange(newScope: string) {
     setRuleScope(newScope)
-    if (!['governorate', 'company_governorate', 'product_governorate', 'product_company_governorate'].includes(newScope)) {
-      setRuleGovId('')
-    }
-    if (!['sector', 'company_sector', 'product_sector'].includes(newScope)) {
-      setRuleSectorId('')
-    }
-    if (!['company_governorate', 'product_company_governorate', 'company_sector', 'product_sector'].includes(newScope)) {
-      setRuleCompanyIds([])
-    }
-    if (!['product_governorate', 'product_company_governorate', 'product_sector'].includes(newScope)) {
-      setRuleProductIds([])
-    }
+    setRuleSectorId('')
+    setRuleGovId('')
+    setRuleCompanyIds([])
+    setRuleProductIds([])
   }
 
   return (
@@ -231,57 +206,63 @@ export function GeographicPricingScreen() {
           {showForm && (
             <div className="bg-white rounded-lg border border-border p-4 space-y-3">
               <h2 className="text-sm font-bold text-text">{editingRule ? 'تعديل القاعدة' : 'قاعدة تسعير جديدة'}</h2>
-              <input type="text" value={ruleName} onChange={e => setRuleName(e.target.value)} placeholder="اسم القاعدة *" className="w-full border border-border rounded-lg px-3 py-2 text-sm" />
+
               <div>
-                <label className="text-[11px] font-bold text-text-secondary block mb-1">نسبة التعديل (%) *</label>
-                <input type="number" step="0.01" value={ruleAdj} onChange={e => setRuleAdj(e.target.value)} placeholder="+10 أو -5.5" className="w-full border border-border rounded-lg px-3 py-2 text-sm" dir="ltr" />
+                <label className="text-[11px] font-bold text-text-secondary block mb-1">اسم القاعدة *</label>
+                <input type="text" value={ruleName} onChange={e => setRuleName(e.target.value)} placeholder="اسم القاعدة" className="w-full border border-border rounded-lg px-3 py-2 text-sm" />
               </div>
+
               <div>
-                <label className="text-[11px] font-bold text-text-secondary block mb-1">نطاق القاعدة</label>
+                <label className="text-[11px] font-bold text-text-secondary block mb-1">نسبة التغير (%) *</label>
+                <input type="number" step="0.01" value={ruleAdj} onChange={e => setRuleAdj(e.target.value)} placeholder="2 أو -2 أو 0" className="w-full border border-border rounded-lg px-3 py-2 text-sm" dir="ltr" />
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-text-secondary block mb-1">نطاق القاعدة *</label>
                 <select value={ruleScope} onChange={e => handleScopeChange(e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-white">
-                  {Object.entries(SCOPE_LABELS).map(([val, label]) => <option key={val} value={val}>{label}</option>)}
+                  <option value="">اختر النطاق</option>
+                  {SCOPE_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
                 </select>
               </div>
+
               {showSectorField && (
                 <div>
                   <label className="text-[11px] font-bold text-text-secondary block mb-1">القطاع</label>
                   <SearchableSelect items={activeSectors.map(s => ({ id: s.id, name: s.name_ar || s.name }))} value={ruleSectorId} onChange={setRuleSectorId} placeholder="اختر القطاع" />
                 </div>
               )}
-              {showGovFields && (
+
+              {showGovField && (
                 <div>
                   <label className="text-[11px] font-bold text-text-secondary block mb-1">المحافظة</label>
                   <SearchableSelect items={governorates.map(g => ({ id: g.id, name: g.name_ar }))} value={ruleGovId} onChange={setRuleGovId} placeholder="اختر المحافظة" />
                 </div>
               )}
+
               {showCompanyField && (
                 <div>
                   <label className="text-[11px] font-bold text-text-secondary block mb-1">الشركات</label>
                   <MultiSearchableSelect
                     items={companies.map(c => ({ id: c.id, name: c.company_name }))}
                     values={ruleCompanyIds}
-                    onChange={(ids) => { setRuleCompanyIds(ids); setRuleProductIds([]) }}
+                    onChange={setRuleCompanyIds}
                     placeholder="اختر الشركات"
                   />
                 </div>
               )}
+
               {showProductField && (
                 <div>
                   <label className="text-[11px] font-bold text-text-secondary block mb-1">الأصناف</label>
-                  {showCompanyField && ruleCompanyIds.length === 0 ? (
-                    <div className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-surface text-text-secondary">
-                      اختر الشركات أولاً
-                    </div>
-                  ) : (
-                    <MultiSearchableSelect
-                      items={products.map(p => ({ id: p.id, name: p.product_name }))}
-                      values={ruleProductIds}
-                      onChange={setRuleProductIds}
-                      placeholder={loadingCompanyProducts ? 'جاري تحميل المنتجات...' : 'اختر الأصناف'}
-                    />
-                  )}
+                  <MultiSearchableSelect
+                    items={allProducts.map(p => ({ id: p.id, name: p.product_name }))}
+                    values={ruleProductIds}
+                    onChange={setRuleProductIds}
+                    placeholder="اختر الأصناف"
+                  />
                 </div>
               )}
+
               <div className="flex gap-2">
                 <button onClick={handleSave} disabled={submitting} className="flex-1 bg-primary text-white text-xs py-2 rounded-lg font-semibold">
                   {submitting ? 'جاري الحفظ...' : 'حفظ القاعدة'}
@@ -300,9 +281,9 @@ export function GeographicPricingScreen() {
                   <div className="flex items-start justify-between">
                     <div className="flex-1 min-w-0">
                       <div className="text-sm font-bold text-text">
-                        {rule.sector_name || rule.governorate_name || rule.rule_name}
+                        {rule.rule_name}
                       </div>
-                      <div className="text-[10px] text-text-secondary mt-0.5">{SCOPE_LABELS[rule.scope]}</div>
+                      <div className="text-[10px] text-text-secondary mt-0.5">{SCOPE_LABELS[rule.scope] || rule.scope}</div>
                       <div className="flex flex-wrap gap-1 mt-1">
                         {rule.sector_name && <span className="text-[9px] bg-primary/10 text-primary px-1.5 py-0.5 rounded">قطاع: {rule.sector_name}</span>}
                         {rule.governorate_name && <span className="text-[9px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded">محافظة: {rule.governorate_name}</span>}

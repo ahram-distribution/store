@@ -20,7 +20,7 @@ export interface GeographicPriceRule {
   id: string
   rule_name: string
   adjustment_percent: number
-  scope: 'sector' | 'governorate' | 'company_governorate' | 'product_governorate' | 'product_company_governorate' | 'company_sector' | 'product_sector'
+  scope: string
   sector_id: string | null
   sector_name: string | null
   governorate_id: string | null
