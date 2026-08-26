@@ -66,22 +66,22 @@ export const sectorsService = {
 
   async createGeographicPriceRule(params: {
     rule_name: string; adjustment_percent: number; scope: string;
-    sector_id?: string; governorate_id?: string; company_id?: string; product_id?: string;
+    sector_id?: string; governorate_id?: string; company_ids?: string[]; product_ids?: string[];
   }): Promise<string> {
     const token = getToken()
     if (!token) throw new Error('NO_SESSION')
     return rpc<string>('governed_create_geographic_price_rule', {
       p_token: token, p_rule_name: params.rule_name, p_adjustment_percent: params.adjustment_percent,
       p_scope: params.scope, p_sector_id: params.sector_id || null,
-      p_governorate_id: params.governorate_id || null, p_company_id: params.company_id || null,
-      p_product_id: params.product_id || null,
+      p_governorate_id: params.governorate_id || null,
+      p_company_ids: params.company_ids || [], p_product_ids: params.product_ids || [],
     })
   },
 
   async updateGeographicPriceRule(id: string, patch: {
     rule_name?: string; adjustment_percent?: number; is_active?: boolean;
     scope?: string; sector_id?: string; governorate_id?: string;
-    company_id?: string | null; product_id?: string | null;
+    company_ids?: string[] | null; product_ids?: string[] | null;
   }): Promise<boolean> {
     const token = getToken()
     if (!token) throw new Error('NO_SESSION')
@@ -90,7 +90,7 @@ export const sectorsService = {
       p_rule_name: patch.rule_name ?? null, p_adjustment_percent: patch.adjustment_percent ?? null,
       p_is_active: patch.is_active ?? null, p_scope: patch.scope ?? null,
       p_sector_id: patch.sector_id ?? null, p_governorate_id: patch.governorate_id ?? null,
-      p_company_id: patch.company_id ?? null, p_product_id: patch.product_id ?? null,
+      p_company_ids: patch.company_ids ?? null, p_product_ids: patch.product_ids ?? null,
     })
   },
 

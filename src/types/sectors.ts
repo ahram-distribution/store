@@ -25,10 +25,10 @@ export interface GeographicPriceRule {
   sector_name: string | null
   governorate_id: string | null
   governorate_name: string | null
-  company_id: string | null
-  company_name: string | null
-  product_id: string | null
-  product_name: string | null
+  company_ids: string[]
+  company_names: string[]
+  product_ids: string[]
+  product_names: string[]
   is_active: boolean
   created_at: string
   updated_at: string
