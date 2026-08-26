@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { CartItem, CartDealItem, CartTotals, TierConfig, ProductWithPrice, UnitType, DailyDealRecord, FlashOfferRecord } from '../types/storefront'
 import { computeProductPrices, getEffectiveUnitPrice, computePieceQuantity, computeCartTotals } from '../engine/pricing'
+import { supabase } from '../lib/supabase'
 import toast from 'react-hot-toast'
 
 interface CartCustomer {
@@ -10,6 +11,13 @@ interface CartCustomer {
   phone: string
   code?: string
   address?: string
+  governorateId?: string
+}
+
+interface GeographicContext {
+  governorateId: string | null
+  adjustmentPercent: number
+  ruleName: string | null
 }
 
 interface CartState {
@@ -22,6 +30,7 @@ interface CartState {
   selectedCustomer: CartCustomer | null
   editingOrderId: string | null
   orderType: string
+  geographicContext: GeographicContext | null
 
   setTiers: (tiers: TierConfig[]) => void
   setProducts: (products: ProductWithPrice[]) => void
@@ -46,6 +55,9 @@ interface CartState {
   setEditingOrder: (orderId: string | null) => void
   setOrderType: (orderType: string) => void
   restoreCart: (items: CartItem[], editingOrderId: string, restoreOrderType?: string) => void
+  resolveGeographicPricing: (governorateId: string | null, companyId?: string, productId?: string) => Promise<void>
+  resolveEmployeeGeographicContext: (employeeId: string) => Promise<void>
+  setGeographicContext: (ctx: GeographicContext | null) => void
 }
 
 export const useCartStore = create(
@@ -61,7 +73,7 @@ export const useCartStore = create(
         const s = get()
         const cartEmpty = s.items.length === 0 && s.dealItems.length === 0 && s.flashOfferItems.length === 0
         if (cartEmpty && (s.selectedCustomer || s.orderType || s.selectedTierId)) {
-          set({ selectedCustomer: null, orderType: '', selectedTierId: null, editingOrderId: null })
+          set({ selectedCustomer: null, orderType: '', selectedTierId: null, editingOrderId: null, geographicContext: null })
         }
       }
 
@@ -75,6 +87,7 @@ export const useCartStore = create(
       selectedCustomer: null,
       editingOrderId: null,
       orderType: '',
+      geographicContext: null,
 
       setTiers: (tiers) => set({ tiers }),
 
@@ -109,7 +122,8 @@ export const useCartStore = create(
 
         const state = get()
         const tier = state.getSelectedTier()
-        const prices = computeProductPrices(product, tier)
+        const geoAdj = state.geographicContext?.adjustmentPercent ?? 0
+        const prices = computeProductPrices(product, tier, undefined, geoAdj || undefined)
         const hasTier = tier !== null
         const unitPrice = getEffectiveUnitPrice(prices, unitType, hasTier)
         const pieceQuantity = computePieceQuantity(unitQuantity, unitType, product.cartonQuantity)
@@ -163,7 +177,8 @@ export const useCartStore = create(
         const product = state.products.find((p) => p.id === productId)
         if (!product) return
 
-        const prices = computeProductPrices(product, tier)
+        const geoAdj = state.geographicContext?.adjustmentPercent ?? 0
+        const prices = computeProductPrices(product, tier, undefined, geoAdj || undefined)
         const hasTier = tier !== null
         const unitPrice = getEffectiveUnitPrice(prices, unitType, hasTier)
         const pieceQuantity = computePieceQuantity(unitQuantity, unitType, product.cartonQuantity)
@@ -240,7 +255,7 @@ export const useCartStore = create(
        * Used for recovery and continuing the same order after accidental refresh.
        */
       clearCart: () => {
-        set({ items: [], dealItems: [], flashOfferItems: [] })
+        set({ items: [], dealItems: [], flashOfferItems: [], geographicContext: null })
         enforceCartInvariant()
       },
 
@@ -259,6 +274,7 @@ export const useCartStore = create(
         orderType: '',
         selectedTierId: null,
         editingOrderId: null,
+        geographicContext: null,
       }),
 
       getTotals: () => {
@@ -276,7 +292,8 @@ export const useCartStore = create(
       getEffectivePrice: (product, unitType) => {
         const state = get()
         const tier = state.getSelectedTier()
-        const prices = computeProductPrices(product, tier)
+        const geoAdj = state.geographicContext?.adjustmentPercent ?? undefined
+        const prices = computeProductPrices(product, tier, undefined, geoAdj)
         const hasTier = tier !== null
         return getEffectiveUnitPrice(prices, unitType, hasTier)
       },
@@ -284,10 +301,11 @@ export const useCartStore = create(
       recalculateAll: () => {
         const state = get()
         const tier = state.getSelectedTier()
+        const geoAdj = state.geographicContext?.adjustmentPercent ?? undefined
         const newItems = state.items.map((item) => {
           const product = state.products.find((p) => p.id === item.productId)
           if (!product) return item
-          const prices = computeProductPrices(product, tier)
+          const prices = computeProductPrices(product, tier, undefined, geoAdj)
           const hasTier = tier !== null
           const unitPrice = getEffectiveUnitPrice(prices, item.unitType, hasTier)
           const pieceQuantity = computePieceQuantity(item.unitQuantity, item.unitType, product.cartonQuantity)
@@ -306,6 +324,74 @@ export const useCartStore = create(
       setEditingOrder: (orderId) => set({ editingOrderId: orderId }),
 
       setOrderType: (orderType) => set({ orderType }),
+
+      setGeographicContext: (ctx) => {
+        set({ geographicContext: ctx })
+        get().recalculateAll()
+      },
+
+      resolveGeographicPricing: async (governorateId, companyId, productId) => {
+        if (!governorateId) {
+          set({ geographicContext: null })
+          get().recalculateAll()
+          return
+        }
+        try {
+          const { data, error } = await supabase.rpc('get_effective_geographic_adjustment', {
+            p_governorate_id: governorateId,
+            p_company_id: companyId || null,
+            p_product_id: productId || null,
+          })
+          if (error || !data || (Array.isArray(data) && data.length === 0)) {
+            set({ geographicContext: { governorateId, adjustmentPercent: 0, ruleName: null } })
+          } else {
+            const row = Array.isArray(data) ? data[0] : data
+            set({
+              geographicContext: {
+                governorateId,
+                adjustmentPercent: Number(row.adjustment_percent) ?? 0,
+                ruleName: row.rule_name || null,
+              },
+            })
+          }
+        } catch {
+          set({ geographicContext: { governorateId, adjustmentPercent: 0, ruleName: null } })
+        }
+        get().recalculateAll()
+      },
+
+      resolveEmployeeGeographicContext: async (employeeId) => {
+        try {
+          const token = localStorage.getItem('session_token')
+          if (!token) return
+          const { data } = await supabase.rpc('get_employee_geographic_assignments', {
+            p_token: token, p_employee_id: employeeId,
+          })
+          if (!Array.isArray(data) || data.length === 0) {
+            set({ geographicContext: null })
+            get().recalculateAll()
+            return
+          }
+          const governorateAssign = data.find((a: any) => a.assignment_type === 'governorate' && a.governorate_id)
+          if (governorateAssign) {
+            await get().resolveGeographicPricing(governorateAssign.governorate_id)
+            return
+          }
+          const sectorAssign = data.find((a: any) => a.assignment_type === 'sector' && a.sector_id)
+          if (sectorAssign) {
+            const { data: govRows } = await supabase.from('sector_governorates').select('governorate_id').eq('sector_id', sectorAssign.sector_id).limit(1)
+            if (govRows && govRows.length > 0) {
+              await get().resolveGeographicPricing(govRows[0].governorate_id)
+              return
+            }
+          }
+          set({ geographicContext: null })
+          get().recalculateAll()
+        } catch {
+          set({ geographicContext: null })
+          get().recalculateAll()
+        }
+      },
 
       restoreCart: (orderItems, editingOrderId, restoreOrderType) => {
         const state = get()

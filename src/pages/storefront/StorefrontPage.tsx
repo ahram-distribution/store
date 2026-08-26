@@ -45,6 +45,9 @@ export function StorefrontPage() {
     setEditingOrder,
     setOrderType,
     restoreCart,
+    geographicContext,
+    resolveEmployeeGeographicContext,
+    resolveGeographicPricing,
   } = useCartStore()
 
   const [searchQuery, setSearchQuery] = useState(searchParams.get('q') || '')
@@ -184,7 +187,11 @@ export function StorefrontPage() {
       const order = data.order
       const items = data.items || []
       if (order.customer_id) {
-        setSelectedCustomer({ id: order.customer_id, name: order.customer_name || '', phone: order.customer_phone || '', code: order.customer_code || '' })
+        supabase.from('customer_addresses').select('governorate_id').eq('customer_id', order.customer_id).eq('is_default', true).limit(1).maybeSingle().then(({ data: addr }) => {
+          setSelectedCustomer({ id: order.customer_id, name: order.customer_name || '', phone: order.customer_phone || '', code: order.customer_code || '', governorateId: addr?.governorate_id || undefined })
+        }).catch(() => {
+          setSelectedCustomer({ id: order.customer_id, name: order.customer_name || '', phone: order.customer_phone || '', code: order.customer_code || '' })
+        })
       }
       restoreCart(items, editOrderId, order.order_type)
     })
@@ -201,7 +208,11 @@ export function StorefrontPage() {
     supabase.rpc('get_governed_customer', { p_token: authToken, p_id: customerParam }).then(({ data }) => {
       if (!data) return
       const c = Array.isArray(data) ? data[0] : data
-      setSelectedCustomer({ id: c.id, name: c.company_name || '', phone: c.phone || '', code: c.code || '' })
+      supabase.from('customer_addresses').select('governorate_id').eq('customer_id', c.id).eq('is_default', true).limit(1).maybeSingle().then(({ data: addr }) => {
+        setSelectedCustomer({ id: c.id, name: c.company_name || '', phone: c.phone || '', code: c.code || '', governorateId: addr?.governorate_id || undefined })
+      }).catch(() => {
+        setSelectedCustomer({ id: c.id, name: c.company_name || '', phone: c.phone || '', code: c.code || '' })
+      })
     })
   }, [customerParam, authToken, editingOrderId, items.length])
 
@@ -223,6 +234,17 @@ export function StorefrontPage() {
     const timer = setTimeout(() => el.classList.remove('highlight-flash'), 2000)
     return () => clearTimeout(timer)
   }, [highlightId, loadingProducts])
+
+  useEffect(() => {
+    if (user?.identity_type !== 'employee' || !user.employee_id) return
+    if (selectedCustomer?.governorateId) return
+    resolveEmployeeGeographicContext(user.employee_id)
+  }, [user?.employee_id, user?.identity_type, selectedCustomer?.governorateId, resolveEmployeeGeographicContext])
+
+  useEffect(() => {
+    if (!selectedCustomer?.governorateId) return
+    resolveGeographicPricing(selectedCustomer.governorateId)
+  }, [selectedCustomer?.governorateId, resolveGeographicPricing])
 
   // ── Expanded card: Escape key + scroll lock ──
   useEffect(() => {
@@ -417,7 +439,12 @@ export function StorefrontPage() {
                   <button
                     key={c.id}
                     onClick={() => {
-                      setSelectedCustomer({ id: c.id, name: c.company_name || '', phone: c.phone || '', code: c.code || '', address: '' })
+                      const govPromise = supabase.from('customer_addresses').select('governorate_id').eq('customer_id', c.id).eq('is_default', true).limit(1).maybeSingle()
+                      govPromise.then(({ data: addr }) => {
+                        setSelectedCustomer({ id: c.id, name: c.company_name || '', phone: c.phone || '', code: c.code || '', address: '', governorateId: addr?.governorate_id || undefined })
+                      }).catch(() => {
+                        setSelectedCustomer({ id: c.id, name: c.company_name || '', phone: c.phone || '', code: c.code || '', address: '' })
+                      })
                       setCustomerPickerOpen(false)
                       setCustomerSearch('')
                     }}
@@ -502,7 +529,12 @@ export function StorefrontPage() {
                       <button
                         key={c.id}
                         onClick={() => {
-                          setSelectedCustomer({ id: c.id, name: c.company_name || '', phone: c.phone || '', code: c.code || '', address: '' })
+                          const govPromise = supabase.from('customer_addresses').select('governorate_id').eq('customer_id', c.id).eq('is_default', true).limit(1).maybeSingle()
+                          govPromise.then(({ data: addr }) => {
+                            setSelectedCustomer({ id: c.id, name: c.company_name || '', phone: c.phone || '', code: c.code || '', address: '', governorateId: addr?.governorate_id || undefined })
+                          }).catch(() => {
+                            setSelectedCustomer({ id: c.id, name: c.company_name || '', phone: c.phone || '', code: c.code || '', address: '' })
+                          })
                           setCustomerSearch('')
                           setTimeout(() => handleInitComplete(), 0)
                         }}
@@ -608,7 +640,7 @@ export function StorefrontPage() {
             <div key={product.id} id={'product-' + product.id} className="rounded-xl transition-all duration-500">
               <ProductCard
                 product={product}
-                prices={computeProductPrices(product, selectedTier)}
+                prices={computeProductPrices(product, selectedTier, undefined, geographicContext?.adjustmentPercent ?? undefined)}
                 hasTier={selectedTier !== null}
                 tierName={selectedTier?.name ?? null}
                 onAddToCart={handleAddToCart}
@@ -640,7 +672,7 @@ export function StorefrontPage() {
           <div className="relative w-full max-w-md max-h-[92vh] overflow-y-auto rounded-2xl shadow-2xl animate-zoom-in">
             <ProductCard
               product={expandedProduct}
-              prices={computeProductPrices(expandedProduct, selectedTier)}
+              prices={computeProductPrices(expandedProduct, selectedTier, undefined, geographicContext?.adjustmentPercent ?? undefined)}
               hasTier={selectedTier !== null}
               tierName={selectedTier?.name ?? null}
               onAddToCart={handleAddToCart}

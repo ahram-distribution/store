@@ -159,7 +159,7 @@ export function salesRepRange(period: SalesRepPeriod, customFrom?: string, custo
   }
 }
 
-export type ResolvePreset = 'today' | 'yesterday' | 'week' | 'month' | 'prev_month' | 'custom'
+export type ResolvePreset = 'all' | 'today' | 'yesterday' | 'week' | 'prev_week' | 'month' | 'prev_month' | 'year' | 'custom'
 
 export function resolveDateRange(preset: ResolvePreset, customFrom?: string, customTo?: string): { from: string; to: string } {
   const nowUtc = new Date()
@@ -185,11 +185,24 @@ export function resolveDateRange(preset: ResolvePreset, customFrom?: string, cus
     case 'month': {
       return { from: `${y}-${pad(m)}-01`, to: `${y}-${pad(m)}-${pad(d)}` }
     }
+    case 'prev_week': {
+      const { year: pwsy, month: pwsm, day: pwsd } = getBusinessWeekStart(y, m, d)
+      const pwStart = new Date(pwsy, pwsm - 1, pwsd)
+      pwStart.setDate(pwStart.getDate() - 7)
+      const [py, pm, pd] = cairoDateComponents(pwStart)
+      const pwEnd = new Date(py, pm - 1, pd)
+      pwEnd.setDate(pwEnd.getDate() + 6)
+      const [pey, pem, ped] = cairoDateComponents(pwEnd)
+      return { from: `${py}-${pad(pm)}-${pad(pd)}`, to: `${pey}-${pad(pem)}-${pad(ped)}` }
+    }
     case 'prev_month': {
       const prevMonth = m === 1 ? 12 : m - 1
       const prevYear = m === 1 ? y - 1 : y
       const lastDay = new Date(prevYear, prevMonth, 0).getDate()
       return { from: `${prevYear}-${pad(prevMonth)}-01`, to: `${prevYear}-${pad(prevMonth)}-${pad(lastDay)}` }
+    }
+    case 'year': {
+      return { from: `${y}-01-01`, to: `${y}-${pad(m)}-${pad(d)}` }
     }
     case 'custom': {
       if (!customFrom || !customTo) {
@@ -199,17 +212,19 @@ export function resolveDateRange(preset: ResolvePreset, customFrom?: string, cus
       return { from: customFrom, to: customTo }
     }
     default:
-      return resolveDateRange('today')
+      return { from: '', to: '' }
   }
 }
 
-export type ResolvePresetISO = 'today' | 'yesterday' | 'week' | 'month' | 'prev_month' | 'custom'
+export type ResolvePresetISO = 'all' | 'today' | 'yesterday' | 'week' | 'prev_week' | 'month' | 'prev_month' | 'year' | 'custom'
 
 export function resolveDateRangeISO(preset: ResolvePresetISO, customFrom?: string, customTo?: string): { from: string | null; to: string | null } {
   const nowUtc = new Date()
   const [y, m, d] = cairoDateComponents(nowUtc)
 
   switch (preset) {
+    case 'all':
+      return { from: null, to: null }
     case 'today': {
       const from = cairoMidnightISO(y, m, d)
       return { from, to: nowUtc.toISOString() }
@@ -226,6 +241,10 @@ export function resolveDateRangeISO(preset: ResolvePresetISO, customFrom?: strin
       const { dateFrom, dateTo } = computeDateRange('week')
       return { from: dateFrom, to: dateTo }
     }
+    case 'prev_week': {
+      const { from: pwf, to: pwt } = resolveDateRange('prev_week')
+      return { from: cairoMidnightISO(...pwf.split('-').map(Number) as [number, number, number]), to: pwt ? cairoMidnightISO(...pwt.split('-').map(Number) as [number, number, number]) : nowUtc.toISOString() }
+    }
     case 'month': {
       const { dateFrom, dateTo } = computeDateRange('month')
       return { from: dateFrom, to: dateTo }
@@ -236,6 +255,9 @@ export function resolveDateRangeISO(preset: ResolvePresetISO, customFrom?: strin
       const from = cairoMidnightISO(prevYear, prevMonth, 1)
       const to = cairoMidnightISO(y, m, 1)
       return { from, to }
+    }
+    case 'year': {
+      return { from: cairoMidnightISO(y, 1, 1), to: nowUtc.toISOString() }
     }
     case 'custom': {
       if (!customFrom && !customTo) return { from: null, to: null }

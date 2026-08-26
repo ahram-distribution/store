@@ -80,6 +80,7 @@ export default function UpperManagementDashboard() {
     { icon: '📦', label: 'المخزون', path: '/launcher/inventory', isSubLauncher: true },
     { icon: '🧮', label: 'سهل', path: '/sahl' },
     { icon: '🏷️', label: 'الأقسام', path: '/launcher/deals', isSubLauncher: true },
+    { icon: '🗺️', label: 'القطاعات', path: '/sectors' },
     { icon: '📈', label: 'التقارير', path: '/launcher/reports', isSubLauncher: true },
     { icon: '💳', label: 'فواتير الائتمان', path: '/credit/invoices' },
     { icon: '📊', label: 'تحليل المبيعات', path: '/sales-analytics', navState: { scope: 'company' } },

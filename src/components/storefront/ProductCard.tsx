@@ -176,6 +176,9 @@ export function ProductCard({
         <div className={`flex flex-col gap-0.5 ${expanded ? 'text-sm' : 'text-xs'}`}>
           {product.unitPrices.map((up) => {
             const available = sellingUnits.includes(up.unitType)
+            const computedPrice = hasTier
+              ? (up.unitType === 'piece' ? prices.tierPiecePrice : up.unitType === 'dozen' ? prices.tierDozenPrice : prices.tierCartonPrice)
+              : (up.unitType === 'piece' ? prices.piecePrice : up.unitType === 'dozen' ? prices.dozenPrice : prices.cartonPrice)
             return (
               <div key={up.unitType} className="flex items-center justify-between">
                 <span className={available ? 'text-[#059669]' : 'text-[#DC2626]/60'}>
@@ -183,7 +186,7 @@ export function ProductCard({
                   {!available && <span className="text-[9px] mr-1 opacity-70">غير متوفر</span>}
                 </span>
                 <span className={`${available ? 'text-[#059669] font-bold text-sm' : 'text-[#DC2626]/60 font-normal text-[10px]'}`}>
-                  {formatCurrencyShort(up.price)}
+                  {formatCurrencyShort(computedPrice)}
                 </span>
               </div>
             )

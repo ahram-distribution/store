@@ -91,6 +91,7 @@ import { NotificationInbox } from '../components/notifications/NotificationInbox
 import { GpsTestPage } from '../pages/diagnostics'
 import CoverageMapPage from '../pages/coverage/CoverageMapPage'
 import { DataDeletionCenter } from '../pages/data-center/DataDeletionCenter'
+import { SectorsPage } from '../pages/sectors'
 import { isDeliveryStaffUser } from '../utils/roleNormalization'
 
 export function AppRoutes() {
@@ -274,6 +275,7 @@ export function AppRoutes() {
         <Route path="/sahl/invoices" element={<ProtectedRoute employeeOnly requireUpperManagement><SahlInvoicesPage /></ProtectedRoute>} />
         <Route path="/sahl/settings" element={<ProtectedRoute employeeOnly requireUpperManagement><SahlSettingsPage /></ProtectedRoute>} />
       <Route path="/coverage-map" element={<ProtectedRoute requireUpperManagement hideFromExecutiveDirector><CoverageMapPage /></ProtectedRoute>} />
+      <Route path="/sectors" element={<ProtectedRoute requireCapability="sectors.manage"><SectorsPage /></ProtectedRoute>} />
       <Route path="/data-center" element={<ProtectedRoute requireUpperManagement hideFromExecutiveDirector><DataDeletionCenter /></ProtectedRoute>} />
 
       <Route path="*" element={<NotFoundPage />} />

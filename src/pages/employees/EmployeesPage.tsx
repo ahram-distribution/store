@@ -3,6 +3,8 @@ import { usePersistentViewState } from '../../hooks/usePersistentViewState'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../store/auth'
+import { useCapability } from '../../hooks/useCapability'
+import { sectorsService } from '../../services/sectors'
 import { SearchableSelect } from '../../components/shared/SearchableSelect'
 import toast from 'react-hot-toast'
 
@@ -58,6 +60,15 @@ export function EmployeesPage({ embedded }: { embedded?: boolean }) {
   const [deleteStep, setDeleteStep] = useState(0)
   const [deleteResult, setDeleteResult] = useState<any | null>(null)
 
+  const canGeoAssignment = useCapability('geographic_assignment.manage')
+  const [showGeoAssign, setShowGeoAssign] = useState<string | null>(null)
+  const [geoAssignments, setGeoAssignments] = useState<Record<string, any[]>>({})
+  const [geoGovs, setGeoGovs] = useState<any[]>([])
+  const [geoSectors, setGeoSectors] = useState<any[]>([])
+  const [newGeoType, setNewGeoType] = useState<'governorate' | 'sector'>('governorate')
+  const [newGeoGovId, setNewGeoGovId] = useState('')
+  const [newGeoSectorId, setNewGeoSectorId] = useState('')
+
   useEffect(() => {
     const token = getToken()
     if (!token) { setLoading(false); return }
@@ -69,6 +80,15 @@ export function EmployeesPage({ embedded }: { embedded?: boolean }) {
       if (roleRes.data) setRoles(Array.isArray(roleRes.data) ? roleRes.data : [])
       setLoading(false)
     })
+    if (canGeoAssignment) {
+      Promise.all([
+        supabase.from('reference_governorates').select('id, name_ar').order('name_ar'),
+        sectorsService.getSectors(),
+      ]).then(([govRes, sectorData]) => {
+        if (govRes.data) setGeoGovs(govRes.data)
+        setGeoSectors(sectorData.filter((s: any) => s.is_active).map((s: any) => ({ id: s.id, name: s.name_ar || s.name })))
+      }).catch(() => {})
+    }
   }, [])
 
   const filtered = useMemo(() => {
@@ -209,6 +229,37 @@ export function EmployeesPage({ embedded }: { embedded?: boolean }) {
     setResetPwValue('')
   }
 
+  async function handleLoadGeoAssignments(empId: string) {
+    try {
+      const data = await sectorsService.getEmployeeAssignments(empId)
+      setGeoAssignments(prev => ({ ...prev, [empId]: data }))
+    } catch { setGeoAssignments(prev => ({ ...prev, [empId]: [] })) }
+  }
+
+  async function handleAddGeoAssignment(empId: string) {
+    if (newGeoType === 'governorate' && !newGeoGovId) { toast.error('اختر المحافظة'); return }
+    if (newGeoType === 'sector' && !newGeoSectorId) { toast.error('اختر القطاع'); return }
+    try {
+      await sectorsService.assignEmployeeGeographic({
+        employee_id: empId,
+        assignment_type: newGeoType,
+        governorate_id: newGeoType === 'governorate' ? newGeoGovId : undefined,
+        sector_id: newGeoType === 'sector' ? newGeoSectorId : undefined,
+      })
+      toast.success('تم التعيين')
+      setNewGeoGovId(''); setNewGeoSectorId('')
+      await handleLoadGeoAssignments(empId)
+    } catch (e: any) { toast.error(e?.message || 'فشل التعيين') }
+  }
+
+  async function handleRemoveGeoAssignment(assignmentId: string, empId: string) {
+    try {
+      await sectorsService.removeEmployeeGeographic(assignmentId)
+      toast.success('تم الإزالة')
+      await handleLoadGeoAssignments(empId)
+    } catch (e: any) { toast.error(e?.message) }
+  }
+
   async function handleConfirmDelete() {
     if (!deleteTarget) return
     setDeleteRunning(true)
@@ -339,6 +390,10 @@ export function EmployeesPage({ embedded }: { embedded?: boolean }) {
                   className="text-[10px] bg-surface text-text-secondary px-2 py-1 rounded">تغيير الصلاحية</button>
                 <button onClick={() => setShowResetPw(emp.id)}
                   className="text-[10px] bg-surface text-text-secondary px-2 py-1 rounded">إعادة كلمة المرور</button>
+                {canGeoAssignment && (
+                  <button onClick={() => { setShowGeoAssign(emp.id); handleLoadGeoAssignments(emp.id) }}
+                    className="text-[10px] bg-blue-50 text-blue-600 px-2 py-1 rounded">التعيين الجغرافي</button>
+                )}
                 {isExactUpperMgmt && currentUser?.employee_id !== emp.id && (
                   <button onClick={() => setDeleteTarget(emp)}
                     className="text-[10px] bg-danger/10 text-danger px-2 py-1 rounded">حذف الحساب</button>
@@ -393,6 +448,43 @@ export function EmployeesPage({ embedded }: { embedded?: boolean }) {
                     <button onClick={() => handleResetPassword(emp.id)} className="flex-1 bg-accent text-white text-xs py-1.5 rounded-lg">تأكيد</button>
                     <button onClick={() => { setShowResetPw(null); setResetPwValue('') }} className="px-4 border border-border rounded-lg text-xs">إلغاء</button>
                   </div>
+                </div>
+              )}
+
+              {showGeoAssign === emp.id && (
+                <div className="mt-3 border-t border-border pt-3 space-y-2">
+                  <p className="text-xs font-bold text-primary">التعيين الجغرافي</p>
+                  {(geoAssignments[emp.id] || []).length > 0 && (
+                    <div className="space-y-1">
+                      {(geoAssignments[emp.id] || []).map((a: any) => (
+                        <div key={a.id} className="flex items-center justify-between bg-surface rounded-lg px-2 py-1.5 text-[11px]">
+                          <span>
+                            {a.assignment_type === 'sector' ? 'قطاع: ' : 'محافظة: '}
+                            <span className="font-semibold">{a.assignment_type === 'sector' ? a.sector_name : a.governorate_name}</span>
+                          </span>
+                          <button onClick={() => handleRemoveGeoAssignment(a.id, emp.id)} className="text-danger text-[10px]">إزالة</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div className="flex gap-1.5">
+                    <select value={newGeoType} onChange={e => { setNewGeoType(e.target.value as any); setNewGeoGovId(''); setNewGeoSectorId('') }}
+                      className="border border-border rounded-lg px-2 py-1.5 text-[11px] bg-white">
+                      <option value="governorate">محافظة</option>
+                      <option value="sector">قطاع</option>
+                    </select>
+                    {newGeoType === 'governorate' ? (
+                      <div className="flex-1">
+                        <SearchableSelect items={geoGovs.map(g => ({ id: g.id, name: g.name_ar }))} value={newGeoGovId} onChange={setNewGeoGovId} placeholder="محافظة" />
+                      </div>
+                    ) : (
+                      <div className="flex-1">
+                        <SearchableSelect items={geoSectors} value={newGeoSectorId} onChange={setNewGeoSectorId} placeholder="قطاع" />
+                      </div>
+                    )}
+                    <button onClick={() => handleAddGeoAssignment(emp.id)} className="bg-primary text-white text-[10px] px-2 py-1 rounded">+</button>
+                  </div>
+                  <button onClick={() => setShowGeoAssign(null)} className="text-[10px] text-text-secondary">إغلاق</button>
                 </div>
               )}
             </div>
