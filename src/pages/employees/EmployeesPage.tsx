@@ -80,15 +80,13 @@ export function EmployeesPage({ embedded }: { embedded?: boolean }) {
       if (roleRes.data) setRoles(Array.isArray(roleRes.data) ? roleRes.data : [])
       setLoading(false)
     })
-    if (canGeoAssignment) {
-      Promise.all([
-        supabase.from('reference_governorates').select('id, name_ar').order('name_ar'),
-        sectorsService.getSectors(),
-      ]).then(([govRes, sectorData]) => {
-        if (govRes.data) setGeoGovs(govRes.data)
-        setGeoSectors(sectorData.filter((s: any) => s.is_active).map((s: any) => ({ id: s.id, name: s.name_ar || s.name })))
-      }).catch(() => {})
-    }
+    Promise.all([
+      supabase.from('reference_governorates').select('id, name_ar').order('name_ar'),
+      sectorsService.getSectors(),
+    ]).then(([govRes, sectorData]) => {
+      if (govRes.data) setGeoGovs(govRes.data)
+      setGeoSectors(sectorData.filter((s: any) => s.is_active).map((s: any) => ({ id: s.id, name: s.name_ar || s.name })))
+    }).catch(() => {})
   }, [])
 
   const filtered = useMemo(() => {
