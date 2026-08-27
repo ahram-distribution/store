@@ -1,28 +1,18 @@
 import { useEffect, useState } from 'react'
+import { usePwaInstall } from '../../hooks/usePwaInstall'
 
 export function InstallBanner() {
-  const [deferredPrompt, setDeferredPrompt] = useState<any>(null)
+  const { capability, openInstall } = usePwaInstall()
   const [show, setShow] = useState(false)
   const [dismissed, setDismissed] = useState(false)
 
   useEffect(() => {
-    const handler = (e: Event) => {
-      e.preventDefault()
-      setDeferredPrompt(e)
-      setShow(true)
-    }
-    window.addEventListener('beforeinstallprompt', handler)
-    return () => window.removeEventListener('beforeinstallprompt', handler)
-  }, [])
+    if (capability === 'native_prompt') setShow(true)
+  }, [capability])
 
   const handleInstall = async () => {
-    if (!deferredPrompt) return
-    deferredPrompt.prompt()
-    const result = await deferredPrompt.userChoice
-    if (result.outcome === 'accepted') {
-      setShow(false)
-    }
-    setDeferredPrompt(null)
+    const started = await openInstall()
+    if (started) setShow(false)
   }
 
   const handleDismiss = () => {

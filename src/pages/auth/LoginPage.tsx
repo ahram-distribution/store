@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { toEnglishDigits } from '../../utils/format'
 import { useAuthStore } from '../../store/auth'
 import { useCompanyProfile } from '../../hooks/useCompanyProfile'
+import { usePwaInstall, getInstallSteps } from '../../hooks/usePwaInstall'
 import toast from 'react-hot-toast'
 
 interface ContactEntry {
@@ -34,6 +35,7 @@ export function LoginPage() {
   const [showContactSheet, setShowContactSheet] = useState(false)
   const [showInstallDialog, setShowInstallDialog] = useState(false)
   const phoneRef = useRef<HTMLInputElement>(null)
+  const { capability, browser, openInstall } = usePwaInstall()
 
   useEffect(() => { phoneRef.current?.focus() }, [])
 
@@ -45,8 +47,9 @@ export function LoginPage() {
     }
   }, [sessionExpired, clearSessionExpired])
 
-  const handleInstallClick = () => {
-    setShowInstallDialog(true)
+  const handleInstallClick = async () => {
+    const nativeStarted = await openInstall()
+    if (!nativeStarted) setShowInstallDialog(true)
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -72,13 +75,31 @@ export function LoginPage() {
   }
 
   const contactEntries = profile ? buildContactEntries(profile) : []
-  const ua = typeof navigator !== 'undefined' ? navigator.userAgent.toLowerCase() : ''
-  const isAndroid = /android/.test(ua)
-  const isIPhone = /iphone|ipad|ipod/.test(ua)
+  const installSteps = getInstallSteps(browser, capability)
 
   return (
-    <div style={{ background: '#071B4D', minHeight: '100vh' }}>
-      <div style={{ maxWidth: 400, margin: '0 auto', padding: '20px 20px 12px' }}>
+    <div style={{ position: 'relative', background: '#071B4D', minHeight: '100vh' }}>
+      {/* ── BACKGROUND IMAGE (fixed, aspect-safe cover) ── */}
+      <div
+        style={{
+          position: 'fixed',
+          inset: 0,
+          backgroundImage: `url(${import.meta.env.BASE_URL}branding/login-background.png)`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center center',
+          backgroundRepeat: 'no-repeat',
+        }}
+      />
+      {/* ── SOFT OVERLAY FOR READABILITY ── */}
+      <div
+        style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(7, 27, 77, 0.45)',
+        }}
+      />
+
+      <div style={{ position: 'relative', maxWidth: 400, margin: '0 auto', padding: '20px 20px 12px' }}>
 
         {/* ── HEADER ── */}
         <div style={{ textAlign: 'center' }}>
@@ -90,7 +111,7 @@ export function LoginPage() {
           <div style={{ color: '#E0B85A', fontSize: 20, fontWeight: 700, marginTop: 8 }}>
             الأهرام للتجارة والتوزيع
           </div>
-          <div style={{ color: '#6b7280', fontSize: 12, marginTop: 4 }}>
+          <div style={{ color: '#E0B85A', fontSize: 12, marginTop: 4 }}>
             منصة إدارة الطلبات والمبيعات والتوزيع
           </div>
         </div>
@@ -166,24 +187,6 @@ export function LoginPage() {
             >
               {submitting ? 'جاري تسجيل الدخول...' : 'تسجيل الدخول'}
             </button>
-            <button
-              type="button"
-              onClick={() => navigate('/register')}
-              style={{
-                width: '100%',
-                padding: 13,
-                borderRadius: 10,
-                background: 'transparent',
-                color: '#C9A227',
-                fontSize: 15,
-                fontWeight: 600,
-                border: '1px solid #C9A227',
-                cursor: 'pointer',
-                marginTop: 8,
-              }}
-            >
-              إنشاء حساب جديد
-            </button>
           </form>
         </div>
 
@@ -207,25 +210,27 @@ export function LoginPage() {
           {'\uD83D\uDCDE'} تواصل معنا
         </button>
 
-        {/* ── INSTALL BUTTON ── */}
-        <button
-          type="button"
-          onClick={handleInstallClick}
-          style={{
-            width: '100%',
-            padding: 13,
-            borderRadius: 10,
-            background: '#0F2B5B',
-            border: '1px solid #1a3a6e',
-            color: '#C9A227',
-            fontSize: 14,
-            fontWeight: 700,
-            cursor: 'pointer',
-            marginTop: 8,
-          }}
-        >
-          {'\u2B07'} تثبيت التطبيق
-        </button>
+        {/* ── INSTALL BUTTON (hidden when already installed) ── */}
+        {capability !== 'already_installed' && (
+          <button
+            type="button"
+            onClick={handleInstallClick}
+            style={{
+              width: '100%',
+              padding: 13,
+              borderRadius: 10,
+              background: '#0F2B5B',
+              border: '1px solid #1a3a6e',
+              color: '#C9A227',
+              fontSize: 14,
+              fontWeight: 700,
+              cursor: 'pointer',
+              marginTop: 8,
+            }}
+          >
+            {'\u2B07'} تثبيت التطبيق
+          </button>
+        )}
 
       </div>
 
@@ -306,15 +311,37 @@ export function LoginPage() {
             width: '100%',
           }}>
             <div style={{ textAlign: 'center' }}>
-              <div style={{ color: '#E0B85A', fontSize: 16, fontWeight: 700 }}>{'\u2B07'} تثبيت التطبيق</div>
-              <div style={{ color: '#9ca3af', fontSize: 13, marginTop: 16, lineHeight: 1.6 }}>
-                {isAndroid ? (
-                  'افتح قائمة المتصفح ثم اختر\nإضافة إلى الشاشة الرئيسية'
-                ) : isIPhone ? (
-                  'اضغط مشاركة\nثم إضافة إلى الشاشة الرئيسية'
-                ) : (
-                  'استخدم خيار\nInstall App أو Add To Desktop\nحسب إمكانيات المتصفح'
-                )}
+              <div style={{ color: '#E0B85A', fontSize: 16, fontWeight: 700 }}>
+                {'\u2B07'}{' '}
+                {capability === 'ios_share'
+                  ? 'لتثبيت التطبيق على iPhone / iPad'
+                  : capability === 'native_pending'
+                    ? 'التثبيت المباشر غير متاح بعد'
+                    : capability === 'unsupported'
+                      ? 'التثبيت غير مدعوم في هذا المتصفح'
+                      : 'تثبيت التطبيق'}
+              </div>
+              <div style={{ marginTop: 14, textAlign: 'right' }}>
+                {installSteps.map((step, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginTop: 8 }}>
+                    <div style={{
+                      width: 22,
+                      height: 22,
+                      borderRadius: 11,
+                      background: '#C9A227',
+                      color: '#071B4D',
+                      fontSize: 12,
+                      fontWeight: 700,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                    }}>
+                      {i + 1}
+                    </div>
+                    <div style={{ color: '#ffffff', fontSize: 13, lineHeight: 1.6, paddingTop: 2 }}>{step}</div>
+                  </div>
+                ))}
               </div>
               <button
                 type="button"
