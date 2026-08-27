@@ -312,6 +312,7 @@ export function StorefrontPage() {
   }, [expandedId])
 
   const isEmployee = user?.identity_type === 'employee'
+  const isDirectCustomer = user?.identity_type === 'customer'
   const needsCustomer = isEmployee && !selectedCustomer
 
   const selectedTier = getSelectedTier()
@@ -359,6 +360,15 @@ export function StorefrontPage() {
   const expandedProduct = expandedId ? filteredProducts.find((p) => p.id === expandedId) ?? null : null
 
   const handleAddToCart = (product: ProductWithPrice, unitType: UnitType, quantity: number) => {
+    // Direct customer (self-purchase): establish CASH order context automatically
+    // and add the product immediately — never open order-type/customer dialogs.
+    // Skip the order-type assignment while editing a returned-for-revision order
+    // so its restored type is preserved.
+    if (isDirectCustomer) {
+      if (!editingOrderId && orderType !== 'cash') setOrderType('cash')
+      addItem(product, unitType, quantity)
+      return
+    }
     if (!isEmployee && !orderType && !editingOrderId) {
       pendingAddRef.current = { product, unitType, quantity, scrollY: window.scrollY }
       setInitStep('type')

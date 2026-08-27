@@ -38,7 +38,8 @@ function hashId(id: string): number {
 export function CartPage() {
   const navigate = useNavigate()
   const [hydrated, setHydrated] = useState(false)
-  const { token: authToken } = useAuthStore()
+  const { token: authToken, user } = useAuthStore()
+  const isDirectCustomer = user?.identity_type === 'customer'
   const [editingOrderType, setEditingOrderType] = useState(false)
   const [editingCustomer, setEditingCustomer] = useState(false)
   const [customers, setCustomers] = useState<any[]>([])
@@ -211,7 +212,7 @@ export function CartPage() {
                 <div className="text-sm font-semibold text-text">{orderType === 'credit' ? 'آجل' : orderType === 'ittiman' ? 'ائتمان' : orderType === 'cash' ? 'نقداً' : 'غير محدد'}</div>
               )}
             </div>
-            {!editingOrderType && (
+            {!editingOrderType && !isDirectCustomer && (
               <button onClick={() => setEditingOrderType(true)} className="text-xs text-primary font-semibold">تغيير</button>
             )}
           </div>
@@ -238,7 +239,7 @@ export function CartPage() {
                 <div className="text-sm font-semibold text-text truncate">{selectedCustomer?.name || 'غير محدد'}</div>
               )}
             </div>
-            {!editingCustomer && (
+            {!editingCustomer && !isDirectCustomer && (
               <button onClick={() => { setEditingCustomer(true); fetchCustomers() }} className="text-xs text-primary font-semibold shrink-0 ml-3">تغيير</button>
             )}
           </div>
