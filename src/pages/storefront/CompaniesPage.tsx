@@ -26,6 +26,9 @@ export function CompaniesPage() {
   const customerParam = searchParams.get('customer')
   const setOrderType = useCartStore((s) => s.setOrderType)
   const geographicContext = useCartStore((s) => s.geographicContext)
+  const geoItemAdjustments = useCartStore((s) => s.geoItemAdjustments)
+  const geoResolveEpoch = useCartStore((s) => s.geoResolveEpoch)
+  const ensureGeoItemAdjustments = useCartStore((s) => s.ensureGeoItemAdjustments)
   const refreshKey = useCompaniesStore((s) => s.refreshKey)
   const setStoreCompanies = useCompaniesStore((s) => s.setCompanies)
   const { token: authToken } = useAuthStore()
@@ -141,6 +144,12 @@ export function CompaniesPage() {
     }
   }, [isSearching, fetchAllProducts])
 
+  useEffect(() => {
+    if (searchProducts.length > 0) {
+      ensureGeoItemAdjustments(searchProducts)
+    }
+  }, [searchProducts, geographicContext?.governorateId, geoResolveEpoch, ensureGeoItemAdjustments])
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-16">
@@ -214,7 +223,7 @@ export function CompaniesPage() {
                         )}
                       </div>
                       <div className="text-xs text-primary font-semibold shrink-0">
-                        {product.cartonPrice > 0 ? `${formatNumber(applyGeographicAdjustment(product.cartonPrice, geographicContext?.adjustmentPercent ?? 0))} ج.` : ''}
+                        {product.cartonPrice > 0 ? `${formatNumber(applyGeographicAdjustment(product.cartonPrice, geoItemAdjustments[product.id] ?? geographicContext?.adjustmentPercent ?? 0))} ج.` : ''}
                       </div>
                     </div>
                   </button>

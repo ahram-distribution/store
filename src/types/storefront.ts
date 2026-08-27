@@ -15,6 +15,7 @@ export interface CartItem {
   imageUrl?: string
   companyId?: string
   companyName?: string
+  geoAdjustPercent?: number
 }
 
 export interface CartDealItem {

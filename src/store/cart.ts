@@ -5,6 +5,7 @@ import { computeProductPrices, getEffectiveUnitPrice, computePieceQuantity, comp
 import { supabase } from '../lib/supabase'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import toast from 'react-hot-toast'
+import { currentGeoEpoch, getGeographicAdjustmentsForProducts, invalidateGeographicResolutions } from '../services/geographicPricing'
 
 let geoRulesChannel: RealtimeChannel | null = null
 let _geoResolveVersion = 0
@@ -35,6 +36,9 @@ interface CartState {
   editingOrderId: string | null
   orderType: string
   geographicContext: GeographicContext | null
+  geoItemAdjustments: Record<string, number>
+  geoItemEpoch: number
+  geoResolveEpoch: number
 
   setTiers: (tiers: TierConfig[]) => void
   setProducts: (products: ProductWithPrice[]) => void
@@ -63,6 +67,7 @@ interface CartState {
   resolveEmployeeGeographicContext: (employeeId: string) => Promise<void>
   setGeographicContext: (ctx: GeographicContext | null) => void
   subscribeToGeoRules: (governorateId: string) => void
+  ensureGeoItemAdjustments: (products: Array<{ id: string; companyId: string }>) => Promise<void>
 }
 
 export const useCartStore = create(
@@ -82,6 +87,12 @@ export const useCartStore = create(
         }
       }
 
+      const getAdjForProduct = (s: ReturnType<typeof get>, productId: string): number => {
+        const v = s.geoItemAdjustments[productId]
+        if (typeof v === 'number') return v
+        return s.geographicContext?.adjustmentPercent ?? 0
+      }
+
       return {
       items: [],
       dealItems: [],
@@ -93,6 +104,9 @@ export const useCartStore = create(
       editingOrderId: null,
       orderType: '',
       geographicContext: null,
+      geoItemAdjustments: {},
+      geoItemEpoch: -1,
+      geoResolveEpoch: 0,
 
       setTiers: (tiers) => set({ tiers }),
 
@@ -127,7 +141,7 @@ export const useCartStore = create(
 
         const state = get()
         const tier = state.getSelectedTier()
-        const geoAdj = state.geographicContext?.adjustmentPercent ?? 0
+        const geoAdj = getAdjForProduct(state, product.id)
         const prices = computeProductPrices(product, tier, undefined, geoAdj || undefined)
         const hasTier = tier !== null
         const unitPrice = getEffectiveUnitPrice(prices, unitType, hasTier)
@@ -144,6 +158,7 @@ export const useCartStore = create(
           newItems[existingIndex] = {
             ...existing,
             unitQuantity: newQuantity,
+            geoAdjustPercent: geoAdj,
             totalPrice: Math.round(unitPrice * newQuantity * 100) / 100,
             pieceQuantity: pieceQuantity + existing.pieceQuantity,
           }
@@ -160,6 +175,7 @@ export const useCartStore = create(
             imageUrl: product.imageUrl,
             companyId: product.companyId,
             companyName: product.companyName,
+            geoAdjustPercent: geoAdj,
           }
           set({ items: [...state.items, newItem] })
         }
@@ -182,7 +198,7 @@ export const useCartStore = create(
         const product = state.products.find((p) => p.id === productId)
         if (!product) return
 
-        const geoAdj = state.geographicContext?.adjustmentPercent ?? 0
+        const geoAdj = getAdjForProduct(state, product.id)
         const prices = computeProductPrices(product, tier, undefined, geoAdj || undefined)
         const hasTier = tier !== null
         const unitPrice = getEffectiveUnitPrice(prices, unitType, hasTier)
@@ -195,6 +211,7 @@ export const useCartStore = create(
                   ...item,
                   unitQuantity,
                   pieceQuantity,
+                  geoAdjustPercent: geoAdj,
                   unitPrice: Math.round(unitPrice * 100) / 100,
                   totalPrice: Math.round(unitPrice * unitQuantity * 100) / 100,
                 }
@@ -276,6 +293,7 @@ export const useCartStore = create(
           supabase.removeChannel(geoRulesChannel)
           geoRulesChannel = null
         }
+        invalidateGeographicResolutions()
         set({
           items: [],
           dealItems: [],
@@ -285,6 +303,9 @@ export const useCartStore = create(
           selectedTierId: null,
           editingOrderId: null,
           geographicContext: null,
+          geoItemAdjustments: {},
+          geoItemEpoch: -1,
+          geoResolveEpoch: currentGeoEpoch(),
         })
       },
 
@@ -303,8 +324,8 @@ export const useCartStore = create(
       getEffectivePrice: (product, unitType) => {
         const state = get()
         const tier = state.getSelectedTier()
-        const geoAdj = state.geographicContext?.adjustmentPercent ?? undefined
-        const prices = computeProductPrices(product, tier, undefined, geoAdj)
+        const geoAdj = getAdjForProduct(state, product.id)
+        const prices = computeProductPrices(product, tier, undefined, geoAdj || undefined)
         const hasTier = tier !== null
         return getEffectiveUnitPrice(prices, unitType, hasTier)
       },
@@ -312,16 +333,17 @@ export const useCartStore = create(
       recalculateAll: () => {
         const state = get()
         const tier = state.getSelectedTier()
-        const geoAdj = state.geographicContext?.adjustmentPercent ?? undefined
         const newItems = state.items.map((item) => {
           const product = state.products.find((p) => p.id === item.productId)
           if (!product) return item
-          const prices = computeProductPrices(product, tier, undefined, geoAdj)
+          const geoAdj = getAdjForProduct(state, item.productId)
+          const prices = computeProductPrices(product, tier, undefined, geoAdj || undefined)
           const hasTier = tier !== null
           const unitPrice = getEffectiveUnitPrice(prices, item.unitType, hasTier)
           const pieceQuantity = computePieceQuantity(item.unitQuantity, item.unitType, product.cartonQuantity)
           return {
             ...item,
+            geoAdjustPercent: geoAdj,
             unitPrice: Math.round(unitPrice * 100) / 100,
             totalPrice: Math.round(unitPrice * item.unitQuantity * 100) / 100,
             pieceQuantity,
@@ -337,6 +359,16 @@ export const useCartStore = create(
       setOrderType: (orderType) => set({ orderType }),
 
       setGeographicContext: (ctx) => {
+        const prevGov = get().geographicContext?.governorateId
+        if (ctx?.governorateId !== prevGov) {
+          invalidateGeographicResolutions()
+          const epochNow = currentGeoEpoch()
+          set({
+            geoResolveEpoch: epochNow,
+            geoItemAdjustments: {},
+            geoItemEpoch: -1,
+          })
+        }
         set({ geographicContext: ctx })
         get().recalculateAll()
       },
@@ -346,7 +378,13 @@ export const useCartStore = create(
 
         if (!governorateId) {
           if (_geoResolveVersion !== myVersion) return
-          set({ geographicContext: null })
+          invalidateGeographicResolutions()
+          set({
+            geographicContext: null,
+            geoItemAdjustments: {},
+            geoItemEpoch: -1,
+            geoResolveEpoch: currentGeoEpoch(),
+          })
           get().recalculateAll()
           return
         }
@@ -386,6 +424,14 @@ export const useCartStore = create(
         }
 
         if (_geoResolveVersion !== myVersion) return
+
+        invalidateGeographicResolutions()
+        set({
+          geoResolveEpoch: currentGeoEpoch(),
+          geoItemAdjustments: {},
+          geoItemEpoch: -1,
+        })
+
         get().recalculateAll()
         get().subscribeToGeoRules(governorateId)
       },
@@ -401,10 +447,45 @@ export const useCartStore = create(
           .on('postgres_changes', { event: '*', schema: 'public', table: 'geographic_price_rules' }, () => {
             const currentGovId = get().geographicContext?.governorateId
             if (currentGovId) {
+              invalidateGeographicResolutions()
+              const epochNow = currentGeoEpoch()
+              set({
+                geoResolveEpoch: epochNow,
+                geoItemAdjustments: {},
+                geoItemEpoch: -1,
+              })
               get().resolveGeographicPricing(currentGovId)
+              const snapshot = get().products
+              if (snapshot.length > 0) get().ensureGeoItemAdjustments(snapshot)
             }
           })
           .subscribe()
+      },
+
+      ensureGeoItemAdjustments: async (targets) => {
+        const state = get()
+        const gov = state.geographicContext?.governorateId
+        if (!gov || !targets || targets.length === 0) return
+        const epochNow = currentGeoEpoch()
+        const populateAll = epochNow !== state.geoItemEpoch || Object.keys(state.geoItemAdjustments).length === 0
+        const toFetch = populateAll
+          ? targets
+          : targets.filter((t) => !(t.id in state.geoItemAdjustments))
+        if (toFetch.length === 0) return
+
+        try {
+          const map = await getGeographicAdjustmentsForProducts(gov, toFetch)
+          if (currentGeoEpoch() !== epochNow) return
+
+          const latest = get()
+          const merged = latest.geoItemEpoch === epochNow
+            ? { ...latest.geoItemAdjustments, ...map }
+            : map
+          set({ geoItemAdjustments: merged, geoItemEpoch: epochNow })
+          get().recalculateAll()
+        } catch {
+          /* شبكة/خدمة - نترك التخفيض الأساسي الحالي */
+        }
       },
 
       resolveEmployeeGeographicContext: async (employeeId) => {

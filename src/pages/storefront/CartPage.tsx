@@ -78,10 +78,19 @@ export function CartPage() {
     orderType,
     setSelectedCustomer,
     setOrderType,
+    geographicContext,
+    geoResolveEpoch,
+    ensureGeoItemAdjustments,
   } = useCartStore()
 
   const selectedTier = getSelectedTier()
   const totals = getTotals()
+
+  useEffect(() => {
+    if (products.length > 0) {
+      ensureGeoItemAdjustments(products)
+    }
+  }, [products, geographicContext?.governorateId, geoResolveEpoch, ensureGeoItemAdjustments])
 
   useEffect(() => {
     let active = true

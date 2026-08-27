@@ -160,7 +160,7 @@ function printHtml(html: string): void {
 export default function SalesListPage() {
   const navigate = useNavigate()
   const { token: authToken, user } = useAuthStore()
-  const { geographicContext, resolveEmployeeGeographicContext } = useCartStore()
+  const { geographicContext, resolveEmployeeGeographicContext, geoItemAdjustments, geoResolveEpoch, ensureGeoItemAdjustments } = useCartStore()
   const [products, setProducts] = useState<ProductRow[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -190,16 +190,25 @@ export default function SalesListPage() {
     resolveEmployeeGeographicContext(user.employee_id)
   }, [user?.identity_type, user?.employee_id, resolveEmployeeGeographicContext])
 
+  useEffect(() => {
+    if (products.length > 0) {
+      ensureGeoItemAdjustments(products.map((p) => ({ id: p.id, companyId: p.company_id })))
+    }
+  }, [products, geographicContext?.governorateId, geoResolveEpoch, ensureGeoItemAdjustments])
+
   const geoAdjustedProducts = useMemo(() => {
-    const adj = geographicContext?.adjustmentPercent ?? 0
-    if (adj === 0) return products
-    return products.map(p => ({
-      ...p,
-      piece_price: Math.round(applyGeographicAdjustment(Number(p.piece_price) || 0, adj) * 100) / 100,
-      carton_price: Math.round(applyGeographicAdjustment(Number(p.carton_price) || 0, adj) * 100) / 100,
-      dozen_price: Math.round(applyGeographicAdjustment(Number(p.dozen_price) || 0, adj) * 100) / 100,
-    }))
-  }, [products, geographicContext?.adjustmentPercent])
+    if (products.length === 0) return products
+    return products.map(p => {
+      const adj = geoItemAdjustments[p.id] ?? geographicContext?.adjustmentPercent ?? 0
+      if (adj === 0) return p
+      return {
+        ...p,
+        piece_price: Math.round(applyGeographicAdjustment(Number(p.piece_price) || 0, adj) * 100) / 100,
+        carton_price: Math.round(applyGeographicAdjustment(Number(p.carton_price) || 0, adj) * 100) / 100,
+        dozen_price: Math.round(applyGeographicAdjustment(Number(p.dozen_price) || 0, adj) * 100) / 100,
+      }
+    })
+  }, [products, geographicContext?.adjustmentPercent, geoItemAdjustments])
 
   const saleableProducts = useMemo(() => geoAdjustedProducts.filter(isProductAvailable), [geoAdjustedProducts])
 

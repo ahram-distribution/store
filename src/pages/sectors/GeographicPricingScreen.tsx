@@ -5,6 +5,7 @@ import { MultiSearchableSelect } from '../../components/shared/MultiSearchableSe
 import { useCapability } from '../../hooks/useCapability'
 import toast from 'react-hot-toast'
 import { supabase } from '../../lib/supabase'
+import { useAuthStore } from '../../store/auth'
 import type { Sector, GeographicPriceRule, GeographicCustomerCount } from '../../types/sectors'
 
 const SCOPE_OPTIONS: { value: string; label: string }[] = [
@@ -24,6 +25,7 @@ const PRIORITY_LEVELS = ['صنف+شركة+محافظة', 'صنف+محافظة', 
 
 export function GeographicPricingScreen() {
   const canManage = useCapability('geographic_pricing.manage')
+  const authToken = useAuthStore((s) => s.token)
 
   const [rules, setRules] = useState<GeographicPriceRule[]>([])
   const [sectors, setSectors] = useState<Sector[]>([])
@@ -57,15 +59,6 @@ export function GeographicPricingScreen() {
       setSectors(sectorsData)
       if (govData.data) setGovernorates(govData.data)
       setCustomerCounts(Array.isArray(countsData) ? countsData : [])
-
-      if (canManage) {
-        const [coData, prData] = await Promise.all([
-          supabase.from('companies').select('id, company_name').eq('is_active', true).order('company_name'),
-          supabase.from('products').select('id, product_name').eq('is_active', true).order('product_name'),
-        ])
-        if (coData.data) setCompanies(coData.data)
-        if (prData.data) setAllProducts(prData.data)
-      }
     } catch (e: any) {
       toast.error(e?.message || 'فشل تحميل البيانات')
     }
@@ -73,6 +66,41 @@ export function GeographicPricingScreen() {
   }
 
   useEffect(() => { loadData() }, [])
+
+  async function loadCompanyOptions() {
+    if (!authToken) return
+    try {
+      const { data, error } = await supabase
+        .from('companies')
+        .select('id, company_name, legacy_code')
+        .eq('is_active', true)
+        .order('company_name')
+      if (!error && data) setCompanies(data)
+    } catch {
+      /* نكتفي بالصمت - اختياري */
+    }
+  }
+
+  async function loadProductOptions() {
+    if (!authToken) return
+    try {
+      const { data, error } = await supabase.rpc('get_governed_products', {
+        p_token: authToken,
+        p_active_only: true,
+        p_visible_only: true,
+        p_company_id: null,
+      })
+      if (!error && Array.isArray(data)) setAllProducts(data)
+    } catch {
+      /* نكتفي بالصمت - اختياري */
+    }
+  }
+
+  useEffect(() => {
+    if (!canManage) return
+    loadCompanyOptions()
+    loadProductOptions()
+  }, [canManage])
 
   const showSectorField = ['sector', 'company_sector', 'product_sector'].includes(ruleScope)
   const showGovField = ['governorate', 'company_governorate', 'product_governorate'].includes(ruleScope)
@@ -243,7 +271,7 @@ export function GeographicPricingScreen() {
                 <div>
                   <label className="text-[11px] font-bold text-text-secondary block mb-1">الشركات</label>
                   <MultiSearchableSelect
-                    items={companies.map(c => ({ id: c.id, name: c.company_name }))}
+                    items={companies.map(c => ({ id: c.id, name: c.company_name, keywords: c.legacy_code ? [c.legacy_code] : [] }))}
                     values={ruleCompanyIds}
                     onChange={setRuleCompanyIds}
                     placeholder="اختر الشركات"
@@ -255,7 +283,7 @@ export function GeographicPricingScreen() {
                 <div>
                   <label className="text-[11px] font-bold text-text-secondary block mb-1">الأصناف</label>
                   <MultiSearchableSelect
-                    items={allProducts.map(p => ({ id: p.id, name: p.product_name }))}
+                    items={allProducts.map(p => ({ id: p.id, name: p.product_name, keywords: [p.legacy_code, p.company_name].filter(Boolean) }))}
                     values={ruleProductIds}
                     onChange={setRuleProductIds}
                     placeholder="اختر الأصناف"

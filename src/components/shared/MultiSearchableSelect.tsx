@@ -4,6 +4,7 @@ import { normalizeArabic } from '../../utils/smartSearch'
 export interface MultiSearchableSelectItem {
   id: string
   name: string
+  keywords?: string[]
 }
 
 interface MultiSearchableSelectProps {
@@ -35,7 +36,9 @@ export function MultiSearchableSelect({ items, values, onChange, placeholder, la
     const q = normalizeArabic(query)
     return sortedItems.filter(item => {
       const normalizedName = normalizeArabic(item.name)
-      return normalizedName.includes(q)
+      if (normalizedName.includes(q)) return true
+      const keys = item.keywords || []
+      return keys.some(k => normalizeArabic(k).includes(q))
     })
   }, [sortedItems, query])
 

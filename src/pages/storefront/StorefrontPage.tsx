@@ -49,6 +49,9 @@ export function StorefrontPage() {
     geographicContext,
     resolveEmployeeGeographicContext,
     resolveGeographicPricing,
+    geoItemAdjustments,
+    geoResolveEpoch,
+    ensureGeoItemAdjustments,
   } = useCartStore()
 
   const [searchQuery, setSearchQuery] = useState(searchParams.get('q') || '')
@@ -68,6 +71,15 @@ export function StorefrontPage() {
     if (!companyId) { setCompanyContext(null); return }
     fetchCompanyById(companyId).then(setCompanyContext)
   }, [companyId, fetchCompanyById])
+
+  useEffect(() => {
+    if (products.length > 0) {
+      ensureGeoItemAdjustments(products)
+    }
+  }, [products, geographicContext?.governorateId, geoResolveEpoch, ensureGeoItemAdjustments])
+
+  const geoAdjustForProduct = (productId: string) =>
+    geoItemAdjustments[productId] ?? geographicContext?.adjustmentPercent ?? undefined
 
   const collectionConfig = useMemo<{ type: 'static' } | { type: 'dynamic'; strategy: CollectionStrategy } | null>(() => {
     if (!companyId || !companyContext) return null
@@ -680,7 +692,7 @@ export function StorefrontPage() {
             <div key={product.id} id={'product-' + product.id} className="rounded-xl transition-all duration-500">
               <ProductCard
                 product={product}
-                prices={computeProductPrices(product, selectedTier, undefined, geographicContext?.adjustmentPercent ?? undefined)}
+                prices={computeProductPrices(product, selectedTier, undefined, geoAdjustForProduct(product.id))}
                 hasTier={selectedTier !== null}
                 tierName={selectedTier?.name ?? null}
                 onAddToCart={handleAddToCart}
@@ -712,7 +724,7 @@ export function StorefrontPage() {
           <div className="relative w-full max-w-md max-h-[92vh] overflow-y-auto rounded-2xl shadow-2xl animate-zoom-in">
             <ProductCard
               product={expandedProduct}
-              prices={computeProductPrices(expandedProduct, selectedTier, undefined, geographicContext?.adjustmentPercent ?? undefined)}
+              prices={computeProductPrices(expandedProduct, selectedTier, undefined, geoAdjustForProduct(expandedProduct.id))}
               hasTier={selectedTier !== null}
               tierName={selectedTier?.name ?? null}
               onAddToCart={handleAddToCart}
