@@ -1,6 +1,6 @@
 {
   "baselineVersion": 1,
-  "schemaVersion": 10,
+  "schemaVersion": 11,
   "migrations": [
     {
       "version": 2,
@@ -46,6 +46,11 @@
       "version": 10,
       "file": "0010_sync_watermark_repair.sql",
       "description": "FIX5 sync repair: set sync_requires_full_refresh gate + invalidate offline_ready so the corrected sync engine (deletion propagation, watermark integrity, item-set reconciliation) converges the local mirror on next startup"
+    },
+    {
+      "version": 11,
+      "file": "0011_sectors_geographic_pricing.sql",
+      "description": "Sectors & Geographic Pricing: sectors, sector_governorates, geographic_price_rules, employee_geographic_assignments tables + get_effective_geographic_adjustment and get_governorate_sector RPCs"
     }
   ]
 }

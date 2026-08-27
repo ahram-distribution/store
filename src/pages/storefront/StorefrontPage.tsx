@@ -41,6 +41,7 @@ export function StorefrontPage() {
     getTotals,
     selectedCustomer,
     editingOrderId,
+    orderType,
     setSelectedCustomer,
     setEditingOrder,
     setOrderType,
@@ -187,8 +188,12 @@ export function StorefrontPage() {
       const order = data.order
       const items = data.items || []
       if (order.customer_id) {
-        supabase.from('customer_addresses').select('governorate_id').eq('customer_id', order.customer_id).eq('is_default', true).limit(1).maybeSingle().then(({ data: addr }) => {
-          setSelectedCustomer({ id: order.customer_id, name: order.customer_name || '', phone: order.customer_phone || '', code: order.customer_code || '', governorateId: addr?.governorate_id || undefined })
+        supabase.rpc('get_governed_customer', { p_token: authToken, p_id: order.customer_id }).then(({ data }) => {
+          if (data?.id) {
+            setSelectedCustomer({ id: data.id, name: data.company_name || '', phone: data.phone || '', code: data.code || '', governorateId: data.governorate_id || undefined })
+          } else {
+            setSelectedCustomer({ id: order.customer_id, name: order.customer_name || '', phone: order.customer_phone || '', code: order.customer_code || '' })
+          }
         }).catch(() => {
           setSelectedCustomer({ id: order.customer_id, name: order.customer_name || '', phone: order.customer_phone || '', code: order.customer_code || '' })
         })
@@ -243,8 +248,34 @@ export function StorefrontPage() {
 
   useEffect(() => {
     if (!selectedCustomer?.governorateId) return
-    resolveGeographicPricing(selectedCustomer.governorateId)
+    resolveGeographicPricing(selectedCustomer.governorateId, undefined, undefined)
   }, [selectedCustomer?.governorateId, resolveGeographicPricing])
+
+  // Auto-set selectedCustomer for customer users (self-purchase).
+  // Always (re)resolve the direct customer's default governorate. A persisted
+  // selectedCustomer.id must NOT short-circuit this: a prior session may have
+  // persisted a matching id with a missing/stale governorateId, which would
+  // otherwise skip the lookup and leave geographic pricing at base.
+  useEffect(() => {
+    if (user?.identity_type !== 'customer' || !user?.customer_id || !authToken) return
+    const base = {
+      id: user.customer_id,
+      name: user.company_name || user.full_name || '',
+      phone: '',
+      code: user.code || '',
+    }
+    supabase.rpc('get_governed_customer', { p_token: authToken, p_id: user.customer_id })
+      .then(({ data }) => {
+        if (data?.id) {
+          setSelectedCustomer({ id: data.id, name: data.company_name || base.name, phone: data.phone || '', code: data.code || '', governorateId: data.governorate_id || undefined })
+        } else {
+          setSelectedCustomer({ ...base, governorateId: undefined })
+        }
+      })
+      .catch(() => {
+        setSelectedCustomer({ ...base, governorateId: undefined })
+      })
+  }, [user?.identity_type, user?.customer_id, user?.company_name, user?.full_name, user?.code, authToken, setSelectedCustomer])
 
   // ── Expanded card: Escape key + scroll lock ──
   useEffect(() => {
@@ -316,6 +347,12 @@ export function StorefrontPage() {
   const expandedProduct = expandedId ? filteredProducts.find((p) => p.id === expandedId) ?? null : null
 
   const handleAddToCart = (product: ProductWithPrice, unitType: UnitType, quantity: number) => {
+    if (!isEmployee && !orderType && !editingOrderId) {
+      pendingAddRef.current = { product, unitType, quantity, scrollY: window.scrollY }
+      setInitStep('type')
+      setShowInitModal(true)
+      return
+    }
     if (!selectedCustomer && !editingOrderId) {
       pendingAddRef.current = { product, unitType, quantity, scrollY: window.scrollY }
       setInitStep('type')
@@ -394,6 +431,14 @@ export function StorefrontPage() {
               {selectedCustomer ? 'تغيير' : 'اختيار عميل'}
             </button>
           </div>
+        </div>
+      )}
+
+      {/* Customer Self-Purchase Indicator */}
+      {!isEmployee && selectedCustomer && (
+        <div className="bg-primary/5 rounded-xl border border-primary/20 p-3">
+          <div className="text-xs text-text-secondary">الشراء لحساب</div>
+          <div className="text-sm font-semibold text-text">{selectedCustomer.name}</div>
         </div>
       )}
 
@@ -477,19 +522,19 @@ export function StorefrontPage() {
                 </div>
                 <div className="p-4 space-y-2">
                   <button
-                    onClick={() => { setOrderType('cash'); setInitStep('customer') }}
+                    onClick={() => { setOrderType('cash'); isEmployee ? setInitStep('customer') : setTimeout(() => handleInitComplete(), 0) }}
                     className="w-full text-right px-4 py-3 rounded-lg border border-border hover:bg-surface transition-colors"
                   >
                     <span className="text-sm font-semibold text-text">نقداً</span>
                   </button>
                   <button
-                    onClick={() => { setOrderType('credit'); setInitStep('customer') }}
+                    onClick={() => { setOrderType('credit'); isEmployee ? setInitStep('customer') : setTimeout(() => handleInitComplete(), 0) }}
                     className="w-full text-right px-4 py-3 rounded-lg border border-border hover:bg-surface transition-colors"
                   >
                     <span className="text-sm font-semibold text-text">آجل</span>
                   </button>
                   <button
-                    onClick={() => { setOrderType('ittiman'); setInitStep('customer') }}
+                    onClick={() => { setOrderType('ittiman'); isEmployee ? setInitStep('customer') : setTimeout(() => handleInitComplete(), 0) }}
                     className="w-full text-right px-4 py-3 rounded-lg border border-border hover:bg-surface transition-colors"
                   >
                     <span className="text-sm font-semibold text-text">ائتمان</span>
@@ -565,13 +610,8 @@ export function StorefrontPage() {
       )}
       {authToken && user?.identity_type === 'customer' && (
         <div className="flex gap-2">
-          <button onClick={() => navigate('/account')}
-            className="flex-1 bg-primary text-white text-sm py-2 rounded-lg active:opacity-90 transition-opacity"
-          >
-            حسابي
-          </button>
           <button onClick={() => navigate('/orders')}
-            className="flex-1 bg-white text-text text-sm py-2 rounded-lg border border-border active:bg-surface transition-colors"
+            className="flex-1 bg-primary text-white text-sm py-2 rounded-lg active:opacity-90 transition-opacity"
           >
             طلباتي
           </button>

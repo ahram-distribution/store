@@ -67,6 +67,8 @@ export function SahlInventoryPage() {
   const [adjNotes, setAdjNotes] = useState('')
   const [saving, setSaving] = useState(false)
   const [stkBusy, setStkBusy] = useState(false)
+  const [confirmAdj, setConfirmAdj] = useState(false)
+  const [confirmStk, setConfirmStk] = useState(false)
 
   const openSession = useMemo(
     () => stocktakes.find((s) => s.status === 'open') || null,
@@ -377,7 +379,7 @@ export function SahlInventoryPage() {
       ) : (
         <>
           {!openSession && canPost && (
-            <button onClick={createStocktake} disabled={stkBusy}
+            <button onClick={() => setConfirmStk(true)} disabled={stkBusy}
               className="w-full bg-gradient-to-l from-emerald-700 to-emerald-600 disabled:opacity-50 text-white rounded-2xl py-3.5 text-sm font-bold shadow-sm active:opacity-80">
               {stkBusy ? 'جاري التحضير...' : '▶ بدء جلسة جرد جديدة'}
             </button>
@@ -536,10 +538,47 @@ export function SahlInventoryPage() {
                     className="w-full border border-border rounded-lg px-3 py-2.5 text-sm bg-white" />
                 </div>
               </div>
-              <button onClick={submitAdjustment} disabled={saving}
+              <button onClick={() => {
+                  if (Number(newQty) !== adjustFor.quantity) setConfirmAdj(true)
+                  else submitAdjustment()
+                }} disabled={saving}
                 className="w-full bg-gradient-to-l from-emerald-700 to-emerald-600 disabled:opacity-50 text-white rounded-xl py-2.5 text-sm font-bold">
                 {saving ? 'جاري الحفظ...' : 'تنفيذ التسوية'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {confirmAdj && adjustFor && (
+        <div className="fixed inset-0 z-[70] bg-black/50 flex items-center justify-center p-4" onClick={() => setConfirmAdj(false)}>
+          <div className="bg-white rounded-2xl w-full max-w-sm p-5 space-y-3" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-base font-bold text-text">تأكيد التسوية</h3>
+            <p className="text-xs text-text-secondary">
+              سيتم تعديل رصيد <b>{adjustFor.product_name}</b> من <b>{adjustFor.quantity}</b> إلى <b>{newQty}</b>
+              {' '}({Number(newQty) > adjustFor.quantity ? '+' : ''}{Number(newQty) - adjustFor.quantity} قطعة)
+            </p>
+            <div className="flex gap-2">
+              <button onClick={() => { setConfirmAdj(false); submitAdjustment() }}
+                className="flex-1 bg-primary text-white rounded-xl py-2 text-sm font-bold">تأكيد</button>
+              <button onClick={() => setConfirmAdj(false)}
+                className="flex-1 border border-border rounded-xl py-2 text-sm">إلغاء</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {confirmStk && (
+        <div className="fixed inset-0 z-[70] bg-black/50 flex items-center justify-center p-4" onClick={() => setConfirmStk(false)}>
+          <div className="bg-white rounded-2xl w-full max-w-sm p-5 space-y-3" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-base font-bold text-text">تأكيد بدء الجرد</h3>
+            <p className="text-xs text-text-secondary">
+              سيتم إنشاء جلسة جرد جديدة لجميع الأصناف النشطة في المخزون. سيتم تثبيت الأرصدة الحالية كرصيد النظام.
+            </p>
+            <div className="flex gap-2">
+              <button onClick={() => { setConfirmStk(false); createStocktake() }}
+                className="flex-1 bg-primary text-white rounded-xl py-2 text-sm font-bold">بدء الجرد</button>
+              <button onClick={() => setConfirmStk(false)}
+                className="flex-1 border border-border rounded-xl py-2 text-sm">إلغاء</button>
             </div>
           </div>
         </div>

@@ -35,6 +35,11 @@ export function SahlAdvancesPage() {
   const [settleAmount, setSettleAmount] = useState('')
   const [settleNotes, setSettleNotes] = useState('')
   const [settling, setSettling] = useState(false)
+  const [confirmAction, setConfirmAction] = useState<{ type: 'approve' | 'cancel' | 'settle'; advance: AdvanceRow } | null>(null)
+  const [actionLoading, setActionLoading] = useState(false)
+  const [viewSettlements, setViewSettlements] = useState<AdvanceRow | null>(null)
+  const [settlementList, setSettlementList] = useState<any[]>([])
+  const [settlementsLoading, setSettlementsLoading] = useState(false)
 
   async function loadData() {
     const token = getToken()
@@ -83,12 +88,41 @@ export function SahlAdvancesPage() {
   async function approveAdvance(a: AdvanceRow) {
     const token = getToken()
     if (!token) return
+    setActionLoading(true)
     const res = await supabase.rpc('sahl_approve_advance', { p_token: token, p_advance_id: a.id })
+    setActionLoading(false); setConfirmAction(null)
     if (res.error) { toast.error(res.error.message); return }
     const data = res.data as any
     if (data?.error) { toast.error(data.error); return }
     toast.success(`تم اعتماد السلفة وصرف ${formatCurrencyShort(data.amount)} من الخزينة`, { duration: 3500 })
     await loadData()
+  }
+
+  async function cancelAdvance(a: AdvanceRow) {
+    const token = getToken()
+    if (!token) return
+    setActionLoading(true)
+    const res = await supabase.rpc('sahl_cancel_advance', { p_token: token, p_advance_id: a.id })
+    setActionLoading(false); setConfirmAction(null)
+    if (res.error) { toast.error(res.error.message); return }
+    const data = res.data as any
+    if (data?.error) { toast.error(data.error); return }
+    toast.success('تم إلغاء السلفة')
+    await loadData()
+  }
+
+  async function openSettlements(a: AdvanceRow) {
+    setViewSettlements(a)
+    setSettlementList([])
+    setSettlementsLoading(true)
+    const token = getToken()
+    if (!token) { setSettlementsLoading(false); return }
+    const res = await supabase.rpc('sahl_get_advance_settlements', { p_token: token, p_advance_id: a.id })
+    setSettlementsLoading(false)
+    if (res.error) { toast.error(res.error.message); return }
+    const data = res.data as any
+    if (data?.error) { toast.error(data.error); return }
+    setSettlementList(Array.isArray(data) ? data : [])
   }
 
   function openSettle(a: AdvanceRow) {
@@ -223,10 +257,18 @@ export function SahlAdvancesPage() {
                           <div className="text-xs font-bold text-danger">{formatCurrencyShort(a.outstanding_amount)}</div>
                         </div>
                         {canManage && !pendingApproval && (
-                          <button onClick={() => openSettle(a)} className="text-[10px] bg-green-600 text-white rounded px-2 py-1.5">تسوية</button>
+                          <>
+                            <button onClick={() => openSettle(a)} className="text-[10px] bg-green-600 text-white rounded px-2 py-1.5">تسوية</button>
+                            {(a.settlement_count || 0) > 0 && (
+                              <button onClick={() => openSettlements(a)} className="text-[10px] border border-border text-text-secondary rounded px-2 py-1.5">مصادر</button>
+                            )}
+                          </>
                         )}
                         {canManage && pendingApproval && (
-                          <button onClick={() => approveAdvance(a)} className="text-[10px] bg-cyan-600 text-white rounded px-2 py-1.5">اعتماد وصرف</button>
+                          <>
+                            <button onClick={() => setConfirmAction({ type: 'approve', advance: a })} className="text-[10px] bg-cyan-600 text-white rounded px-2 py-1.5">اعتماد وصرف</button>
+                            <button onClick={() => setConfirmAction({ type: 'cancel', advance: a })} className="text-[10px] bg-danger/10 text-danger rounded px-2 py-1.5">إلغاء</button>
+                          </>
                         )}
                       </>
                     )}
@@ -263,10 +305,88 @@ export function SahlAdvancesPage() {
               <div className="text-[10px] text-text-secondary bg-surface/60 rounded-lg p-2.5">
                 يُسجَّل مبلغ التسوية كداخل للخزينة تلقائياً.
               </div>
-              <button onClick={submitSettlement} disabled={settling}
+              <button onClick={() => setConfirmAction({ type: 'settle', advance: settleFor })} disabled={settling}
                 className="w-full bg-gradient-to-l from-green-700 to-green-600 disabled:opacity-50 text-white rounded-xl py-2.5 text-sm font-bold">
                 {settling ? 'جاري الحفظ...' : 'حفظ التسوية'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {confirmAction && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => setConfirmAction(null)}>
+          <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className={`px-5 py-4 ${
+              confirmAction.type === 'approve' ? 'bg-gradient-to-l from-cyan-700 to-cyan-600' :
+              confirmAction.type === 'cancel' ? 'bg-gradient-to-l from-red-700 to-red-600' :
+              'bg-gradient-to-l from-green-700 to-green-600'
+            }`}>
+              <h3 className="text-sm font-bold text-white">
+                {confirmAction.type === 'approve' ? 'تأكيد اعتماد وصرف السلفة' :
+                 confirmAction.type === 'cancel' ? 'تأكيد إلغاء السلفة' :
+                 'تأكيد حفظ التسوية'}
+              </h3>
+            </div>
+            <div className="p-5 space-y-3 text-center">
+              <div className="text-sm font-semibold text-text">{confirmAction.advance.employee_name}</div>
+              <div className="text-lg font-bold">{formatCurrencyShort(confirmAction.advance.amount)}</div>
+              {confirmAction.type === 'approve' && (
+                <p className="text-xs text-text-secondary">سيتم صرف المبلغ من الخزينة وتسجيله كسلفة على الموظف.</p>
+              )}
+              {confirmAction.type === 'cancel' && (
+                <p className="text-xs text-text-secondary">سيتم إلغاء السلفة المعلقة. لا يمكن التراجع.</p>
+              )}
+              {confirmAction.type === 'settle' && (
+                <p className="text-xs text-text-secondary">سيتم تسجيل التسوية كدخل في الخزينة.</p>
+              )}
+              <div className="flex gap-2">
+                <button onClick={() => setConfirmAction(null)} className="flex-1 border border-border rounded-xl py-2.5 text-sm font-semibold">تراجع</button>
+                <button disabled={actionLoading} onClick={async () => {
+                  if (confirmAction.type === 'approve') await approveAdvance(confirmAction.advance)
+                  else if (confirmAction.type === 'cancel') await cancelAdvance(confirmAction.advance)
+                  else if (confirmAction.type === 'settle') { await submitSettlement(); setConfirmAction(null) }
+                }}
+                  className={`flex-1 text-white rounded-xl py-2.5 text-sm font-bold ${
+                    confirmAction.type === 'approve' ? 'bg-cyan-600' :
+                    confirmAction.type === 'cancel' ? 'bg-danger' : 'bg-green-600'
+                  }`}>
+                  {actionLoading ? 'جاري...' : confirmAction.type === 'approve' ? 'اعتماد وصرف' : confirmAction.type === 'cancel' ? 'إلغاء' : 'تأكيد'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {viewSettlements && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => setViewSettlements(null)}>
+          <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="bg-gradient-to-l from-slate-700 to-slate-600 px-5 py-4">
+              <h3 className="text-sm font-bold text-white">مصادر تسوية السلفة</h3>
+              <p className="text-[10px] text-white/70 mt-0.5">{viewSettlements.employee_name} — سلفة {formatCurrencyShort(viewSettlements.amount)}</p>
+            </div>
+            <div className="p-5">
+              {settlementsLoading ? (
+                <div className="text-center py-8 text-text-secondary text-xs">جاري التحميل...</div>
+              ) : settlementList.length === 0 ? (
+                <div className="text-center py-8 text-text-secondary text-xs">لا توجد تسويات مسجلة</div>
+              ) : (
+                <div className="space-y-2 max-h-64 overflow-y-auto">
+                  {settlementList.map((s: any) => (
+                    <div key={s.id} className="flex items-center justify-between text-xs border-b border-border/50 pb-2">
+                      <div>
+                        <div className="font-semibold text-text">{formatCurrencyShort(s.amount)}</div>
+                        <div className="text-text-secondary">{formatDate(s.created_at)}{s.created_by_name ? ` • ${s.created_by_name}` : ''}</div>
+                      </div>
+                      <div className="text-text-secondary text-left max-w-[40%] truncate" title={s.notes || ''}>{s.notes || '—'}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="border-t border-border p-3 text-center">
+              <button onClick={() => setViewSettlements(null)} className="text-text-secondary text-xs py-1">إغلاق</button>
             </div>
           </div>
         </div>

@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState, useEffect, useMemo, useRef } from 'react'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { formatCurrencyShort, formatDate } from '../../utils/format'
 import { useCapability } from '../../hooks/useCapability'
@@ -56,6 +56,11 @@ export function SahlChequesPage() {
   const [busyId, setBusyId] = useState<string | null>(null)
   const [treasuries, setTreasuries] = useState<TreasuryRow[]>([])
   const [settleTrId, setSettleTrId] = useState('')
+  const [customerFilter, setCustomerFilter] = useState<string | null>(null)
+  const preselectApplied = useRef(false)
+  const location = useLocation()
+  const [detailCheque, setDetailCheque] = useState<any | null>(null)
+  const [kpiFilter, setKpiFilter] = useState<'incoming_pending' | 'outgoing_pending' | 'overdue' | null>(null)
 
   async function loadData() {
     const token = getToken()
@@ -82,9 +87,25 @@ export function SahlChequesPage() {
 
   useEffect(() => { loadData() }, [])
 
+  useEffect(() => {
+    if (preselectApplied.current || loading) return
+    preselectApplied.current = true
+    const preId = (location.state as any)?.customerId as string | undefined
+    if (preId) {
+      setCustomerFilter(preId)
+    }
+  }, [loading, location.state])
+
   const visible = useMemo(
-    () => filter === 'open' ? cheques.filter((c) => c.status === 'pending' || c.status === 'deposited') : cheques,
-    [cheques, filter]
+    () => {
+      let list = filter === 'open' ? cheques.filter((c) => c.status === 'pending' || c.status === 'deposited') : cheques
+      if (customerFilter) list = list.filter((c) => c.party_id === customerFilter)
+      if (kpiFilter === 'incoming_pending') list = list.filter((c) => c.direction === 'incoming' && ['pending', 'deposited'].includes(c.status))
+      else if (kpiFilter === 'outgoing_pending') list = list.filter((c) => c.direction === 'outgoing' && ['pending', 'deposited'].includes(c.status))
+      else if (kpiFilter === 'overdue') list = list.filter((c) => c.overdue)
+      return list
+    },
+    [cheques, filter, customerFilter, kpiFilter]
   )
 
   const totals = useMemo(() => ({
@@ -190,15 +211,18 @@ export function SahlChequesPage() {
       </div>
 
       <div className="grid grid-cols-3 gap-3">
-        <div className="bg-white rounded-xl border border-border p-4">
+        <div onClick={() => setKpiFilter(kpiFilter === 'incoming_pending' ? null : 'incoming_pending')}
+          className={`bg-white rounded-xl border p-4 transition-all ${kpiFilter === 'incoming_pending' ? 'border-green-500 ring-1 ring-green-200' : 'border-border'} cursor-pointer hover:shadow-sm`}>
           <div className="text-[10px] text-text-secondary">واردة قيد التحصيل</div>
           <div className="text-lg font-bold text-green-700 mt-1">{formatCurrencyShort(totals.incoming)}</div>
         </div>
-        <div className="bg-white rounded-xl border border-border p-4">
+        <div onClick={() => setKpiFilter(kpiFilter === 'outgoing_pending' ? null : 'outgoing_pending')}
+          className={`bg-white rounded-xl border p-4 transition-all ${kpiFilter === 'outgoing_pending' ? 'border-red-500 ring-1 ring-red-200' : 'border-border'} cursor-pointer hover:shadow-sm`}>
           <div className="text-[10px] text-text-secondary">صادرة قيد الصرف</div>
           <div className="text-lg font-bold text-danger mt-1">{formatCurrencyShort(totals.outgoing)}</div>
         </div>
-        <div className="bg-white rounded-xl border border-border p-4">
+        <div onClick={() => setKpiFilter(kpiFilter === 'overdue' ? null : 'overdue')}
+          className={`bg-white rounded-xl border p-4 transition-all ${kpiFilter === 'overdue' ? 'border-accent ring-1 ring-amber-200' : 'border-border'} cursor-pointer hover:shadow-sm`}>
           <div className="text-[10px] text-text-secondary">تجاوزت الاستحقاق</div>
           <div className="text-lg font-bold text-accent mt-1">{totals.overdue}</div>
         </div>
@@ -282,7 +306,7 @@ export function SahlChequesPage() {
         ) : (
           <div className="divide-y divide-border/60 max-h-[520px] overflow-y-auto">
             {visible.map((c) => (
-              <div key={c.id} className="px-5 py-3 flex items-center justify-between gap-2">
+              <div key={c.id} onClick={() => setDetailCheque(c)} className="px-5 py-3 flex items-center justify-between gap-2 cursor-pointer hover:bg-surface/50 transition-colors">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold ${c.direction === 'incoming' ? 'bg-green-100 text-green-800' : 'bg-orange-100 text-orange-800'}`}>
@@ -326,6 +350,32 @@ export function SahlChequesPage() {
           </div>
         )}
       </div>
+
+      {detailCheque && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setDetailCheque(null)}>
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-5 space-y-4" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-bold text-text">تفاصيل الشيك</h3>
+              <button onClick={() => setDetailCheque(null)} className="text-text-secondary text-lg leading-none">&times;</button>
+            </div>
+            <div className="space-y-2.5 text-sm">
+              <div className="flex justify-between"><span className="text-text-secondary">الكود</span><span className="font-semibold text-text">{detailCheque.code}</span></div>
+              <div className="flex justify-between"><span className="text-text-secondary">النوع</span><span className={`text-[9px] px-1.5 py-0.5 rounded font-bold ${detailCheque.direction === 'incoming' ? 'bg-green-100 text-green-800' : 'bg-orange-100 text-orange-800'}`}>{detailCheque.direction === 'incoming' ? 'وارد' : 'صادر'}</span></div>
+              <div className="flex justify-between"><span className="text-text-secondary">{detailCheque.party_type === 'customer' ? 'العميل' : 'المورد'}</span><span className="font-semibold text-text">{detailCheque.party_name}</span></div>
+              <div className="flex justify-between"><span className="text-text-secondary">البنك</span><span className="font-semibold text-text">{detailCheque.bank_name}</span></div>
+              <div className="flex justify-between"><span className="text-text-secondary">رقم الشيك</span><span className="font-semibold text-text">{detailCheque.cheque_number}</span></div>
+              <div className="flex justify-between"><span className="text-text-secondary">المبلغ</span><span className="font-bold text-text">{formatCurrencyShort(detailCheque.amount)}</span></div>
+              <div className="flex justify-between"><span className="text-text-secondary">تاريخ الاستحقاق</span><span className="font-semibold text-text">{formatDate(detailCheque.due_date)}</span></div>
+              <div className="flex justify-between items-center"><span className="text-text-secondary">الحالة</span><span className={`text-[9px] px-1.5 py-0.5 rounded ${STATUS_BADGE[detailCheque.status]}`}>{STATUS_LABEL[detailCheque.status]}</span></div>
+              {detailCheque.overdue && <div className="flex justify-between"><span className="text-text-secondary">متأخر</span><span className="text-[9px] px-1.5 py-0.5 rounded bg-red-100 text-red-700 font-bold">نعم</span></div>}
+              {detailCheque.deposited_at && <div className="flex justify-between"><span className="text-text-secondary">تاريخ الإيداع</span><span className="font-semibold text-text">{formatDate(detailCheque.deposited_at)}</span></div>}
+              {detailCheque.cleared_at && <div className="flex justify-between"><span className="text-text-secondary">تاريخ التحصيل</span><span className="font-semibold text-text">{formatDate(detailCheque.cleared_at)}</span></div>}
+              {detailCheque.closed_at && <div className="flex justify-between"><span className="text-text-secondary">تاريخ الإغلاق</span><span className="font-semibold text-text">{formatDate(detailCheque.closed_at)}</span></div>}
+              {detailCheque.notes && <div className="pt-2 border-t border-border"><span className="text-text-secondary text-xs">ملاحظات:</span><p className="text-text text-xs mt-1">{detailCheque.notes}</p></div>}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

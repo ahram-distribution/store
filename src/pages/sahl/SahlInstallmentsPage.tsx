@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState, useEffect, useMemo, useRef } from 'react'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { formatCurrencyShort, formatDate } from '../../utils/format'
 import { useCapability } from '../../hooks/useCapability'
@@ -41,6 +41,7 @@ const METHODS: Record<string, string> = {
 
 export function SahlInstallmentsPage() {
   const nav = useNavigate()
+  const location = useLocation()
   const canManage = useCapability('sahl.installments.manage')
 
   const [customers, setCustomers] = useState<CustomerRow[]>([])
@@ -66,6 +67,10 @@ export function SahlInstallmentsPage() {
   const [recvDrawerId, setRecvDrawerId] = useState('')
   const [recvBank, setRecvBank] = useState('')
   const [recvDueDate, setRecvDueDate] = useState('')
+  const [kpiFilter, setKpiFilter] = useState<'all' | 'active' | 'overdue'>('all')
+  const [confirmAction, setConfirmAction] = useState<{ type: 'receive' | 'cancel'; plan: PlanRow } | null>(null)
+  const [actionLoading, setActionLoading] = useState(false)
+  const preselectApplied = useRef(false)
 
   async function loadData() {
     const token = getToken()
@@ -90,10 +95,21 @@ export function SahlInstallmentsPage() {
 
   useEffect(() => { loadData() }, [])
 
-  const visiblePlans = useMemo(
-    () => statusFilter === 'active' ? plans.filter((p) => p.status === 'active') : plans,
-    [plans, statusFilter]
-  )
+  useEffect(() => {
+    if (preselectApplied.current || loading || customers.length === 0) return
+    preselectApplied.current = true
+    const preId = (location.state as any)?.customerId as string | undefined
+    if (preId) {
+      const c = customers.find((x) => x.id === preId)
+      if (c) setCustId(c.id)
+    }
+  }, [loading, customers, location.state])
+
+  const visiblePlans = useMemo(() => {
+    let list = statusFilter === 'active' ? plans.filter((p) => p.status === 'active') : plans
+    if (kpiFilter === 'overdue') list = list.filter((p) => p.next_due_date && new Date(p.next_due_date) < new Date(new Date().toDateString()))
+    return list
+  }, [plans, statusFilter, kpiFilter])
 
   const totals = useMemo(() => ({
     active: plans.filter((p) => p.status === 'active').length,
@@ -215,18 +231,22 @@ export function SahlInstallmentsPage() {
       </div>
 
       <div className="grid grid-cols-3 gap-3">
-        <div className="bg-white rounded-xl border border-border p-4">
+        <button onClick={() => setKpiFilter(kpiFilter === 'active' ? 'all' : 'active')}
+          className={`bg-white rounded-xl border p-4 text-left transition-all ${kpiFilter === 'active' ? 'border-violet-400 ring-1 ring-violet-200' : 'border-border hover:border-violet-300'}`}>
           <div className="text-[10px] text-text-secondary">خطط نشطة</div>
           <div className="text-lg font-bold text-text mt-1">{totals.active}</div>
-        </div>
+          {kpiFilter === 'active' && <div className="text-[9px] text-violet-600 mt-1">🔍 مُصفّى</div>}
+        </button>
         <div className="bg-white rounded-xl border border-border p-4">
           <div className="text-[10px] text-text-secondary">متبقٍ على الخطط</div>
           <div className="text-lg font-bold text-danger mt-1">{formatCurrencyShort(totals.outstanding)}</div>
         </div>
-        <div className="bg-white rounded-xl border border-border p-4">
+        <button onClick={() => setKpiFilter(kpiFilter === 'overdue' ? 'all' : 'overdue')}
+          className={`bg-white rounded-xl border p-4 text-left transition-all ${kpiFilter === 'overdue' ? 'border-red-400 ring-1 ring-red-200' : 'border-border hover:border-red-300'}`}>
           <div className="text-[10px] text-text-secondary">عليها قسط متأخر</div>
           <div className="text-lg font-bold text-accent mt-1">{totals.overdue}</div>
-        </div>
+          {kpiFilter === 'overdue' && <div className="text-[9px] text-red-600 mt-1">🔍 مُصفّى</div>}
+        </button>
       </div>
 
       {canManage && (
@@ -320,7 +340,7 @@ export function SahlInstallmentsPage() {
                       <>
                         <button onClick={() => openParts(p)} className="text-[10px] bg-green-600 text-white rounded px-2 py-1.5">تحصيل قسط</button>
                         {Number(p.paid_total) === 0 && (
-                          <button onClick={() => cancelPlan(p)} className="text-[10px] border border-red-300 text-red-600 rounded px-2 py-1.5">إلغاء</button>
+                          <button onClick={() => setConfirmAction({ type: 'cancel', plan: p })} className="text-[10px] border border-red-300 text-red-600 rounded px-2 py-1.5">إلغاء</button>
                         )}
                       </>
                     )}
@@ -424,12 +444,57 @@ export function SahlInstallmentsPage() {
                     ? 'يُخصم من رصيد العميل فوراً ويُسجَّل شيك مرتبط — تُقيَّد الخزينة عند التحصيل، والارتداد يعكس القسط تلقائياً.'
                     : 'يُوزَّع المبلغ على الأقساط بالترتيب (الأقدم أولاً) ويُرحَّل للخزينة ويُخصم من رصيد العميل تلقائياً.'}
                 </div>
-                <button onClick={receivePayment} disabled={receiving}
+                <button onClick={() => setConfirmAction({ type: 'receive', plan: openPlan })} disabled={receiving}
                   className="w-full bg-gradient-to-l from-green-700 to-green-600 disabled:opacity-50 text-white rounded-xl py-2.5 text-sm font-bold">
                   {receiving ? 'جاري الحفظ...' : `قبض ${formatCurrencyShort(Number(recvAmount) || 0)}`}
                 </button>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {kpiFilter !== 'all' && (
+        <div className="flex items-center justify-between bg-violet-50 border border-violet-200 rounded-lg px-4 py-2 mt-2">
+          <span className="text-xs text-violet-700 font-semibold">
+            🔍 عرض: {kpiFilter === 'active' ? 'خطط نشطة فقط' : 'خطط متأخرة فقط'} — {visiblePlans.length} خطة
+          </span>
+          <button onClick={() => setKpiFilter('all')} className="text-[10px] text-violet-600 underline">إزالة التصفية</button>
+        </div>
+      )}
+
+      {confirmAction && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => setConfirmAction(null)}>
+          <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className={`px-5 py-4 ${confirmAction.type === 'receive' ? 'bg-gradient-to-l from-green-700 to-green-600' : 'bg-gradient-to-l from-red-700 to-red-600'}`}>
+              <h3 className="text-sm font-bold text-white">
+                {confirmAction.type === 'receive' ? 'تأكيد القبض' : 'تأكيد إلغاء الخطة'}
+              </h3>
+            </div>
+            <div className="p-5 space-y-3 text-center">
+              <div className="text-sm font-semibold text-text">{confirmAction.plan.customer_name}</div>
+              <div className="text-xs text-text-secondary">{confirmAction.plan.code}</div>
+              {confirmAction.type === 'receive' ? (
+                <>
+                  <div className="text-lg font-bold text-success">{formatCurrencyShort(Number(recvAmount) || 0)}</div>
+                  <p className="text-xs text-text-secondary">سيتم توزيع المبلغ على الأقساط بالترتيب.</p>
+                </>
+              ) : (
+                <p className="text-xs text-text-secondary">سيتم إلغاء خطة الأقساط نهائياً.</p>
+              )}
+              <div className="flex gap-2">
+                <button onClick={() => setConfirmAction(null)} className="flex-1 border border-border rounded-xl py-2.5 text-sm font-semibold">تراجع</button>
+                <button disabled={actionLoading} onClick={async () => {
+                  setActionLoading(true)
+                  if (confirmAction.type === 'receive') await receivePayment()
+                  else await cancelPlan(confirmAction.plan)
+                  setActionLoading(false); setConfirmAction(null)
+                }}
+                  className={`flex-1 text-white rounded-xl py-2.5 text-sm font-bold ${confirmAction.type === 'receive' ? 'bg-green-600' : 'bg-danger'}`}>
+                  {actionLoading ? 'جاري...' : confirmAction.type === 'receive' ? 'تأكيد القبض' : 'تأكيد الإلغاء'}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

@@ -12,7 +12,6 @@ function useNavItems() {
     return [
       { label: 'المتجر', path: '/storefront', icon: 'S' },
       { label: 'الطلبات', path: '/orders', icon: 'O' },
-      { label: 'حسابي', path: '/account', icon: 'A' },
     ]
   }
 

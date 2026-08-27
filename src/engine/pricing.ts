@@ -5,6 +5,10 @@ export function computePieceQuantity(unitQuantity: number, unitType: UnitType, c
   return unitQuantity * multiplier
 }
 
+export function applyGeographicAdjustment(basePrice: number, adjustmentPercent: number): number {
+  return basePrice * (1 + adjustmentPercent / 100)
+}
+
 export function computeTierPrice(basePrice: number, tier: TierConfig | null): number {
   if (!tier || tier.discountPercent === 0) return basePrice
   return basePrice * (1 - tier.discountPercent / 100)
@@ -37,11 +41,13 @@ export function computeExceptionAwareTierPrice(
 export function computeProductPrices(
   product: ProductWithPrice,
   tier: TierConfig | null,
-  exceptionLookup?: TierExceptionLookup | null
+  exceptionLookup?: TierExceptionLookup | null,
+  geographicAdjustment?: number | null
 ): ComputedPrices {
-  const piecePrice = product.piecePrice
-  const dozenPrice = product.dozenPrice
-  const cartonPrice = product.cartonPrice
+  const geoAdj = geographicAdjustment ?? 0
+  const piecePrice = Math.round(applyGeographicAdjustment(product.piecePrice, geoAdj) * 100) / 100
+  const dozenPrice = Math.round(applyGeographicAdjustment(product.dozenPrice, geoAdj) * 100) / 100
+  const cartonPrice = Math.round(applyGeographicAdjustment(product.cartonPrice, geoAdj) * 100) / 100
   const effectiveDiscount = computeEffectiveDiscountPercent(tier, exceptionLookup)
   const effectiveTier = tier ? { ...tier, discountPercent: effectiveDiscount } : null
 
@@ -113,9 +119,10 @@ export function computeCartTotals(
 export function recalculateCartItem(
   item: CartItem,
   product: ProductWithPrice,
-  tier: TierConfig | null
+  tier: TierConfig | null,
+  geographicAdjustment?: number | null
 ): CartItem {
-  const prices = computeProductPrices(product, tier)
+  const prices = computeProductPrices(product, tier, undefined, geographicAdjustment)
   const hasTier = tier !== null
   const unitPrice = getEffectiveUnitPrice(prices, item.unitType, hasTier)
   const totalPrice = unitPrice * item.unitQuantity

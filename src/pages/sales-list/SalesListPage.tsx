@@ -2,6 +2,8 @@ import { useState, useEffect, useMemo, useCallback, Fragment } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../store/auth'
+import { useCartStore } from '../../store/cart'
+import { applyGeographicAdjustment } from '../../engine/pricing'
 import { normalizeEmployeeRole, type TargetRole } from '../../utils/roleNormalization'
 import { buildSearchIndex, searchProducts, type ProductSearchIndex } from '../../utils/smartSearch'
 import { SearchHighlight } from '../../components/shared/SearchHighlight'
@@ -158,6 +160,7 @@ function printHtml(html: string): void {
 export default function SalesListPage() {
   const navigate = useNavigate()
   const { token: authToken, user } = useAuthStore()
+  const { geographicContext, resolveEmployeeGeographicContext } = useCartStore()
   const [products, setProducts] = useState<ProductRow[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -182,7 +185,23 @@ export default function SalesListPage() {
       .finally(() => setLoading(false))
   }, [hasAccess, authToken])
 
-  const saleableProducts = useMemo(() => products.filter(isProductAvailable), [products])
+  useEffect(() => {
+    if (user?.identity_type !== 'employee' || !user.employee_id) return
+    resolveEmployeeGeographicContext(user.employee_id)
+  }, [user?.identity_type, user?.employee_id, resolveEmployeeGeographicContext])
+
+  const geoAdjustedProducts = useMemo(() => {
+    const adj = geographicContext?.adjustmentPercent ?? 0
+    if (adj === 0) return products
+    return products.map(p => ({
+      ...p,
+      piece_price: Math.round(applyGeographicAdjustment(Number(p.piece_price) || 0, adj) * 100) / 100,
+      carton_price: Math.round(applyGeographicAdjustment(Number(p.carton_price) || 0, adj) * 100) / 100,
+      dozen_price: Math.round(applyGeographicAdjustment(Number(p.dozen_price) || 0, adj) * 100) / 100,
+    }))
+  }, [products, geographicContext?.adjustmentPercent])
+
+  const saleableProducts = useMemo(() => geoAdjustedProducts.filter(isProductAvailable), [geoAdjustedProducts])
 
   const companyNames = useMemo(() => {
     const names = new Set<string>()

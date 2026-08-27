@@ -4,6 +4,11 @@ import { supabase } from '../../lib/supabase'
 import { formatCurrencyShort, formatDate } from '../../utils/format'
 import { useCapability } from '../../hooks/useCapability'
 import toast from 'react-hot-toast'
+import SahlToolbar from '../../components/sahl/SahlToolbar'
+import SahlKpiCard from '../../components/sahl/SahlKpiCard'
+import { sahlExportExcel, sahlPrintReport, datePresetLabel, type SahlReportColumn } from './sahl-report'
+import { resolveDateRangeISO } from '../../lib/dateRange'
+import type { SahlDateFilterState } from '../../components/sahl/SahlDateFilter'
 
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
@@ -49,6 +54,11 @@ export function SahlPurchasesPage() {
   const [expanded, setExpanded] = useState<string | null>(null)
   const [items, setItems] = useState<Record<string, any[]>>({})
   const [postingId, setPostingId] = useState<string | null>(null)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [confirmAction, setConfirmAction] = useState<{ type: 'post' | 'cancel'; purchase: any } | null>(null)
+  const [actionLoading, setActionLoading] = useState(false)
+  const [dateFilter, setDateFilter] = useState<SahlDateFilterState>({ preset: 'month', customFrom: '', customTo: '' })
+  const [searchQuery, setSearchQuery] = useState('')
 
   async function loadSuppliers() {
     const token = getToken()
@@ -194,23 +204,158 @@ export function SahlPurchasesPage() {
     await Promise.all([loadPurchases(), loadSuppliers()])
   }
 
+  function startEdit(p: PurchaseRow) {
+    setEditingId(p.id)
+    setSupplierId(p.supplier_id || '')
+    setMethod(p.payment_method || 'credit')
+    setPaid(String(p.paid_amount || 0))
+    setReference('')
+    setNotes('')
+    setLines([])
+    if (!items[p.id]) toggleExpand(p.id)
+  }
+
+  async function loadEditItems(p: PurchaseRow) {
+    const token = getToken()
+    if (!token) return
+    const res = await supabase.rpc('sahl_get_purchase_items', { p_token: token, p_purchase_id: p.id })
+    if (!res.error && !(res.data as any)?.error && Array.isArray(res.data)) {
+      setItems(prev => ({ ...prev, [p.id]: res.data }))
+      const loaded: Line[] = (res.data as any[]).map((it: any) => ({
+        productId: it.product_id,
+        name: it.product_name || 'منتج',
+        unit: (it.unit_type || 'carton') as 'piece' | 'dozen' | 'carton',
+        qty: it.unit_quantity || 1,
+        unitCost: Number(it.unit_cost) || 0,
+        cartonQty: Math.round(Number(it.quantity_pieces) / Number(it.unit_quantity || 1)) || 1,
+      }))
+      setLines(loaded)
+    }
+  }
+
+  async function submitUpdate() {
+    if (!editingId || !supplierId) { toast.error('اختر المورد'); return }
+    if (lines.length === 0) { toast.error('أضف صنفاً واحداً على الأقل'); return }
+    const token = getToken()
+    if (!token) return
+    setSaving(true)
+    const payload = lines.map(l => ({
+      product_id: l.productId,
+      unit_type: l.unit,
+      quantity: l.qty,
+      unit_cost: l.unitCost,
+    }))
+    const res = await supabase.rpc('sahl_update_purchase', {
+      p_token: token, p_purchase_id: editingId, p_supplier_id: supplierId,
+      p_items: payload, p_payment_method: method,
+      p_paid_amount: Number(paid) || 0,
+      p_reference_number: reference.trim() || null,
+      p_notes: notes.trim() || null,
+    })
+    setSaving(false)
+    if (res.error) { toast.error(res.error.message); return }
+    const data = res.data as any
+    if (data?.error) { toast.error(data.error); return }
+    toast.success(`تم تحديث ${data.code} — الإجمالي: ${formatCurrencyShort(data.total)}`)
+    setEditingId(null); setLines([]); setPaid('0'); setReference(''); setNotes('')
+    await loadPurchases()
+  }
+
+  async function cancelPurchase(id: string) {
+    const token = getToken()
+    if (!token) return
+    setActionLoading(true)
+    const res = await supabase.rpc('sahl_cancel_purchase', { p_token: token, p_purchase_id: id })
+    setActionLoading(false); setConfirmAction(null)
+    if (res.error) { toast.error(res.error.message); return }
+    const data = res.data as any
+    if (data?.error) { toast.error(data.error); return }
+    toast.success(`تم إلغاء ${data.code}`)
+    await loadPurchases()
+  }
+
+  const { from: dateFrom, to: dateTo } = resolveDateRangeISO(dateFilter.preset, dateFilter.customFrom, dateFilter.customTo)
+
+  const filteredPurchases = useMemo(() => {
+    let list = purchases
+    if (dateFrom && dateTo) {
+      list = list.filter(p => p.created_at && p.created_at >= dateFrom && p.created_at <= dateTo)
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase()
+      list = list.filter(p =>
+        (p.code || '').toLowerCase().includes(q) ||
+        (p.supplier_name || '').toLowerCase().includes(q)
+      )
+    }
+    return list
+  }, [purchases, dateFrom, dateTo, searchQuery])
+
+  const purchaseKpis = useMemo(() => ({
+    count: filteredPurchases.length,
+    totalValue: filteredPurchases.reduce((s, p) => s + Number(p.total_amount || 0), 0),
+    pending: filteredPurchases.filter(p => p.status === 'pending').length,
+  }), [filteredPurchases])
+
+  const reportCols: SahlReportColumn[] = [
+    { key: 'code', label: 'الكود' },
+    { key: 'supplier_name', label: 'المورد' },
+    { key: 'store_name', label: 'المخزون' },
+    { key: 'payment_method', label: 'طريقة الدفع' },
+    { key: 'total_amount', label: 'الإجمالي', format: 'currency' },
+    { key: 'paid_amount', label: 'المدفوع', format: 'currency' },
+    { key: 'status', label: 'الحالة' },
+    { key: 'created_at', label: 'التاريخ' },
+  ]
+
+  function handleExportExcel() {
+    sahlExportExcel({
+      title: 'المشتريات',
+      subtitle: 'فواتير شراء من الموردين — ترحيل ومخزون',
+      fileName: 'sahl-purchases',
+      dateFrom: dateFrom || undefined,
+      dateTo: dateTo || undefined,
+      filters: [datePresetLabel(dateFilter.preset)],
+    }, reportCols, filteredPurchases)
+  }
+
+  function handlePrint() {
+    sahlPrintReport({
+      title: 'المشتريات',
+      subtitle: 'فواتير شراء من الموردين — ترحيل ومخزون',
+      fileName: 'sahl-purchases',
+      dateFrom: dateFrom || undefined,
+      dateTo: dateTo || undefined,
+      filters: [datePresetLabel(dateFilter.preset)],
+    }, reportCols, filteredPurchases)
+  }
+
   return (
     <div className="space-y-4" dir="rtl">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <button onClick={() => nav('/sahl')} className="text-text-secondary text-lg">&rarr;</button>
-          <div>
-            <h1 className="text-lg font-bold text-text">المشتريات</h1>
-            <p className="text-[10px] text-text-secondary">تسجيل فواتير الشراء والترحيل للخزينة والمخزون</p>
-          </div>
-        </div>
-        <button onClick={loadPurchases} className="text-[10px] text-primary border border-border rounded px-2 py-1">تحديث</button>
+      <button onClick={() => nav('/sahl')} className="text-text-secondary text-lg">&rarr;</button>
+      <SahlToolbar
+        title="المشتريات"
+        subtitle="فواتير شراء من الموردين — ترحيل ومخزون"
+        dateFilter={dateFilter}
+        onDateFilterChange={setDateFilter}
+        searchValue={searchQuery}
+        onSearchChange={setSearchQuery}
+        searchPlaceholder="بحث بالكود أو المورد..."
+        onExportExcel={handleExportExcel}
+        onPrint={handlePrint}
+        onRefresh={loadPurchases}
+      />
+
+      <div className="grid grid-cols-3 gap-3">
+        <SahlKpiCard label="إجمالي الفواتير" value={purchaseKpis.count} format="count" color="primary" icon="📋" />
+        <SahlKpiCard label="قيمة المشتريات" value={purchaseKpis.totalValue} format="currency" color="success" icon="💰" />
+        <SahlKpiCard label="فواتير معلقة" value={purchaseKpis.pending} format="count" color="warning" icon="⏳" />
       </div>
 
       {canCreate && (
         <div className="bg-white rounded-2xl border border-border shadow-sm overflow-hidden">
           <div className="bg-gradient-to-l from-emerald-700 to-emerald-600 px-5 py-3.5 flex items-center justify-between">
-            <h2 className="text-sm font-bold text-white">🛒 فاتورة شراء جديدة</h2>
+            <h2 className="text-sm font-bold text-white">{editingId ? '✏️ تعديل فاتورة شراء' : '🛒 فاتورة شراء جديدة'}</h2>
             <span className="text-white font-bold">الإجمالي: {formatCurrencyShort(total)}</span>
           </div>
 
@@ -349,15 +494,30 @@ export function SahlPurchasesPage() {
                   className="w-full border border-border rounded-lg px-3 py-2.5 text-sm bg-white" />
               </div>
               <div className="flex flex-col gap-2">
-                <button onClick={() => save(false)} disabled={saving || lines.length === 0}
-                  className="border border-primary text-primary disabled:opacity-50 rounded-xl py-2.5 text-xs font-bold active:opacity-80">
-                  {saving ? '...' : 'حفظ كمعلق'}
-                </button>
-                {canPost && (
-                  <button onClick={() => save(true)} disabled={saving || lines.length === 0}
-                    className="bg-gradient-to-l from-emerald-700 to-emerald-600 disabled:opacity-50 text-white rounded-xl py-2.5 text-xs font-bold active:opacity-80">
-                    {saving ? '...' : 'حفظ وترحيل'}
-                  </button>
+                {editingId ? (
+                  <>
+                    <button onClick={submitUpdate} disabled={saving || lines.length === 0}
+                      className="bg-primary text-white disabled:opacity-50 rounded-xl py-2.5 text-xs font-bold active:opacity-80">
+                      {saving ? '...' : 'تحديث الفاتورة'}
+                    </button>
+                    <button onClick={() => { setEditingId(null); setLines([]); setPaid('0'); setReference(''); setNotes(''); setSupplierId('') }}
+                      className="border border-border text-text-secondary rounded-xl py-2.5 text-xs font-semibold">
+                      إلغاء التعديل
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button onClick={() => save(false)} disabled={saving || lines.length === 0}
+                      className="border border-primary text-primary disabled:opacity-50 rounded-xl py-2.5 text-xs font-bold active:opacity-80">
+                      {saving ? '...' : 'حفظ كمعلق'}
+                    </button>
+                    {canPost && (
+                      <button onClick={() => save(true)} disabled={saving || lines.length === 0}
+                        className="bg-gradient-to-l from-emerald-700 to-emerald-600 disabled:opacity-50 text-white rounded-xl py-2.5 text-xs font-bold active:opacity-80">
+                        {saving ? '...' : 'حفظ وترحيل'}
+                      </button>
+                    )}
+                  </>
                 )}
               </div>
             </div>
@@ -368,25 +528,28 @@ export function SahlPurchasesPage() {
       <div className="bg-white rounded-2xl border border-border shadow-sm overflow-hidden">
         <div className="bg-surface px-5 py-3.5 border-b border-border flex items-center justify-between">
           <h2 className="text-sm font-bold text-text">📋 سجل المشتريات</h2>
-          <span className="text-[10px] text-text-secondary">{purchases.length}</span>
+          <span className="text-[10px] text-text-secondary">{filteredPurchases.length}</span>
         </div>
         {loading ? (
           <div className="text-center py-12 text-text-secondary text-sm">جاري التحميل...</div>
-        ) : purchases.length === 0 ? (
+        ) : filteredPurchases.length === 0 ? (
           <div className="text-center py-12 text-text-secondary text-sm">لا توجد فواتير شراء بعد</div>
         ) : (
           <div className="divide-y divide-border/60 max-h-[480px] overflow-y-auto">
-            {purchases.map((p) => {
-              const pending = p.status !== 'treasury_posted'
+            {filteredPurchases.map((p) => {
+              const isPending = p.status === 'pending'
+              const isCancelled = p.status === 'cancelled'
               return (
                 <div key={p.id}>
-                  <div className="px-5 py-3 flex items-center justify-between gap-2 hover:bg-surface/60 cursor-pointer"
+                  <div className="px-5 py-3 flex items-center justify-between gap-2 hover:bg-surface/60"
                     onClick={() => toggleExpand(p.id)}>
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-bold text-text">{p.code}</span>
-                        <span className={`text-[9px] px-1.5 py-0.5 rounded ${pending ? 'bg-amber-100 text-amber-800' : 'bg-green-100 text-green-800'}`}>
-                          {pending ? 'معلق' : 'مرحّل'}
+                        <span className={`text-[9px] px-1.5 py-0.5 rounded ${
+                          isCancelled ? 'bg-text-secondary/10 text-text-secondary line-through' :
+                          isPending ? 'bg-amber-100 text-amber-800' : 'bg-green-100 text-green-800'}`}>
+                          {isCancelled ? 'ملغى' : isPending ? 'معلق' : 'مرحّل'}
                         </span>
                       </div>
                       <div className="text-[10px] text-text-secondary">
@@ -394,13 +557,20 @@ export function SahlPurchasesPage() {
                         {p.payment_method && p.payment_method !== 'credit' ? ` • مدفوع ${formatCurrencyShort(p.paid_amount || 0)}` : ''}
                       </div>
                     </div>
-                    <div className="shrink-0 flex items-center gap-2">
+                    <div className="shrink-0 flex items-center gap-1.5">
                       <span className="text-sm font-bold text-text">{formatCurrencyShort(p.total_amount || 0)}</span>
-                      {pending && canPost && (
-                        <button onClick={(e) => { e.stopPropagation(); postPurchase(p.id) }} disabled={postingId === p.id}
-                          className="text-[10px] bg-emerald-600 disabled:opacity-50 text-white rounded px-2 py-1">
-                          {postingId === p.id ? '...' : 'ترحيل'}
-                        </button>
+                      {isPending && canPost && (
+                        <>
+                          <button onClick={(e) => { e.stopPropagation(); setConfirmAction({ type: 'post', purchase: p }) }}
+                            className="text-[10px] bg-emerald-600 text-white rounded px-2 py-1">ترحيل</button>
+                          <button onClick={async (e) => { e.stopPropagation(); await loadEditItems(p); startEdit(p) }}
+                            className="text-[10px] bg-primary/10 text-primary rounded px-2 py-1">تعديل</button>
+                          <button onClick={(e) => { e.stopPropagation(); setConfirmAction({ type: 'cancel', purchase: p }) }}
+                            className="text-[10px] bg-danger/10 text-danger rounded px-2 py-1">إلغاء</button>
+                        </>
+                      )}
+                      {!isPending && !isCancelled && (
+                        <span className="text-[9px] text-text-secondary italic">🔒 مرحّل — لا يمكن التعديل</span>
                       )}
                     </div>
                   </div>
@@ -430,6 +600,41 @@ export function SahlPurchasesPage() {
           </div>
         )}
       </div>
+
+      {confirmAction && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => setConfirmAction(null)}>
+          <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className={`px-5 py-4 ${confirmAction.type === 'post' ? 'bg-gradient-to-l from-emerald-700 to-emerald-600' : 'bg-gradient-to-l from-red-700 to-red-600'}`}>
+              <h3 className="text-sm font-bold text-white">
+                {confirmAction.type === 'post' ? 'تأكيد ترحيل فاتورة الشراء' : 'تأكيد إلغاء فاتورة الشراء'}
+              </h3>
+            </div>
+            <div className="p-5 space-y-3 text-center">
+              <div className="text-sm font-bold text-text">{confirmAction.purchase.code}</div>
+              <div className="text-lg font-bold">{formatCurrencyShort(confirmAction.purchase.total_amount || 0)}</div>
+              <div className="text-xs text-text-secondary">{confirmAction.purchase.supplier_name || ''}</div>
+              {confirmAction.type === 'post' ? (
+                <p className="text-xs text-text-secondary">سيتم ترحيل الفاتورة وتحديث المخزون وحساب المورد.</p>
+              ) : (
+                <p className="text-xs text-text-secondary">سيتم إلغاء الفاتورة المعلقة. لا يمكن التراجع.</p>
+              )}
+              <div className="flex gap-2">
+                <button onClick={() => setConfirmAction(null)} className="flex-1 border border-border rounded-xl py-2.5 text-sm font-semibold">تراجع</button>
+                <button disabled={actionLoading} onClick={async () => {
+                  if (confirmAction.type === 'post') {
+                    await postPurchase(confirmAction.purchase.id)
+                  } else {
+                    await cancelPurchase(confirmAction.purchase.id)
+                  }
+                }}
+                  className={`flex-1 text-white rounded-xl py-2.5 text-sm font-bold ${confirmAction.type === 'post' ? 'bg-emerald-700' : 'bg-danger'}`}>
+                  {actionLoading ? 'جاري...' : confirmAction.type === 'post' ? 'تأكيد الترحيل' : 'تأكيد الإلغاء'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

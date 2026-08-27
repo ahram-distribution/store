@@ -21,6 +21,7 @@ export interface CustomerFormData {
   longitude: number | null
   accuracyMeters: number | null
   password?: string
+  confirmPassword?: string
 }
 
 export interface CustomerFormProps {
@@ -47,6 +48,7 @@ const EMPTY: CustomerFormData = {
   longitude: null,
   accuracyMeters: null,
   password: '',
+  confirmPassword: '',
 }
 
 export function CustomerForm({
@@ -100,7 +102,7 @@ export function CustomerForm({
     }
   }
 
-  const validate = (): string | null => {
+  const validate = (isRegistration = false): string | null => {
     if (!form.companyName.trim()) return 'يرجى إدخال اسم النشاط التجاري'
     if (!form.contactName.trim()) return 'يرجى إدخال اسم المسؤول'
     if (!form.businessType) return 'يرجى اختيار نوع النشاط'
@@ -109,12 +111,17 @@ export function CustomerForm({
     if (!form.governorateId) return 'يرجى اختيار المحافظة'
     if (!form.city.trim()) return 'يرجى إدخال المدينة'
     if (!form.streetAddress.trim()) return 'يرجى إدخال الشارع'
+    if (isRegistration) {
+      if (!form.password || !form.password.trim()) return 'يرجى إدخال كلمة المرور'
+      if (form.password.trim().length < 4) return 'كلمة المرور يجب أن تكون 4 أحرف على الأقل'
+      if (form.password.trim() !== (form.confirmPassword || '').trim()) return 'كلمتا المرور غير متطابقتين'
+    }
     return null
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    const err = validate()
+    const err = validate(mode === 'registration')
     if (err) { toast.error(err); return }
     if (!form.latitude || !form.longitude) {
       toast('⚠️ لم يتم تحديد الموقع — يمكنك إكمال التسجيل وسيتم تحديث الموقع لاحقاً', { duration: 6000 })
@@ -178,6 +185,25 @@ export function CustomerForm({
               <input type="tel" dir="ltr" placeholder="01xxxxxxxxx" value={form.phone}
                 onChange={e => set('phone', toEnglishDigits(e.target.value))}
                 maxLength={11} autoComplete="tel"
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/50 transition-colors" />
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div className={sectionTitle}>كلمة المرور</div>
+          <div className="h-px bg-gradient-to-r from-primary/30 to-transparent mb-3" />
+          <div className="space-y-3">
+            <div>
+              <label className="text-[11px] font-semibold text-white/50 mb-1.5 block">كلمة المرور *</label>
+              <input type="password" placeholder="أدخل كلمة المرور" value={form.password || ''}
+                onChange={e => set('password', e.target.value)}
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/50 transition-colors" />
+            </div>
+            <div>
+              <label className="text-[11px] font-semibold text-white/50 mb-1.5 block">تأكيد كلمة المرور *</label>
+              <input type="password" placeholder="أعد إدخال كلمة المرور" value={form.confirmPassword || ''}
+                onChange={e => set('confirmPassword', e.target.value)}
                 className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/50 transition-colors" />
             </div>
           </div>

@@ -9,6 +9,7 @@ import { StorefrontHero } from '../../components/storefront/StorefrontHero'
 import { BusinessShortcuts } from '../../components/storefront/BusinessShortcuts'
 import { SearchHighlight } from '../../components/shared/SearchHighlight'
 import { formatNumber } from '../../utils/numbers'
+import { applyGeographicAdjustment } from '../../engine/pricing'
 import { buildSearchIndex, searchProducts as smartSearchProducts, type ProductSearchIndex } from '../../utils/smartSearch'
 import type { ProductWithPrice, ProductUnitPrice, UnitType } from '../../types/storefront'
 
@@ -24,6 +25,7 @@ export function CompaniesPage() {
   const [searchParams] = useSearchParams()
   const customerParam = searchParams.get('customer')
   const setOrderType = useCartStore((s) => s.setOrderType)
+  const geographicContext = useCartStore((s) => s.geographicContext)
   const refreshKey = useCompaniesStore((s) => s.refreshKey)
   const setStoreCompanies = useCompaniesStore((s) => s.setCompanies)
   const { token: authToken } = useAuthStore()
@@ -212,7 +214,7 @@ export function CompaniesPage() {
                         )}
                       </div>
                       <div className="text-xs text-primary font-semibold shrink-0">
-                        {product.cartonPrice > 0 ? `${formatNumber(product.cartonPrice)} ج.` : ''}
+                        {product.cartonPrice > 0 ? `${formatNumber(applyGeographicAdjustment(product.cartonPrice, geographicContext?.adjustmentPercent ?? 0))} ج.` : ''}
                       </div>
                     </div>
                   </button>

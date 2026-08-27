@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { formatCurrencyShort } from '../../utils/format'
 import { useCapability } from '../../hooks/useCapability'
@@ -29,6 +29,7 @@ interface Line {
 
 export function SahlPosPage() {
   const nav = useNavigate()
+  const location = useLocation()
   const canManage = useCapability('sahl.sales.manage')
 
   const [kind, setKind] = useState<'sale' | 'quote'>('sale')
@@ -60,6 +61,19 @@ export function SahlPosPage() {
   const [qcName, setQcName] = useState('')
   const [qcPhone, setQcPhone] = useState('')
   const searchRef = useRef<HTMLInputElement>(null)
+  const preselectedCustomer = useRef(false)
+
+  useEffect(() => {
+    if (preselectedCustomer.current) return
+    const state = location.state as { customerId?: string } | null
+    if (!state?.customerId) { preselectedCustomer.current = true; return }
+    const c = customers.find(x => x.id === state.customerId)
+    if (c) {
+      preselectedCustomer.current = true
+      setCustomerId(state.customerId)
+      setCustSearch(c.company_name || '')
+    }
+  }, [customers, location.state])
 
   async function loadData() {
     const token = getToken()

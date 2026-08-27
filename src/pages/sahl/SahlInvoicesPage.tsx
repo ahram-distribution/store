@@ -52,6 +52,12 @@ export function SahlInvoicesPage() {
   const [cvCash, setCvCash] = useState('')
   const [cvCard, setCvCard] = useState('')
   const [busy, setBusy] = useState(false)
+  const [kpiFilter, setKpiFilter] = useState<'all' | 'open_quotes' | 'today_invoices' | 'overdue_cheques'>('all')
+  const [showConfirmConvert, setShowConfirmConvert] = useState(false)
+  const [showConfirmCancel, setShowConfirmCancel] = useState(false)
+  const [showEditQuote, setShowEditQuote] = useState(false)
+  const [editQuoteOriginal, setEditQuoteOriginal] = useState<InvoiceRow | null>(null)
+  const [editItems, setEditItems] = useState<any[]>([])
 
   async function loadData() {
     const token = getToken()
@@ -131,7 +137,6 @@ export function SahlInvoicesPage() {
   async function cancelQuote() {
     const token = getToken()
     if (!token || !detail) return
-    if (!confirm(`إلغاء عرض السعر ${detail.code}؟`)) return
     setBusy(true)
     const res = await supabase.rpc('sahl_cancel_quote', { p_token: token, p_quote_id: detail.id })
     setBusy(false)
@@ -147,6 +152,49 @@ export function SahlInvoicesPage() {
     quotes: docs.filter(d => d.kind === 'quote' && d.status === 'open').reduce((s, d) => s + Number(d.grand_total), 0),
   }), [docs])
 
+  const overdueCheques = useMemo(() =>
+    docs.filter(d => d.kind === 'sale' && d.status === 'posted' && Number(d.paid_credit) > 0),
+  [docs])
+
+  const visibleDocs = useMemo(() => {
+    if (kpiFilter === 'all') return docs
+    const today = new Date().toISOString().slice(0, 10)
+    if (kpiFilter === 'open_quotes') return docs.filter(d => d.kind === 'quote' && d.status === 'open')
+    if (kpiFilter === 'today_invoices') return docs.filter(d => d.kind === 'sale' && d.status === 'posted' && d.created_at?.startsWith(today))
+    if (kpiFilter === 'overdue_cheques') return overdueCheques
+    return docs
+  }, [docs, kpiFilter, overdueCheques])
+
+  const KPI_LABELS: Record<string, string> = {
+    all: 'الكل', open_quotes: 'عروض مفتوحة', today_invoices: 'فواتير اليوم', overdue_cheques: 'آجال معلقة',
+  }
+
+  function openEditQuote(d: InvoiceRow) {
+    setEditQuoteOriginal(d)
+    setEditItems(items.map((i: any) => ({ ...i })))
+    setShowEditQuote(true)
+  }
+
+  async function saveEditQuote() {
+    const token = getToken()
+    if (!token || !editQuoteOriginal) return
+    setBusy(true)
+    const payload = editItems.map((i: any) => ({
+      product_id: i.product_id, product_name: i.product_name,
+      unit_label: i.unit_label, qty: Number(i.qty), unit_price: Number(i.unit_price),
+    }))
+    const res = await supabase.rpc('sahl_update_quote', {
+      p_token: token, p_quote_id: editQuoteOriginal.id, p_items: payload,
+    })
+    setBusy(false)
+    const data = res.data as any
+    if (res.error) return toast.error(res.error.message)
+    if (data?.error) return toast.error(data.error)
+    toast.success('تم تحديث العرض')
+    setShowEditQuote(false); setEditQuoteOriginal(null); loadData()
+    if (detail) openDetail({ ...detail, ...data })
+  }
+
   return (
     <div className="space-y-4" dir="rtl">
       <div className="flex items-center justify-between">
@@ -160,16 +208,32 @@ export function SahlInvoicesPage() {
         <button onClick={() => nav('/sahl/pos')} className="text-xs px-3 py-2 rounded-lg bg-primary text-white font-bold">+ فاتورة جديدة</button>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <div className="bg-white rounded-xl border border-border p-4">
-          <div className="text-[10px] text-text-secondary">إجمالي المبيعات المُرحّلة</div>
-          <div className="text-lg font-bold text-green-700 mt-1">{formatCurrencyShort(totals.sales)}</div>
-        </div>
-        <div className="bg-white rounded-xl border border-border p-4">
+      <div className="grid grid-cols-3 gap-3">
+        <button onClick={() => setKpiFilter(kpiFilter === 'open_quotes' ? 'all' : 'open_quotes')}
+          className={`rounded-xl border p-4 text-right transition-colors ${kpiFilter === 'open_quotes' ? 'bg-primary/10 border-primary/40 ring-1 ring-primary/30' : 'bg-white border-border'}`}>
           <div className="text-[10px] text-text-secondary">عروض مفتوحة</div>
           <div className="text-lg font-bold text-text mt-1">{formatCurrencyShort(totals.quotes)}</div>
-        </div>
+        </button>
+        <button onClick={() => setKpiFilter(kpiFilter === 'today_invoices' ? 'all' : 'today_invoices')}
+          className={`rounded-xl border p-4 text-right transition-colors ${kpiFilter === 'today_invoices' ? 'bg-primary/10 border-primary/40 ring-1 ring-primary/30' : 'bg-white border-border'}`}>
+          <div className="text-[10px] text-text-secondary">فواتير اليوم</div>
+          <div className="text-lg font-bold text-green-700 mt-1">{formatCurrencyShort(totals.sales)}</div>
+        </button>
+        <button onClick={() => setKpiFilter(kpiFilter === 'overdue_cheques' ? 'all' : 'overdue_cheques')}
+          className={`rounded-xl border p-4 text-right transition-colors ${kpiFilter === 'overdue_cheques' ? 'bg-primary/10 border-primary/40 ring-1 ring-primary/30' : 'bg-white border-border'}`}>
+          <div className="text-[10px] text-text-secondary">آجال معلقة</div>
+          <div className="text-lg font-bold text-danger mt-1">{overdueCheques.length}</div>
+        </button>
       </div>
+
+      {kpiFilter !== 'all' && (
+        <div className="flex items-center gap-2 px-3 py-2 bg-primary/5 border border-primary/20 rounded-xl text-xs">
+          <span className="text-primary font-bold">فلتر نشط:</span>
+          <span className="text-text">{KPI_LABELS[kpiFilter]}</span>
+          <span className="text-text-secondary">({visibleDocs.length} نتيجة)</span>
+          <button onClick={() => setKpiFilter('all')} className="mr-auto text-[10px] text-danger border border-danger/30 rounded px-2 py-0.5 hover:bg-danger/5">مسح الفلتر</button>
+        </div>
+      )}
 
       <div className="bg-white rounded-2xl border border-border shadow-sm overflow-hidden">
         <div className="px-5 py-3.5 bg-surface border-b border-border flex flex-wrap items-center gap-2">
@@ -200,11 +264,11 @@ export function SahlInvoicesPage() {
 
         {loading ? (
           <div className="text-center py-12 text-text-secondary text-sm">جاري التحميل...</div>
-        ) : docs.length === 0 ? (
+        ) : visibleDocs.length === 0 ? (
           <div className="text-center py-12 text-text-secondary text-sm">لا توجد مستندات</div>
         ) : (
           <div className="divide-y divide-border/60 max-h-[560px] overflow-y-auto">
-            {docs.map(d => (
+            {visibleDocs.map(d => (
               <button key={d.id} onClick={() => openDetail(d)}
                 className="w-full text-right px-5 py-3 hover:bg-surface/60 transition-colors flex items-center justify-between gap-3">
                 <div className="min-w-0">
@@ -318,10 +382,12 @@ export function SahlInvoicesPage() {
                           className="w-full text-sm border border-border rounded-lg px-3 py-2" /></label>
                     </div>
                     <div className="flex gap-2 w-full">
-                      <button onClick={convertQuote} disabled={busy}
+                      <button onClick={() => setShowConfirmConvert(true)} disabled={busy}
                         className="flex-1 text-xs px-4 py-2 rounded-lg bg-success text-white font-bold disabled:opacity-50">تحويل لفاتورة بيع</button>
-                      <button onClick={cancelQuote} disabled={busy}
+                      <button onClick={() => setShowConfirmCancel(true)} disabled={busy}
                         className="text-xs px-4 py-2 rounded-lg border border-danger/40 text-danger font-bold disabled:opacity-50">إلغاء العرض</button>
+                      <button onClick={() => openEditQuote(detail)} disabled={busy}
+                        className="text-xs px-4 py-2 rounded-lg border border-primary/40 text-primary font-bold disabled:opacity-50">تعديل العرض</button>
                     </div>
                   </>
                 )}
@@ -330,6 +396,117 @@ export function SahlInvoicesPage() {
           </div>
         </div>
       )}
+
+      {showConfirmConvert && detail && (
+        <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/50 p-4" onClick={() => setShowConfirmConvert(false)}>
+          <div className="bg-white rounded-2xl w-full max-w-sm p-5 space-y-4" onClick={e => e.stopPropagation()} dir="rtl">
+            <div className="text-center">
+              <div className="text-sm font-bold text-text mb-1">تأكيد التحويل لفاتورة بيع</div>
+              <div className="text-xs text-text-secondary">هل أنت متأكد من تحويل العرض <b className="text-primary">{detail.code}</b> لفاتورة بيع؟</div>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => { setShowConfirmConvert(false); convertQuote() }} disabled={busy}
+                className="flex-1 text-xs px-4 py-2.5 rounded-lg bg-success text-white font-bold disabled:opacity-50">تأكيد التحويل</button>
+              <button onClick={() => setShowConfirmConvert(false)}
+                className="text-xs px-4 py-2.5 rounded-lg border border-border text-text-secondary font-bold">إلغاء</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showConfirmCancel && detail && (
+        <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/50 p-4" onClick={() => setShowConfirmCancel(false)}>
+          <div className="bg-white rounded-2xl w-full max-w-sm p-5 space-y-4" onClick={e => e.stopPropagation()} dir="rtl">
+            <div className="text-center">
+              <div className="text-sm font-bold text-text mb-1">تأكيد إلغاء عرض السعر</div>
+              <div className="text-xs text-text-secondary">هل أنت متأكد من إلغاء العرض <b className="text-danger">{detail.code}</b>؟ سيتم تحرير الحجز المخزني.</div>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => { setShowConfirmCancel(false); cancelQuote() }} disabled={busy}
+                className="flex-1 text-xs px-4 py-2.5 rounded-lg bg-danger text-white font-bold disabled:opacity-50">تأكيد الإلغاء</button>
+              <button onClick={() => setShowConfirmCancel(false)}
+                className="text-xs px-4 py-2.5 rounded-lg border border-border text-text-secondary font-bold">رجوع</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showEditQuote && editQuoteOriginal && (
+        <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/50 p-4" onClick={() => { setShowEditQuote(false); setEditQuoteOriginal(null) }}>
+          <div className="bg-white rounded-2xl w-full max-w-3xl max-h-[88vh] overflow-y-auto p-5 space-y-4" onClick={e => e.stopPropagation()} dir="rtl">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-bold text-base text-text">تعديل عرض السعر {editQuoteOriginal.code}</h3>
+                <p className="text-[10px] text-text-secondary mt-0.5">العميل: {editQuoteOriginal.customer_name || 'بدون عميل'}</p>
+              </div>
+              <button onClick={() => { setShowEditQuote(false); setEditQuoteOriginal(null) }} className="text-text-secondary text-lg">&times;</button>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead><tr className="border-b border-border text-text-secondary">
+                  <th className="py-1.5 text-right font-semibold">الصنف</th>
+                  <th className="py-1.5 text-center font-semibold">الوحدة</th>
+                  <th className="py-1.5 text-center font-semibold">كمية</th>
+                  <th className="py-1.5 text-left font-semibold">سعر الوحدة</th>
+                  <th className="py-1.5 text-left font-semibold">الإجمالي</th>
+                </tr></thead>
+                <tbody>
+                  {editItems.map((ei: any, idx: number) => {
+                    const lineTotal = Number(ei.qty) * Number(ei.unit_price)
+                    return (
+                      <tr key={idx} className="border-b border-border/40">
+                        <td className="py-1.5">{ei.product_name}</td>
+                        <td className="py-1.5 text-center">{ei.unit_label}</td>
+                        <td className="py-1.5 text-center">
+                          <input type="number" min="0" step="0.01" value={ei.qty}
+                            onChange={e => {
+                              const copy = [...editItems]; copy[idx] = { ...copy[idx], qty: e.target.value }; setEditItems(copy)
+                            }}
+                            className="w-16 text-center text-xs border border-border rounded px-1 py-0.5" />
+                        </td>
+                        <td className="py-1.5 text-left">
+                          <input type="number" min="0" step="0.01" value={ei.unit_price}
+                            onChange={e => {
+                              const copy = [...editItems]; copy[idx] = { ...copy[idx], unit_price: e.target.value }; setEditItems(copy)
+                            }}
+                            className="w-20 text-left text-xs border border-border rounded px-1 py-0.5" />
+                        </td>
+                        <td className="py-1.5 text-left font-bold">{formatCurrencyShort(lineTotal)}</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {(() => {
+              const sub = editItems.reduce((s, ei) => s + Number(ei.qty) * Number(ei.unit_price), 0)
+              return (
+                <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs bg-surface/60 rounded-xl p-4">
+                  <div className="flex justify-between"><span className="text-text-secondary">الإجمالي الفرعي</span><b>{formatCurrencyShort(sub)}</b></div>
+                  <div className="flex justify-between"><span className="text-text-secondary">الخصم</span><b>{formatCurrencyShort(editQuoteOriginal.discount_amount)}</b></div>
+                  {Number(editQuoteOriginal.additions_amount) > 0 && (
+                    <div className="flex justify-between"><span className="text-text-secondary">إضافات{editQuoteOriginal.additions_type ? ` (${editQuoteOriginal.additions_type})` : ''}</span><b>{formatCurrencyShort(editQuoteOriginal.additions_amount)}</b></div>
+                  )}
+                  <div className="flex justify-between"><span className="text-text-secondary">الضريبة</span><b>{formatCurrencyShort(editQuoteOriginal.tax_amount)}</b></div>
+                  <div className="flex justify-between col-span-2 border-t border-border pt-1.5">
+                    <span className="font-bold">الإجمالي</span><b className="text-base text-primary">{formatCurrencyShort(sub - Number(editQuoteOriginal.discount_amount) + Number(editQuoteOriginal.additions_amount || 0) + Number(editQuoteOriginal.tax_amount))}</b>
+                  </div>
+                </div>
+              )
+            })()}
+
+            <div className="flex gap-2">
+              <button onClick={saveEditQuote} disabled={busy}
+                className="flex-1 text-xs px-4 py-2.5 rounded-lg bg-primary text-white font-bold disabled:opacity-50">حفظ التعديلات</button>
+              <button onClick={() => { setShowEditQuote(false); setEditQuoteOriginal(null) }}
+                className="text-xs px-4 py-2.5 rounded-lg border border-border text-text-secondary font-bold">إلغاء</button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   )
 }

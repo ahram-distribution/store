@@ -93,6 +93,8 @@ export function OrderDetailPage() {
   const [deleteConfirm, setDeleteConfirm] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
+  const isCustomer = user?.identity_type === 'customer'
+
   const canReview = useCapability('orders.review')
   const canApprove = useCapability('orders.approve')
   const canCompletePreparation = useCapability('warehouse.complete_preparation')
@@ -623,6 +625,7 @@ export function OrderDetailPage() {
 
   const canEdit = data.order.status === 'returned_for_revision' || (data.order.status === 'draft' && (data.order.revision_number || 0) >= 1)
   const isCancelled = data.order.status === 'cancelled'
+  const customerCanEdit = isCustomer && data.order.status === 'returned_for_revision' && data.order.created_by === user?.identity_id
 
   if (editMode && showProductSearch) {
     return (
@@ -782,89 +785,100 @@ export function OrderDetailPage() {
       businessStatusByItem={businessStatusByItem}
       eventLog={eventLog}
       actions={
-        <div className="flex items-stretch gap-2 flex-wrap">
-          {canEdit && (
-            <button onClick={() => navigate(`/storefront/products?editOrder=${id}`)}
-              className="inline-flex items-center gap-1 bg-accent text-white text-xs px-3 py-2.5 rounded-lg active:opacity-90 shrink-0">
-              تعديل الطلب
-            </button>
-          )}
-          {isSupreme && !isExecDirector && (
-            <button onClick={() => startEdit('supreme')}
-              className="inline-flex items-center gap-1 bg-accent text-white text-xs px-3 py-2.5 rounded-lg active:opacity-90 shrink-0">
-              تحرير الطلب
-            </button>
-          )}
-          {isExecDirector && data.order.status === 'submitted' && (
-            <button onClick={() => startEdit('executive')}
-              className="inline-flex items-center gap-1 bg-accent text-white text-xs px-3 py-2.5 rounded-lg active:opacity-90 shrink-0">
-              تحرير الطلب
-            </button>
-          )}
-          {isSupreme && isCancelled && !deleteConfirm && (
-            <button onClick={() => setDeleteConfirm(true)}
-              className="inline-flex items-center gap-1 bg-danger text-white text-xs px-3 py-2.5 rounded-lg active:opacity-90 shrink-0">
-              حذف الطلب
-            </button>
-          )}
-          {isSupreme && isCancelled && deleteConfirm && (
-            <div className="flex items-center gap-2">
-              <p className="text-[10px] text-text-secondary shrink-0">حذف نهائياً؟</p>
-              <button onClick={handleDeleteOrder} disabled={deleting}
-                className="bg-danger text-white text-xs px-3 py-2 rounded-lg active:opacity-90 disabled:opacity-40">
-                {deleting ? 'جاري...' : 'تأكيد'}
-              </button>
-              <button onClick={() => setDeleteConfirm(false)}
-                className="bg-surface text-text-secondary text-xs px-3 py-2 rounded-lg active:opacity-90">
-                إلغاء
+        isCustomer ? (
+          customerCanEdit ? (
+            <div className="flex items-stretch gap-2 flex-wrap">
+              <button onClick={() => navigate(`/storefront/products?editOrder=${id}`)}
+                className="inline-flex items-center gap-1 bg-accent text-white text-xs px-3 py-2.5 rounded-lg active:opacity-90 shrink-0">
+                تعديل الطلب
               </button>
             </div>
-          )}
-          {canTransfer && transferMode && (
-            <div className="flex items-stretch gap-2 flex-wrap w-full">
-              <div className="flex-1 min-w-[200px]">
-                <SearchableSelect
-                  items={transferEmployees.map((e: any) => ({ id: e.id, name: e.full_name || e.code || e.id }))}
-                  value={transferTarget || ''}
-                  onChange={(id) => setTransferTarget(id || null)}
-                  placeholder="اختر المنديب الجديد..."
-                  resetLabel="إلغاء التحديد"
-                />
+          ) : undefined
+        ) : (
+          <div className="flex items-stretch gap-2 flex-wrap">
+            {canEdit && (
+              <button onClick={() => navigate(`/storefront/products?editOrder=${id}`)}
+                className="inline-flex items-center gap-1 bg-accent text-white text-xs px-3 py-2.5 rounded-lg active:opacity-90 shrink-0">
+                تعديل الطلب
+              </button>
+            )}
+            {isSupreme && !isExecDirector && (
+              <button onClick={() => startEdit('supreme')}
+                className="inline-flex items-center gap-1 bg-accent text-white text-xs px-3 py-2.5 rounded-lg active:opacity-90 shrink-0">
+                تحرير الطلب
+              </button>
+            )}
+            {isExecDirector && data.order.status === 'submitted' && (
+              <button onClick={() => startEdit('executive')}
+                className="inline-flex items-center gap-1 bg-accent text-white text-xs px-3 py-2.5 rounded-lg active:opacity-90 shrink-0">
+                تحرير الطلب
+              </button>
+            )}
+            {isSupreme && isCancelled && !deleteConfirm && (
+              <button onClick={() => setDeleteConfirm(true)}
+                className="inline-flex items-center gap-1 bg-danger text-white text-xs px-3 py-2.5 rounded-lg active:opacity-90 shrink-0">
+                حذف الطلب
+              </button>
+            )}
+            {isSupreme && isCancelled && deleteConfirm && (
+              <div className="flex items-center gap-2">
+                <p className="text-[10px] text-text-secondary shrink-0">حذف نهائياً؟</p>
+                <button onClick={handleDeleteOrder} disabled={deleting}
+                  className="bg-danger text-white text-xs px-3 py-2 rounded-lg active:opacity-90 disabled:opacity-40">
+                  {deleting ? 'جاري...' : 'تأكيد'}
+                </button>
+                <button onClick={() => setDeleteConfirm(false)}
+                  className="bg-surface text-text-secondary text-xs px-3 py-2 rounded-lg active:opacity-90">
+                  إلغاء
+                </button>
               </div>
-              <input
-                type="text"
-                value={transferReason}
-                onChange={(e) => setTransferReason(e.target.value)}
-                placeholder="السبب (اختياري)"
-                className="flex-1 min-w-[150px] text-xs px-3 py-2 rounded-lg border border-border bg-white"
+            )}
+            {canTransfer && transferMode && (
+              <div className="flex items-stretch gap-2 flex-wrap w-full">
+                <div className="flex-1 min-w-[200px]">
+                  <SearchableSelect
+                    items={transferEmployees.map((e: any) => ({ id: e.id, name: e.full_name || e.code || e.id }))}
+                    value={transferTarget || ''}
+                    onChange={(id) => setTransferTarget(id || null)}
+                    placeholder="اختر المنديب الجديد..."
+                    resetLabel="إلغاء التحديد"
+                  />
+                </div>
+                <input
+                  type="text"
+                  value={transferReason}
+                  onChange={(e) => setTransferReason(e.target.value)}
+                  placeholder="السبب (اختياري)"
+                  className="flex-1 min-w-[150px] text-xs px-3 py-2 rounded-lg border border-border bg-white"
+                />
+                <button onClick={handleTransferOwner} disabled={!transferTarget || transferring}
+                  className="bg-primary text-white text-xs px-4 py-2 rounded-lg active:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap">
+                  {transferring ? 'جاري...' : 'تأكيد النقل'}
+                </button>
+                <button onClick={() => { setTransferMode(false); setTransferTarget(null); setTransferReason('') }}
+                  className="bg-surface text-text-secondary text-xs px-3 py-2 rounded-lg active:opacity-90 whitespace-nowrap">
+                  إلغاء
+                </button>
+              </div>
+            )}
+            {data?.order?.status && (
+              <OrderStatusManager
+                orderId={data!.order.id}
+                currentStatus={data!.order.status}
+                canReview={canReview}
+                canApprove={canApprove}
+                canCompletePreparation={canCompletePreparation}
+                canSendToDelivery={canSendToDelivery}
+                canManage={canManage}
+                referenceNumber={data!.order.reference_number}
+                hideRevisionButton
+                onSuccess={handleStatusSuccess}
+                onError={handleStatusError}
+                onShortage={handleShortage}
               />
-              <button onClick={handleTransferOwner} disabled={!transferTarget || transferring}
-                className="bg-primary text-white text-xs px-4 py-2 rounded-lg active:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap">
-                {transferring ? 'جاري...' : 'تأكيد النقل'}
-              </button>
-              <button onClick={() => { setTransferMode(false); setTransferTarget(null); setTransferReason('') }}
-                className="bg-surface text-text-secondary text-xs px-3 py-2 rounded-lg active:opacity-90 whitespace-nowrap">
-                إلغاء
-              </button>
-            </div>
-          )}
-          {data?.order?.status && (
-            <OrderStatusManager
-              orderId={data!.order.id}
-              currentStatus={data!.order.status}
-              canReview={canReview}
-              canApprove={canApprove}
-              canCompletePreparation={canCompletePreparation}
-              canSendToDelivery={canSendToDelivery}
-              canManage={canManage}
-              referenceNumber={data!.order.reference_number}
-              hideRevisionButton
-              onSuccess={handleStatusSuccess}
-              onError={handleStatusError}
-              onShortage={handleShortage}
-            />
-          )}
-        </div>
+            )}
+          </div>
+        )
       }
     />
   )

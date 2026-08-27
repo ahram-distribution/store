@@ -51,6 +51,19 @@ export function SahlSuppliersPage() {
   const [payNotes, setPayNotes] = useState('')
   const [paying, setPaying] = useState(false)
 
+  const [editSupplier, setEditSupplier] = useState<SupplierRow | null>(null)
+  const [editName, setEditName] = useState('')
+  const [editPhone, setEditPhone] = useState('')
+  const [editAddress, setEditAddress] = useState('')
+  const [editNotes, setEditNotes] = useState('')
+  const [editActive, setEditActive] = useState(true)
+  const [savingEdit, setSavingEdit] = useState(false)
+
+  const [kpiFilter, setKpiFilter] = useState<'all' | 'payable'>('all')
+
+  const [purchaseItems, setPurchaseItems] = useState<any[] | null>(null)
+  const [purchaseItemsLoading, setPurchaseItemsLoading] = useState(false)
+
   async function loadSuppliers() {
     const token = getToken()
     if (!token) return
@@ -82,13 +95,17 @@ export function SahlSuppliersPage() {
   }, [suppliers])
 
   const filtered = useMemo(() => {
+    let list = suppliers
+    if (kpiFilter === 'payable') {
+      list = suppliers.filter(s => Number(s.outstanding_credit || 0) > 0)
+    }
     const q = search.trim().toLowerCase()
-    if (!q) return suppliers
-    return suppliers.filter((s) =>
+    if (!q) return list
+    return list.filter((s) =>
       (s.supplier_name || '').toLowerCase().includes(q) ||
       (s.code || '').toLowerCase().includes(q) ||
       (s.phone || '').includes(q))
-  }, [suppliers, search])
+  }, [suppliers, search, kpiFilter])
 
   async function createSupplier() {
     if (!newName.trim()) { toast.error('أدخل اسم المورد'); return }
@@ -168,6 +185,59 @@ export function SahlSuppliersPage() {
     await openStatement(updated || cur)
   }
 
+  function startEditSupplier(s: SupplierRow) {
+    setEditSupplier(s)
+    setEditName(s.supplier_name || '')
+    setEditPhone(s.phone || '')
+    setEditAddress(s.address || '')
+    setEditNotes(s.notes || '')
+    setEditActive(s.is_active !== false)
+  }
+
+  async function saveEditSupplier() {
+    if (!editSupplier) return
+    if (!editName.trim()) { toast.error('أدخل اسم المورد'); return }
+    const token = getToken()
+    if (!token) return
+    setSavingEdit(true)
+    const res = await supabase.rpc('sahl_update_supplier', {
+      p_token: token, p_supplier_id: editSupplier.id,
+      p_supplier_name: editName.trim(),
+      p_phone: editPhone.trim() || null,
+      p_address: editAddress.trim() || null,
+      p_notes: editNotes.trim() || null,
+      p_is_active: editActive,
+    })
+    setSavingEdit(false)
+    if (res.error) { toast.error(res.error.message); return }
+    const data = res.data as any
+    if (data?.error) { toast.error(data.error); return }
+    toast.success('تم تحديث المورد')
+    setEditSupplier(null)
+    await loadSuppliers()
+  }
+
+  const ledgerTypeLabels: Record<string, string> = {
+    purchase_invoice: 'فاتورة شراء',
+    supplier_payment: 'سند صرف',
+    purchase_return: 'مرتجع شراء',
+    opening_balance: 'رصيد افتتاحي',
+    adjustment: 'تسوية',
+  }
+
+  async function showPurchaseItems(purchaseId: string) {
+    const token = getToken()
+    if (!token) return
+    setPurchaseItemsLoading(true)
+    setPurchaseItems(null)
+    const res = await supabase.rpc('sahl_get_purchase_items', { p_token: token, p_purchase_id: purchaseId })
+    setPurchaseItemsLoading(false)
+    if (res.error) { toast.error(res.error.message); return }
+    const data = res.data as any
+    if (data?.error) { toast.error(data.error); return }
+    setPurchaseItems(Array.isArray(data) ? data : [])
+  }
+
   return (
     <div className="space-y-4" dir="rtl">
       <div className="flex items-center justify-between">
@@ -190,10 +260,11 @@ export function SahlSuppliersPage() {
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        <div className="bg-white rounded-xl border border-border p-4">
+        <button onClick={() => setKpiFilter(kpiFilter === 'payable' ? 'all' : 'payable')}
+          className={`bg-white rounded-xl border p-4 text-left transition-colors ${kpiFilter === 'payable' ? 'border-primary ring-1 ring-primary/20' : 'border-border hover:border-primary/40'}`}>
           <div className="text-[10px] text-text-secondary">إجمالي ما علينا للموردين</div>
           <div className="text-lg font-bold text-danger mt-1">{formatCurrencyShort(totals.payable)}</div>
-        </div>
+        </button>
         <div className="bg-white rounded-xl border border-border p-4">
           <div className="text-[10px] text-text-secondary">عدد الموردين</div>
           <div className="text-lg font-bold text-text mt-1">{suppliers.length}</div>
@@ -247,20 +318,25 @@ export function SahlSuppliersPage() {
             {filtered.map((s) => {
               const bal = Number(s.outstanding_credit || 0)
               return (
-                <button key={s.id} onClick={() => openStatement(s)}
-                  className="w-full text-right px-5 py-3 hover:bg-surface/60 transition-colors flex items-center justify-between gap-2">
-                  <div className="min-w-0">
+                <div key={s.id} className="flex items-center justify-between gap-2 px-5 py-3 hover:bg-surface/60 transition-colors">
+                  <button onClick={() => openStatement(s)} className="flex-1 text-right min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-semibold text-text truncate">{s.supplier_name}</span>
                       {!s.is_active && <span className="text-[9px] px-1.5 py-0.5 rounded bg-surface text-text-secondary">موقوف</span>}
                     </div>
                     <div className="text-[10px] text-text-secondary">{s.code}{s.phone ? ` • ${s.phone}` : ''}{s.address ? ` • ${s.address}` : ''}</div>
+                  </button>
+                  <div className="shrink-0 flex items-center gap-2">
+                    <div className="text-left">
+                      <div className="text-[9px] text-text-secondary">المستحق له</div>
+                      <div className={`text-sm font-bold ${bal > 0 ? 'text-danger' : 'text-success'}`}>{formatCurrencyShort(bal)}</div>
+                    </div>
+                    {canManage && (
+                      <button onClick={(e) => { e.stopPropagation(); startEditSupplier(s) }}
+                        className="text-[10px] text-primary border border-border rounded px-2 py-1">تعديل</button>
+                    )}
                   </div>
-                  <div className="shrink-0 text-left">
-                    <div className="text-[9px] text-text-secondary">المستحق له</div>
-                    <div className={`text-sm font-bold ${bal > 0 ? 'text-danger' : 'text-success'}`}>{formatCurrencyShort(bal)}</div>
-                  </div>
-                </button>
+                </div>
               )
             })}
           </div>
@@ -291,16 +367,31 @@ export function SahlSuppliersPage() {
                     <div className="text-center py-8 text-text-secondary text-xs">لا توجد حركات</div>
                   ) : (
                     <div className="space-y-1.5">
-                      {ledgerRows.map((l: any) => (
-                        <div key={l.id} className="flex items-center justify-between text-xs border-b border-border/50 pb-1.5">
-                          <span className="text-text-secondary">{formatDate(l.created_at)}</span>
-                          <span className={l.transaction_type === 'credit' ? 'text-danger font-semibold' : 'text-success font-semibold'}>
-                            {l.transaction_type === 'credit' ? '+' : '-'}{formatCurrencyShort(l.amount)}
-                            <span className="text-[9px] text-text-secondary mr-1">(رصيد: {formatCurrencyShort(l.running_balance)})</span>
-                          </span>
-                          <span className="text-[9px] text-text-secondary w-24 text-left truncate" title={l.notes || ''}>{l.notes || ''}</span>
-                        </div>
-                      ))}
+                      {ledgerRows.map((l: any) => {
+                        const typeLabel = ledgerTypeLabels[l.reference_type] || l.transaction_type_label || ''
+                        const isCredit = l.transaction_type === 'credit'
+                        const effectSign = isCredit ? '+' : '-'
+                        const sourceId = l.reference_id || l.source_id
+                        return (
+                          <div key={l.id} className="flex items-center justify-between text-xs border-b border-border/50 pb-1.5">
+                            <span className="text-text-secondary shrink-0 w-20">{formatDate(l.created_at)}</span>
+                            <div className="flex-1 min-w-0 px-2">
+                              {typeLabel && <span className="text-[9px] px-1.5 py-0.5 rounded bg-surface text-text-secondary">{typeLabel}</span>}
+                              {l.notes && <span className="text-[9px] text-text-secondary mr-1 truncate inline-block max-w-[120px]" title={l.notes}>{l.notes}</span>}
+                            </div>
+                            <div className="shrink-0 text-left flex items-center gap-2">
+                              {sourceId && (l.reference_type === 'purchase_invoice' || l.reference_type === 'purchase_return') && (
+                                <button onClick={() => showPurchaseItems(sourceId)}
+                                  className="text-[9px] text-primary border border-border rounded px-1.5 py-0.5">بنود</button>
+                              )}
+                              <span className={isCredit ? 'text-danger font-semibold' : 'text-success font-semibold'}>
+                                {effectSign}{formatCurrencyShort(l.amount)}
+                                <span className="text-[9px] text-text-secondary mr-1">(رصيد: {formatCurrencyShort(l.running_balance)})</span>
+                              </span>
+                            </div>
+                          </div>
+                        )
+                      })}
                     </div>
                   )}
                 </div>
@@ -363,6 +454,88 @@ export function SahlSuppliersPage() {
 
             <div className="border-t border-border p-3 text-center">
               <button onClick={() => setStatement(null)} className="text-text-secondary text-xs py-1">إغلاق</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editSupplier && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => setEditSupplier(null)}>
+          <div className="bg-white rounded-2xl w-full max-w-md p-5 space-y-3" onClick={(e) => e.stopPropagation()} dir="rtl">
+            <h3 className="text-base font-bold">تعديل المورد</h3>
+            <div>
+              <label className="text-xs font-semibold text-text-secondary block mb-1">الاسم *</label>
+              <input value={editName} onChange={(e) => setEditName(e.target.value)}
+                className="w-full border border-border rounded-lg px-3 py-2 text-sm" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-semibold text-text-secondary block mb-1">الهاتف</label>
+                <input value={editPhone} onChange={(e) => setEditPhone(e.target.value)}
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-text-secondary block mb-1">العنوان</label>
+                <input value={editAddress} onChange={(e) => setEditAddress(e.target.value)}
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm" />
+              </div>
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-text-secondary block mb-1">ملاحظات</label>
+              <input value={editNotes} onChange={(e) => setEditNotes(e.target.value)}
+                className="w-full border border-border rounded-lg px-3 py-2 text-sm" />
+            </div>
+            <label className="flex items-center gap-2 text-xs text-text">
+              <input type="checkbox" checked={editActive} onChange={(e) => setEditActive(e.target.checked)} />
+              مورد نشط
+            </label>
+            <div className="flex gap-2">
+              <button onClick={saveEditSupplier} disabled={savingEdit}
+                className="flex-1 bg-primary text-white rounded-xl py-2 text-sm font-bold disabled:opacity-50">
+                {savingEdit ? 'جاري الحفظ...' : 'حفظ التعديلات'}
+              </button>
+              <button onClick={() => setEditSupplier(null)} className="flex-1 border border-border rounded-xl py-2 text-sm">تراجع</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {purchaseItems !== null && (
+        <div className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-4" onClick={() => setPurchaseItems(null)}>
+          <div className="bg-white rounded-2xl w-full max-w-lg max-h-[80vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-gradient-to-l from-indigo-700 to-indigo-600 px-5 py-3.5">
+              <h4 className="text-sm font-bold text-white">بنود الوثيقة</h4>
+            </div>
+            <div className="overflow-y-auto flex-1">
+              {purchaseItemsLoading ? (
+                <div className="text-center py-8 text-text-secondary text-xs">جاري تحميل البنود...</div>
+              ) : purchaseItems.length === 0 ? (
+                <div className="text-center py-8 text-text-secondary text-xs">لا توجد بنود</div>
+              ) : (
+                <table className="w-full text-[10px] text-right">
+                  <thead className="bg-surface">
+                    <tr>
+                      <th className="px-3 py-2 font-semibold">المنتج</th>
+                      <th className="px-3 py-2 font-semibold text-center">الكمية</th>
+                      <th className="px-3 py-2 font-semibold text-center">السعر</th>
+                      <th className="px-3 py-2 font-semibold text-center">الإجمالي</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/50">
+                    {purchaseItems.map((it: any, i: number) => (
+                      <tr key={i}>
+                        <td className="px-3 py-2">{it.product_name}</td>
+                        <td className="px-3 py-2 text-center">{it.qty}</td>
+                        <td className="px-3 py-2 text-center">{formatCurrencyShort(it.unit_price)}</td>
+                        <td className="px-3 py-2 text-center font-semibold">{formatCurrencyShort(it.line_total)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+            <div className="border-t border-border p-3 text-center">
+              <button onClick={() => setPurchaseItems(null)} className="text-text-secondary text-xs py-1">إغلاق</button>
             </div>
           </div>
         </div>

@@ -23,7 +23,6 @@ function useDesktopNavItems() {
     return [
       { label: 'المتجر', path: '/storefront' },
       { label: 'الطلبات', path: '/orders' },
-      { label: 'حسابي', path: '/account' },
     ]
   }
 

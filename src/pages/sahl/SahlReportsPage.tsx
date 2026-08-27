@@ -297,19 +297,30 @@ export function SahlReportsPage() {
                   <h2 className="text-sm font-bold text-text">📄 مستندات اليوم</h2>
                 </div>
                 <div className="grid grid-cols-3 md:grid-cols-6 divide-x divide-x-reverse divide-border/60">
-                  {[
-                    ['سندات قبض', daily.collections_count],
-                    ['مصروفات', daily.expenses_count],
-                    ['فواتير شراء', daily.purchases_count],
-                    ['مرتجع بيع', daily.sales_returns_count],
-                    ['مرتجع شراء', daily.purchase_returns_count],
-                    ['سلف موظفين', daily.advances_count],
-                  ].map(([label, val]) => (
-                    <div key={String(label)} className="py-3 text-center">
-                      <div className="text-[10px] text-text-secondary">{label}</div>
-                      <div className="text-base font-bold text-text mt-0.5">{val}</div>
-                    </div>
-                  ))}
+                  <button onClick={() => nav('/sahl/receipts')} className="py-3 text-center hover:bg-surface/60 transition-colors">
+                    <div className="text-[10px] text-text-secondary">سندات قبض</div>
+                    <div className="text-base font-bold text-text mt-0.5">{daily.collections_count}</div>
+                  </button>
+                  <div className="py-3 text-center">
+                    <div className="text-[10px] text-text-secondary">مصروفات</div>
+                    <div className="text-base font-bold text-text mt-0.5">{daily.expenses_count}</div>
+                  </div>
+                  <div className="py-3 text-center">
+                    <div className="text-[10px] text-text-secondary">فواتير شراء</div>
+                    <div className="text-base font-bold text-text mt-0.5">{daily.purchases_count}</div>
+                  </div>
+                  <button onClick={() => nav('/sahl/returns')} className="py-3 text-center hover:bg-surface/60 transition-colors">
+                    <div className="text-[10px] text-text-secondary">مرتجع بيع</div>
+                    <div className="text-base font-bold text-text mt-0.5">{daily.sales_returns_count}</div>
+                  </button>
+                  <div className="py-3 text-center">
+                    <div className="text-[10px] text-text-secondary">مرتجع شراء</div>
+                    <div className="text-base font-bold text-text mt-0.5">{daily.purchase_returns_count}</div>
+                  </div>
+                  <div className="py-3 text-center">
+                    <div className="text-[10px] text-text-secondary">سلف موظفين</div>
+                    <div className="text-base font-bold text-text mt-0.5">{daily.advances_count}</div>
+                  </div>
                 </div>
                 <div className="px-5 py-3 bg-surface/50 border-t border-border text-[11px] text-text-secondary flex gap-6">
                   <span>شيكات وردة حُصّلت: <b className="text-green-700">{formatCurrencyShort(daily.cheques_cleared_in)}</b></span>
@@ -354,19 +365,30 @@ export function SahlReportsPage() {
               </div>
 
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                {[
-                  ['مديونيات العملاء', formatCurrencyShort(fin.receivables), 'text-danger'],
-                  ['مستحقات الموردين', formatCurrencyShort(fin.payables), 'text-danger'],
-                  ['قيمة المخزون', formatCurrencyShort(fin.inventory_value), 'text-emerald-700'],
-                  ['متبقي أقساط', formatCurrencyShort(fin.installments_outstanding), 'text-danger'],
-                  ['أقساط متأخرة', String(fin.installments_overdue_parts ?? 0) + ' قسط', fin.installments_overdue_parts > 0 ? 'text-accent' : 'text-text'],
-                  ['مصروفات الفترة', formatCurrencyShort(fin.expenses_total), 'text-danger'],
-                ].map(([label, val, cls]) => (
-                  <div key={String(label)} className="bg-white rounded-xl border border-border p-4">
-                    <div className="text-[10px] text-text-secondary">{label}</div>
-                    <div className={`text-base font-bold mt-1 ${cls}`}>{val}</div>
-                  </div>
-                ))}
+                <button onClick={() => nav('/sahl/accounts')} className="bg-white rounded-xl border border-border p-4 text-left hover:border-primary/40 transition-colors">
+                  <div className="text-[10px] text-text-secondary">مديونيات العملاء</div>
+                  <div className={`text-base font-bold mt-1 text-danger`}>{formatCurrencyShort(fin.receivables)}</div>
+                </button>
+                <button onClick={() => nav('/sahl/suppliers')} className="bg-white rounded-xl border border-border p-4 text-left hover:border-primary/40 transition-colors">
+                  <div className="text-[10px] text-text-secondary">مستحقات الموردين</div>
+                  <div className={`text-base font-bold mt-1 text-danger`}>{formatCurrencyShort(fin.payables)}</div>
+                </button>
+                <button onClick={() => nav('/sahl/inventory')} className="bg-white rounded-xl border border-border p-4 text-left hover:border-primary/40 transition-colors">
+                  <div className="text-[10px] text-text-secondary">قيمة المخزون</div>
+                  <div className={`text-base font-bold mt-1 text-emerald-700`}>{formatCurrencyShort(fin.inventory_value)}</div>
+                </button>
+                <button onClick={() => nav('/sahl/installments')} className="bg-white rounded-xl border border-border p-4 text-left hover:border-primary/40 transition-colors">
+                  <div className="text-[10px] text-text-secondary">متبقي أقساط</div>
+                  <div className={`text-base font-bold mt-1 text-danger`}>{formatCurrencyShort(fin.installments_outstanding)}</div>
+                </button>
+                <button onClick={() => nav('/sahl/installments')} className={`bg-white rounded-xl border border-border p-4 text-left transition-colors ${fin.installments_overdue_parts > 0 ? 'hover:border-primary/40' : ''}`}>
+                  <div className="text-[10px] text-text-secondary">أقساط متأخرة</div>
+                  <div className={`text-base font-bold mt-1 ${fin.installments_overdue_parts > 0 ? 'text-accent' : 'text-text'}`}>{String(fin.installments_overdue_parts ?? 0) + ' قسط'}</div>
+                </button>
+                <div className="bg-white rounded-xl border border-border p-4">
+                  <div className="text-[10px] text-text-secondary">مصروفات الفترة</div>
+                  <div className={`text-base font-bold mt-1 text-danger`}>{formatCurrencyShort(fin.expenses_total)}</div>
+                </div>
               </div>
 
               <div className="bg-white rounded-2xl border border-border shadow-sm overflow-hidden">

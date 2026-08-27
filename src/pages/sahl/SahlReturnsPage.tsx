@@ -4,6 +4,11 @@ import { supabase } from '../../lib/supabase'
 import { formatCurrencyShort, formatDate } from '../../utils/format'
 import { useCapability } from '../../hooks/useCapability'
 import toast from 'react-hot-toast'
+import SahlToolbar from '../../components/sahl/SahlToolbar'
+import SahlKpiCard from '../../components/sahl/SahlKpiCard'
+import { sahlExportExcel, sahlPrintReport, datePresetLabel, type SahlReportColumn } from './sahl-report'
+import { resolveDateRangeISO } from '../../lib/dateRange'
+import type { SahlDateFilterState } from '../../components/sahl/SahlDateFilter'
 
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
@@ -75,6 +80,10 @@ export function SahlReturnsPage() {
   const [savingPrt, setSavingPrt] = useState(false)
   const [purchaseReturns, setPurchaseReturns] = useState<any[]>([])
   const [postingId, setPostingId] = useState<string | null>(null)
+  const [confirmAction, setConfirmAction] = useState<{ type: string; ret?: any; pr?: any } | null>(null)
+  const [actionLoading, setActionLoading] = useState(false)
+  const [dateFilter, setDateFilter] = useState<SahlDateFilterState>({ preset: 'month', customFrom: '', customTo: '' })
+  const [searchQuery, setSearchQuery] = useState('')
 
   async function loadBase() {
     const token = getToken()
@@ -324,22 +333,140 @@ export function SahlReturnsPage() {
     await loadPurchaseReturns()
   }
 
+  async function cancelPurchaseReturn(id: string) {
+    const token = getToken()
+    if (!token) return
+    setActionLoading(true)
+    const res = await supabase.rpc('sahl_cancel_purchase_return', { p_token: token, p_purchase_return_id: id })
+    setActionLoading(false); setConfirmAction(null)
+    if (res.error) { toast.error(res.error.message); return }
+    const data = res.data as any
+    if (data?.error) { toast.error(data.error); return }
+    toast.success(`تم إلغاء ${data.code}`)
+    await loadPurchaseReturns()
+  }
+
+  async function handleConfirm() {
+    if (!confirmAction) return
+    if (confirmAction.type === 'approve' && confirmAction.ret) await approveReturn(confirmAction.ret)
+    else if (confirmAction.type === 'reject' && confirmAction.ret) await rejectReturn(confirmAction.ret)
+    else if (confirmAction.type === 'post_prt' && confirmAction.pr) { setActionLoading(true); await postPurchaseReturn(confirmAction.pr.id); setActionLoading(false) }
+    else if (confirmAction.type === 'cancel_prt' && confirmAction.pr) await cancelPurchaseReturn(confirmAction.pr.id)
+    setConfirmAction(null)
+  }
+
+  const { from: dateFrom, to: dateTo } = resolveDateRangeISO(dateFilter.preset, dateFilter.customFrom, dateFilter.customTo)
+
+  const filteredReturns = useMemo(() => {
+    let list = returns
+    if (dateFrom && dateTo) {
+      list = list.filter(r => r.created_at && r.created_at >= dateFrom && r.created_at <= dateTo)
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase()
+      list = list.filter(r =>
+        (r.code || '').toLowerCase().includes(q) ||
+        (r.customer_name || '').toLowerCase().includes(q)
+      )
+    }
+    return list
+  }, [returns, dateFrom, dateTo, searchQuery])
+
+  const filteredPurchaseReturns = useMemo(() => {
+    let list = purchaseReturns
+    if (dateFrom && dateTo) {
+      list = list.filter(p => p.created_at && p.created_at >= dateFrom && p.created_at <= dateTo)
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase()
+      list = list.filter(p =>
+        (p.code || '').toLowerCase().includes(q) ||
+        (p.supplier_name || '').toLowerCase().includes(q)
+      )
+    }
+    return list
+  }, [purchaseReturns, dateFrom, dateTo, searchQuery])
+
+  const returnKpis = useMemo(() => {
+    const all = tab === 'sales' ? filteredReturns : filteredPurchaseReturns
+    const pending = all.filter((r: any) => r.status === 'pending').length
+    const approved = all.filter((r: any) => r.status === 'approved').length
+    const inspecting = all.filter((r: any) => r.status === 'inspecting').length
+    return { total: all.length, pending, approved, inspecting }
+  }, [filteredReturns, filteredPurchaseReturns, tab])
+
+  const salesRetCols: SahlReportColumn[] = [
+    { key: 'code', label: 'الكود' },
+    { key: 'customer_name', label: 'العميل' },
+    { key: 'order_number', label: 'رقم الطلب' },
+    { key: 'credit_note_amount', label: 'مبلغ إشعار الدائن', format: 'currency' },
+    { key: 'status', label: 'الحالة' },
+    { key: 'created_at', label: 'التاريخ' },
+  ]
+
+  const purchaseRetCols: SahlReportColumn[] = [
+    { key: 'code', label: 'الكود' },
+    { key: 'supplier_name', label: 'المورد' },
+    { key: 'total_amount', label: 'الإجمالي', format: 'currency' },
+    { key: 'refund_method', label: 'طريقة الاسترداد' },
+    { key: 'status', label: 'الحالة' },
+    { key: 'created_at', label: 'التاريخ' },
+  ]
+
+  function handleExportExcel() {
+    const cols = tab === 'sales' ? salesRetCols : purchaseRetCols
+    const data = tab === 'sales' ? filteredReturns : filteredPurchaseReturns
+    sahlExportExcel({
+      title: tab === 'sales' ? 'مرتجعات البيع' : 'مرتجعات الشراء',
+      subtitle: 'مرتجعات بيع وشراء — استلام وإعادة للمخزون',
+      fileName: tab === 'sales' ? 'sahl-sales-returns' : 'sahl-purchase-returns',
+      dateFrom: dateFrom || undefined,
+      dateTo: dateTo || undefined,
+      filters: [datePresetLabel(dateFilter.preset)],
+    }, cols, data)
+  }
+
+  function handlePrint() {
+    const cols = tab === 'sales' ? salesRetCols : purchaseRetCols
+    const data = tab === 'sales' ? filteredReturns : filteredPurchaseReturns
+    sahlPrintReport({
+      title: tab === 'sales' ? 'مرتجعات البيع' : 'مرتجعات الشراء',
+      subtitle: 'مرتجعات بيع وشراء — استلام وإعادة للمخزون',
+      fileName: tab === 'sales' ? 'sahl-sales-returns' : 'sahl-purchase-returns',
+      dateFrom: dateFrom || undefined,
+      dateTo: dateTo || undefined,
+      filters: [datePresetLabel(dateFilter.preset)],
+    }, cols, data)
+  }
+
   return (
     <div className="space-y-4" dir="rtl">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <button onClick={() => nav('/sahl')} className="text-text-secondary text-lg">&rarr;</button>
-          <div>
-            <h1 className="text-lg font-bold text-text">المرتجعات</h1>
-            <p className="text-[10px] text-text-secondary">مرتجع البيع ومرتجع الشراء — الفحص والاعتماد والأثر على المخزون والحسابات</p>
+      <button onClick={() => nav('/sahl')} className="text-text-secondary text-lg">&rarr;</button>
+      <SahlToolbar
+        title="المرتجعات"
+        subtitle="مرتجعات بيع وشراء — استلام وإعادة للمخزون"
+        dateFilter={dateFilter}
+        onDateFilterChange={setDateFilter}
+        searchValue={searchQuery}
+        onSearchChange={setSearchQuery}
+        searchPlaceholder="بحث بالكود أو الاسم..."
+        onExportExcel={handleExportExcel}
+        onPrint={handlePrint}
+        onRefresh={() => { loadReturns(); loadPurchaseReturns() }}
+        extra={
+          <div className="flex gap-2">
+            <button onClick={() => setTab('sales')}
+              className={`text-xs rounded-lg px-3 py-1.5 font-semibold ${tab === 'sales' ? 'bg-primary text-white' : 'border border-border text-text-secondary'}`}>مرتجع بيع</button>
+            <button onClick={() => setTab('purchases')}
+              className={`text-xs rounded-lg px-3 py-1.5 font-semibold ${tab === 'purchases' ? 'bg-primary text-white' : 'border border-border text-text-secondary'}`}>مرتجع شراء</button>
           </div>
-        </div>
-        <div className="flex gap-2">
-          <button onClick={() => setTab('sales')}
-            className={`text-xs rounded-lg px-3 py-1.5 font-semibold ${tab === 'sales' ? 'bg-primary text-white' : 'border border-border text-text-secondary'}`}>مرتجع بيع</button>
-          <button onClick={() => setTab('purchases')}
-            className={`text-xs rounded-lg px-3 py-1.5 font-semibold ${tab === 'purchases' ? 'bg-primary text-white' : 'border border-border text-text-secondary'}`}>مرتجع شراء</button>
-        </div>
+        }
+      />
+
+      <div className="grid grid-cols-3 gap-3">
+        <SahlKpiCard label="معلقة" value={returnKpis.pending} format="count" color="warning" icon="⏳" />
+        <SahlKpiCard label="معتمدة" value={returnKpis.approved} format="count" color="success" icon="✅" />
+        <SahlKpiCard label="تحت الفحص" value={returnKpis.inspecting} format="count" color="primary" icon="🔍" />
       </div>
 
       {tab === 'sales' && (
@@ -528,11 +655,11 @@ export function SahlReturnsPage() {
 
                           {canPost && active && (
                             <div className="flex gap-2 pt-1">
-                              <button onClick={() => approveReturn(r)}
+                              <button onClick={() => setConfirmAction({ type: 'approve', ret: r })}
                                 className="text-[10px] bg-green-600 text-white rounded px-3 py-1.5 font-bold">
                                 ✅ اعتماد وإصدار إشعار دائن{!fullyInspected ? ' (غير المفحوص يُعتبر قابلاً للبيع)' : ''}
                               </button>
-                              <button onClick={() => rejectReturn(r)} className="text-[10px] border border-red-300 text-red-600 rounded px-3 py-1.5">رفض</button>
+                              <button onClick={() => setConfirmAction({ type: 'reject', ret: r })} className="text-[10px] border border-red-300 text-red-600 rounded px-3 py-1.5">رفض</button>
                             </div>
                           )}
                         </div>
@@ -700,28 +827,32 @@ export function SahlReturnsPage() {
             ) : (
               <div className="divide-y divide-border/60 max-h-[480px] overflow-y-auto">
                 {purchaseReturns.map((p) => {
-                  const pending = p.status !== 'treasury_posted'
+                  const isPending = p.status === 'pending'
+                  const isCancelled = p.status === 'cancelled'
                   return (
                     <div key={p.id} className="px-5 py-3 flex items-center justify-between gap-2">
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">
                           <span className="text-sm font-bold text-text">{p.code}</span>
-                          <span className={`text-[9px] px-1.5 py-0.5 rounded ${pending ? 'bg-amber-100 text-amber-800' : 'bg-green-100 text-green-800'}`}>
-                            {pending ? 'معلق' : 'مرحّل'}
+                          <span className={`text-[9px] px-1.5 py-0.5 rounded ${isCancelled ? 'bg-text-secondary/10 text-text-secondary line-through' : isPending ? 'bg-amber-100 text-amber-800' : 'bg-green-100 text-green-800'}`}>
+                            {isCancelled ? 'ملغى' : isPending ? 'معلق' : 'مرحّل'}
                           </span>
                         </div>
                         <div className="text-[10px] text-text-secondary">
                           {p.supplier_name} • {p.item_count} صنف • {p.refund_method === 'cash' ? 'استرداد نقدي' : 'خصم من الحساب'} • {formatDate(p.created_at)}
                         </div>
                       </div>
-                      <div className="shrink-0 flex items-center gap-2">
+                      <div className="shrink-0 flex items-center gap-1.5">
                         <span className="text-sm font-bold text-text">{formatCurrencyShort(p.total_amount)}</span>
-                        {pending && canPost && (
-                          <button onClick={() => postPurchaseReturn(p.id)} disabled={postingId === p.id}
-                            className="text-[10px] bg-rose-600 disabled:opacity-50 text-white rounded px-2 py-1">
-                            {postingId === p.id ? '...' : 'ترحيل'}
-                          </button>
+                        {isPending && canPost && (
+                          <>
+                            <button onClick={() => setConfirmAction({ type: 'post_prt', pr: p })}
+                              className="text-[10px] bg-rose-600 text-white rounded px-2 py-1">ترحيل</button>
+                            <button onClick={() => setConfirmAction({ type: 'cancel_prt', pr: p })}
+                              className="text-[10px] bg-danger/10 text-danger rounded px-2 py-1">إلغاء</button>
+                          </>
                         )}
+                        {!isPending && !isCancelled && <span className="text-[9px] text-text-secondary italic">🔒 مرحّل</span>}
                       </div>
                     </div>
                   )
@@ -730,6 +861,52 @@ export function SahlReturnsPage() {
             )}
           </div>
         </>
+      )}
+
+      {confirmAction && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => setConfirmAction(null)}>
+          <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className={`px-5 py-4 ${
+              confirmAction.type === 'approve' ? 'bg-gradient-to-l from-green-700 to-green-600' :
+              confirmAction.type === 'reject' ? 'bg-gradient-to-l from-red-700 to-red-600' :
+              'bg-gradient-to-l from-rose-700 to-rose-600'
+            }`}>
+              <h3 className="text-sm font-bold text-white">
+                {confirmAction.type === 'approve' ? 'تأكيد اعتماد المرتجع' :
+                 confirmAction.type === 'reject' ? 'تأكيد رفض المرتجع' :
+                 confirmAction.type === 'post_prt' ? 'تأكيد ترحيل مرتجع الشراء' :
+                 'تأكيد إلغاء مرتجع الشراء'}
+              </h3>
+            </div>
+            <div className="p-5 space-y-3 text-center">
+              <div className="text-sm font-bold text-text">
+                {confirmAction.ret?.code || confirmAction.pr?.code}
+              </div>
+              {confirmAction.type === 'approve' && (
+                <p className="text-xs text-text-secondary">سيتم اعتماد المرتجع وإصدار إشعار دائن وخصم المخزون.</p>
+              )}
+              {confirmAction.type === 'reject' && (
+                <p className="text-xs text-text-secondary">سيتم رفض المرتجع نهائياً.</p>
+              )}
+              {confirmAction.type === 'post_prt' && (
+                <p className="text-xs text-text-secondary">سيتم ترحيل مرتجع الشراء وتحديث المخزون وحساب المورد.</p>
+              )}
+              {confirmAction.type === 'cancel_prt' && (
+                <p className="text-xs text-text-secondary">سيتم إلغاء مرتجع الشراء المعلق.</p>
+              )}
+              <div className="flex gap-2">
+                <button onClick={() => setConfirmAction(null)} className="flex-1 border border-border rounded-xl py-2.5 text-sm font-semibold">تراجع</button>
+                <button disabled={actionLoading} onClick={handleConfirm}
+                  className={`flex-1 text-white rounded-xl py-2.5 text-sm font-bold ${
+                    confirmAction.type === 'approve' ? 'bg-green-600' :
+                    confirmAction.type === 'reject' ? 'bg-danger' : 'bg-rose-700'
+                  }`}>
+                  {actionLoading ? 'جاري...' : confirmAction.type === 'approve' ? 'اعتماد' : confirmAction.type === 'reject' ? 'رفض' : 'تأكيد'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

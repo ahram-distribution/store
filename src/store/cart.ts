@@ -3,7 +3,11 @@ import { persist } from 'zustand/middleware'
 import type { CartItem, CartDealItem, CartTotals, TierConfig, ProductWithPrice, UnitType, DailyDealRecord, FlashOfferRecord } from '../types/storefront'
 import { computeProductPrices, getEffectiveUnitPrice, computePieceQuantity, computeCartTotals } from '../engine/pricing'
 import { supabase } from '../lib/supabase'
+import type { RealtimeChannel } from '@supabase/supabase-js'
 import toast from 'react-hot-toast'
+
+let geoRulesChannel: RealtimeChannel | null = null
+let _geoResolveVersion = 0
 
 interface CartCustomer {
   id: string
@@ -58,6 +62,7 @@ interface CartState {
   resolveGeographicPricing: (governorateId: string | null, companyId?: string, productId?: string) => Promise<void>
   resolveEmployeeGeographicContext: (employeeId: string) => Promise<void>
   setGeographicContext: (ctx: GeographicContext | null) => void
+  subscribeToGeoRules: (governorateId: string) => void
 }
 
 export const useCartStore = create(
@@ -73,7 +78,7 @@ export const useCartStore = create(
         const s = get()
         const cartEmpty = s.items.length === 0 && s.dealItems.length === 0 && s.flashOfferItems.length === 0
         if (cartEmpty && (s.selectedCustomer || s.orderType || s.selectedTierId)) {
-          set({ selectedCustomer: null, orderType: '', selectedTierId: null, editingOrderId: null, geographicContext: null })
+          set({ selectedCustomer: null, orderType: '', selectedTierId: null, editingOrderId: null })
         }
       }
 
@@ -255,7 +260,7 @@ export const useCartStore = create(
        * Used for recovery and continuing the same order after accidental refresh.
        */
       clearCart: () => {
-        set({ items: [], dealItems: [], flashOfferItems: [], geographicContext: null })
+        set({ items: [], dealItems: [], flashOfferItems: [] })
         enforceCartInvariant()
       },
 
@@ -266,16 +271,22 @@ export const useCartStore = create(
        * This is the ONLY official API that ends an order session.
        * Call after order submission or when explicitly starting a new order.
        */
-      resetOrderContext: () => set({
-        items: [],
-        dealItems: [],
-        flashOfferItems: [],
-        selectedCustomer: null,
-        orderType: '',
-        selectedTierId: null,
-        editingOrderId: null,
-        geographicContext: null,
-      }),
+      resetOrderContext: () => {
+        if (geoRulesChannel) {
+          supabase.removeChannel(geoRulesChannel)
+          geoRulesChannel = null
+        }
+        set({
+          items: [],
+          dealItems: [],
+          flashOfferItems: [],
+          selectedCustomer: null,
+          orderType: '',
+          selectedTierId: null,
+          editingOrderId: null,
+          geographicContext: null,
+        })
+      },
 
       getTotals: () => {
         const state = get()
@@ -331,65 +342,114 @@ export const useCartStore = create(
       },
 
       resolveGeographicPricing: async (governorateId, companyId, productId) => {
+        const myVersion = ++_geoResolveVersion
+
         if (!governorateId) {
+          if (_geoResolveVersion !== myVersion) return
           set({ geographicContext: null })
           get().recalculateAll()
           return
         }
+
+        let rpcData: any = null
+        let rpcError: any = null
         try {
-          const { data, error } = await supabase.rpc('get_effective_geographic_adjustment', {
+          const result = await supabase.rpc('get_effective_geographic_adjustment', {
             p_governorate_id: governorateId,
             p_company_id: companyId || null,
             p_product_id: productId || null,
           })
-          if (error || !data || (Array.isArray(data) && data.length === 0)) {
-            set({ geographicContext: { governorateId, adjustmentPercent: 0, ruleName: null } })
-          } else {
-            const row = Array.isArray(data) ? data[0] : data
-            set({
-              geographicContext: {
-                governorateId,
-                adjustmentPercent: Number(row.adjustment_percent) ?? 0,
-                ruleName: row.rule_name || null,
-              },
-            })
-          }
-        } catch {
+          rpcData = result.data
+          rpcError = result.error
+        } catch (e) {
+          rpcError = e
+        }
+
+        if (_geoResolveVersion !== myVersion) return
+
+        if (rpcError) {
+          get().recalculateAll()
+          return
+        }
+
+        if (rpcData && (Array.isArray(rpcData) ? rpcData.length > 0 : true)) {
+          const row = Array.isArray(rpcData) ? rpcData[0] : rpcData
+          set({
+            geographicContext: {
+              governorateId,
+              adjustmentPercent: Number(row.adjustment_percent) ?? 0,
+              ruleName: row.rule_name || null,
+            },
+          })
+        } else {
           set({ geographicContext: { governorateId, adjustmentPercent: 0, ruleName: null } })
         }
+
+        if (_geoResolveVersion !== myVersion) return
         get().recalculateAll()
+        get().subscribeToGeoRules(governorateId)
+      },
+
+      subscribeToGeoRules: (governorateId: string) => {
+        if (geoRulesChannel) {
+          supabase.removeChannel(geoRulesChannel)
+          geoRulesChannel = null
+        }
+        if (!governorateId) return
+        geoRulesChannel = supabase
+          .channel('geo-price-rules-live')
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'geographic_price_rules' }, () => {
+            const currentGovId = get().geographicContext?.governorateId
+            if (currentGovId) {
+              get().resolveGeographicPricing(currentGovId)
+            }
+          })
+          .subscribe()
       },
 
       resolveEmployeeGeographicContext: async (employeeId) => {
+        const myVersion = _geoResolveVersion
         try {
           const token = localStorage.getItem('session_token')
           if (!token) return
-          const { data } = await supabase.rpc('get_employee_geographic_assignments', {
+          const { data, error: rpcError } = await supabase.rpc('get_employee_geographic_assignments', {
             p_token: token, p_employee_id: employeeId,
           })
+          if (_geoResolveVersion !== myVersion) return
+
+          if (rpcError) {
+            return
+          }
+
           if (!Array.isArray(data) || data.length === 0) {
             set({ geographicContext: null })
             get().recalculateAll()
             return
           }
+
           const governorateAssign = data.find((a: any) => a.assignment_type === 'governorate' && a.governorate_id)
           if (governorateAssign) {
             await get().resolveGeographicPricing(governorateAssign.governorate_id)
             return
           }
+
           const sectorAssign = data.find((a: any) => a.assignment_type === 'sector' && a.sector_id)
           if (sectorAssign) {
-            const { data: govRows } = await supabase.from('sector_governorates').select('governorate_id').eq('sector_id', sectorAssign.sector_id).limit(1)
+            const { data: govRows, error: govError } = await supabase.from('sector_governorates').select('governorate_id').eq('sector_id', sectorAssign.sector_id).limit(1)
+            if (_geoResolveVersion !== myVersion) return
+            if (govError) {
+              return
+            }
             if (govRows && govRows.length > 0) {
               await get().resolveGeographicPricing(govRows[0].governorate_id)
               return
             }
           }
+
           set({ geographicContext: null })
           get().recalculateAll()
         } catch {
-          set({ geographicContext: null })
-          get().recalculateAll()
+          if (_geoResolveVersion !== myVersion) return
         }
       },
 

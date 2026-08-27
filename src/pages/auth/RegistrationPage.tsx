@@ -4,7 +4,6 @@ import { supabase } from '../../lib/supabase'
 import { authService } from '../../services/auth'
 import { CustomerForm } from '../../components/customers/CustomerForm'
 import type { CustomerFormData } from '../../components/customers/CustomerForm'
-import { CUSTOMER_DEFAULT_PASSWORD } from '../../lib/customerConstants'
 import toast from 'react-hot-toast'
 
 export default function RegistrationPage() {
@@ -19,7 +18,7 @@ export default function RegistrationPage() {
 
       const result = await authService.register({
         phone: data.phone,
-        password: CUSTOMER_DEFAULT_PASSWORD,
+        password: (data.password || '').trim(),
         companyName: data.companyName,
         responsibleName: data.contactName,
         businessType: data.businessType,
