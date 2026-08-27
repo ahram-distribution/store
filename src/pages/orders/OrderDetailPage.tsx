@@ -6,7 +6,7 @@ import { OrderStatusManager } from '../../components/orders/OrderStatusManager'
 import { useCapability } from '../../hooks/useCapability'
 import { useAuthStore } from '../../store/auth'
 import { useEntityViewsStore } from '../../store/entityViews'
-import { isExecutiveDirectorUser } from '../../utils/roleNormalization'
+import { isExecutiveDirectorUser, normalizeEmployeeRole } from '../../utils/roleNormalization'
 import { formatCurrencyShort } from '../../utils/format'
 import { resolveConfiguredUnitTypes } from '../../utils/catalog'
 import { UNIT_LABELS, EXECUTION_GROUP } from '../../types/order-display'
@@ -94,6 +94,13 @@ export function OrderDetailPage() {
   const [deleting, setDeleting] = useState(false)
 
   const isCustomer = user?.identity_type === 'customer'
+
+  const restrictedSalesRoles = new Set(['مدير بيع', 'مندوب مبيعات'])
+  const isRestrictedSalesRole = user?.identity_type === 'employee' &&
+    (user?.roles ?? []).some((r: any) => {
+      const name = typeof r === 'string' ? r : r?.name
+      return restrictedSalesRoles.has(normalizeEmployeeRole(String(name ?? '')))
+    })
 
   const canReview = useCapability('orders.review')
   const canApprove = useCapability('orders.approve')
@@ -627,6 +634,14 @@ export function OrderDetailPage() {
   const isCancelled = data.order.status === 'cancelled'
   const customerCanEdit = isCustomer && data.order.status === 'returned_for_revision' && data.order.created_by === user?.identity_id
 
+  // Sales Manager / Sales Representative: NO order-status authority at all.
+  // The only action they may take on an order is the existing "تعديل الطلب"
+  // (returned_for_revision content edit + resubmit) and ONLY when they are the
+  // order's original creator. OrderStatusManager is never rendered for them.
+  const isOrderCreator = !!user?.identity_id && data.order.created_by === user.identity_id
+  const restrictedCanEdit = isRestrictedSalesRole && data.order.status === 'returned_for_revision' && isOrderCreator
+  const showEditOrderButton = isRestrictedSalesRole ? restrictedCanEdit : canEdit
+
   if (editMode && showProductSearch) {
     return (
       <div className="max-w-[1400px] mx-auto px-4 lg:px-6 pb-6">
@@ -796,7 +811,7 @@ export function OrderDetailPage() {
           ) : undefined
         ) : (
           <div className="flex items-stretch gap-2 flex-wrap">
-            {canEdit && (
+            {showEditOrderButton && (
               <button onClick={() => navigate(`/storefront/products?editOrder=${id}`)}
                 className="inline-flex items-center gap-1 bg-accent text-white text-xs px-3 py-2.5 rounded-lg active:opacity-90 shrink-0">
                 تعديل الطلب
@@ -861,7 +876,7 @@ export function OrderDetailPage() {
                 </button>
               </div>
             )}
-            {data?.order?.status && (
+            {!isRestrictedSalesRole && data?.order?.status && (
               <OrderStatusManager
                 orderId={data!.order.id}
                 currentStatus={data!.order.status}

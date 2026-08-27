@@ -99,6 +99,49 @@ interface OrderStatusManagerProps {
   onShortage?: (shortages: ShortageEntry[], details?: string) => void
 }
 
+/**
+ * The statuses the current user may actually move the order to — mirrors the
+ * authorization matrix enforced by governed_change_order_status and
+ * governed_approve_order on the backend:
+ *   - orders.manage → any canonical status (except the current one)
+ *   - orders.approve → submitted→(approved|returned_for_revision|cancelled),
+ *     returned_for_revision→cancelled, cancelled→returned_for_revision,
+ *     reviewing→approved (via governed_approve_order)
+ *   - orders.review → submitted→reviewing, approved→reviewing
+ *   - warehouse.complete_preparation → reviewing→preparing, preparing→prepared
+ *   - transportation.send_to_delivery → prepared→delivered
+ * An empty result means the caller has NO status-mutation authority and the
+ * manager renders nothing at all.
+ */
+function getAllowedTargets(currentStatus: string, canReview: boolean, canApprove: boolean, canCompletePreparation: boolean, canSendToDelivery: boolean, canManage: boolean): string[] {
+  if (canManage) {
+    return CANONICAL_STATUSES.filter((s) => s !== currentStatus)
+  }
+  const targets = new Set<string>()
+  if (canApprove) {
+    if (currentStatus === 'submitted') {
+      targets.add('approved')
+      targets.add('returned_for_revision')
+      targets.add('cancelled')
+    }
+    if (currentStatus === 'returned_for_revision') targets.add('cancelled')
+    if (currentStatus === 'cancelled') targets.add('returned_for_revision')
+    if (currentStatus === 'reviewing') targets.add('approved')
+  }
+  if (canReview) {
+    if (currentStatus === 'submitted') targets.add('reviewing')
+    if (currentStatus === 'approved') targets.add('reviewing')
+  }
+  if (canCompletePreparation) {
+    if (currentStatus === 'reviewing') targets.add('preparing')
+    if (currentStatus === 'preparing') targets.add('prepared')
+  }
+  if (canSendToDelivery) {
+    if (currentStatus === 'prepared') targets.add('delivered')
+  }
+  return CANONICAL_STATUSES.filter((s) => targets.has(s))
+}
+
 export function OrderStatusManager({ orderId, currentStatus, canReview, canApprove, canCompletePreparation, canSendToDelivery, canManage, referenceNumber, hideRevisionButton, onSuccess, onError, onShortage }: OrderStatusManagerProps) {
   const [loading, setLoading] = useState<string | null>(null)
   const [showReturnModal, setShowReturnModal] = useState(false)
@@ -107,6 +150,9 @@ export function OrderStatusManager({ orderId, currentStatus, canReview, canAppro
   const [refNumber, setRefNumber] = useState('')
   const [pendingRefNumber, setPendingRefNumber] = useState('')
   const [pendingAdjustments, setPendingAdjustments] = useState<PendingAdjustment | null>(null)
+
+  const targets = getAllowedTargets(currentStatus, canReview, canApprove ?? false, canCompletePreparation, canSendToDelivery, canManage)
+  if (targets.length === 0) return null
 
   function hasExistingReferenceNumber(): boolean {
     return typeof referenceNumber === 'string' && referenceNumber.trim().length > 0
@@ -305,7 +351,7 @@ export function OrderStatusManager({ orderId, currentStatus, canReview, canAppro
   return (
     <>
       <div className="flex flex-nowrap items-center gap-1.5 max-w-full overflow-x-auto bg-white border border-border/60 rounded-xl px-2.5 py-2 shadow-sm">
-        {CANONICAL_STATUSES.map(renderCapsule)}
+        {targets.map(renderCapsule)}
         {!hideRevisionButton && currentStatus !== 'returned_for_revision' && currentStatus !== 'cancelled' && (
           <button onClick={() => setShowReturnModal(true)} disabled={loading !== null}
             className="bg-amber-500 text-white text-xs px-3 py-2.5 rounded-lg active:opacity-90 disabled:opacity-40 inline-flex items-center justify-center gap-1 whitespace-nowrap font-semibold shrink-0">
