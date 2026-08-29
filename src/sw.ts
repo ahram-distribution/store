@@ -366,8 +366,17 @@ self.addEventListener('fetch', (event) => {
     if (new URL(event.request.url).origin !== self.location.origin) return
   } catch { return }
 
-  // Skip hash-fragment requests (React Router SPA routes)
-  if (event.request.url.includes('#')) return
+  // Skip hash-fragment requests that are NOT real top-level navigations.
+  // A top-level reload of a HashRouter route (e.g. /store/#/sales-list) MUST
+  // fall through to the network-first index.html handler below so the latest
+  // deployed entry document is fetched instead of a stale cached one.
+  if (
+    event.request.url.includes('#') &&
+    event.request.mode !== 'navigate' &&
+    event.request.destination !== 'document'
+  ) {
+    return
+  }
 
   // DEV: network-first for everything, never cache permanently
   if (isDev) {
