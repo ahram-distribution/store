@@ -84,7 +84,7 @@ export function LoginPage() {
         style={{
           position: 'fixed',
           inset: 0,
-          backgroundImage: `url(${import.meta.env.BASE_URL}branding/login-background.png)`,
+          backgroundImage: 'url(https://i.ibb.co/LXjxBvbQ/1.png)',
           backgroundSize: 'cover',
           backgroundPosition: 'center center',
           backgroundRepeat: 'no-repeat',
