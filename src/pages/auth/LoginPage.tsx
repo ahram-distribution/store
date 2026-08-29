@@ -190,26 +190,6 @@ export function LoginPage() {
           </form>
         </div>
 
-        {/* ── CONTACT BUTTON ── */}
-        <button
-          type="button"
-          onClick={() => setShowContactSheet(true)}
-          style={{
-            width: '100%',
-            padding: 13,
-            borderRadius: 10,
-            background: '#0F2B5B',
-            border: '1px solid #C9A227',
-            color: '#C9A227',
-            fontSize: 14,
-            fontWeight: 700,
-            cursor: 'pointer',
-            marginTop: 10,
-          }}
-        >
-          {'\uD83D\uDCDE'} تواصل معنا
-        </button>
-
         {/* ── INSTALL BUTTON (hidden when already installed) ── */}
         {capability !== 'already_installed' && (
           <button
