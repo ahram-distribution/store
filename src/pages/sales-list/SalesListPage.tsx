@@ -8,8 +8,23 @@ import { normalizeEmployeeRole, type TargetRole } from '../../utils/roleNormaliz
 import { buildSearchIndex, searchProducts, type ProductSearchIndex } from '../../utils/smartSearch'
 import { SearchHighlight } from '../../components/shared/SearchHighlight'
 import { exportToExcel } from '../../services/excelExporter'
+import {
+  getGovernorateAdjustmentRows,
+  getSectorAdjustmentRows,
+  type GeoAdjustmentRow,
+} from '../../services/geographicPricing'
 
 const ALLOWED_ROLES: TargetRole[] = ['الإدارة العليا', 'مدير بيع', 'مندوب مبيعات']
+
+interface GovernorateItem {
+  id: string
+  name: string
+}
+
+interface SectorItem {
+  id: string
+  name: string
+}
 
 interface ProductRow {
   id: string
@@ -57,10 +72,11 @@ function esc(s: string | null | undefined): string {
   return d.innerHTML
 }
 
-function generatePrintHtml(groups: CompanyGroup[], logoUrl: string): string {
+function generatePrintHtml(groups: CompanyGroup[], logoUrl: string, regionLabel?: string): string {
   const now = new Date()
   const dateStr = now.toLocaleDateString('ar-EG-u-nu-latn', { day: '2-digit', month: '2-digit', year: 'numeric' })
   const timeStr = now.toLocaleTimeString('ar-EG-u-nu-latn', { hour: '2-digit', minute: '2-digit', hour12: false })
+  const docTitle = regionLabel ? `قائمة أسعار — ${regionLabel}` : 'قائمة أسعار البيع'
 
   function productRow(p: ProductRow, bgColor: string): string {
     const code = esc(p.legacy_code || '---')
@@ -124,8 +140,8 @@ function generatePrintHtml(groups: CompanyGroup[], logoUrl: string): string {
     <img src="${esc(logoUrl)}" alt="الأهرام" class="logo" />
   </div>
   <div style="flex:2">
-    <div class="doc-title">قائمة أسعار البيع</div>
-    <div class="doc-meta">تاريخ الطباعة: ${dateStr}<br/>وقت الطباعة: ${timeStr}</div>
+    <div class="doc-title">${docTitle}</div>
+    <div class="doc-meta">${regionLabel ? `القائمة: ${regionLabel}<br/>` : ''}تاريخ الطباعة: ${dateStr}<br/>وقت الطباعة: ${timeStr}</div>
   </div>
 </div>
 </td></tr>
@@ -167,6 +183,14 @@ export default function SalesListPage() {
   const [companyFilter, setCompanyFilter] = useState('')
   const [pdfLoading, setPdfLoading] = useState(false)
   const [pdfPhase, setPdfPhase] = useState<'idle' | 'preparing' | 'done'>('idle')
+  const [listType, setListType] = useState<'basic' | 'governorate' | 'sector'>('basic')
+  const [governorates, setGovernorates] = useState<GovernorateItem[]>([])
+  const [sectors, setSectors] = useState<SectorItem[]>([])
+  const [selectedGovernorate, setSelectedGovernorate] = useState('')
+  const [selectedSector, setSelectedSector] = useState('')
+  const [geoOverride, setGeoOverride] = useState<Record<string, number> | null>(null)
+  const [geoOverrideRows, setGeoOverrideRows] = useState<GeoAdjustmentRow[]>([])
+  const [geoResolving, setGeoResolving] = useState(false)
 
   const userRoles = user?.roles || []
   const normalizedRoles = userRoles.map(normalizeEmployeeRole)
@@ -196,10 +220,56 @@ export default function SalesListPage() {
     }
   }, [products, geographicContext?.governorateId, geoResolveEpoch, ensureGeoItemAdjustments])
 
+  useEffect(() => {
+    if (!isUpperMgmt || !authToken) return
+    supabase.rpc('get_reference_governorates', { p_token: authToken })
+      .then(({ data }) => {
+        if (!Array.isArray(data)) return
+        setGovernorates(data.map((g: { id?: string; name_ar?: string }) => ({ id: g.id || '', name: g.name_ar || '' })).filter((g) => !!g.id))
+      })
+    supabase.rpc('get_governed_sectors', { p_token: authToken, p_search: null })
+      .then(({ data }) => {
+        if (!Array.isArray(data)) return
+        setSectors(data.map((s: { id?: string; name?: string; name_ar?: string | null }) => ({ id: s.id || '', name: s.name_ar || s.name || '' })).filter((s) => !!s.id))
+      })
+  }, [isUpperMgmt, authToken])
+
+  useEffect(() => {
+    if (!isUpperMgmt) {
+      setGeoOverride(null)
+      setGeoOverrideRows([])
+      setGeoResolving(false)
+      return
+    }
+    const regionId = listType === 'governorate' ? selectedGovernorate : listType === 'sector' ? selectedSector : ''
+    if (!regionId || products.length === 0) {
+      setGeoOverride(null)
+      setGeoOverrideRows([])
+      setGeoResolving(false)
+      return
+    }
+    const targets = products.map((p) => ({ id: p.id, companyId: p.company_id }))
+    setGeoResolving(true)
+    const task = listType === 'governorate'
+      ? getGovernorateAdjustmentRows(regionId, targets)
+      : getSectorAdjustmentRows(regionId, targets)
+    task
+      .then((res) => {
+        setGeoOverride(res.map)
+        setGeoOverrideRows(res.rows)
+      })
+      .catch(() => {
+        setGeoOverride(null)
+        setGeoOverrideRows([])
+      })
+      .finally(() => setGeoResolving(false))
+  }, [isUpperMgmt, listType, selectedGovernorate, selectedSector, products])
+
   const geoAdjustedProducts = useMemo(() => {
     if (products.length === 0) return products
+    const overrideActive = isUpperMgmt && geoOverride !== null
     return products.map(p => {
-      const adj = geoItemAdjustments[p.id] ?? geographicContext?.adjustmentPercent ?? 0
+      const adj = overrideActive ? (geoOverride?.[p.id] ?? 0) : (geoItemAdjustments[p.id] ?? geographicContext?.adjustmentPercent ?? 0)
       if (adj === 0) return p
       return {
         ...p,
@@ -208,7 +278,7 @@ export default function SalesListPage() {
         dozen_price: Math.round(applyGeographicAdjustment(Number(p.dozen_price) || 0, adj) * 100) / 100,
       }
     })
-  }, [products, geographicContext?.adjustmentPercent, geoItemAdjustments])
+  }, [products, geographicContext?.adjustmentPercent, geoItemAdjustments, geoOverride, isUpperMgmt])
 
   const saleableProducts = useMemo(() => geoAdjustedProducts.filter(isProductAvailable), [geoAdjustedProducts])
 
@@ -265,20 +335,40 @@ export default function SalesListPage() {
       .map(([companyName, prods]) => ({ companyName, products: prods }))
   }, [smartFiltered, search])
 
+  const regionInfo = useMemo<{ label: string; name: string } | null>(() => {
+    if (listType === 'governorate' && selectedGovernorate) {
+      const g = governorates.find((x) => x.id === selectedGovernorate)
+      if (!g || !g.name) return null
+      return { label: `محافظة ${g.name}`, name: g.name }
+    }
+    if (listType === 'sector' && selectedSector) {
+      const s = sectors.find((x) => x.id === selectedSector)
+      if (!s || !s.name) return null
+      return { label: `قطاع ${s.name}`, name: s.name }
+    }
+    return null
+  }, [listType, selectedGovernorate, selectedSector, governorates, sectors])
+
+  const handleListTypeChange = useCallback((value: string) => {
+    setListType(value as 'basic' | 'governorate' | 'sector')
+    setSelectedGovernorate('')
+    setSelectedSector('')
+  }, [])
+
   const handleDownloadPdf = useCallback(() => {
     if (pdfLoading) return
     setPdfLoading(true)
     setPdfPhase('preparing')
     try {
       const logoUrl = window.location.origin + '/store/branding/ahram-logo.png'
-      const html = generatePrintHtml(groupedProducts, logoUrl)
+      const html = generatePrintHtml(groupedProducts, logoUrl, regionInfo?.label ?? undefined)
       printHtml(html)
       setPdfPhase('done')
     } finally {
       setPdfLoading(false)
       setPdfPhase('idle')
     }
-  }, [pdfLoading, groupedProducts])
+  }, [pdfLoading, groupedProducts, regionInfo])
 
   const handleDownloadExcel = useCallback(() => {
     if (smartFiltered.length === 0) return
@@ -302,19 +392,20 @@ export default function SalesListPage() {
     }))
     exportToExcel({
       title: 'قائمة أسعار البيع',
-      subtitle: 'أسعار البيع المعتمدة للمنتجات المتاحة للبيع',
+      subtitle: regionInfo ? `قائمة أسعار — ${regionInfo.label}` : 'أسعار البيع المعتمدة للمنتجات المتاحة للبيع',
       columns,
       data,
-      fileName: 'قائمة_أسعار_البيع',
+      fileName: regionInfo ? `قائمة_أسعار_${regionInfo.name}` : 'قائمة_أسعار_البيع',
       summary: [{ label: 'عدد الأصناف', value: data.length, format: 'number' }],
       filters: [
+        `القائمة: ${regionInfo ? regionInfo.label : 'القائمة الأساسية'}`,
         `اسم الشركة: ${companyFilter || 'الكل'}`,
         `نص البحث: ${search.trim() ? `"${search.trim()}"` : 'الكل'}`,
       ],
       columnWidths: [16, 38, 13, 24, 13, 13, 13],
       presentation: { rtl: true, landscape: true, fitToWidth: true, printTitles: true },
     })
-  }, [smartFiltered, companyFilter, search])
+  }, [smartFiltered, companyFilter, search, regionInfo])
 
   if (!hasAccess) {
     return (
@@ -372,6 +463,60 @@ export default function SalesListPage() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 py-3">
+        {isUpperMgmt && (
+          <div className="mb-3 flex flex-wrap items-center gap-x-5 gap-y-2 bg-card rounded-lg border border-border px-3 py-2">
+            <label className="text-[10px] font-semibold text-text-secondary">قائمة الأسعار</label>
+            <select
+              value={listType}
+              onChange={(e) => handleListTypeChange(e.target.value)}
+              className="border border-border rounded-lg px-2 py-1.5 text-xs bg-card shrink-0 focus:outline-none focus:ring-2 focus:ring-primary"
+            >
+              <option value="basic">القائمة الأساسية</option>
+              <option value="governorate">محافظة</option>
+              <option value="sector">قطاع</option>
+            </select>
+            {listType === 'governorate' && (
+              <>
+                <label className="text-[10px] font-semibold text-text-secondary">المحافظة</label>
+                <select
+                  value={selectedGovernorate}
+                  onChange={(e) => setSelectedGovernorate(e.target.value)}
+                  className="border border-border rounded-lg px-2 py-1.5 text-xs bg-card shrink-0 focus:outline-none focus:ring-2 focus:ring-primary"
+                >
+                  <option value="">اختر المحافظة...</option>
+                  {governorates.map((g) => (
+                    <option key={g.id} value={g.id}>{g.name}</option>
+                  ))}
+                </select>
+              </>
+            )}
+            {listType === 'sector' && (
+              <>
+                <label className="text-[10px] font-semibold text-text-secondary">القطاع</label>
+                <select
+                  value={selectedSector}
+                  onChange={(e) => setSelectedSector(e.target.value)}
+                  className="border border-border rounded-lg px-2 py-1.5 text-xs bg-card shrink-0 focus:outline-none focus:ring-2 focus:ring-primary"
+                >
+                  <option value="">اختر القطاع...</option>
+                  {sectors.map((s) => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
+              </>
+            )}
+            {regionInfo && (
+              <span className="text-[10px] text-text-muted">
+                {geoResolving
+                  ? 'جاري تحميل تسعير المنطقة...'
+                  : geoOverrideRows.length === 0
+                    ? 'لا يوجد تعديل جغرافي — السعر الأساسي'
+                    : `تم تطبيق التعديل الجغرافي (${geoOverrideRows.length} قاعدة)`}
+              </span>
+            )}
+          </div>
+        )}
+
         <div className="flex gap-2 mb-3">
           <div className="relative flex-1">
             <input
