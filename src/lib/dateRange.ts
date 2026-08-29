@@ -40,14 +40,20 @@ export function cairoMidnightISO(year: number, month: number, day: number): stri
 }
 
 function daysSinceSaturday(y: number, m: number, d: number): number {
-  const dow = new Date(y, m - 1, d).getDay()
+  const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay()
   return (dow + 1) % 7
+}
+
+/** Add a whole number of days to a Cairo civil date without touching time-of-day or timezone. */
+function addDays(y: number, m: number, d: number, delta: number): [number, number, number] {
+  const t = new Date(Date.UTC(y, m - 1, d) + delta * 86400000)
+  return [t.getUTCFullYear(), t.getUTCMonth() + 1, t.getUTCDate()]
 }
 
 export function getBusinessWeekStart(y: number, m: number, d: number): { year: number; month: number; day: number } {
   const daysBack = daysSinceSaturday(y, m, d)
-  const sat = new Date(y, m - 1, d - daysBack)
-  return { year: sat.getFullYear(), month: sat.getMonth() + 1, day: sat.getDate() }
+  const [year, month, day] = addDays(y, m, d, -daysBack)
+  return { year, month, day }
 }
 
 export type DateRangePreset = 'today' | 'yesterday' | 'week' | 'month' | 'prev_month' | 'custom'
@@ -162,51 +168,47 @@ export function salesRepRange(period: SalesRepPeriod, customFrom?: string, custo
 export type ResolvePreset = 'all' | 'today' | 'yesterday' | 'week' | 'prev_week' | 'month' | 'prev_month' | 'year' | 'custom'
 
 export function resolveDateRange(preset: ResolvePreset, customFrom?: string, customTo?: string): { from: string; to: string } {
-  const nowUtc = new Date()
-  const [y, m, d] = cairoDateComponents(nowUtc)
+  const [y, m, d] = cairoDateComponents(new Date())
   const pad = (n: number) => String(n).padStart(2, '0')
+  const iso = (year: number, month: number, day: number) => `${year}-${pad(month)}-${pad(day)}`
 
   switch (preset) {
     case 'today': {
-      const s = `${y}-${pad(m)}-${pad(d)}`
+      const s = iso(y, m, d)
       return { from: s, to: s }
     }
     case 'yesterday': {
-      const yesterday = new Date(y, m - 1, d)
-      yesterday.setDate(yesterday.getDate() - 1)
-      const [yy, ym, yd] = cairoDateComponents(yesterday)
-      const s = `${yy}-${pad(ym)}-${pad(yd)}`
+      const [yy, ym, yd] = addDays(y, m, d, -1)
+      const s = iso(yy, ym, yd)
       return { from: s, to: s }
     }
     case 'week': {
       const { year: sy, month: sm, day: sd } = getBusinessWeekStart(y, m, d)
-      return { from: `${sy}-${pad(sm)}-${pad(sd)}`, to: `${y}-${pad(m)}-${pad(d)}` }
+      const [ey, em, ed] = addDays(sy, sm, sd, 6)
+      return { from: iso(sy, sm, sd), to: iso(ey, em, ed) }
     }
     case 'month': {
-      return { from: `${y}-${pad(m)}-01`, to: `${y}-${pad(m)}-${pad(d)}` }
-    }
-    case 'prev_week': {
-      const { year: pwsy, month: pwsm, day: pwsd } = getBusinessWeekStart(y, m, d)
-      const pwStart = new Date(pwsy, pwsm - 1, pwsd)
-      pwStart.setDate(pwStart.getDate() - 7)
-      const [py, pm, pd] = cairoDateComponents(pwStart)
-      const pwEnd = new Date(py, pm - 1, pd)
-      pwEnd.setDate(pwEnd.getDate() + 6)
-      const [pey, pem, ped] = cairoDateComponents(pwEnd)
-      return { from: `${py}-${pad(pm)}-${pad(pd)}`, to: `${pey}-${pad(pem)}-${pad(ped)}` }
+      const last = new Date(Date.UTC(y, m, 0)).getUTCDate()
+      return { from: iso(y, m, 1), to: iso(y, m, last) }
     }
     case 'prev_month': {
       const prevMonth = m === 1 ? 12 : m - 1
       const prevYear = m === 1 ? y - 1 : y
-      const lastDay = new Date(prevYear, prevMonth, 0).getDate()
-      return { from: `${prevYear}-${pad(prevMonth)}-01`, to: `${prevYear}-${pad(prevMonth)}-${pad(lastDay)}` }
+      const last = new Date(Date.UTC(prevYear, prevMonth, 0)).getUTCDate()
+      return { from: iso(prevYear, prevMonth, 1), to: iso(prevYear, prevMonth, last) }
+    }
+    case 'prev_week': {
+      const { year: pwsy, month: pwsm, day: pwsd } = getBusinessWeekStart(y, m, d)
+      const [py, pm, pd] = addDays(pwsy, pwsm, pwsd, -7)
+      const [ey, em, ed] = addDays(py, pm, pd, 6)
+      return { from: iso(py, pm, pd), to: iso(ey, em, ed) }
     }
     case 'year': {
-      return { from: `${y}-01-01`, to: `${y}-${pad(m)}-${pad(d)}` }
+      return { from: iso(y, 1, 1), to: iso(y, m, d) }
     }
     case 'custom': {
       if (!customFrom || !customTo) {
-        const s = `${y}-${pad(m)}-${pad(d)}`
+        const s = iso(y, m, d)
         return { from: s, to: s }
       }
       return { from: customFrom, to: customTo }

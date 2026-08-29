@@ -2,10 +2,11 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Search, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, ArrowUpDown, Clock, User } from 'lucide-react'
 import { supabase } from '../../../lib/supabase'
+import { resolveDateRange } from '../../../lib/dateRange'
 import { formatCurrencyShort, formatTime, formatDate } from '../../../utils/format'
 import { formatNumber } from '../../../utils/numbers'
 
-type HistoryTabFilter = 'today' | 'yesterday' | 'last_7' | 'last_30' | 'custom'
+type HistoryTabFilter = 'today' | 'yesterday' | 'week' | 'month' | 'prev_month' | 'custom'
 
 interface SessionDetail {
   date: string
@@ -95,8 +96,9 @@ const SORT_OPTIONS: { key: SortField; label: string }[] = [
 const TIME_FILTERS: { key: HistoryTabFilter; label: string }[] = [
   { key: 'today', label: 'اليوم' },
   { key: 'yesterday', label: 'أمس' },
-  { key: 'last_7', label: 'آخر 7 أيام' },
-  { key: 'last_30', label: 'آخر 30 يوماً' },
+  { key: 'week', label: 'الأسبوع الحالي' },
+  { key: 'month', label: 'الشهر الحالي' },
+  { key: 'prev_month', label: 'الشهر السابق' },
   { key: 'custom', label: 'فترة مخصصة' },
 ]
 
@@ -109,32 +111,6 @@ function formatDuration(m?: number | null): string {
 
 function safeNum(v: unknown): number {
   return (typeof v === 'number' && !isNaN(v)) ? v : 0
-}
-
-function getDateRange(filter: HistoryTabFilter, customFrom?: string, customTo?: string): { from: string; to: string } {
-  const now = new Date()
-  const today = now.toISOString().slice(0, 10)
-  switch (filter) {
-    case 'today': return { from: today, to: today }
-    case 'yesterday': {
-      const y = new Date(now)
-      y.setDate(y.getDate() - 1)
-      return { from: y.toISOString().slice(0, 10), to: y.toISOString().slice(0, 10) }
-    }
-    case 'last_7': {
-      const d = new Date(now)
-      d.setDate(d.getDate() - 6)
-      return { from: d.toISOString().slice(0, 10), to: today }
-    }
-    case 'last_30': {
-      const d = new Date(now)
-      d.setDate(d.getDate() - 29)
-      return { from: d.toISOString().slice(0, 10), to: today }
-    }
-    case 'custom':
-      return { from: customFrom || today, to: customTo || today }
-    default: return { from: today, to: today }
-  }
 }
 
 function AchievementBadge({ pct }: { pct: number | null }) {
@@ -191,7 +167,7 @@ export default function HistoricalPerformancePanel() {
   const [loading, setLoading] = useState(true)
   const [expandedEmployee, setExpandedEmployee] = useState<string | null>(null)
 
-  const dateRange = useMemo(() => getDateRange(timeFilter, customFrom || undefined, customTo || undefined), [timeFilter, customFrom, customTo])
+  const dateRange = useMemo(() => resolveDateRange(timeFilter, customFrom || undefined, customTo || undefined), [timeFilter, customFrom, customTo])
 
   const toggleSort = (field: SortField) => {
     if (sortField === field) {
@@ -270,6 +246,14 @@ export default function HistoricalPerformancePanel() {
             {f.label}
           </button>
         ))}
+      </div>
+
+      {/* Resolved range - same source as RPC params */}
+      <div className="flex items-center gap-1 mb-3 text-[11px] text-gray-500 font-bold">
+        <span className="text-gray-400">الفترة:</span>
+        <span>{formatDate(dateRange.from)}</span>
+        <span>←</span>
+        <span>{formatDate(dateRange.to)}</span>
       </div>
 
       {/* Custom range */}

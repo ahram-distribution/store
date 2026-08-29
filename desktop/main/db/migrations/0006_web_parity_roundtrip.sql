@@ -11266,9 +11266,10 @@ BEGIN
             pe.late_count, pe.ontime_count, pe.early_departure_count,
             pe.sales_target, pe.visits_target, pe.orders_target,
             pe.collections_target, pe.new_customers_target,
-            pe.sales_achievement_pct, pe.visits_achievement_pct,
+pe.sales_achievement_pct, pe.visits_achievement_pct,
             pe.orders_achievement_pct, pe.collections_achievement_pct,
-            pe.new_customers_achievement_pct
+            pe.new_customers_achievement_pct,
+            pe.sort_rank
         FROM paginated_employees pe
         ORDER BY pe.sort_rank
         LIMIT p_per_page OFFSET v_offset
