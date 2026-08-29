@@ -60,10 +60,8 @@ const MODULE_ICONS: Record<string, { title: string; icons: LauncherIcon[] }> = {
   inventory: {
     title: 'المخزون والمنتجات',
     icons: [
-      { icon: '📦', label: 'المخزون', path: '/warehouse' },
       { icon: '✏️', label: 'إدارة المنتجات', path: '/products/manage' },
       { icon: '✏️', label: 'تعديل شركة', path: '/companies/manage' },
-      { icon: '🔍', label: 'مراجعة المخزون', path: '/warehouse/review' },
     ],
   },
   deals: {
