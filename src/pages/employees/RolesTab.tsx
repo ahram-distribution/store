@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import toast from 'react-hot-toast'
+import { useAuthStore } from '../../store/auth'
+import { isUpperManagement } from '../../utils/roleNormalization'
 
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
@@ -12,6 +14,8 @@ const ROLE_TEMPLATES: Record<string, string[]> = {
 }
 
 export function RolesTab() {
+  const currentUser = useAuthStore((s) => s.user)
+  const isUpperMgmt = (currentUser?.roles ?? []).some((r) => isUpperManagement(r))
   const [roles, setRoles] = useState<any[]>([])
   const [employees, setEmployees] = useState<any[]>([])
   const [capabilities, setCapabilities] = useState<any[]>([])
@@ -223,6 +227,10 @@ export function RolesTab() {
                                 className="text-[10px] bg-danger/10 text-danger px-2 py-1 rounded">حذف</button>
                             </>
                           )}
+                          {isSystem && isUpperMgmt && (
+                            <button onClick={() => setShowDelete(role.id)}
+                              className="text-[10px] bg-danger/10 text-danger px-2 py-1 rounded">حذف</button>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -278,9 +286,11 @@ export function RolesTab() {
                     {showDelete === role.id && (
                       <div className="border-t border-border p-3 bg-danger/5">
                         <p className="text-xs text-danger font-semibold mb-2">
-                          {empCount > 0
-                            ? `لا يمكن حذف هذا الدور، يوجد ${empCount} موظف يستخدمونه`
-                            : 'هل أنت متأكد من حذف هذا الدور؟'}
+                          {isSystem
+                            ? 'هذا دور نظام، ولا يمكن حذفه إلا بواسطة الإدارة العليا.'
+                            : empCount > 0
+                              ? `لا يمكن حذف هذا الدور، يوجد ${empCount} موظف يستخدمونه`
+                              : 'هل أنت متأكد من حذف هذا الدور؟'}
                         </p>
                         {empCount === 0 && (
                           <div className="flex gap-2">
