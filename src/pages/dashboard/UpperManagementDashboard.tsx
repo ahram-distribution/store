@@ -77,6 +77,7 @@ export default function UpperManagementDashboard() {
     { icon: '🚚', label: 'شحن الطلبات', path: '/shipping', badge: shippingCount },
     { icon: '👤', label: 'الموظفون', path: '/launcher/employees', isSubLauncher: true },
     { icon: '⏱️', label: 'الحضور والانصراف', path: '/attendance' },
+    { icon: '🛰️', label: 'الحضور والمتابعة', path: '/attendance/executive' },
     { icon: '📦', label: 'المخزون', path: '/launcher/inventory', isSubLauncher: true },
     { icon: '🧮', label: 'سهل', path: '/sahl' },
     { icon: '🏷️', label: 'الأقسام', path: '/launcher/deals', isSubLauncher: true },

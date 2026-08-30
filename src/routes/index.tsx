@@ -94,6 +94,9 @@ import { DataDeletionCenter } from '../pages/data-center/DataDeletionCenter'
 import { SectorsPage } from '../pages/sectors'
 import { isDeliveryStaffUser } from '../utils/roleNormalization'
 
+const ExecutiveAttendancePage = lazy(() => import('../pages/attendance-executive'))
+const ExecutiveEmployeeDetailPage = lazy(() => import('../pages/attendance-executive/ExecutiveEmployeeDetailPage'))
+
 export function AppRoutes() {
   const { token } = useAuthStore()
 
@@ -236,6 +239,8 @@ export function AppRoutes() {
       <Route path="/attendance/team-map" element={<ProtectedRoute employeeOnly requireCapability="attendance.view_team_map"><TeamMapPage /></ProtectedRoute>} />
       <Route path="/attendance/employee/:employeeId/:date" element={<ProtectedRoute employeeOnly requireCapability="attendance.view_history"><EmployeeWorkdayDetailPage /></ProtectedRoute>} />
       <Route path="/attendance/operations" element={<ProtectedRoute employeeOnly requireCapability="attendance.live_monitor"><OperationsCenterPage /></ProtectedRoute>} />
+      <Route path="/attendance/executive/employee/:employeeId" element={<ProtectedRoute employeeOnly requireUpperManagement><Suspense fallback={<div className="text-center py-12 text-text-secondary text-sm">جاري التحميل...</div>}><ExecutiveEmployeeDetailPage /></Suspense></ProtectedRoute>} />
+      <Route path="/attendance/executive" element={<ProtectedRoute employeeOnly requireUpperManagement><Suspense fallback={<div className="text-center py-12 text-text-secondary text-sm">جاري التحميل...</div>}><ExecutiveAttendancePage /></Suspense></ProtectedRoute>} />
 
       {/* HR Control module */}
       <Route path="/hr-control" element={<ProtectedRoute requireUpperManagement><HRControlPage /></ProtectedRoute>} />
