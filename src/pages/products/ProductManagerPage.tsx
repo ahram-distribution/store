@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Search, X, Loader2, AlertTriangle, Trash2, Power, Image, Upload, ChevronDown } from 'lucide-react'
+import { Plus, Search, X, Loader2, AlertTriangle, Trash2, Power, Image, Upload, ChevronDown, FileSpreadsheet, FileUp, CircleCheck, CircleX, CircleAlert, Inbox } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useCapability } from '../../hooks/useCapability'
 import { useAuthStore } from '../../store/auth'
@@ -16,6 +16,7 @@ import { usePersistentViewState } from '../../hooks/usePersistentViewState'
 import { useCatalogStore } from '../../store/catalog'
 import { useCartStore } from '../../store/cart'
 import { toProductWithPrice } from '../../utils/catalog'
+import { parseProductExcelFile, buildImportPreview, type ImportRow, type ImportPreview, type MissingProductRow } from '../../services/productExcelImport'
 
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
@@ -361,6 +362,81 @@ export function ProductManagerPage() {
     reader.readAsDataURL(file)
   }
 
+  // ── Excel import (bulk stock + carton price) ──
+  const importInputRef = useRef<HTMLInputElement>(null)
+  const [importOpen, setImportOpen] = useState(false)
+  const [importRows, setImportRows] = useState<ImportRow[]>([])
+  const [importPreview, setImportPreview] = useState<ImportPreview | null>(null)
+  const [importParsing, setImportParsing] = useState(false)
+  const [importApplying, setImportApplying] = useState(false)
+  const [importError, setImportError] = useState<string | null>(null)
+  const [importResult, setImportResult] = useState<any>(null)
+
+  async function handleImportFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setImportParsing(true)
+    setImportError(null)
+    setImportResult(null)
+    setImportPreview(null)
+    setImportRows([])
+    try {
+      const rows = await parseProductExcelFile(file)
+      setImportRows(rows)
+      const preview = buildImportPreview(rows, useCatalogStore.getState().products)
+      setImportPreview(preview)
+      const hasAction = preview.matched.length > 0 || preview.missing.some((m) => m.needsChange)
+      if (!hasAction) {
+        setImportError('لا توجد صفوف صالحة قابلة للتطبيق أو منتجات ستنفذ كميتها (تحقق من أعمدة الملف والتطابق مع أكواد المنتجات)')
+      }
+    } catch (err: any) {
+      setImportError(err?.message || 'تعذر تحليل ملف Excel')
+    } finally {
+      setImportParsing(false)
+    }
+  }
+
+  async function handleImportApprove() {
+    if (!importPreview) return
+    const hasRows = importPreview.matched.length > 0
+    const hasExhaustion = importPreview.missing.some((m) => m.needsChange)
+    if (!hasRows && !hasExhaustion) return
+    setImportApplying(true)
+    setImportError(null)
+    setImportResult(null)
+    const token = getToken()
+    if (!token) { setImportApplying(false); return }
+    try {
+      const payload = importPreview.matched.map((m) => ({
+        code: m.code,
+        cartons: m.cartons,
+        carton_price: m.newPrice,
+      }))
+      // p_excel_codes = the COMPLETE list of codes present in the file, so the
+      // DB can atomically zero every existing product absent from the list
+      // (stock exhaustion → "نفذت الكمية") within the same transaction.
+      const { data, error } = await supabase.rpc('governed_bulk_update_product_stock_price', {
+        p_token: token,
+        p_rows: payload,
+        p_excel_codes: importPreview.excelCodes,
+      })
+      if (error) { setImportError(error.message); setImportApplying(false); return }
+      const result = data as any
+      if (result?.error) { setImportError(String(result.error)); setImportApplying(false); return }
+      setImportResult(result)
+      await loadData()
+      const parts: string[] = []
+      if ((result?.applied ?? 0) > 0) parts.push(`تحديث مخزون/أسعار ${result.applied} منتج`)
+      if ((result?.absent_zeroed ?? 0) > 0) parts.push(`تصفير ${result.absent_zeroed} منتج`)
+      toast.success(parts.length > 0 ? parts.join(' و') : 'تم تطبيق التغييرات بنجاح')
+    } catch (err: any) {
+      setImportError(err?.message || 'فشل تطبيق التغييرات')
+    } finally {
+      setImportApplying(false)
+    }
+  }
+
   // ── Edit product ──
   const [editTarget, setEditTarget] = useState<any>(null)
   const [editForm, setEditForm] = useState<any>({
@@ -609,13 +685,22 @@ export function ProductManagerPage() {
         <button onClick={() => nav('/dashboard')} className="text-white/80 hover:text-white">&larr;</button>
         <h1 className="text-lg font-bold flex-1">إدارة المنتجات</h1>
         {canManage && (
-          <button
-            onClick={() => setShowAdd(true)}
-            className="flex items-center gap-1.5 bg-white/20 text-white text-xs px-3 py-2 rounded-full font-semibold hover:bg-white/30 transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            إضافة منتج
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setImportOpen(true)}
+              className="flex items-center gap-1.5 bg-white/20 text-white text-xs px-3 py-2 rounded-full font-semibold hover:bg-white/30 transition-colors"
+            >
+              <FileSpreadsheet className="w-4 h-4" />
+              استيراد من Excel
+            </button>
+            <button
+              onClick={() => setShowAdd(true)}
+              className="flex items-center gap-1.5 bg-white/20 text-white text-xs px-3 py-2 rounded-full font-semibold hover:bg-white/30 transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              إضافة منتج
+            </button>
+          </div>
         )}
       </div>
 
@@ -1213,6 +1298,166 @@ export function ProductManagerPage() {
             >
               إلغاء
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Excel Import Modal ── */}
+      {importOpen && (
+        <div className="fixed inset-0 z-[75] bg-black/50 flex items-center justify-center">
+          <div className="bg-white rounded-2xl w-full sm:max-w-3xl max-h-[calc(100dvh-5rem)] overflow-y-auto shadow-xl">
+            <div className="sticky top-0 bg-white border-b border-border px-5 py-3 flex items-center justify-between z-10">
+              <h3 className="font-bold text-text">استيراد من Excel — تحديث المخزون والأسعار</h3>
+              <button onClick={() => { setImportOpen(false); setImportPreview(null); setImportResult(null); setImportError(null); setImportRows([]) }} className="text-text-secondary">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              {/* Pick file */}
+              <div className="border-2 border-dashed border-border rounded-xl p-5 text-center">
+                <input ref={importInputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleImportFile} />
+                <button onClick={() => importInputRef.current?.click()} disabled={importParsing || importApplying}
+                  className="inline-flex items-center gap-2 bg-primary text-white text-sm px-5 py-2.5 rounded-lg font-semibold hover:bg-primary/90 disabled:opacity-50">
+                  {importParsing ? <><Loader2 className="w-4 h-4 animate-spin" /> جاري التحليل...</> : <><FileUp className="w-4 h-4" /> اختر ملف Excel</>}
+                </button>
+                <p className="text-[11px] text-text-secondary mt-2">
+                  الأعمدة المطلوبة: كود الصنف ، سعر الكرتونه ، الكمية (بالكرتونة أو إجمالى الكمية).
+                  كل منتج يُطابَق بالكود القديم (legacy_code) فقط.
+                </p>
+              </div>
+
+              {importError && (
+                <div className="flex items-start gap-2 bg-danger/10 border border-danger/30 rounded-lg px-3 py-2.5 text-xs text-danger/90">
+                  <CircleAlert className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span>{importError}</span>
+                </div>
+              )}
+
+              {importResult && (
+                <div className="bg-success/10 border border-success/40 rounded-xl p-4 text-sm">
+                  <p className="font-bold text-success flex items-center gap-2"><CircleCheck className="w-5 h-5" /> تمت عملية الاستيراد بنجاح</p>
+                  <p className="text-text mt-1 text-xs">
+                    تم تطبيق التحديث على <b>{importResult.applied}</b> منتج، من إجمالي {importResult.total} صف.
+                    {importResult.unmatched > 0 && <> تم تجاهل <b>{importResult.unmatched}</b> كود غير معروف.</>}
+                  </p>
+                  <button onClick={() => setImportResult(null)} className="mt-3 text-xs font-semibold text-primary">
+                    موافق
+                  </button>
+                </div>
+              )}
+
+              {importPreview && !importParsing && !importResult && (
+                <div className="space-y-4">
+                  <div className="flex flex-wrap gap-2 text-xs">
+                    <span className="px-3 py-1.5 rounded-full bg-primary/10 text-primary font-semibold">سيطَّبَق: {importPreview.matched.length}</span>
+                    <span className="px-3 py-1.5 rounded-full bg-warning/10 text-warning font-semibold">أصناف ستنفذ كميتها: {importPreview.missing.filter((m) => m.needsChange).length}</span>
+                    <span className="px-3 py-1.5 rounded-full bg-warning/10 text-warning font-semibold">كود غير معروف: {importPreview.unmatched.length}</span>
+                    <span className="px-3 py-1.5 rounded-full bg-danger/10 text-danger font-semibold">صف غير صالح: {importPreview.invalid.length}</span>
+                  </div>
+
+                  {importPreview.matched.length > 0 && (
+                    <div>
+                      <h4 className="text-sm font-bold text-text mb-2">المنتجات التي سيتم تحديثها ({importPreview.matched.length})</h4>
+                      <div className="max-h-64 overflow-y-auto border border-border rounded-xl">
+                        <table className="w-full text-xs">
+                          <thead className="sticky top-0 bg-surface">
+                            <tr className="text-text-secondary">
+                              <th className="text-right px-2 py-2">الكود</th>
+                              <th className="text-right px-2 py-2">المنتج</th>
+                              <th className="text-right px-2 py-2">المخزون الحالي (قطع)</th>
+                              <th className="text-right px-2 py-2">المخزون الجديد (قطع)</th>
+                              <th className="text-right px-2 py-2">سعر الكرتونة الحالي</th>
+                              <th className="text-right px-2 py-2">سعر الكرتونة الجديد</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {importPreview.matched.slice(0, 200).map((m) => (
+                              <tr key={m.rowIndex} className="border-t border-border">
+                                <td className="px-2 py-1.5" dir="ltr">{m.code}</td>
+                                <td className="px-2 py-1.5">{m.productName}</td>
+                                <td className="px-2 py-1.5">{m.currentPieces}</td>
+                                <td className="px-2 py-1.5 font-bold text-primary">{m.newPieces}</td>
+                                <td className="px-2 py-1.5">{m.currentPrice != null ? formatCurrencyShort(m.currentPrice) : '—'}</td>
+                                <td className="px-2 py-1.5 font-bold text-primary">{formatCurrencyShort(m.newPrice)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      {importPreview.matched.length > 200 && (
+                        <p className="text-[11px] text-text-secondary mt-1">يتم عرض أول 200 صف فقط.</p>
+                      )}
+                    </div>
+                  )}
+
+                  {importPreview.missing.some((m) => m.needsChange) && (
+                    <div className="bg-warning/5 border border-warning/30 rounded-xl p-3">
+                      <h4 className="text-sm font-bold text-warning mb-2">أصناف ستنفذ كميتها ({importPreview.missing.filter((m) => m.needsChange).length}) — غير موجودة في الملف، سيتم تصفير مخزونها ووضعها "نفذت الكمية":</h4>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr className="text-right border-b border-warning/20">
+                              <th className="py-1 px-2 font-bold">الكود</th>
+                              <th className="py-1 px-2 font-bold">المنتج</th>
+                              <th className="py-1 px-2 font-bold">الشركة</th>
+                              <th className="py-1 px-2 font-bold">المخزون الحالي</th>
+                              <th className="py-1 px-2 font-bold">المخزون الجديد</th>
+                              <th className="py-1 px-2 font-bold">الحالة الحالية</th>
+                              <th className="py-1 px-2 font-bold">الحالة الجديدة</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {importPreview.missing.filter((m) => m.needsChange).slice(0, 100).map((m) => (
+                              <tr key={m.productId} className="border-b border-warning/10">
+                                <td className="py-1 px-2" dir="ltr">{m.code}</td>
+                                <td className="py-1 px-2">{m.productName}</td>
+                                <td className="py-1 px-2">{m.companyName}</td>
+                                <td className="py-1 px-2">{m.currentPieces}</td>
+                                <td className="py-1 px-2 font-bold">0</td>
+                                <td className="py-1 px-2">{m.currentStatus}</td>
+                                <td className="py-1 px-2 font-bold text-warning">{m.newStatus}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                        {importPreview.missing.filter((m) => m.needsChange).length > 100 && (
+                          <p className="text-xs text-text-secondary mt-1">… والأخرى ({importPreview.missing.filter((m) => m.needsChange).length - 100}) ستُطبَّق كذلك.</p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {importPreview.unmatched.length > 0 && (
+                    <div className="bg-warning/5 border border-warning/30 rounded-xl p-3 text-xs">
+                      <p className="font-bold text-warning mb-1">كود غير معروف ({importPreview.unmatched.length}) — سيتم تجاهله ولن يتم إنشاء أي منتج:</p>
+                      <p className="text-text-secondary" dir="ltr">{importPreview.unmatched.slice(0, 30).map((u) => u.code).join('، ')}{importPreview.unmatched.length > 30 ? '، …' : ''}</p>
+                    </div>
+                  )}
+
+                  {importPreview.invalid.length > 0 && (
+                    <div className="bg-danger/5 border border-danger/30 rounded-xl p-3 text-xs">
+                      <p className="font-bold text-danger mb-1">صفوف غير صالحة ({importPreview.invalid.length}) — لن تُطبَّق:</p>
+                      <div className="max-h-32 overflow-y-auto space-y-0.5">
+                        {importPreview.invalid.slice(0, 50).map((iv, idx) => (
+                          <div key={idx} className="flex gap-2 text-text-secondary">
+                            <span dir="ltr" className="shrink-0">#{iv.rowIndex}</span>
+                            <span>{iv.reason}{iv.code ? ` (كود: ${iv.code})` : ''}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {(importPreview.matched.length > 0 || importPreview.missing.some((m) => m.needsChange)) && (
+                    <button onClick={handleImportApprove} disabled={importApplying}
+                      className="w-full bg-primary text-white rounded-xl py-3 text-sm font-bold hover:bg-primary/90 disabled:opacity-50 flex items-center justify-center gap-2">
+                      {importApplying ? <><Loader2 className="w-4 h-4 animate-spin" /> جاري التطبيق...</> : <><CircleCheck className="w-5 h-5" /> اعتماد التغييرات ({importPreview.matched.length + importPreview.missing.filter((m) => m.needsChange).length})</>}
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
