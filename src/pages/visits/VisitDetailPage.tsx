@@ -218,6 +218,13 @@ export function VisitDetailPage() {
 
         const hasStartGps = visit.check_in_latitude != null && visit.check_in_longitude != null
         const hasEndGps = visit.check_out_latitude != null && visit.check_out_longitude != null
+        const hasBothGps = hasStartGps && hasEndGps
+        const distMeters = hasBothGps
+          ? locationService.haversineDistance(
+              Number(visit.check_in_latitude), Number(visit.check_in_longitude),
+              Number(visit.check_out_latitude), Number(visit.check_out_longitude))
+          : null
+        const distText = distMeters != null ? `${Math.round(distMeters)} متر` : 'غير متوفر'
 
         return (
           <div className="bg-white rounded-xl border border-border overflow-hidden">
@@ -269,6 +276,10 @@ export function VisitDetailPage() {
                     <span className={'text-[15px] ' + durationColor}>{durationText}</span>
                   </>
                 )}
+                <span className="text-[13px] text-orange-600 font-semibold">المسافة بين البداية والنهاية</span>
+                <span className={'text-[15px] ' + (distMeters != null ? 'text-orange-800 font-medium' : 'text-text-muted')}>
+                  {distText}
+                </span>
               </div>
 
               {(hasStartGps || hasEndGps) && <div className="h-px bg-border/60" />}
