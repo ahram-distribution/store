@@ -1339,7 +1339,7 @@ export function ProductManagerPage() {
                   <p className="font-bold text-success flex items-center gap-2"><CircleCheck className="w-5 h-5" /> تمت عملية الاستيراد بنجاح</p>
                   <p className="text-text mt-1 text-xs">
                     تم تطبيق التحديث على <b>{importResult.applied}</b> منتج، من إجمالي {importResult.total} صف.
-                    {importResult.unmatched > 0 && <> تم تجاهل <b>{importResult.unmatched}</b> كود غير معروف.</>}
+                    {importResult.unmatched > 0 && <> تم رصد <b>{importResult.unmatched}</b> من الأصناف التي تحتاج إلى تكويد بقاعدة البيانات (لم تُنشأ ولم تُدرج في التحديث).</>}
                   </p>
                   <button onClick={() => setImportResult(null)} className="mt-3 text-xs font-semibold text-primary">
                     موافق
@@ -1352,7 +1352,7 @@ export function ProductManagerPage() {
                   <div className="flex flex-wrap gap-2 text-xs">
                     <span className="px-3 py-1.5 rounded-full bg-primary/10 text-primary font-semibold">سيطَّبَق: {importPreview.matched.length}</span>
                     <span className="px-3 py-1.5 rounded-full bg-warning/10 text-warning font-semibold">أصناف ستنفذ كميتها: {importPreview.missing.filter((m) => m.needsChange).length}</span>
-                    <span className="px-3 py-1.5 rounded-full bg-warning/10 text-warning font-semibold">كود غير معروف: {importPreview.unmatched.length}</span>
+                    <span className="px-3 py-1.5 rounded-full bg-warning/10 text-warning font-semibold">أصناف تحتاج إلى تكويد بقاعدة البيانات: {importPreview.unmatched.length}</span>
                     <span className="px-3 py-1.5 rounded-full bg-danger/10 text-danger font-semibold">صف غير صالح: {importPreview.invalid.length}</span>
                   </div>
 
@@ -1429,9 +1429,32 @@ export function ProductManagerPage() {
                   )}
 
                   {importPreview.unmatched.length > 0 && (
-                    <div className="bg-warning/5 border border-warning/30 rounded-xl p-3 text-xs">
-                      <p className="font-bold text-warning mb-1">كود غير معروف ({importPreview.unmatched.length}) — سيتم تجاهله ولن يتم إنشاء أي منتج:</p>
-                      <p className="text-text-secondary" dir="ltr">{importPreview.unmatched.slice(0, 30).map((u) => u.code).join('، ')}{importPreview.unmatched.length > 30 ? '، …' : ''}</p>
+                    <div className="bg-warning/5 border border-warning/30 rounded-xl p-3">
+                      <h4 className="text-sm font-bold text-warning mb-2">أصناف تحتاج إلى تكويد بقاعدة البيانات ({importPreview.unmatched.length}) — لا تُنشأ تلقائيًا ولن تُدرج في عمليات التحديث، يلزم تكويدها في قاعدة البيانات أولًا:</h4>
+                      <div className="max-h-64 overflow-y-auto border border-warning/20 rounded-xl">
+                        <table className="w-full text-xs">
+                          <thead className="sticky top-0 bg-warning/10">
+                            <tr className="text-right border-b border-warning/20">
+                              <th className="py-1.5 px-2 font-bold">#</th>
+                              <th className="py-1.5 px-2 font-bold">كود الصنف</th>
+                              <th className="py-1.5 px-2 font-bold">سعر الكرتونة</th>
+                              <th className="py-1.5 px-2 font-bold">الكمية في Excel</th>
+                              <th className="py-1.5 px-2 font-bold">الحالة</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {importPreview.unmatched.map((u, idx) => (
+                              <tr key={idx} className="border-b border-warning/10">
+                                <td className="py-1.5 px-2 text-text-secondary">{idx + 1}</td>
+                                <td className="py-1.5 px-2" dir="ltr">{u.code}</td>
+                                <td className="py-1.5 px-2" dir="ltr">{u.cartonPrice != null ? u.cartonPrice : '—'}</td>
+                                <td className="py-1.5 px-2" dir="ltr">{u.cartons != null ? u.cartons : '—'}</td>
+                                <td className="py-1.5 px-2 font-bold text-warning">يحتاج إلى تكويد</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                   )}
 

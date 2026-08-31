@@ -55,10 +55,21 @@ export type MissingProductRow = {
 
 export type ImportPreview = {
   matched: MatchedPreviewRow[] // will apply on approval
-  unmatched: { rowIndex: number; code: string }[] // unknown legacy codes — ignored
+  unmatched: UnmatchedRow[] // unknown legacy codes (need coding) — informational, never created
   invalid: InvalidPreviewRow[] // rejected — excluded from the batch
   excelCodes: string[] // every distinct normalized code present in the Excel file
   missing: MissingProductRow[] // DB products absent from Excel → will be zeroed
+}
+
+// An Excel row whose legacy_code does not exist in the database. These are
+// products that require product coding in the DB first. They are never created
+// automatically and are excluded from the approval/write payload. Sorted by
+// code ascending for review.
+export type UnmatchedRow = {
+  rowIndex: number
+  code: string
+  cartons: number | null // quantity read from Excel
+  cartonPrice: number | null // carton price read from Excel
 }
 
 // -----------------------------------------------------------------------------
@@ -179,7 +190,7 @@ export function buildImportPreview(rows: ImportRow[], products: any[]): ImportPr
   }
 
   const matched: MatchedPreviewRow[] = []
-  const unmatched: { rowIndex: number; code: string }[] = []
+  const unmatched: UnmatchedRow[] = []
   const invalid: InvalidPreviewRow[] = []
 
   for (const r of rows) {
@@ -206,7 +217,7 @@ export function buildImportPreview(rows: ImportRow[], products: any[]): ImportPr
 
     const product = byCode.get(r.code)
     if (!product) {
-      unmatched.push({ rowIndex: r.rowIndex, code: r.code })
+      unmatched.push({ rowIndex: r.rowIndex, code: r.code, cartons: r.cartons, cartonPrice: r.cartonPrice })
       continue
     }
 
@@ -249,6 +260,9 @@ export function buildImportPreview(rows: ImportRow[], products: any[]): ImportPr
       })
     }
   }
+
+  // Excel products requiring coding — displayed in a review table, never created.
+  unmatched.sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true, sensitivity: 'base' }))
 
   return { matched, unmatched, invalid, excelCodes, missing }
 }
