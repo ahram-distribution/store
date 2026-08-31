@@ -68,8 +68,9 @@ export function ProductManagerPage() {
     searchQuery: '',
     companyFilter: '',
     statusFilter: 'all' as 'all' | 'active' | 'out_of_stock' | 'inactive' | 'no_price',
+    dataFilter: 'all' as 'all' | 'no_image' | 'no_price' | 'no_stock',
   })
-  const { searchQuery, companyFilter, statusFilter } = viewState
+  const { searchQuery, companyFilter, statusFilter, dataFilter } = viewState
   const [searchInput, setSearchInput] = useState(searchQuery)
 
   // Debounce search: sync searchInput to viewState after 200ms of no typing
@@ -116,6 +117,9 @@ export function ProductManagerPage() {
     if (statusFilter === 'out_of_stock') list = list.filter((p: any) => getProductStatus(p) === 'out_of_stock')
     if (statusFilter === 'inactive') list = list.filter((p: any) => getProductStatus(p) === 'inactive')
     if (statusFilter === 'no_price') list = list.filter((p: any) => !p.carton_price || Number(p.carton_price) <= 0)
+    if (dataFilter === 'no_image') list = list.filter((p: any) => !p.image_url)
+    if (dataFilter === 'no_price') list = list.filter((p: any) => !p.carton_price || Number(p.carton_price) <= 0)
+    if (dataFilter === 'no_stock') list = list.filter((p: any) => !Number(p.inventory?.quantity))
     if (companyFilter) list = list.filter((p: any) => p.company_name === companyFilter)
     const q = searchQuery.trim()
     if (q) {
@@ -126,7 +130,7 @@ export function ProductManagerPage() {
       list = [...list].sort((a: any, b: any) => (a.product_name || '').localeCompare(b.product_name || ''))
     }
     return list
-  }, [products, searchQuery, companyFilter, statusFilter, searchIndices])
+  }, [products, searchQuery, companyFilter, statusFilter, dataFilter, searchIndices])
 
   // ── Load data ──
   async function loadData() {
@@ -779,7 +783,7 @@ export function ProductManagerPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-2 pt-2 border-t border-border">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-2 border-t border-border">
             <select
               value={statusFilter}
               onChange={(e) => setViewState({ statusFilter: e.target.value as any })}
@@ -790,6 +794,16 @@ export function ProductManagerPage() {
               <option value="out_of_stock">نفذت الكمية</option>
               <option value="inactive">مخفي</option>
               <option value="no_price">موقوف - السعر غير محدد</option>
+            </select>
+            <select
+              value={dataFilter}
+              onChange={(e) => setViewState({ dataFilter: e.target.value as any })}
+              className="px-2 py-1.5 rounded-lg border border-border text-xs bg-surface"
+            >
+              <option value="all">كل البيانات</option>
+              <option value="no_image">بدون صور</option>
+              <option value="no_price">بدون سعر</option>
+              <option value="no_stock">بدون مخزون</option>
             </select>
             <select
               value={companyFilter}
@@ -803,7 +817,7 @@ export function ProductManagerPage() {
 
           <div className="flex gap-2 text-[11px] text-text-secondary pt-0.5">
             <span>{filtered.length} من {products.length} منتج</span>
-            {(searchQuery || companyFilter || statusFilter !== 'all') && (
+            {(searchQuery || companyFilter || statusFilter !== 'all' || dataFilter !== 'all') && (
               <button
                 onClick={resetViewState}
                 className="text-primary font-semibold"
@@ -822,7 +836,7 @@ export function ProductManagerPage() {
         ) : filtered.length === 0 ? (
           <div className="text-center py-16">
             <p className="text-sm text-text-secondary">لا توجد منتجات</p>
-            {!searchQuery && !companyFilter && statusFilter === 'all' && canManage && (
+            {!searchQuery && !companyFilter && statusFilter === 'all' && dataFilter === 'all' && canManage && (
               <button onClick={() => setShowAdd(true)} className="mt-3 text-xs text-primary font-semibold">
                 + إضافة أول منتج
               </button>
@@ -1372,7 +1386,7 @@ export function ProductManagerPage() {
                             </tr>
                           </thead>
                           <tbody>
-                            {importPreview.matched.slice(0, 200).map((m) => (
+                            {importPreview.matched.map((m) => (
                               <tr key={m.rowIndex} className="border-t border-border">
                                 <td className="px-2 py-1.5" dir="ltr">{m.code}</td>
                                 <td className="px-2 py-1.5">{m.productName}</td>
@@ -1385,9 +1399,6 @@ export function ProductManagerPage() {
                           </tbody>
                         </table>
                       </div>
-                      {importPreview.matched.length > 200 && (
-                        <p className="text-[11px] text-text-secondary mt-1">يتم عرض أول 200 صف فقط.</p>
-                      )}
                     </div>
                   )}
 
@@ -1408,7 +1419,7 @@ export function ProductManagerPage() {
                             </tr>
                           </thead>
                           <tbody>
-                            {importPreview.missing.filter((m) => m.needsChange).slice(0, 100).map((m) => (
+                            {importPreview.missing.filter((m) => m.needsChange).map((m) => (
                               <tr key={m.productId} className="border-b border-warning/10">
                                 <td className="py-1 px-2" dir="ltr">{m.code}</td>
                                 <td className="py-1 px-2">{m.productName}</td>
@@ -1421,9 +1432,6 @@ export function ProductManagerPage() {
                             ))}
                           </tbody>
                         </table>
-                        {importPreview.missing.filter((m) => m.needsChange).length > 100 && (
-                          <p className="text-xs text-text-secondary mt-1">… والأخرى ({importPreview.missing.filter((m) => m.needsChange).length - 100}) ستُطبَّق كذلك.</p>
-                        )}
                       </div>
                     </div>
                   )}
