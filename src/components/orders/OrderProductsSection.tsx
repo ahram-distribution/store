@@ -120,8 +120,8 @@ export function OrderProductsSection({ items, mode = 'view', onQuantityChange, o
               <tr className="border-b border-[#E5E7EB] bg-[#F3F4F6] text-[#6B7280]">
                 <th className="px-3 py-3 text-right font-semibold">كود الصنف</th>
                 <th className="px-3 py-3 text-right font-semibold">اسم الصنف</th>
-                <th className="px-3 py-3 text-center font-semibold">الوحدة</th>
                 <th className="px-3 py-3 text-center font-semibold">الكمية</th>
+                <th className="px-3 py-3 text-center font-semibold">الوحدة</th>
                 <th className="px-3 py-3 text-left font-semibold">سعر الوحدة</th>
                 <th className="px-3 py-3 text-left font-semibold">الإجمالي</th>
                 {isEdit && <th className="px-2 py-3 text-center font-semibold w-10">تحديد</th>}
@@ -131,9 +131,9 @@ export function OrderProductsSection({ items, mode = 'view', onQuantityChange, o
               {groups.map((group) => (
                 <Fragment key={group.company}>
                   <tr className="bg-[#F0FDF4] border-b border-[#D1FAE5]">
-                    <td colSpan={isEdit ? 7 : 6} className="px-3 py-2 text-[13px] font-bold text-[#059669]">
+                    <td colSpan={isEdit ? 7 : 6} className="px-3 py-2 text-[15px] font-extrabold text-[#2563EB]">
                       <div className="flex items-center justify-between">
-                        <span>شركة: {group.company} | إجمالي الأصناف: {formatNumber(group.items.length)} | إجمالي القطع: {formatNumber(group.totalPieces)}</span>
+                        <span>شركة {group.company}&nbsp;&nbsp;-&nbsp;&nbsp;إجمالي الأصناف {formatNumber(group.items.length)}&nbsp;&nbsp;-&nbsp;&nbsp;إجمالي القطع {formatNumber(group.totalPieces)}&nbsp;&nbsp;-&nbsp;&nbsp;إجمالي المبلغ {formatCurrencyShort(group.subtotal)}</span>
                         {isEdit && onAddProduct && (
                           <button
                             onClick={() => onAddProduct(group.company)}
@@ -158,10 +158,32 @@ export function OrderProductsSection({ items, mode = 'view', onQuantityChange, o
                       <Fragment key={item.id || idx}>
                         <tr className={`border-b border-[#E5E7EB] last:border-0 ${rowHover} transition-colors ${rowBg}`}>
                           <td className="px-3 py-3">
-                            <span className="text-[15px] font-bold text-blue-600 font-mono" dir="ltr">{item.legacy_code || '—'}</span>
+                            <span className="inline-block text-[12px] font-bold font-mono text-blue-700 bg-blue-100 border border-blue-300 px-2.5 py-1 rounded-full" dir="ltr">{item.legacy_code || '—'}</span>
                           </td>
                           <td className="px-3 py-3">
                             <p className="font-semibold text-[#111827]">{item.product_name || 'غير متوفر'}</p>
+                          </td>
+                          <td className="px-3 py-3 text-center">
+                            {isEdit && onQuantityChange ? (
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                dir="ltr"
+                                lang="en"
+                                value={qty}
+                                onChange={e => {
+                                  const raw = toEnglishDigits(e.target.value).replace(/[^0-9]/g, '')
+                                  if (raw === '') return
+                                  const v = parseInt(raw, 10)
+                                  if (v >= 1) onQuantityChange(item.product_id, item.unit_type, v)
+                                }}
+                                className="w-12 text-center text-[12px] font-semibold text-[#111827] border border-[#E5E7EB] rounded px-1 py-0.5"
+                              />
+                            ) : (
+                              <span className="inline-flex items-center text-[12px] font-bold text-[#111827] bg-[#F3F4F6] border border-[#E5E7EB] border-r-0 rounded-full rounded-l-none px-3 py-1">
+                                <span className="text-[#2563EB]">{item.unit_type === 'dozen' ? qty * 12 : qty}</span>
+                              </span>
+                            )}
                           </td>
                           <td className="px-3 py-3 text-center">
                             {isEdit && onUnitChange && unitOptions ? (
@@ -183,30 +205,8 @@ export function OrderProductsSection({ items, mode = 'view', onQuantityChange, o
                                 )
                               })()
                             ) : (
-                              <span className="text-[#6B7280]">
-                                {item.unit_type === 'dozen' ? UNIT_LABELS.piece : UNIT_LABELS[item.unit_type] || item.unit_type}
-                              </span>
-                            )}
-                          </td>
-                          <td className="px-3 py-3 text-center">
-                            {isEdit && onQuantityChange ? (
-                              <input
-                                type="text"
-                                inputMode="numeric"
-                                dir="ltr"
-                                lang="en"
-                                value={qty}
-                                onChange={e => {
-                                  const raw = toEnglishDigits(e.target.value).replace(/[^0-9]/g, '')
-                                  if (raw === '') return
-                                  const v = parseInt(raw, 10)
-                                  if (v >= 1) onQuantityChange(item.product_id, item.unit_type, v)
-                                }}
-                                className="w-12 text-center text-[12px] font-semibold text-[#111827] border border-[#E5E7EB] rounded px-1 py-0.5"
-                              />
-                            ) : (
-                              <span className="text-[#111827] font-semibold">
-                                {item.unit_type === 'dozen' ? qty * 12 : qty}
+                              <span className="inline-flex items-center text-[12px] font-bold bg-[#F3F4F6] border border-[#E5E7EB] border-l-0 rounded-full rounded-r-none px-3 py-1 -ml-4">
+                                <span className="text-[#6B7280]">{item.unit_type === 'dozen' ? UNIT_LABELS.piece : UNIT_LABELS[item.unit_type] || item.unit_type}</span>
                               </span>
                             )}
                           </td>
@@ -245,12 +245,6 @@ export function OrderProductsSection({ items, mode = 'view', onQuantityChange, o
                       </Fragment>
                     )
                   })}
-                  {groups.length > 1 && (
-                    <tr className="bg-[#F9FAFB] border-b border-[#E5E7EB]">
-                      <td colSpan={isEdit ? 5 : 4} className="px-3 py-2 text-left text-[11px] text-[#6B7280] font-medium">إجمالي {group.company}</td>
-                      <td className="px-3 py-2 text-left text-[13px] font-bold text-[#111827]" colSpan={isEdit ? 2 : 1}>{formatCurrencyShort(group.subtotal)}</td>
-                    </tr>
-                  )}
                 </Fragment>
               ))}
             </tbody>

@@ -1,6 +1,6 @@
 {
   "baselineVersion": 1,
-  "schemaVersion": 11,
+  "schemaVersion": 12,
   "migrations": [
     {
       "version": 2,
@@ -51,6 +51,11 @@
       "version": 11,
       "file": "0011_sectors_geographic_pricing.sql",
       "description": "Sectors & Geographic Pricing: sectors, sector_governorates, geographic_price_rules, employee_geographic_assignments tables + get_effective_geographic_adjustment and get_governorate_sector RPCs"
+    },
+    {
+      "version": 12,
+      "file": "0012_customer_phone_uniqueness_live_display.sql",
+      "description": "Customer phone uniqueness hardening: governed_update_customer normalizes/validates identities.phone and returns a friendly Arabic error on duplicate instead of a raw 23505"
     }
   ]
 }

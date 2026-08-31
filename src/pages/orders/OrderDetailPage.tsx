@@ -179,6 +179,20 @@ export function OrderDetailPage() {
 
   useEffect(() => { loadOrder() }, [id])
 
+  // Live customer data: refresh the order in the background while the view is
+  // open so customer info changes (phone, name, address) propagate automatically.
+  // Uses the SECURITY DEFINER get_unified_order (live join on current customer),
+  // so visibility rules are preserved. Pauses during edit mode to avoid clobbering
+  // unsaved edits, and stops on unmount/id change.
+  useEffect(() => {
+    if (!id) return
+    const timer = window.setInterval(() => {
+      if (!editMode) loadOrder()
+    }, 15000)
+    return () => window.clearInterval(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, editMode])
+
   useEffect(() => {
     if (!id) return
     const token = getToken()
