@@ -25,6 +25,20 @@ function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
 }
 
+// Compares only the customer fields that are DISPLAYED on the order view, so a
+// background sync updates the UI only when the customer's visible info changed.
+function customerInfoEqual(a: UnifiedOrder['customer'], b: UnifiedOrder['customer']): boolean {
+  if (!a && !b) return true
+  if (!a || !b) return false
+  const pick = (c: NonNullable<UnifiedOrder['customer']>) => JSON.stringify([
+    c.id, c.code, c.company_name, c.phone,
+    c.address_line1, c.address_line2, c.city, c.governorate,
+    c.display_address, c.address_latitude, c.address_longitude,
+    c.gps_formatted_address, c.gps_latitude, c.gps_longitude, c.gps_accuracy_meters,
+  ])
+  return pick(a) === pick(b)
+}
+
 function isSupremeManagementUser(): boolean {
   const user = useAuthStore.getState().user
   if (!user?.roles) return false
@@ -179,15 +193,40 @@ export function OrderDetailPage() {
 
   useEffect(() => { loadOrder() }, [id])
 
-  // Live customer data: refresh the order in the background while the view is
-  // open so customer info changes (phone, name, address) propagate automatically.
-  // Uses the SECURITY DEFINER get_unified_order (live join on current customer),
-  // so visibility rules are preserved. Pauses during edit mode to avoid clobbering
-  // unsaved edits, and stops on unmount/id change.
+  // Silent background sync of CURRENT customer data. Unlike loadOrder(), this
+  // never flips the loading state and never replaces the whole order object:
+  // it reuses the authoritative get_unified_order (live customer join) and only
+  // commits a state update when a displayed customer/last-visit field actually
+  // changed. When nothing changed, no state update occurs, so the visible page
+  // (products, company groups, prices, totals, scroll) stays completely stable.
+  const silentRefreshCustomer = useCallback(async () => {
+    if (!id) return
+    const token = getToken()
+    if (!token) return
+    const res = await supabase.rpc('get_unified_order', { p_token: token, p_id: id })
+    if (res.error || res.data?.error || !res.data) return
+    const raw = res.data as UnifiedOrder
+    setData((prev) => {
+      if (!prev) return prev
+      const customerChanged = !customerInfoEqual(prev.customer, raw.customer)
+      const lastVisitChanged = JSON.stringify(prev.last_visit) !== JSON.stringify(raw.last_visit)
+      if (!customerChanged && !lastVisitChanged) return prev
+      return {
+        ...prev,
+        customer: raw.customer,
+        last_visit: lastVisitChanged ? raw.last_visit : prev.last_visit,
+      }
+    })
+  }, [id])
+
+  // Live customer data: silent background sync while the view is open, so
+  // customer info changes (phone, name, address) propagate without a visible
+  // refresh. Pauses during edit mode to protect local edits and never
+  // overwrites unsaved form state. Stops on unmount/id change.
   useEffect(() => {
     if (!id) return
     const timer = window.setInterval(() => {
-      if (!editMode) loadOrder()
+      if (!editMode) silentRefreshCustomer()
     }, 15000)
     return () => window.clearInterval(timer)
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -1,6 +1,6 @@
 {
   "baselineVersion": 1,
-  "schemaVersion": 12,
+  "schemaVersion": 13,
   "migrations": [
     {
       "version": 2,
@@ -56,6 +56,11 @@
       "version": 12,
       "file": "0012_customer_phone_uniqueness_live_display.sql",
       "description": "Customer phone uniqueness hardening: governed_update_customer normalizes/validates identities.phone and returns a friendly Arabic error on duplicate instead of a raw 23505"
+    },
+    {
+      "version": 13,
+      "file": "0013_order_list_live_customer.sql",
+      "description": "Order list displays LIVE customer info: get_unified_orders prefers live join (c.company_name / ci.phone) over snapshot for customer_name/customer_phone, matching Order Details semantics"
     }
   ]
 }

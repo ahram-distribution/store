@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { usePersistentViewState } from '../../hooks/usePersistentViewState'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
@@ -98,12 +98,11 @@ export function OrdersPage() {
     return resolveDateRangeISO(f.datePreset as any)
   }
 
-  const fetchOrders = useCallback(async () => {
+  const buildRpcParams = useCallback((): Record<string, unknown> | null => {
     const token = getToken()
-    if (!token) { setLoading(false); setInitialLoaded(true); return }
-    setLoading(true)
+    if (!token) return null
     const range = resolveDateRange(filters)
-    const rpcParams: any = { p_token: token.trim() }
+    const rpcParams: Record<string, unknown> = { p_token: token.trim() }
     if (filters.search) rpcParams.p_search = filters.search
     if (filters.employeeId) rpcParams.p_created_by = filters.employeeId
     if (range.from) rpcParams.p_date_from = range.from
@@ -114,12 +113,40 @@ export function OrdersPage() {
     if (governorateFilter) rpcParams.p_governorate_id = governorateFilter
     rpcParams.p_include_strict_previous = true
     if (dateSource === 'event') rpcParams.p_date_source = 'event'
+    return rpcParams
+  }, [filters, statusFilter, customerFilter, tab, currentUserId, governorateFilter, dateSource])
 
+  const fetchOrders = useCallback(async () => {
+    const rpcParams = buildRpcParams()
+    if (!rpcParams) { setLoading(false); setInitialLoaded(true); return }
+    setLoading(true)
     const { data } = await supabase.rpc('get_unified_orders', rpcParams)
     if (data) setOrders(Array.isArray(data) ? data : [])
     setLoading(false)
     setInitialLoaded(true)
-  }, [filters, statusFilter, customerFilter, tab, currentUserId, governorateFilter, dateSource])
+  }, [buildRpcParams])
+
+  // Live customer data: silently re-query the list on a bounded interval so
+  // the order card reflects CURRENT customer info without a manual refresh.
+  // Reuses the same get_unified_orders params (live join, single query for the
+  // whole list — no per-order requests). Pauses while the tab is hidden and
+  // only re-fetches when the previous request has settled.
+  const silentRefreshing = useRef(false)
+  useEffect(() => {
+    const timer = window.setInterval(async () => {
+      if (document.hidden || silentRefreshing.current) return
+      const rpcParams = buildRpcParams()
+      if (!rpcParams) return
+      silentRefreshing.current = true
+      try {
+        const { data } = await supabase.rpc('get_unified_orders', rpcParams)
+        if (data) setOrders(Array.isArray(data) ? data : [])
+      } finally {
+        silentRefreshing.current = false
+      }
+    }, 15000)
+    return () => window.clearInterval(timer)
+  }, [buildRpcParams])
 
   useEffect(() => { fetchOrders() }, [filters, statusFilter, customerFilter, tab, governorateFilter, dateSource])
 
