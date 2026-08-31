@@ -9,6 +9,31 @@ interface CompanyGroup {
   company: string
   items: UnifiedOrderItem[]
   subtotal: number
+  totalPieces: number
+}
+
+function lineDisplayPieces(item: UnifiedOrderItem): number {
+  const qty = Number(item.unit_quantity || 1)
+  if (item.unit_type === 'dozen') return qty * 12
+  const stored = Number(item.piece_quantity || 0)
+  return stored > 0 ? stored : qty
+}
+
+function arabicSortKey(value: string): string {
+  return (value || '')
+    .normalize('NFD')
+    .replace(/[\u0610-\u061A\u064B-\u065F\u0670]/g, '')
+    .replace(/\u0640/g, '')
+    .replace(/[\u0622\u0623\u0625]/g, '\u0627')
+    .replace(/\u0629/g, '\u0647')
+    .replace(/[\u0649]/g, '\u064A')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase()
+}
+
+function compareArabic(a: string, b: string): number {
+  return arabicSortKey(a).localeCompare(arabicSortKey(b), 'ar')
 }
 
 interface OrderProductsSectionProps {
@@ -53,11 +78,19 @@ export function OrderProductsSection({ items, mode = 'view', onQuantityChange, o
     const map: Record<string, CompanyGroup> = {}
     for (const item of items) {
       const companyName = item.company_name || 'أخرى'
-      if (!map[companyName]) map[companyName] = { company: companyName, items: [], subtotal: 0 }
+      if (!map[companyName]) map[companyName] = { company: companyName, items: [], subtotal: 0, totalPieces: 0 }
       map[companyName].items.push(item)
       map[companyName].subtotal += Number(item.total_price || 0)
+      map[companyName].totalPieces += lineDisplayPieces(item)
     }
     return Object.values(map)
+      .map((group) => ({
+        ...group,
+        items: [...group.items].sort((a, b) =>
+          compareArabic(a.product_name || '', b.product_name || ''),
+        ),
+      }))
+      .sort((a, b) => compareArabic(a.company, b.company))
   }, [items])
 
   const isEdit = mode === 'edit'
@@ -100,7 +133,7 @@ export function OrderProductsSection({ items, mode = 'view', onQuantityChange, o
                   <tr className="bg-[#F0FDF4] border-b border-[#D1FAE5]">
                     <td colSpan={isEdit ? 7 : 6} className="px-3 py-2 text-[13px] font-bold text-[#059669]">
                       <div className="flex items-center justify-between">
-                        <span>{group.company} ({group.items.length})</span>
+                        <span>شركة: {group.company} | إجمالي الأصناف: {formatNumber(group.items.length)} | إجمالي القطع: {formatNumber(group.totalPieces)}</span>
                         {isEdit && onAddProduct && (
                           <button
                             onClick={() => onAddProduct(group.company)}
@@ -150,7 +183,9 @@ export function OrderProductsSection({ items, mode = 'view', onQuantityChange, o
                                 )
                               })()
                             ) : (
-                              <span className="text-[#6B7280]">{UNIT_LABELS[item.unit_type] || item.unit_type}</span>
+                              <span className="text-[#6B7280]">
+                                {item.unit_type === 'dozen' ? UNIT_LABELS.piece : UNIT_LABELS[item.unit_type] || item.unit_type}
+                              </span>
                             )}
                           </td>
                           <td className="px-3 py-3 text-center">
@@ -170,7 +205,9 @@ export function OrderProductsSection({ items, mode = 'view', onQuantityChange, o
                                 className="w-12 text-center text-[12px] font-semibold text-[#111827] border border-[#E5E7EB] rounded px-1 py-0.5"
                               />
                             ) : (
-                              <span className="text-[#111827] font-semibold">{qty}</span>
+                              <span className="text-[#111827] font-semibold">
+                                {item.unit_type === 'dozen' ? qty * 12 : qty}
+                              </span>
                             )}
                           </td>
                           <td className="px-3 py-3 text-left">
