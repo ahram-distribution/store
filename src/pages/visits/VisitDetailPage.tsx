@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useVisitsStore } from '../../store/visits'
-import { formatDateTime } from '../../utils/format'
+import { formatDate, formatDateTime, formatCurrencyShort } from '../../utils/format'
 import { StatusBadge } from '../../components/shared/StatusBadge'
 import { ResolvedAddress } from '../../components/shared/ResolvedAddress'
 import { locationService } from '../../services/location'
@@ -27,6 +27,17 @@ function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
 }
 
+function visitDuration(start: string, end: string): string {
+  const diff = new Date(end).getTime() - new Date(start).getTime()
+  const mins = Math.floor(diff / 60000)
+  if (!isFinite(mins) || mins < 1) return 'أقل من دقيقة'
+  const hours = Math.floor(mins / 60)
+  const rem = mins % 60
+  return hours > 0
+    ? hours + 'س ' + (rem > 0 ? rem + 'د' : '')
+    : rem + ' دقيقة'
+}
+
 export function VisitDetailPage() {
   const navigate = useNavigate()
   const { id } = useParams()
@@ -40,6 +51,10 @@ export function VisitDetailPage() {
   const [notes, setNotes] = useState('')
   const [result, setResult] = useState('')
   const [checkoutBusy, setCheckoutBusy] = useState(false)
+  const [ctx, setCtx] = useState<any>(null)
+  const [historyOpen, setHistoryOpen] = useState(false)
+
+  const prevVisits = Array.isArray(ctx?.previous_visits) ? ctx.previous_visits : []
 
   useEffect(() => {
     if (!id) return
@@ -83,6 +98,9 @@ export function VisitDetailPage() {
         const { data } = await supabase.rpc('get_governed_customer', { p_token: token, p_id: cid })
         if (data) setCustomerName(Array.isArray(data) ? data[0]?.company_name : data?.company_name || '')
       }
+      // Live customer context + summary + previous-visits history for this visit
+      const { data: ctxData } = await supabase.rpc('get_customer_visit_context', { p_token: token, p_visit_id: id as string })
+      if (ctxData && !(ctxData as any)?.error) setCtx(ctxData as any)
       setLoading(false)
     }
     loadVisit()
@@ -301,6 +319,146 @@ export function VisitDetailPage() {
           </div>
         )
       })()}
+
+      {ctx && (
+        <div className="space-y-4">
+          {/* Customer Information */}
+          <div className="bg-white rounded-xl border border-border p-4">
+            <h2 className="text-sm font-bold text-primary mb-3">بيانات العميل</h2>
+            <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-2 text-sm">
+              <span className="text-text-secondary">الاسم</span>
+              <span className="text-text font-semibold">{ctx.customer?.company_name || visit.customer_name || '—'}</span>
+              {ctx.customer?.phone && (
+                <>
+                  <span className="text-text-secondary">الهاتف</span>
+                  <span dir="ltr" className="text-left text-text">{ctx.customer.phone}</span>
+                </>
+              )}
+              {ctx.customer?.registered_address && (
+                <>
+                  <span className="text-text-secondary">العنوان الحالي</span>
+                  <span className="text-text">{ctx.customer.registered_address}</span>
+                </>
+              )}
+              {!ctx.customer?.registered_address && (
+                <>
+                  <span className="text-text-secondary">العنوان الحالي</span>
+                  <span className="text-text-muted">غير متوفر</span>
+                </>
+              )}
+              {ctx.customer?.created_at && (
+                <>
+                  <span className="text-text-secondary">تاريخ إنشاء العميل</span>
+                  <span className="text-text">{formatDate(ctx.customer.created_at)}</span>
+                </>
+              )}
+              {ctx.customer?.creator_name && (
+                <>
+                  <span className="text-text-secondary">أنشأ الحساب</span>
+                  <span className="text-text">{ctx.customer.creator_name}</span>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Customer Summary */}
+          <div className="bg-white rounded-xl border border-border p-4">
+            <h2 className="text-sm font-bold text-primary mb-3">ملخص العميل</h2>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <div className="bg-surface/60 rounded-lg px-3 py-2.5 text-center">
+                <p className="text-[10px] text-text-secondary">عدد الطلبات</p>
+                <p className="text-lg font-bold text-text" dir="ltr">{ctx.summary?.order_count ?? 0}</p>
+              </div>
+              <div className="bg-surface/60 rounded-lg px-3 py-2.5 text-center">
+                <p className="text-[10px] text-text-secondary">إجمالي قيمة الطلبات</p>
+                <p className="text-lg font-bold text-text" dir="ltr">{ctx.summary?.orders_total != null ? formatCurrencyShort(ctx.summary.orders_total) : '0'}</p>
+              </div>
+              <div className="bg-surface/60 rounded-lg px-3 py-2.5 text-center">
+                <p className="text-[10px] text-text-secondary">عدد الزيارات</p>
+                <p className="text-lg font-bold text-text" dir="ltr">{ctx.visit_count ?? 0}</p>
+              </div>
+              <div className="bg-surface/60 rounded-lg px-3 py-2.5 text-center">
+                <p className="text-[10px] text-text-secondary">آخر طلب</p>
+                <p className="text-lg font-bold text-text">{ctx.summary?.last_order_date ? formatDate(ctx.summary.last_order_date) : '—'}</p>
+              </div>
+            </div>
+
+            <div className="mt-3 flex items-center justify-between gap-2 text-sm">
+              <span className="text-text-secondary">آخر زيارة قبل الحالية</span>
+              {prevVisits[0] ? (
+                <span className="text-text font-semibold" dir="ltr">
+                  {formatDateTime(prevVisits[0].check_in_at)}
+                </span>
+              ) : (
+                <span className="text-text-muted">لا توجد زيارة سابقة</span>
+              )}
+            </div>
+          </div>
+
+          {/* Customer Visit History (previous visits, excluding current) */}
+          <div className="bg-white rounded-xl border border-border p-4">
+            <button
+              onClick={() => setHistoryOpen(o => !o)}
+              className="w-full flex items-center justify-between text-sm font-bold text-primary"
+            >
+              <span>سجل زيارات العميل</span>
+              <span className="text-text-muted text-xs">{prevVisits.length} زيارة</span>
+            </button>
+            {!historyOpen ? (
+              <p className="mt-2 text-[11px] text-text-secondary">
+                {prevVisits.length === 0
+                  ? 'لا توجد زيارة سابقة'
+                  : 'اضغط لعرض الزيارات السابقة'}
+              </p>
+            ) : prevVisits.length === 0 ? (
+              <p className="mt-2 text-[11px] text-text-secondary">لا توجد زيارة سابقة</p>
+            ) : (
+              <div className="mt-2 space-y-2 max-h-72 overflow-y-auto">
+                {prevVisits.map(pv => (
+                  <div key={pv.id} className="border border-border/60 rounded-lg px-3 py-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] text-text-secondary">{pv.code || 'زيارة'}</span>
+                      <StatusBadge status={pv.status} />
+                    </div>
+                    <div className="mt-1 grid grid-cols-[auto_1fr] gap-x-2 gap-y-0.5 text-[11px]">
+                      {pv.check_in_at && (
+                        <>
+                          <span className="text-text-secondary">البداية</span>
+                          <span className="text-text">{formatDateTime(pv.check_in_at)}</span>
+                        </>
+                      )}
+                      {pv.check_out_at && (
+                        <>
+                          <span className="text-text-secondary">النهاية</span>
+                          <span className="text-text">{formatDateTime(pv.check_out_at)}</span>
+                        </>
+                      )}
+                      {pv.check_in_at && pv.check_out_at && (
+                        <>
+                          <span className="text-text-secondary">المدة</span>
+                          <span className="text-text">{visitDuration(pv.check_in_at, pv.check_out_at)}</span>
+                        </>
+                      )}
+                      {pv.employee_name && (
+                        <>
+                          <span className="text-text-secondary">بواسطة</span>
+                          <span className="text-text">{pv.employee_name}</span>
+                        </>
+                      )}
+                      {pv.visit_result && (
+                        <>
+                          <span className="text-text-secondary">النتيجة</span>
+                          <span className="text-text">{resultLabels[pv.visit_result] || pv.visit_result}</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {visit.status === 'active' && (
         <div className="bg-white rounded-lg border border-border p-3 space-y-3">

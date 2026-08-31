@@ -1,6 +1,6 @@
 {
   "baselineVersion": 1,
-  "schemaVersion": 13,
+  "schemaVersion": 14,
   "migrations": [
     {
       "version": 2,
@@ -61,6 +61,11 @@
       "version": 13,
       "file": "0013_order_list_live_customer.sql",
       "description": "Order list displays LIVE customer info: get_unified_orders prefers live join (c.company_name / ci.phone) over snapshot for customer_name/customer_phone, matching Order Details semantics"
+    },
+    {
+      "version": 14,
+      "file": "0014_visit_customer_context.sql",
+      "description": "Visit Cards + Visit Details live customer context: get_governed_visits returns batched customer_context (live phone/address, creation, creator, actual-order metrics via is_order_in_statistics, visit count); new get_customer_visit_context RPC for Visit Details (customer + summary + previous visits excluding current)"
     }
   ]
 }

@@ -1,4 +1,5 @@
 import { StatusBadge } from '../shared/StatusBadge'
+import { formatDate, formatCurrencyShort } from '../../utils/format'
 
 function formatDateTime(dt: string): string {
   try {
@@ -50,6 +51,7 @@ export function VisitCard({ visit, customerName, employeeName, onClick }: VisitC
 
   const name = customerName || visit.customer_name || ''
   const emp = employeeName || visit.employee_name || ''
+  const ccx = visit.customer_context || null
 
   return (
     <div onClick={onClick}
@@ -97,6 +99,64 @@ export function VisitCard({ visit, customerName, employeeName, onClick }: VisitC
           <p className="text-[11px] bg-surface/50 rounded-lg px-2 py-1.5 text-text-secondary leading-relaxed mt-1">
             {visit.notes.replace(/^طلب:[a-f0-9-]+\|/, '')}
           </p>
+        )}
+
+        {ccx && (
+          <div className="mt-2 border-t border-border/60 pt-2">
+            <div className="flex items-center justify-between">
+              <p className="text-[10px] font-bold text-primary uppercase tracking-wide">بيانات العميل</p>
+              {ccx.visit_count != null && ccx.visit_count > 0 && (
+                <span className="text-[10px] text-text-secondary">الزيارات: {ccx.visit_count}</span>
+              )}
+            </div>
+
+            <div className="mt-1.5 grid grid-cols-[auto_1fr] gap-x-2 gap-y-1 text-[11px]">
+              {ccx.phone && (
+                <>
+                  <span className="text-text-secondary">الهاتف</span>
+                  <span dir="ltr" className="text-left text-text font-medium">{ccx.phone}</span>
+                </>
+              )}
+              {ccx.registered_address && (
+                <>
+                  <span className="text-text-secondary">العنوان</span>
+                  <span className="text-text">{ccx.registered_address}</span>
+                </>
+              )}
+              {ccx.created_at && (
+                <>
+                  <span className="text-text-secondary">تاريخ الإنشاء</span>
+                  <span className="text-text">{formatDate(ccx.created_at)}</span>
+                </>
+              )}
+              {ccx.creator_name && (
+                <>
+                  <span className="text-text-secondary">أنشأ الحساب</span>
+                  <span className="text-text">{ccx.creator_name}</span>
+                </>
+              )}
+            </div>
+
+            <div className="mt-1.5 grid grid-cols-3 gap-1.5">
+              <div className="bg-surface/60 rounded-lg px-1.5 py-1 text-center">
+                <p className="text-[9px] text-text-secondary">الطلبات</p>
+                <p className="text-[12px] font-bold text-text" dir="ltr">{ccx.order_count ?? 0}</p>
+              </div>
+              <div className="bg-surface/60 rounded-lg px-1.5 py-1 text-center">
+                <p className="text-[9px] text-text-secondary">قيمة الطلبات</p>
+                <p className="text-[12px] font-bold text-text" dir="ltr">{ccx.orders_total != null ? formatCurrencyShort(ccx.orders_total) : '0'}</p>
+              </div>
+              <div className="bg-surface/60 rounded-lg px-1.5 py-1 text-center">
+                <p className="text-[9px] text-text-secondary">آخر طلب</p>
+                <p className="text-[12px] font-semibold text-text">{ccx.last_order_date ? formatDate(ccx.last_order_date) : '—'}</p>
+              </div>
+            </div>
+
+            <div className="mt-1.5 flex items-center justify-between text-[11px]">
+              <span className="text-text-secondary">آخر زيارة قبل الحالية</span>
+              <span className="text-text font-medium">{ccx.last_visit_before ? formatDateTime(ccx.last_visit_before) : 'لا توجد زيارة سابقة'}</span>
+            </div>
+          </div>
         )}
       </div>
     </div>

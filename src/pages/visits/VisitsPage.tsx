@@ -238,7 +238,7 @@ export function VisitsPage() {
       ) : filtered.length === 0 ? (
         <div className="text-center py-12 text-text-secondary text-sm">لا توجد زيارات</div>
       ) : (
-        <div className="space-y-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {filtered.map((visit: any) => (
             <VisitCard
               key={visit.id}
