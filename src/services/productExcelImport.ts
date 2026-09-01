@@ -31,6 +31,8 @@ export type MatchedPreviewRow = {
   newPieces: number
   currentPrice: number | null
   newPrice: number
+  currentStatus: string // 'نشط' | 'نفذت الكمية' | 'مخفي'
+  newStatus: string // 'نشط' when newPieces > 0 (price validated), otherwise 'نفذت الكمية'
 }
 
 export type InvalidPreviewRow = {
@@ -214,6 +216,10 @@ export function buildImportPreview(rows: ImportRow[], products: any[]): ImportPr
       invalid.push({ rowIndex: r.rowIndex, code: r.code, reason: 'سعر الكرتونة بالسالب' })
       continue
     }
+    if (r.cartons > 0 && r.cartonPrice <= 0) {
+      invalid.push({ rowIndex: r.rowIndex, code: r.code, reason: 'سعر الكرتونة يجب أن يكون أكبر من صفر' })
+      continue
+    }
 
     const product = byCode.get(r.code)
     if (!product) {
@@ -236,6 +242,8 @@ export function buildImportPreview(rows: ImportRow[], products: any[]): ImportPr
       newPieces,
       currentPrice: product.carton_price != null ? Number(product.carton_price) : null,
       newPrice: r.cartonPrice,
+      currentStatus: productStatusLabel(product),
+      newStatus: newPieces > 0 ? 'نشط' : 'نفذت الكمية',
     })
   }
 

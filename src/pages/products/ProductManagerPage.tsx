@@ -1383,6 +1383,8 @@ export function ProductManagerPage() {
                               <th className="text-right px-2 py-2">المخزون الجديد (قطع)</th>
                               <th className="text-right px-2 py-2">سعر الكرتونة الحالي</th>
                               <th className="text-right px-2 py-2">سعر الكرتونة الجديد</th>
+                              <th className="text-right px-2 py-2">الحالة الحالية</th>
+                              <th className="text-right px-2 py-2">الحالة الجديدة</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -1394,6 +1396,8 @@ export function ProductManagerPage() {
                                 <td className="px-2 py-1.5 font-bold text-primary">{m.newPieces}</td>
                                 <td className="px-2 py-1.5">{m.currentPrice != null ? formatCurrencyShort(m.currentPrice) : '—'}</td>
                                 <td className="px-2 py-1.5 font-bold text-primary">{formatCurrencyShort(m.newPrice)}</td>
+                                <td className="px-2 py-1.5">{m.currentStatus}</td>
+                                <td className={`px-2 py-1.5 font-bold ${m.newStatus === 'نشط' ? 'text-primary' : 'text-warning'}`}>{m.newStatus}</td>
                               </tr>
                             ))}
                           </tbody>

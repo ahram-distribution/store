@@ -5,28 +5,34 @@
 -- updates ({code, cartons, carton_price}) matched by legacy_code, atomically
 -- in ONE transaction (single network call, no N+1).
 --
--- Reuses the application's authoritative business rules:
+-- The Excel file represents the COMPLETE CURRENT PRODUCT STOCK STATE. The
+-- import determines the final stock, the carton price AND the final product
+-- status. Previous product status (hidden / out-of-stock / inactive) never
+-- prevents the import from establishing the correct new status:
+--
+--   * quantity > 0 + valid (positive) price → stock = Excel pieces,
+--     carton_price = Excel price, product status = "نشط"
+--     (is_active=true, is_visible=true, is_out_of_stock=false, oos_source=NULL).
+--     Applies even if the product was previously "مخفي" or "نفذت الكمية".
+--   * quantity = 0 → stock = 0, product status = "نفذت الكمية".
+--   * Produto absent from the Excel code set → stock = 0, status = "نفذت الكمية".
+--
+-- Active-status invariant: a product must NOT be "نشط" unless it has BOTH a
+-- valid (positive) price AND stock > 0. A positive-quantity row whose carton
+-- price is missing / non-positive is REJECTED (RAISE) — never silently given
+-- an invented price, never set active.
+--
+-- Implementation notes (reusing the application's authoritative rules):
 --   * Stock: SET/REPLACE semantics identical to governed_set_product_stock.
 --     The Excel "carton" quantity is converted to pieces using the product's
 --     existing carton_quantity (supports fractional cartons). No hard-coded
 --     units-per-carton value is invented.
 --   * Pricing: identical to governed_update_product_pricing — sets carton_price
 --     and regenerates piece_price / dozen_price in the same statement.
---   * "نفذت الكمية" (out-of-stock): NOT invented here. The existing inventory
---     trigger trg_auto_out_of_stock_from_inventory (authoritative governed
---     model: is_active = true AND inventory.quantity <= 0 → products
---     is_out_of_stock = true, oos_source = 'inventory') fires automatically on
---     the stock writes below and sets the status for active products.
---
--- STOCK EXHAUSTION RULE:
---   The Excel file is treated as the COMPLETE CURRENT STOCK LIST. Therefore
---   any existing DB product whose legacy_code is absent from the Excel file is
---   considered not present in current stock:
---     - its inventory is zeroed (SET/REPLACE to 0)
---     - the inventory auto-OOS trigger marks it "نفذت الكمية"
---   Products are never created or deleted by this import. Absent products that
---   already have zero stock AND are already "نفذت الكمية" are skipped (no
---   unnecessary write) but still counted.
+--   * Status: set explicitly by this function (so hidden/inactive products are
+--     covered too). The existing inventory trigger
+--     trg_auto_out_of_stock_from_inventory still runs, but the explicit status
+--     writes below are the final authority for these rows.
 --
 -- Atomicity: the whole batch (Excel updates + absent-product zeroing) is one
 -- PL/pgSQL function (== one transaction). If any part fails the function
@@ -66,7 +72,6 @@ DECLARE
   v_absent_total integer := 0;
   v_absent_zeroed integer := 0;
   v_absent_skipped integer := 0;
-  v_absent_oos integer := 0;
   v_absents jsonb := '[]'::jsonb;
 BEGIN
   SELECT * INTO v_session FROM app.sessions WHERE token = p_token AND expires_at > now();
@@ -134,6 +139,12 @@ BEGIN
 
       v_pieces := ROUND((v_row.cartons * v_product.carton_quantity)::numeric);
 
+      -- Active-status invariant: positive stock may only become "نشط" with a
+      -- strictly positive price. Nothing is invented here — the row is rejected.
+      IF v_pieces > 0 AND v_row.carton_price <= 0 THEN
+        RAISE EXCEPTION 'INVALID_CARTON_PRICE: %', v_row.code;
+      END IF;
+
       INSERT INTO public.inventory (product_id, quantity, updated_at)
       VALUES (v_product.id, v_pieces, now())
       ON CONFLICT (product_id) DO UPDATE
@@ -148,6 +159,27 @@ BEGIN
           dozen_price = v_dozen_price,
           updated_at = now()
       WHERE id = v_product.id;
+
+      -- Excel decides the final status. Previous status does not matter.
+      --   quantity > 0 (+ valid price) → "نشط" (hidden / out-of-stock cleared).
+      --   quantity = 0 → "نفذت الكمية".
+      IF v_pieces > 0 THEN
+        UPDATE public.products
+        SET is_active = true,
+            is_visible = true,
+            is_out_of_stock = false,
+            oos_source = NULL,
+            updated_at = now()
+        WHERE id = v_product.id;
+      ELSE
+        UPDATE public.products
+        SET is_active = true,
+            is_visible = true,
+            is_out_of_stock = true,
+            oos_source = 'inventory',
+            updated_at = now()
+        WHERE id = v_product.id;
+      END IF;
 
       v_applied := v_applied + 1;
       v_results := v_results || jsonb_build_object(
@@ -164,7 +196,8 @@ BEGIN
   END IF;
 
   -- 3) STOCK EXHAUSTION: existing DB products whose legacy_code is absent from
-  --    the Excel file are treated as not present in current stock → zeroed.
+  --    the Excel file are treated as not present in current stock → zeroed and
+  --    forced to "نفذت الكمية" regardless of previous status.
   IF v_had_codes THEN
     FOR v_abs IN
       SELECT
@@ -179,25 +212,29 @@ BEGIN
     LOOP
       v_absent_total := v_absent_total + 1;
 
-      -- Active products represent "نفذت الكمية" after the batch.
-      IF v_abs.is_active = true THEN
-        v_absent_oos := v_absent_oos + 1;
-      END IF;
-
       -- Skip unnecessary writes: already zero stock AND already out-of-stock.
       IF v_abs.qty > 0 OR v_abs.is_out_of_stock IS DISTINCT FROM true THEN
-        -- Zero stock (SET/REPLACE). The inventory trigger auto-sets
-        -- is_out_of_stock = true (oos_source 'inventory') for active products.
+        -- Zero stock (SET/REPLACE).
         INSERT INTO public.inventory (product_id, quantity, updated_at)
         VALUES (v_abs.id, 0, now())
         ON CONFLICT (product_id) DO UPDATE
         SET quantity = 0, updated_at = now();
 
+        -- Force the exhausted status so hidden/inactive products are also
+        -- covered (absent from Excel → has no current stock → "نفذت الكمية").
+        UPDATE public.products
+        SET is_active = true,
+            is_visible = true,
+            is_out_of_stock = true,
+            oos_source = 'inventory',
+            updated_at = now()
+        WHERE id = v_abs.id;
+
         v_absent_zeroed := v_absent_zeroed + 1;
         v_absents := v_absents || jsonb_build_object(
           'code', v_abs.legacy_code,
           'zeroed', true,
-          'status', CASE WHEN v_abs.is_active = true THEN 'نفذت الكمية' ELSE 'غير نشط' END
+          'status', 'نفذت الكمية'
         );
       ELSE
         v_absent_skipped := v_absent_skipped + 1;
@@ -219,7 +256,6 @@ BEGIN
     'absent_total', v_absent_total,
     'absent_zeroed', v_absent_zeroed,
     'absent_skipped', v_absent_skipped,
-    'absent_out_of_stock', v_absent_oos,
     'results', v_results,
     'absents', v_absents
   );
@@ -227,4 +263,8 @@ END;
 $$;
 
 COMMENT ON FUNCTION public.governed_bulk_update_product_stock_price IS
-  'تحديث جماعي للمخزون (بالكراتين) وسعر الكرتونة لكل منتج مطابق بـ legacy_code، مع قواعد النفاد: منتجات القاعدة غير الموجودة في ملف Excel تُصفّر مخزونها وتصبح "نفذت الكمية" — كل ذلك في معاملة واحدة (لا يطبق جزئياً في حالة أي خطأ)';
+  'تحديث جماعي للمخزون (بالكراتين) وسعر الكرتونة لكل منتج مطابق بـ legacy_code. Excel هو الحالة الكاملة الحالية للمخزون: كمية>0 مع سعر صحيح → المنتج "نشط" (حتى لو كان مخفياً/نفذت الكمية)؛ كمية=0 → "نفذت الكمية"؛ منتجات القاعدة غير الموجودة في الملف تُصفّر مخزونها وتصبح "نفذت الكمية" — كل ذلك في معاملة واحدة (لا يطبق جزئياً في حالة أي خطأ)';
+
+-- ============================================================================
+-- END
+-- ============================================================================
