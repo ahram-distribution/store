@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
+import { useState, useEffect, useMemo, useRef, useCallback, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Plus, Search, X, Loader2, AlertTriangle, Trash2, Power, Image, Upload, ChevronDown, FileSpreadsheet, FileUp, CircleCheck, CircleX, CircleAlert, Inbox } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
@@ -34,6 +34,40 @@ const DEDUCTION_STATUS_ORDER: readonly string[] = [
 // =============================================================================
 // ProductManagerPage — Full product management dashboard
 // =============================================================================
+
+// Collapsible review section used by the Excel import preview. Header shows the
+// title + exact row count + short hint; clicking toggles the visible content.
+// All rows stay rendered inside the (scrollable) body — never sliced.
+function PreviewSection({ open, onToggle, title, count, hint, boxClass, headClass, pillClass, children }: {
+  open: boolean
+  onToggle: () => void
+  title: string
+  count: number
+  hint?: string
+  boxClass?: string
+  headClass?: string
+  pillClass?: string
+  children: ReactNode
+}) {
+  return (
+    <div className={`rounded-xl border p-3 ${boxClass ?? 'bg-surface/40 border-border'}`}>
+      <button type="button" onClick={onToggle} className="w-full flex items-center justify-between gap-2 text-right">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className={`text-sm font-bold ${headClass ?? 'text-text'}`}>{title}</span>
+          <span className={`px-2 py-0.5 rounded-full text-xs font-bold shrink-0 ${pillClass ?? 'bg-primary/10 text-primary'}`}>{count}</span>
+        </div>
+        <ChevronDown className={`w-4 h-4 shrink-0 transition-transform text-text-secondary ${open ? '' : '-rotate-90'}`} />
+      </button>
+      {open && (
+        <div className="mt-3">
+          {hint ? <p className="text-xs text-text-secondary mb-2">{hint}</p> : null}
+          {children}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function ProductManagerPage() {
   const nav = useNavigate()
   const canManage = useCapability('products.manage') && !isExecutiveDirectorUser(useAuthStore.getState().user)
@@ -375,6 +409,10 @@ export function ProductManagerPage() {
   const [importApplying, setImportApplying] = useState(false)
   const [importError, setImportError] = useState<string | null>(null)
   const [importResult, setImportResult] = useState<any>(null)
+  // Excel preview review sections — collapsible (default closed = clean summary).
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({})
+  const toggleSection = (id: string) => setOpenSections((p) => ({ ...p, [id]: !p[id] }))
+  const isSectionOpen = (id: string) => !!openSections[id]
 
   async function handleImportFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -682,6 +720,7 @@ export function ProductManagerPage() {
   }
 
   // ── Render ──
+  const activeToHidden = importPreview ? importPreview.missing.filter((m) => m.currentStatus === 'نشط') : []
   return (
     <div id="product-manager-page" className="min-h-screen bg-surface pb-24" dir="rtl">
       {/* Header */}
@@ -1365,50 +1404,137 @@ export function ProductManagerPage() {
                 <div className="space-y-4">
                   <div className="flex flex-wrap gap-2 text-xs">
                     <span className="px-3 py-1.5 rounded-full bg-primary/10 text-primary font-semibold">سيطَّبَق: {importPreview.matched.length}</span>
+                    <span className="px-3 py-1.5 rounded-full bg-danger/10 text-danger font-semibold">أصناف نشطة ستصبح مخفية: {activeToHidden.length}</span>
                     <span className="px-3 py-1.5 rounded-full bg-warning/10 text-warning font-semibold">أصناف ستصبح مخفية: {importPreview.missing.filter((m) => m.needsChange).length}</span>
                     <span className="px-3 py-1.5 rounded-full bg-warning/10 text-warning font-semibold">أصناف تحتاج إلى تكويد بقاعدة البيانات: {importPreview.unmatched.length}</span>
                     <span className="px-3 py-1.5 rounded-full bg-danger/10 text-danger font-semibold">صف غير صالح: {importPreview.invalid.length}</span>
                   </div>
 
                   {importPreview.matched.length > 0 && (
-                    <div>
-                      <h4 className="text-sm font-bold text-text mb-2">المنتجات التي سيتم تحديثها ({importPreview.matched.length})</h4>
+                    <PreviewSection
+                      open={isSectionOpen('matched')}
+                      onToggle={() => toggleSection('matched')}
+                      title="المنتجات التي سيتم تحديثها"
+                      count={importPreview.matched.length}
+                      hint="سيتم تحديث المخزون وسعر الكرتونة والحالة وفقاً لملف Excel. الصفوف المميزة = سيتغير مخزونها أو سعرها (زيادة/انخفاض)."
+                    >
                       <div className="max-h-64 overflow-y-auto border border-border rounded-xl">
                         <table className="w-full text-xs">
                           <thead className="sticky top-0 bg-surface">
                             <tr className="text-text-secondary">
                               <th className="text-right px-2 py-2">الكود</th>
                               <th className="text-right px-2 py-2">المنتج</th>
-                              <th className="text-right px-2 py-2">المخزون الحالي (قطع)</th>
-                              <th className="text-right px-2 py-2">المخزون الجديد (قطع)</th>
+                              <th className="text-right px-2 py-2">الشركة</th>
+                              <th className="text-right px-2 py-2">الكمية الحالية</th>
+                              <th className="text-right px-2 py-2">الكمية الجديدة</th>
+                              <th className="text-right px-2 py-2">فرق الكمية</th>
                               <th className="text-right px-2 py-2">سعر الكرتونة الحالي</th>
                               <th className="text-right px-2 py-2">سعر الكرتونة الجديد</th>
+                              <th className="text-right px-2 py-2">فرق السعر</th>
                               <th className="text-right px-2 py-2">الحالة الحالية</th>
                               <th className="text-right px-2 py-2">الحالة الجديدة</th>
                             </tr>
                           </thead>
                           <tbody>
-                            {importPreview.matched.map((m) => (
-                              <tr key={m.rowIndex} className="border-t border-border">
-                                <td className="px-2 py-1.5" dir="ltr">{m.code}</td>
-                                <td className="px-2 py-1.5">{m.productName}</td>
-                                <td className="px-2 py-1.5">{m.currentPieces}</td>
-                                <td className="px-2 py-1.5 font-bold text-primary">{m.newPieces}</td>
-                                <td className="px-2 py-1.5">{m.currentPrice != null ? formatCurrencyShort(m.currentPrice) : '—'}</td>
-                                <td className="px-2 py-1.5 font-bold text-primary">{formatCurrencyShort(m.newPrice)}</td>
-                                <td className="px-2 py-1.5">{m.currentStatus}</td>
-                                <td className={`px-2 py-1.5 font-bold ${m.newStatus === 'نشط' ? 'text-primary' : 'text-warning'}`}>{m.newStatus}</td>
+                            {importPreview.matched.map((m) => {
+                              const stockDelta = m.newPieces - m.currentPieces
+                              const stockChanged = stockDelta !== 0
+                              const priceDelta = m.currentPrice != null ? Math.round((m.newPrice - m.currentPrice) * 100) / 100 : null
+                              const priceChanged = priceDelta != null && priceDelta !== 0
+                              const changed = stockChanged || priceChanged
+                              return (
+                                <tr key={m.rowIndex} className={`border-t border-border ${changed ? 'bg-primary/5 border-s-4 border-s-primary/40' : 'opacity-60'}`}>
+                                  <td className="px-2 py-1.5" dir="ltr">{m.code}</td>
+                                  <td className="px-2 py-1.5">{m.productName}</td>
+                                  <td className="px-2 py-1.5">{m.companyName}</td>
+                                  <td className="px-2 py-1.5">{m.currentPieces}</td>
+                                  <td className={`px-2 py-1.5 font-bold ${stockChanged ? (stockDelta > 0 ? 'text-success' : 'text-danger') : ''}`}>{m.newPieces}</td>
+                                  <td className="px-2 py-1.5">
+                                    {stockChanged ? (
+                                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold whitespace-nowrap ${stockDelta > 0 ? 'bg-success/10 text-success' : 'bg-danger/10 text-danger'}`}>
+                                        {stockDelta > 0 ? `زيادة +${stockDelta}` : `انخفاض ${stockDelta}`}
+                                      </span>
+                                    ) : (
+                                      <span className="text-text-secondary/70">بدون تغيير</span>
+                                    )}
+                                  </td>
+                                  <td className="px-2 py-1.5">{m.currentPrice != null ? formatCurrencyShort(m.currentPrice) : '—'}</td>
+                                  <td className={`px-2 py-1.5 font-bold whitespace-nowrap ${priceChanged ? (priceDelta! > 0 ? 'text-success' : 'text-danger') : ''}`}>{formatCurrencyShort(m.newPrice)}</td>
+                                  <td className="px-2 py-1.5">
+                                    {priceDelta != null && priceChanged ? (
+                                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold whitespace-nowrap ${priceDelta > 0 ? 'bg-success/10 text-success' : 'bg-danger/10 text-danger'}`}>
+                                        {priceDelta > 0 ? `زيادة +${formatCurrencyShort(Math.abs(priceDelta))}` : `انخفاض -${formatCurrencyShort(Math.abs(priceDelta))}`}
+                                      </span>
+                                    ) : (
+                                      <span className="text-text-secondary/70">{m.currentPrice != null ? 'بدون تغيير' : '—'}</span>
+                                    )}
+                                  </td>
+                                  <td className="px-2 py-1.5">{m.currentStatus}</td>
+                                  <td className={`px-2 py-1.5 font-bold ${m.newStatus === 'نشط' ? 'text-success' : 'text-warning'}`}>{m.newStatus}</td>
+                                </tr>
+                              )
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </PreviewSection>
+                  )}
+
+                  {activeToHidden.length > 0 && (
+                    <PreviewSection
+                      open={isSectionOpen('activeToHidden')}
+                      onToggle={() => toggleSection('activeToHidden')}
+                      title="أصناف نشطة ستصبح مخفية"
+                      count={activeToHidden.length}
+                      hint="منتجات نشطة حالياً وغير موجودة في الملف — سيتصفّر مخزونها وتصبح مخفية بعد الاعتماد."
+                      boxClass="bg-danger/5 border-danger/30"
+                      headClass="text-danger"
+                      pillClass="bg-danger/10 text-danger"
+                    >
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr className="text-right border-b border-danger/20">
+                              <th className="py-1 px-2 font-bold">#</th>
+                              <th className="py-1 px-2 font-bold">كود الصنف</th>
+                              <th className="py-1 px-2 font-bold">المنتج</th>
+                              <th className="py-1 px-2 font-bold">الشركة</th>
+                              <th className="py-1 px-2 font-bold">المخزون الحالي</th>
+                              <th className="py-1 px-2 font-bold">المخزون الجديد</th>
+                              <th className="py-1 px-2 font-bold">الحالة الحالية</th>
+                              <th className="py-1 px-2 font-bold">الحالة الجديدة</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {activeToHidden.map((m, idx) => (
+                              <tr key={m.productId} className="border-b border-danger/10">
+                                <td className="py-1 px-2 text-text-secondary">{idx + 1}</td>
+                                <td className="py-1 px-2" dir="ltr">{m.code}</td>
+                                <td className="py-1 px-2">{m.productName}</td>
+                                <td className="py-1 px-2">{m.companyName}</td>
+                                <td className="py-1 px-2">{m.currentPieces}</td>
+                                <td className="py-1 px-2 font-bold">0</td>
+                                <td className="py-1 px-2 font-bold text-success">{m.currentStatus}</td>
+                                <td className="py-1 px-2 font-bold text-danger">{m.newStatus}</td>
                               </tr>
                             ))}
                           </tbody>
                         </table>
                       </div>
-                    </div>
+                    </PreviewSection>
                   )}
 
                   {importPreview.missing.some((m) => m.needsChange) && (
-                    <div className="bg-warning/5 border border-warning/30 rounded-xl p-3">
-                      <h4 className="text-sm font-bold text-warning mb-2">أصناف ستصبح مخفية ({importPreview.missing.filter((m) => m.needsChange).length}) — غير موجودة في الملف، سيتم تصفير مخزونها ووضعها "مخفي":</h4>
+                    <PreviewSection
+                      open={isSectionOpen('hidden')}
+                      onToggle={() => toggleSection('hidden')}
+                      title="أصناف ستصبح مخفية"
+                      count={importPreview.missing.filter((m) => m.needsChange).length}
+                      hint="منتجات غير موجودة في الملف — سيتصفّر مخزونها وتصبح مخفية بعد الاعتماد."
+                      boxClass="bg-warning/5 border-warning/30"
+                      headClass="text-warning"
+                      pillClass="bg-warning/10 text-warning"
+                    >
                       <div className="overflow-x-auto">
                         <table className="w-full text-xs">
                           <thead>
@@ -1437,12 +1563,20 @@ export function ProductManagerPage() {
                           </tbody>
                         </table>
                       </div>
-                    </div>
+                    </PreviewSection>
                   )}
 
                   {importPreview.unmatched.length > 0 && (
-                    <div className="bg-warning/5 border border-warning/30 rounded-xl p-3">
-                      <h4 className="text-sm font-bold text-warning mb-2">أصناف تحتاج إلى تكويد بقاعدة البيانات ({importPreview.unmatched.length}) — لا تُنشأ تلقائيًا ولن تُدرج في عمليات التحديث، يلزم تكويدها في قاعدة البيانات أولًا:</h4>
+                    <PreviewSection
+                      open={isSectionOpen('coding')}
+                      onToggle={() => toggleSection('coding')}
+                      title="أصناف تحتاج إلى تكويد بقاعدة البيانات"
+                      count={importPreview.unmatched.length}
+                      hint="أكواد موجودة في ملف Excel وليست في قاعدة البيانات — لا تُنشأ تلقائياً ولا تُدرج في عمليات التحديث، يلزم تكويدها أولاً."
+                      boxClass="bg-warning/5 border-warning/30"
+                      headClass="text-warning"
+                      pillClass="bg-warning/10 text-warning"
+                    >
                       <div className="max-h-64 overflow-y-auto border border-warning/20 rounded-xl">
                         <table className="w-full text-xs">
                           <thead className="sticky top-0 bg-warning/10">
@@ -1467,21 +1601,41 @@ export function ProductManagerPage() {
                           </tbody>
                         </table>
                       </div>
-                    </div>
+                    </PreviewSection>
                   )}
 
                   {importPreview.invalid.length > 0 && (
-                    <div className="bg-danger/5 border border-danger/30 rounded-xl p-3 text-xs">
-                      <p className="font-bold text-danger mb-1">صفوف غير صالحة ({importPreview.invalid.length}) — لن تُطبَّق:</p>
-                      <div className="max-h-32 overflow-y-auto space-y-0.5">
-                        {importPreview.invalid.slice(0, 50).map((iv, idx) => (
-                          <div key={idx} className="flex gap-2 text-text-secondary">
-                            <span dir="ltr" className="shrink-0">#{iv.rowIndex}</span>
-                            <span>{iv.reason}{iv.code ? ` (كود: ${iv.code})` : ''}</span>
-                          </div>
-                        ))}
+                    <PreviewSection
+                      open={isSectionOpen('invalid')}
+                      onToggle={() => toggleSection('invalid')}
+                      title="صفوف غير صالحة"
+                      count={importPreview.invalid.length}
+                      hint="صفوف مرفوضة لبيانات غير صحيحة أو ناقصة — لن تُطبَّق نهائياً."
+                      boxClass="bg-danger/5 border-danger/30"
+                      headClass="text-danger"
+                      pillClass="bg-danger/10 text-danger"
+                    >
+                      <div className="max-h-64 overflow-y-auto border border-danger/20 rounded-xl text-xs">
+                        <table className="w-full text-xs">
+                          <thead className="sticky top-0 bg-danger/10">
+                            <tr className="text-right border-b border-danger/20">
+                              <th className="py-1.5 px-2 font-bold">#</th>
+                              <th className="py-1.5 px-2 font-bold">كود الصنف</th>
+                              <th className="py-1.5 px-2 font-bold">سبب الرفض</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {importPreview.invalid.map((iv, idx) => (
+                              <tr key={idx} className="border-b border-danger/10">
+                                <td className="py-1.5 px-2 text-text-secondary" dir="ltr">#{iv.rowIndex}</td>
+                                <td className="py-1.5 px-2" dir="ltr">{iv.code || '—'}</td>
+                                <td className="py-1.5 px-2">{iv.reason}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
                       </div>
-                    </div>
+                    </PreviewSection>
                   )}
 
                   {(importPreview.matched.length > 0 || importPreview.missing.some((m) => m.needsChange)) && (

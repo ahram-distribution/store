@@ -24,6 +24,7 @@ export type MatchedPreviewRow = {
   rowIndex: number
   code: string
   productName: string
+  companyName: string
   productId: string
   cartons: number // the Excel carton quantity (may be fractional)
   cartonQuantity: number | null
@@ -234,6 +235,7 @@ export function buildImportPreview(rows: ImportRow[], products: any[]): ImportPr
       rowIndex: r.rowIndex,
       code: r.code,
       productName: product.product_name || '',
+      companyName: product.company_name || '',
       productId: product.id,
       cartons: r.cartons,
       cartonQuantity: cartonQty > 0 ? cartonQty : null,
