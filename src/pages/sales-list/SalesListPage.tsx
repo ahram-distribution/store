@@ -184,6 +184,7 @@ export default function SalesListPage() {
   const { token: authToken, user } = useAuthStore()
   const { geographicContext, resolveEmployeeGeographicContext, geoItemAdjustments, geoResolveEpoch, ensureGeoItemAdjustments } = useCartStore()
   const [products, setProducts] = useState<ProductRow[]>([])
+  const [companyOrder, setCompanyOrder] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [companyFilter, setCompanyFilter] = useState('')
@@ -218,6 +219,15 @@ export default function SalesListPage() {
       })
       .finally(() => setLoading(false))
   }, [hasAccess, authToken])
+
+  useEffect(() => {
+    supabase.from('companies').select('company_name, display_order').then(({ data }) => {
+      if (!data) return
+      const map: Record<string, number> = {}
+      for (const c of data) if (c.company_name && typeof c.display_order === 'number') map[c.company_name] = c.display_order
+      setCompanyOrder(map)
+    })
+  }, [])
 
   useEffect(() => {
     if (user?.identity_type !== 'employee' || !user.employee_id) return
@@ -372,9 +382,14 @@ export default function SalesListPage() {
       }
     }
     return Object.entries(map)
-      .sort(([a], [b]) => a.localeCompare(b))
+      .sort(([a], [b]) => {
+        const ao = companyOrder[a] ?? Infinity
+        const bo = companyOrder[b] ?? Infinity
+        if (ao !== bo) return ao - bo
+        return a.localeCompare(b)
+      })
       .map(([companyName, prods]) => ({ companyName, products: prods }))
-  }, [smartFiltered, search])
+  }, [smartFiltered, search, companyOrder])
 
   const regionInfo = useMemo<{ label: string; name: string } | null>(() => {
     if (listType === 'governorate' && selectedGovernorate) {
