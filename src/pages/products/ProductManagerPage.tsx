@@ -392,7 +392,7 @@ export function ProductManagerPage() {
       setImportPreview(preview)
       const hasAction = preview.matched.length > 0 || preview.missing.some((m) => m.needsChange)
       if (!hasAction) {
-        setImportError('لا توجد صفوف صالحة قابلة للتطبيق أو منتجات ستنفذ كميتها (تحقق من أعمدة الملف والتطابق مع أكواد المنتجات)')
+        setImportError('لا توجد صفوف صالحة قابلة للتطبيق أو منتجات ستصبح مخفية (تحقق من أعمدة الملف والتطابق مع أكواد المنتجات)')
       }
     } catch (err: any) {
       setImportError(err?.message || 'تعذر تحليل ملف Excel')
@@ -418,8 +418,8 @@ export function ProductManagerPage() {
         carton_price: m.newPrice,
       }))
       // p_excel_codes = the COMPLETE list of codes present in the file, so the
-      // DB can atomically zero every existing product absent from the list
-      // (stock exhaustion → "نفذت الكمية") within the same transaction.
+      // DB can atomically zero + hide every existing product absent from the
+      // list (absent from Excel → "مخفي") within the same transaction.
       const { data, error } = await supabase.rpc('governed_bulk_update_product_stock_price', {
         p_token: token,
         p_rows: payload,
@@ -1365,7 +1365,7 @@ export function ProductManagerPage() {
                 <div className="space-y-4">
                   <div className="flex flex-wrap gap-2 text-xs">
                     <span className="px-3 py-1.5 rounded-full bg-primary/10 text-primary font-semibold">سيطَّبَق: {importPreview.matched.length}</span>
-                    <span className="px-3 py-1.5 rounded-full bg-warning/10 text-warning font-semibold">أصناف ستنفذ كميتها: {importPreview.missing.filter((m) => m.needsChange).length}</span>
+                    <span className="px-3 py-1.5 rounded-full bg-warning/10 text-warning font-semibold">أصناف ستصبح مخفية: {importPreview.missing.filter((m) => m.needsChange).length}</span>
                     <span className="px-3 py-1.5 rounded-full bg-warning/10 text-warning font-semibold">أصناف تحتاج إلى تكويد بقاعدة البيانات: {importPreview.unmatched.length}</span>
                     <span className="px-3 py-1.5 rounded-full bg-danger/10 text-danger font-semibold">صف غير صالح: {importPreview.invalid.length}</span>
                   </div>
@@ -1408,7 +1408,7 @@ export function ProductManagerPage() {
 
                   {importPreview.missing.some((m) => m.needsChange) && (
                     <div className="bg-warning/5 border border-warning/30 rounded-xl p-3">
-                      <h4 className="text-sm font-bold text-warning mb-2">أصناف ستنفذ كميتها ({importPreview.missing.filter((m) => m.needsChange).length}) — غير موجودة في الملف، سيتم تصفير مخزونها ووضعها "نفذت الكمية":</h4>
+                      <h4 className="text-sm font-bold text-warning mb-2">أصناف ستصبح مخفية ({importPreview.missing.filter((m) => m.needsChange).length}) — غير موجودة في الملف، سيتم تصفير مخزونها ووضعها "مخفي":</h4>
                       <div className="overflow-x-auto">
                         <table className="w-full text-xs">
                           <thead>

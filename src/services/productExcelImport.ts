@@ -42,8 +42,7 @@ export type InvalidPreviewRow = {
 }
 
 // A database product whose legacy_code is absent from the Excel file. Per the
-// "complete current stock list" rule this is treated as stock exhaustion:
-// stock → 0 and status → "نفذت الكمية".
+// "complete current stock list" rule: stock → 0 and status → "مخفي".
 export type MissingProductRow = {
   code: string
   productName: string
@@ -51,8 +50,8 @@ export type MissingProductRow = {
   productId: string
   currentPieces: number
   currentStatus: string // 'نشط' | 'نفذت الكمية' | 'مخفي'
-  newStatus: string // always 'نفذت الكمية'
-  needsChange: boolean // true when a write is needed (stock>0 or not already OOS)
+  newStatus: string // always 'مخفي'
+  needsChange: boolean // true when a write is needed (stock>0 or not already hidden)
 }
 
 export type ImportPreview = {
@@ -247,8 +246,8 @@ export function buildImportPreview(rows: ImportRow[], products: any[]): ImportPr
     })
   }
 
-  // STOCK EXHAUSTION: every existing DB product whose legacy_code is absent
-  // from the Excel file → stock becomes 0 and status becomes "نفذت الكمية".
+  // ABSENT PRODUCTS: every existing DB product whose legacy_code is absent
+  // from the Excel file → stock becomes 0 and status becomes "مخفي".
   const missing: MissingProductRow[] = []
   if (excelSet.size > 0) {
     for (const p of products) {
@@ -263,8 +262,8 @@ export function buildImportPreview(rows: ImportRow[], products: any[]): ImportPr
         productId: p?.id,
         currentPieces,
         currentStatus,
-        newStatus: 'نفذت الكمية',
-        needsChange: currentPieces > 0 || currentStatus !== 'نفذت الكمية',
+        newStatus: 'مخفي',
+        needsChange: currentPieces > 0 || currentStatus !== 'مخفي',
       })
     }
   }

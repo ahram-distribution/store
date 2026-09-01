@@ -70,7 +70,7 @@
     {
       "version": 15,
       "file": "0015_product_stock_price_import.sql",
-      "description": "Products Excel import: new governed_bulk_update_product_stock_price RPC applies a batch of {code, cartons, carton_price} matched by legacy_code atomically (one transaction, no N+1). Excel is the COMPLETE CURRENT STOCK STATE: quantity>0+valid price → stock/price set and status forced 'نشط' (hidden/out-of-stock cleared); quantity=0 → stock zero + status forced 'نفذت الكمية'; products absent from Excel → stock zero + status 'نفذت الكمية'. Uses governed stock SET/REPLACE (cartons->pieces via carton_quantity), regenerates piece/dozen prices; unknown codes skipped+counted, never created"
+      "description": "Products Excel import: new governed_bulk_update_product_stock_price RPC applies a batch of {code, cartons, carton_price} matched by legacy_code atomically (one transaction, no N+1). Excel is the COMPLETE CURRENT STOCK STATE: quantity>0+valid price → stock/price set and status forced 'نشط' (hidden/out-of-stock cleared); quantity=0 → stock zero + status forced 'نفذت الكمية'; products absent from Excel → stock zero + status forced 'مخفي' (hidden, never created). Uses governed stock SET/REPLACE (cartons->pieces via carton_quantity), regenerates piece/dozen prices; unknown codes skipped+counted, never created"
     }
   ]
 }

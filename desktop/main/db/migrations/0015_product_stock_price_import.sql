@@ -15,7 +15,8 @@
 --     (is_active=true, is_visible=true, is_out_of_stock=false, oos_source=NULL).
 --     Applies even if the product was previously "مخفي" or "نفذت الكمية".
 --   * quantity = 0 → stock = 0, product status = "نفذت الكمية".
---   * Produto absent from the Excel code set → stock = 0, status = "نفذت الكمية".
+--   * Product absent from the Excel code set → stock = 0, status = "مخفي"
+--     (is_active=true, is_visible=false, is_out_of_stock=false, oos_source=NULL).
 --
 -- Active-status invariant: a product must NOT be "نشط" unless it has BOTH a
 -- valid (positive) price AND stock > 0. A positive-quantity row whose carton
@@ -195,16 +196,15 @@ BEGIN
     END LOOP;
   END IF;
 
-  -- 3) STOCK EXHAUSTION: existing DB products whose legacy_code is absent from
+  -- 3) ABSENT PRODUCTS: existing DB products whose legacy_code is absent from
   --    the Excel file are treated as not present in current stock → zeroed and
-  --    forced to "نفذت الكمية" regardless of previous status.
+  --    hidden ("مخفي") regardless of previous status.
   IF v_had_codes THEN
     FOR v_abs IN
       SELECT
         p.id,
         p.legacy_code,
-        p.is_active,
-        p.is_out_of_stock,
+        p.is_visible,
         COALESCE(inv.quantity, 0) AS qty
       FROM public.products p
       LEFT JOIN public.inventory inv ON inv.product_id = p.id
@@ -212,21 +212,23 @@ BEGIN
     LOOP
       v_absent_total := v_absent_total + 1;
 
-      -- Skip unnecessary writes: already zero stock AND already out-of-stock.
-      IF v_abs.qty > 0 OR v_abs.is_out_of_stock IS DISTINCT FROM true THEN
+      -- Skip unnecessary writes: already zero stock AND already hidden (مخفي).
+      IF v_abs.qty > 0 OR v_abs.is_visible IS NOT DISTINCT FROM true THEN
         -- Zero stock (SET/REPLACE).
         INSERT INTO public.inventory (product_id, quantity, updated_at)
         VALUES (v_abs.id, 0, now())
         ON CONFLICT (product_id) DO UPDATE
         SET quantity = 0, updated_at = now();
 
-        -- Force the exhausted status so hidden/inactive products are also
-        -- covered (absent from Excel → has no current stock → "نفذت الكمية").
+        -- Hide the product: absent from Excel → no current stock → "مخفي".
+        -- is_out_of_stock=false / oos_source=NULL keep the label "مخفي"
+        -- (the auto-OOS trigger may set OOS state on the inventory write
+        -- above; this explicit status write is the final authority).
         UPDATE public.products
         SET is_active = true,
-            is_visible = true,
-            is_out_of_stock = true,
-            oos_source = 'inventory',
+            is_visible = false,
+            is_out_of_stock = false,
+            oos_source = NULL,
             updated_at = now()
         WHERE id = v_abs.id;
 
@@ -234,14 +236,14 @@ BEGIN
         v_absents := v_absents || jsonb_build_object(
           'code', v_abs.legacy_code,
           'zeroed', true,
-          'status', 'نفذت الكمية'
+          'status', 'مخفي'
         );
       ELSE
         v_absent_skipped := v_absent_skipped + 1;
         v_absents := v_absents || jsonb_build_object(
           'code', v_abs.legacy_code,
           'zeroed', false,
-          'status', 'نفذت الكمية'
+          'status', 'مخفي'
         );
       END IF;
     END LOOP;
@@ -263,7 +265,7 @@ END;
 $$;
 
 COMMENT ON FUNCTION public.governed_bulk_update_product_stock_price IS
-  'تحديث جماعي للمخزون (بالكراتين) وسعر الكرتونة لكل منتج مطابق بـ legacy_code. Excel هو الحالة الكاملة الحالية للمخزون: كمية>0 مع سعر صحيح → المنتج "نشط" (حتى لو كان مخفياً/نفذت الكمية)؛ كمية=0 → "نفذت الكمية"؛ منتجات القاعدة غير الموجودة في الملف تُصفّر مخزونها وتصبح "نفذت الكمية" — كل ذلك في معاملة واحدة (لا يطبق جزئياً في حالة أي خطأ)';
+  'تحديث جماعي للمخزون (بالكراتين) وسعر الكرتونة لكل منتج مطابق بـ legacy_code. Excel هو الحالة الكاملة الحالية للمخزون: كمية>0 مع سعر صحيح → المنتج "نشط" (حتى لو كان مخفياً/نفذت الكمية)؛ كمية=0 → "نفذت الكمية"؛ منتجات القاعدة غير الموجودة في الملف تُصفّر مخزونها وتصبح "مخفي" — كل ذلك في معاملة واحدة (لا يطبق جزئياً في حالة أي خطأ)';
 
 -- ============================================================================
 -- END
