@@ -57,12 +57,15 @@ export type OrderState = (typeof ORDER_STATES)[keyof typeof ORDER_STATES]
 
 export const ORDER_CALC_STATES: OrderState[] = [
   ORDER_STATES.APPROVED,
-  ORDER_STATES.REVIEWING,
   ORDER_STATES.PREPARING,
   ORDER_STATES.PREPARED,
   ORDER_STATES.DELIVERED,
 ]
 
+// Note: reviewing (تم القيد بالسيستم) is an INITIAL / PRE-EXECUTION status — it
+// is intentionally NOT calc-eligible and NOT in ORDER_CALC_STATES. It remains a
+// real, active (non-terminal) order for workflow/queue purposes, so it stays in
+// ORDER_ACTIVE_STATES.
 export const ORDER_ACTIVE_STATES: OrderState[] = [
   ORDER_STATES.SUBMITTED,
   ORDER_STATES.APPROVED,

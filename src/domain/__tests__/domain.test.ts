@@ -183,8 +183,9 @@ describe('OrderStatus', () => {
   it('valid transitions', () => {
     expect(isValidTransition(OrderStatus.Submitted, OrderStatus.Approved)).toBe(true)
     expect(isValidTransition(OrderStatus.Submitted, OrderStatus.Reviewing)).toBe(true)
-    expect(isValidTransition(OrderStatus.Approved, OrderStatus.Reviewing)).toBe(true)
-    expect(isValidTransition(OrderStatus.Reviewing, OrderStatus.Preparing)).toBe(true)
+    expect(isValidTransition(OrderStatus.Reviewing, OrderStatus.Approved)).toBe(true)
+    expect(isValidTransition(OrderStatus.Reviewing, OrderStatus.Preparing)).toBe(false)
+    expect(isValidTransition(OrderStatus.Reviewing, OrderStatus.ReturnedForRevision)).toBe(true)
     expect(isValidTransition(OrderStatus.Preparing, OrderStatus.Prepared)).toBe(true)
     expect(isValidTransition(OrderStatus.Prepared, OrderStatus.Delivered)).toBe(true)
     expect(isValidTransition(OrderStatus.Delivered, OrderStatus.Submitted)).toBe(false)

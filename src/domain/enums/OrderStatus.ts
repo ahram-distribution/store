@@ -32,7 +32,7 @@ export function isValidTransition(from: OrderStatus, to: OrderStatus): boolean {
   const transitions: Record<OrderStatus, OrderStatus[]> = {
     submitted: [OrderStatus.Approved, OrderStatus.Reviewing, OrderStatus.ReturnedForRevision, OrderStatus.Cancelled],
     approved: [OrderStatus.Reviewing, OrderStatus.ReturnedForRevision, OrderStatus.Cancelled],
-    reviewing: [OrderStatus.Preparing, OrderStatus.ReturnedForRevision, OrderStatus.Cancelled],
+    reviewing: [OrderStatus.Approved, OrderStatus.ReturnedForRevision, OrderStatus.Cancelled],
     preparing: [OrderStatus.Prepared, OrderStatus.ReturnedForRevision, OrderStatus.Cancelled],
     prepared: [OrderStatus.Delivered, OrderStatus.ReturnedForRevision, OrderStatus.Cancelled],
     delivered: [],

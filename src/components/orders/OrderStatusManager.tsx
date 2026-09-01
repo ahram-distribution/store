@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { supabase } from '../../lib/supabase'
-import { ORDER_STATUS_LABELS, EXECUTION_GROUP } from '../../types/order-display'
+import { ORDER_STATUS_LABELS, EXECUTION_GROUP, USER_FACING_STATUS_ORDER } from '../../types/order-display'
 import { formatMixedQuantity } from '../../utils/quantity-format'
 import type { UnitType } from '../../types/storefront'
 
@@ -37,8 +37,14 @@ function adjustmentQuantityLabel(pieces: number, cartonQuantity: number, units: 
   return formatMixedQuantity(pieces, cartonQuantity, pref)
 }
 
-/** The canonical 8 user-facing order statuses. draft is internal-only and never offered. */
-const CANONICAL_STATUSES = ['submitted','approved','reviewing','preparing','prepared','delivered','returned_for_revision','cancelled'] as const
+/**
+ * The canonical 8 user-facing order statuses in the authoritative display order.
+ * Reuses the single source of truth (USER_FACING_STATUS_ORDER) so the status
+ * action buttons always match the status filters and every other status
+ * sequence: طلب شراء → تم القيد بالسيستم → معتمد → قيد التجهيز → تم التجهيز →
+ * تم التسليم → معاد للتعديل → ملغى. draft is internal-only and never offered.
+ */
+const CANONICAL_STATUSES: readonly string[] = USER_FACING_STATUS_ORDER
 
 /** Capsule colors — same hue language as StatusBadge (soft = target, active = strong outline). */
 const STATUS_CAPSULE_STYLE: Record<string, { soft: string; ring: string; glow: string }> = {
@@ -108,7 +114,7 @@ interface OrderStatusManagerProps {
  *     returned_for_revision→cancelled, cancelled→returned_for_revision,
  *     reviewing→approved (via governed_approve_order)
  *   - orders.review → submitted→reviewing, approved→reviewing
- *   - warehouse.complete_preparation → reviewing→preparing, preparing→prepared
+ *   - warehouse.complete_preparation → preparing→prepared
  *   - transportation.send_to_delivery → prepared→delivered
  * An empty result means the caller has NO status-mutation authority and the
  * manager renders nothing at all.
@@ -133,7 +139,6 @@ function getAllowedTargets(currentStatus: string, canReview: boolean, canApprove
     if (currentStatus === 'approved') targets.add('reviewing')
   }
   if (canCompletePreparation) {
-    if (currentStatus === 'reviewing') targets.add('preparing')
     if (currentStatus === 'preparing') targets.add('prepared')
   }
   if (canSendToDelivery) {

@@ -120,10 +120,11 @@ export const UNIT_LABELS: Record<string, string> = {
  * quantities are finalized. Availability/inventory guidance (shortage warnings,
  * reservation status, business status cards) is PRE-EXECUTION ONLY and must
  * never appear on orders inside this group.
+ * "تم القيد بالسيستم" (reviewing) is an INITIAL / PRE-EXECUTION status and is
+ * NOT part of this group; the first execution state is "معتمد" (approved).
  */
 export const EXECUTION_GROUP: ReadonlySet<string> = new Set([
   'approved',
-  'reviewing',
   'preparing',
   'prepared',
   'delivered',
@@ -137,8 +138,8 @@ export const EXECUTION_GROUP: ReadonlySet<string> = new Set([
  */
 export const USER_FACING_STATUS_ORDER: readonly string[] = [
   'submitted',
-  'approved',
   'reviewing',
+  'approved',
   'preparing',
   'prepared',
   'delivered',
