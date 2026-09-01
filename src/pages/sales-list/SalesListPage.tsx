@@ -13,6 +13,12 @@ import {
   getSectorAdjustmentRows,
   type GeoAdjustmentRow,
 } from '../../services/geographicPricing'
+import {
+  getGeographicVisibilityHiddenProducts,
+  getGeographicVisibilityHiddenProductsForSector,
+  toVisibilitySets,
+} from '../../services/geographicVisibility'
+import { useGeographicVisibility } from '../../hooks/useGeographicVisibility'
 
 const ALLOWED_ROLES: TargetRole[] = ['الإدارة العليا', 'مدير بيع', 'مندوب مبيعات']
 
@@ -197,6 +203,10 @@ export default function SalesListPage() {
   const hasAccess = ALLOWED_ROLES.some((r) => normalizedRoles.includes(r))
   const isUpperMgmt = userRoles.includes('الإدارة العليا')
 
+  const { hiddenProductIds: ctxHiddenProductIds } = useGeographicVisibility()
+  const [overrideHiddenProductIds, setOverrideHiddenProductIds] = useState<Set<string>>(new Set())
+  const [overrideHiddenResolving, setOverrideHiddenResolving] = useState(false)
+
   useEffect(() => {
     if (!hasAccess) return
     if (!authToken) { setLoading(false); return }
@@ -280,7 +290,38 @@ export default function SalesListPage() {
     })
   }, [products, geographicContext?.adjustmentPercent, geoItemAdjustments, geoOverride, isUpperMgmt])
 
-  const saleableProducts = useMemo(() => geoAdjustedProducts.filter(isProductAvailable), [geoAdjustedProducts])
+  useEffect(() => {
+    const overrideActive = isUpperMgmt && geoOverride !== null
+    if (!overrideActive) {
+      setOverrideHiddenProductIds(new Set())
+      setOverrideHiddenResolving(false)
+      return
+    }
+    let cancelled = false
+    setOverrideHiddenResolving(true)
+    const task = listType === 'governorate' && selectedGovernorate
+      ? getGeographicVisibilityHiddenProducts(selectedGovernorate)
+      : listType === 'sector' && selectedSector
+        ? getGeographicVisibilityHiddenProductsForSector(selectedSector)
+        : Promise.resolve([])
+    task
+      .then((rows) => {
+        if (cancelled) return
+        setOverrideHiddenProductIds(toVisibilitySets(rows).hiddenProductIds)
+      })
+      .catch(() => {
+        if (cancelled) return
+        setOverrideHiddenProductIds(new Set())
+      })
+      .finally(() => {
+        if (!cancelled) setOverrideHiddenResolving(false)
+      })
+    return () => { cancelled = true }
+  }, [isUpperMgmt, listType, selectedGovernorate, selectedSector, geoOverride])
+
+  const hiddenForList = isUpperMgmt && geoOverride !== null ? overrideHiddenProductIds : ctxHiddenProductIds
+
+  const saleableProducts = useMemo(() => geoAdjustedProducts.filter((p) => isProductAvailable(p) && !hiddenForList.has(p.id)), [geoAdjustedProducts, hiddenForList])
 
   const companyNames = useMemo(() => {
     const names = new Set<string>()

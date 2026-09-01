@@ -13,6 +13,7 @@ import { buildSearchIndex, searchProducts, type ProductSearchIndex } from '../..
 import type { ProductWithPrice, ProductUnitPrice, TierConfig, UnitType } from '../../types/storefront'
 import { DYNAMIC_COLLECTIONS, loadCollection, type CollectionStrategy } from '../../config/dynamicCollections'
 import { resolveConfiguredUnitTypes } from '../../utils/catalog'
+import { useGeographicVisibility } from '../../hooks/useGeographicVisibility'
 
 const UNIT_PRIORITY: UnitType[] = ['carton', 'dozen', 'piece']
 
@@ -80,6 +81,8 @@ export function StorefrontPage() {
 
   const geoAdjustForProduct = (productId: string) =>
     geoItemAdjustments[productId] ?? geographicContext?.adjustmentPercent ?? undefined
+
+  const { hiddenProductIds } = useGeographicVisibility()
 
   const collectionConfig = useMemo<{ type: 'static' } | { type: 'dynamic'; strategy: CollectionStrategy } | null>(() => {
     if (!companyId || !companyContext) return null
@@ -341,7 +344,7 @@ export function StorefrontPage() {
   }, [products])
 
   const filteredProducts = useMemo(() => {
-    let list = products.filter((p) => p.isActive && p.isVisible)
+    let list = products.filter((p) => p.isActive && p.isVisible && !hiddenProductIds.has(p.id))
     if (searchQuery.trim()) {
       const indices = searchIndices.filter((si) => list.includes(si.product))
       const matched = new Set(searchProducts(searchQuery, indices, (si) => si.index).map((si) => si.product.id))
@@ -355,7 +358,7 @@ export function StorefrontPage() {
       }
     }
     return list
-  }, [products, searchQuery, companyId, collectionConfig, searchIndices])
+  }, [products, searchQuery, companyId, collectionConfig, searchIndices, hiddenProductIds])
 
   const expandedProduct = expandedId ? filteredProducts.find((p) => p.id === expandedId) ?? null : null
 

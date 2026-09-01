@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabase'
-import type { Sector, SectorGovernorate, GeographicPriceRule, EmployeeGeographicAssignment, GeographicCustomerCount } from '../types/sectors'
+import type { Sector, SectorGovernorate, GeographicPriceRule, EmployeeGeographicAssignment, GeographicCustomerCount, GeographicVisibilityRule } from '../types/sectors'
 
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
@@ -131,5 +131,46 @@ export const sectorsService = {
     const token = getToken()
     if (!token) throw new Error('NO_SESSION')
     return rpc<GeographicCustomerCount[]>('get_geographic_customer_counts', { p_token: token })
+  },
+
+  async getGeographicVisibilityRules(): Promise<GeographicVisibilityRule[]> {
+    const token = getToken()
+    if (!token) throw new Error('NO_SESSION')
+    return rpc<GeographicVisibilityRule[]>('get_geographic_visibility_rules', { p_token: token })
+  },
+
+  async createGeographicVisibilityRule(params: {
+    rule_name: string; scope: string;
+    sector_ids?: string[]; governorate_ids?: string[]; company_ids?: string[]; product_ids?: string[];
+  }): Promise<string> {
+    const token = getToken()
+    if (!token) throw new Error('NO_SESSION')
+    return rpc<string>('governed_create_geographic_visibility_rule', {
+      p_token: token, p_rule_name: params.rule_name, p_scope: params.scope,
+      p_sector_ids: params.sector_ids || [], p_governorate_ids: params.governorate_ids || [],
+      p_company_ids: params.company_ids || [], p_product_ids: params.product_ids || [],
+    })
+  },
+
+  async updateGeographicVisibilityRule(id: string, patch: {
+    rule_name?: string; is_active?: boolean; scope?: string;
+    sector_ids?: string[] | null; governorate_ids?: string[] | null;
+    company_ids?: string[] | null; product_ids?: string[] | null;
+  }): Promise<boolean> {
+    const token = getToken()
+    if (!token) throw new Error('NO_SESSION')
+    return rpc<boolean>('governed_update_geographic_visibility_rule', {
+      p_token: token, p_rule_id: id,
+      p_rule_name: patch.rule_name ?? null, p_is_active: patch.is_active ?? null,
+      p_scope: patch.scope ?? null,
+      p_sector_ids: patch.sector_ids ?? null, p_governorate_ids: patch.governorate_ids ?? null,
+      p_company_ids: patch.company_ids ?? null, p_product_ids: patch.product_ids ?? null,
+    })
+  },
+
+  async deleteGeographicVisibilityRule(id: string): Promise<boolean> {
+    const token = getToken()
+    if (!token) throw new Error('NO_SESSION')
+    return rpc<boolean>('governed_delete_geographic_visibility_rule', { p_token: token, p_rule_id: id })
   },
 }

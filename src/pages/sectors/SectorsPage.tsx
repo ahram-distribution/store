@@ -5,14 +5,16 @@ import { SectorGovernoratesScreen } from './SectorGovernoratesScreen'
 import { RepDistributionScreen } from './RepDistributionScreen'
 import { ManagerDistributionScreen } from './ManagerDistributionScreen'
 import { GeographicPricingScreen } from './GeographicPricingScreen'
+import { GeographicVisibilityScreen } from './GeographicVisibilityScreen'
 
-type Screen = '1' | '2' | '3' | '4'
+type Screen = '1' | '2' | '3' | '4' | '5'
 
 const ALL_SCREENS: { key: Screen; label: string; short: string }[] = [
   { key: '1', label: 'القطاعات والمحافظات', short: 'القطاعات' },
   { key: '2', label: 'توزيع المناديب', short: 'المناديب' },
   { key: '3', label: 'توزيع مديري البيع', short: 'المديرون' },
   { key: '4', label: 'التسعير الجغرافي', short: 'التسعير' },
+  { key: '5', label: 'ظهور الشركات والمنتجات', short: 'الظهور' },
 ]
 
 export function SectorsPage() {
@@ -22,7 +24,7 @@ export function SectorsPage() {
   const isEd = isExecutiveDirectorUser(user)
 
   const screens = isEd
-    ? ALL_SCREENS.filter(s => s.key !== '1' && s.key !== '4')
+    ? ALL_SCREENS.filter(s => s.key !== '1' && s.key !== '4' && s.key !== '5')
     : ALL_SCREENS
 
   const screen = (searchParams.get('screen') || screens[0].key) as Screen
@@ -52,6 +54,7 @@ export function SectorsPage() {
       {screen === '2' && <RepDistributionScreen />}
       {screen === '3' && <ManagerDistributionScreen />}
       {screen === '4' && <GeographicPricingScreen />}
+      {screen === '5' && <GeographicVisibilityScreen />}
     </div>
   )
 }

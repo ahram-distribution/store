@@ -9,6 +9,7 @@ import { StorefrontHero } from '../../components/storefront/StorefrontHero'
 import { BusinessShortcuts } from '../../components/storefront/BusinessShortcuts'
 import { SearchHighlight } from '../../components/shared/SearchHighlight'
 import { formatNumber } from '../../utils/numbers'
+import { useGeographicVisibility } from '../../hooks/useGeographicVisibility'
 import { applyGeographicAdjustment } from '../../engine/pricing'
 import { buildSearchIndex, searchProducts as smartSearchProducts, type ProductSearchIndex } from '../../utils/smartSearch'
 import type { ProductWithPrice, ProductUnitPrice, UnitType } from '../../types/storefront'
@@ -37,6 +38,7 @@ export function CompaniesPage() {
   const [globalSearch, setGlobalSearch] = useState('')
   const [searchProducts, setSearchProducts] = useState<ProductWithPrice[]>([])
   const [searchLoading, setSearchLoading] = useState(false)
+  const { hiddenProductIds, hiddenCompanyIds } = useGeographicVisibility()
   const searchFetchRef = useRef(false)
 
   useEffect(() => {
@@ -132,9 +134,9 @@ export function CompaniesPage() {
   const searchResults = useMemo(() => {
     if (!isSearching) return []
     const q = globalSearch.trim()
-    const indices = searchIndices.filter((si) => si.product.isActive && si.product.isVisible)
+    const indices = searchIndices.filter((si) => si.product.isActive && si.product.isVisible && !hiddenProductIds.has(si.product.id))
     return smartSearchProducts(q, indices, (si) => si.index).map((si) => si.product)
-  }, [globalSearch, searchIndices, isSearching])
+  }, [globalSearch, searchIndices, isSearching, hiddenProductIds])
 
   useEffect(() => {
     if (isSearching) {
@@ -239,7 +241,7 @@ export function CompaniesPage() {
             </div>
 
             <div className="grid grid-cols-3 md:grid-cols-5 gap-3">
-              {companies.map((company) => (
+              {companies.filter((c) => !hiddenCompanyIds.has(c.id)).map((company) => (
                 <button
                   key={company.id}
                   onClick={() => navigate(`/storefront/products?companyId=${company.id}${customerParam ? `&customer=${customerParam}` : ''}`)}
@@ -274,7 +276,7 @@ export function CompaniesPage() {
               ))}
             </div>
 
-            {companies.length === 0 && (
+            {companies.filter((c) => !hiddenCompanyIds.has(c.id)).length === 0 && (
               <div className="text-center py-12" style={{ color: 'rgba(15, 43, 91, .45)', fontSize: 14 }}>
                 لا توجد شركات متاحة حالياً
               </div>

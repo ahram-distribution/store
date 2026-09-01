@@ -1,6 +1,6 @@
 {
   "baselineVersion": 1,
-  "schemaVersion": 15,
+  "schemaVersion": 16,
   "migrations": [
     {
       "version": 2,
@@ -71,6 +71,11 @@
       "version": 15,
       "file": "0015_product_stock_price_import.sql",
       "description": "Products Excel import: new governed_bulk_update_product_stock_price RPC applies a batch of {code, cartons, carton_price} matched by legacy_code atomically (one transaction, no N+1). Excel is the COMPLETE CURRENT STOCK STATE: quantity>0+valid price → stock/price set and status forced 'نشط' (hidden/out-of-stock cleared); quantity=0 → stock zero + status forced 'نفذت الكمية'; products absent from Excel → stock zero + status forced 'مخفي' (hidden, never created). Uses governed stock SET/REPLACE (cartons->pieces via carton_quantity), regenerates piece/dozen prices; unknown codes skipped+counted, never created"
+    },
+    {
+      "version": 16,
+      "file": "0016_geographic_visibility.sql",
+      "description": "Geographic Company & Product Visibility Rules (sibling to geographic pricing, same architecture): geographic_visibility_rules table (scopes all/governorates/sectors, multi company_ids/product_ids arrays), capabilities geographic_visibility.manage/read granted to الإدارة العليا, governed CRUD RPCs, and per-governorate/sector resolvers get_geographic_visibility_hidden_products(_for_sector) that hide selected companies/products from BOTH المتجر and ليستة البيع WITHOUT changing global product status (is_active/is_visible/is_out_of_stock untouched)"
     }
   ]
 }

@@ -66,3 +66,20 @@ export interface GeographicCustomerCount {
   sector_name: string | null
   customer_count: number
 }
+
+export interface GeographicVisibilityRule {
+  id: string
+  rule_name: string
+  scope: string
+  sector_ids: string[]
+  sector_names: string[]
+  governorate_ids: string[]
+  governorate_names: string[]
+  company_ids: string[]
+  company_names: string[]
+  product_ids: string[]
+  product_names: string[]
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
