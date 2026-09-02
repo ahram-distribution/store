@@ -18,6 +18,8 @@ export type ImportRow = {
   code: string
   cartons: number | null
   cartonPrice: number | null
+  productName?: string // informational (from header اسم الصنف) — never used for matching
+  companyName?: string // informational (from header الشركة) — never used for matching
 }
 
 export type MatchedPreviewRow = {
@@ -72,6 +74,8 @@ export type UnmatchedRow = {
   code: string
   cartons: number | null // quantity read from Excel
   cartonPrice: number | null // carton price read from Excel
+  productName?: string // informational from Excel (never used for matching)
+  companyName?: string // informational from Excel (never used for matching)
 }
 
 // -----------------------------------------------------------------------------
@@ -92,23 +96,63 @@ export function normalizeHeader(s: string): string {
 const CODE_HEADERS = new Set(['كودالصنف', 'الكود', 'code', 'كود', 'كودالمنتج'])
 const PRICE_HEADERS = new Set(['سعرالكرتونه', 'سعرالكرتون', 'سعرالكرتونهs'])
 const QTY_HEADERS = new Set(['اجماليالكميه', 'الكميهبالكرتونه', 'الكميهبالكرتون', 'الكميه', 'كميهالكترون', 'اجماليالكميهبالكرتونه'])
+// Informational columns from the official template (اسم الصنف / الشركة). They are
+// NEVER used as the product identity — only surfaced for display in the review.
+const NAME_HEADERS = new Set(['اسمالصنف', 'اسمالمنتج', 'الصنف', 'اسم'])
+const COMPANY_HEADERS = new Set(['الشركه', 'شركه', 'اسمالشركه'])
 
-function detectColumns(headers: (string | number | null)[]): { code: number; price: number; qty: number } {
-  let code = -1
-  let price = -1
-  let qty = -1
+export class ColumnDetectionError extends Error {}
+
+interface DetectedColumns { code: number; price: number; qty: number; name: number; company: number }
+
+function detectColumns(headers: (string | number | null)[]): DetectedColumns {
+  const roles: { key: 'code' | 'price' | 'qty' | 'name' | 'company'; set: Set<string> }[] = [
+    { key: 'code', set: CODE_HEADERS },
+    { key: 'price', set: PRICE_HEADERS },
+    { key: 'qty', set: QTY_HEADERS },
+    { key: 'name', set: NAME_HEADERS },
+    { key: 'company', set: COMPANY_HEADERS },
+  ]
+  // role -> list of column indices that matched it
+  const found = new Map<string, number[]>()
   headers.forEach((h, i) => {
     const norm = normalizeHeader(String(h ?? '').trim())
     if (!norm) return
-    if (code < 0 && CODE_HEADERS.has(norm)) { code = i; return }
-    if (qty < 0 && QTY_HEADERS.has(norm)) { qty = i; return }
-    if (price < 0 && PRICE_HEADERS.has(norm)) { price = i; return }
+    for (const { key, set } of roles) {
+      if (set.has(norm)) {
+        const arr = found.get(key) ?? []
+        arr.push(i)
+        found.set(key, arr)
+        break
+      }
+    }
   })
-  // Fallbacks for a 3-column sheet if headers aren't recognized by name:
-  if (code < 0 && headers.length >= 3) code = 0
-  if (price < 0 && headers.length >= 3) price = 1
-  if (qty < 0 && headers.length >= 3) qty = 2
-  return { code, price, qty }
+
+  const label: Record<string, string> = {
+    code: 'كود الصنف',
+    price: 'سعر الكرتونة',
+    qty: 'الكمية بالكرتونة',
+  }
+
+  for (const key of ['code', 'price', 'qty'] as const) {
+    const cols = found.get(key) ?? []
+    if (cols.length === 0) {
+      throw new ColumnDetectionError(`لم يتم العثور على عمود (${label[key]}) في الملف — لا يمكن الاستيراد بدون هذا العمود`)
+    }
+    if (cols.length > 1) {
+      throw new ColumnDetectionError(`عمود (${label[key]}) غير محسوم — توجد أكثر من خانة تحمل هذا المعنى في رأس الملف. رجّع الملف الأصلي أو أزل التكرار`)
+    }
+  }
+
+  // Informational columns are optional; ambiguity here is not fatal for the
+  // required columns but we still refuse when the code column is ambiguous.
+  return {
+    code: found.get('code')![0],
+    price: found.get('price')![0],
+    qty: found.get('qty')![0],
+    name: (found.get('name') ?? [])[0] ?? -1,
+    company: (found.get('company') ?? [])[0] ?? -1,
+  }
 }
 
 function toNumber(v: any): number | null {
@@ -137,11 +181,7 @@ export function parseProductExcelFile(file: File): Promise<ImportRow[]> {
         if (!aoa.length) { resolve([]); return }
 
         const headers = aoa[0]
-        const { code: ci, price: pci, qty: qci } = detectColumns(headers as (string | number | null)[])
-        if (ci < 0 || pci < 0 || qci < 0) {
-          reject(new Error('لم يتم العثور على أعمدة (كود الصنف / سعر الكرتونه / الكمية) في الملف'))
-          return
-        }
+        const { code: ci, price: pci, qty: qci, name: nci, company: cc } = detectColumns(headers as (string | number | null)[])
 
         const rows: ImportRow[] = []
         for (let i = 1; i < aoa.length; i++) {
@@ -156,6 +196,8 @@ export function parseProductExcelFile(file: File): Promise<ImportRow[]> {
             code,
             cartons: toNumber(raw[qci]),
             cartonPrice: toNumber(raw[pci]),
+            productName: nci >= 0 ? toCode(raw[nci]) : undefined,
+            companyName: cc >= 0 ? toCode(raw[cc]) : undefined,
           })
         }
         resolve(rows)
@@ -223,7 +265,14 @@ export function buildImportPreview(rows: ImportRow[], products: any[]): ImportPr
 
     const product = byCode.get(r.code)
     if (!product) {
-      unmatched.push({ rowIndex: r.rowIndex, code: r.code, cartons: r.cartons, cartonPrice: r.cartonPrice })
+      unmatched.push({
+        rowIndex: r.rowIndex,
+        code: r.code,
+        cartons: r.cartons,
+        cartonPrice: r.cartonPrice,
+        productName: r.productName,
+        companyName: r.companyName,
+      })
       continue
     }
 

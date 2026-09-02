@@ -17,6 +17,7 @@ import { useCatalogStore } from '../../store/catalog'
 import { useCartStore } from '../../store/cart'
 import { toProductWithPrice } from '../../utils/catalog'
 import { parseProductExcelFile, buildImportPreview, type ImportRow, type ImportPreview, type MissingProductRow } from '../../services/productExcelImport'
+import { exportProductStockTemplate } from '../../services/productExcelExport'
 
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
@@ -414,6 +415,24 @@ export function ProductManagerPage() {
   const toggleSection = (id: string) => setOpenSections((p) => ({ ...p, [id]: !p[id] }))
   const isSectionOpen = (id: string) => !!openSections[id]
 
+  // ── Excel export (official stock/price template from CURRENT governed catalog) ──
+  const [exporting, setExporting] = useState(false)
+  function handleExportTemplate() {
+    setExporting(true)
+    try {
+      // Data scope = the already-loaded governed catalog (get_governed_products),
+      // i.e. the products the current user is authorized to manage. Pure client-side
+      // snapshot — no DB write, no extra request, no N+1.
+      const source = useCatalogStore.getState().products
+      const { fileName } = exportProductStockTemplate(source)
+      toast.success(`تم تنزيل قالب المخزون والأسعار (${fileName})`)
+    } catch (e: any) {
+      toast.error(e?.message || 'تعذر إنشاء ملف Excel')
+    } finally {
+      setExporting(false)
+    }
+  }
+
   async function handleImportFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     e.target.value = ''
@@ -729,6 +748,15 @@ export function ProductManagerPage() {
         <h1 className="text-lg font-bold flex-1">إدارة المنتجات</h1>
         {canManage && (
           <div className="flex items-center gap-2">
+            <button
+              onClick={handleExportTemplate}
+              disabled={exporting}
+              className="flex items-center gap-1.5 bg-white/20 text-white text-xs px-3 py-2 rounded-full font-semibold hover:bg-white/30 transition-colors disabled:opacity-50"
+              title="تنزيل قالب المخزون والأسعار من الكتالوج الحالي، ثم تعديله وإعادة استيراده"
+            >
+              <FileUp className="w-4 h-4" />
+              {exporting ? 'جاري التصدير...' : 'تصدير قالب المخزون والأسعار'}
+            </button>
             <button
               onClick={() => setImportOpen(true)}
               className="flex items-center gap-1.5 bg-white/20 text-white text-xs px-3 py-2 rounded-full font-semibold hover:bg-white/30 transition-colors"
@@ -1375,8 +1403,9 @@ export function ProductManagerPage() {
                   {importParsing ? <><Loader2 className="w-4 h-4 animate-spin" /> جاري التحليل...</> : <><FileUp className="w-4 h-4" /> اختر ملف Excel</>}
                 </button>
                 <p className="text-[11px] text-text-secondary mt-2">
-                  الأعمدة المطلوبة: كود الصنف ، سعر الكرتونه ، الكمية (بالكرتونة أو إجمالى الكمية).
-                  كل منتج يُطابَق بالكود القديم (legacy_code) فقط.
+                  الأعمدة المطلوبة: كود الصنف ، سعر الكرتونة ، الكمية بالكرتونة. يُطابَق كل منتج
+                  بالكود القديم (legacy_code) فقط — اسم الصنف والشركة للمعرفة فقط ولا غيّران هوية المنتج.
+                  يمكنك تنزيل قالب جاهز من زر (تصدير قالب المخزون والأسعار) وتعديله ثم استيراده.
                 </p>
               </div>
 
