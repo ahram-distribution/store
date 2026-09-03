@@ -264,6 +264,7 @@ export function buildOrderDisplayData(params: {
   const items: OrderDisplayItem[] = itemList.map((i: any) => {
     const qty = Number(i.unit_quantity || 1)
     const price = Number(i.unit_price || 0)
+    const isDozen = i.unit_type === 'dozen'
     return {
       id: i.id,
       productId: i.product_id,
@@ -272,9 +273,9 @@ export function buildOrderDisplayData(params: {
       imageUrl: i.image_url || i.products?.image_url || null,
       companyName: i.company_name || i.products?.companies?.company_name || '',
       unitType: i.unit_type || '',
-      unitLabel: UNIT_LABELS[i.unit_type] || i.unit_type || 'قطعة',
-      quantity: qty,
-      unitPrice: price,
+      unitLabel: i.unit_type === 'dozen' ? UNIT_LABELS.piece : UNIT_LABELS[i.unit_type] || i.unit_type || 'قطعة',
+      quantity: isDozen ? qty * 12 : qty,
+      unitPrice: isDozen ? price / 12 : price,
       totalPrice: qty * price,
     }
   })

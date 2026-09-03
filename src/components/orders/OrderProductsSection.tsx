@@ -1,9 +1,13 @@
 import { Fragment, useMemo, useState } from 'react'
-import { formatCurrencyShort } from '../../utils/format'
 import { formatNumber, toEnglishDigits } from '../../utils/numbers'
 import { UNIT_LABELS } from '../../types/order-display'
 import type { UnifiedOrderItem } from '../../types/unified-order'
 import type { BusinessStatusCardData } from '../../utils/cart-availability'
+
+function formatValue(amount: number): string {
+  const formatted = formatNumber(amount, { minFractionDigits: 2, maxFractionDigits: 2 })
+  return formatted.replace(/\.00$/, '')
+}
 
 interface CompanyGroup {
   company: string
@@ -115,25 +119,25 @@ export function OrderProductsSection({ items, mode = 'view', onQuantityChange, o
           )}
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-[12px]">
+          <table className="w-full text-[12px] border-separate border-spacing-0">
             <thead>
-              <tr className="border-b border-[#E5E7EB] bg-[#F3F4F6] text-[#6B7280]">
-                <th className="px-3 py-3 text-right font-semibold">كود الصنف</th>
-                <th className="px-3 py-3 text-right font-semibold">اسم الصنف</th>
-                <th className="px-3 py-3 text-center font-semibold">الكمية</th>
-                <th className="px-3 py-3 text-center font-semibold">الوحدة</th>
-                <th className="px-3 py-3 text-left font-semibold">سعر الوحدة</th>
-                <th className="px-3 py-3 text-left font-semibold">الإجمالي</th>
-                {isEdit && <th className="px-2 py-3 text-center font-semibold w-10">تحديد</th>}
+              <tr className="text-[#475569]">
+                <th className="px-3 py-2.5 text-right font-bold text-[11px] uppercase tracking-wide border-b-2 border-[#D9E2EC] bg-[#F1F5F9]">كود الصنف</th>
+                <th className="px-3 py-2.5 text-right font-bold text-[11px] uppercase tracking-wide border-b-2 border-[#D9E2EC] bg-[#F1F5F9]">اسم الصنف</th>
+                <th className="px-3 py-2.5 text-center font-bold text-[11px] uppercase tracking-wide border-b-2 border-[#D9E2EC] bg-[#F1F5F9]">الكمية</th>
+                <th className="px-3 py-2.5 text-center font-bold text-[11px] uppercase tracking-wide border-b-2 border-[#D9E2EC] bg-[#F1F5F9]">الوحدة</th>
+                <th className="px-3 py-2.5 text-left font-bold text-[11px] uppercase tracking-wide border-b-2 border-[#D9E2EC] bg-[#F1F5F9]">سعر الوحدة</th>
+                <th className="px-3 py-2.5 text-left font-bold text-[11px] uppercase tracking-wide border-b-2 border-[#D9E2EC] bg-[#F1F5F9]">الإجمالي</th>
+                {isEdit && <th className="px-2 py-2.5 text-center font-bold text-[11px] uppercase tracking-wide border-b-2 border-[#D9E2EC] bg-[#F1F5F9] w-10">تحديد</th>}
               </tr>
             </thead>
             <tbody>
               {groups.map((group) => (
                 <Fragment key={group.company}>
-                  <tr className="bg-[#F0FDF4] border-b border-[#D1FAE5]">
-                    <td colSpan={isEdit ? 7 : 6} className="px-3 py-2 text-[15px] font-extrabold text-[#2563EB]">
+                  <tr className="bg-[#F0FDF4]">
+                    <td colSpan={isEdit ? 7 : 6} className="px-3 py-2 text-[15px] font-extrabold text-[#2563EB] border-t border-t-[#D1FAE5] border-l border-l-[#EEF1F4]">
                       <div className="flex items-center justify-between">
-                        <span>شركة {group.company}&nbsp;&nbsp;-&nbsp;&nbsp;إجمالي الأصناف {formatNumber(group.items.length)}&nbsp;&nbsp;-&nbsp;&nbsp;إجمالي القطع {formatNumber(group.totalPieces)}&nbsp;&nbsp;-&nbsp;&nbsp;إجمالي المبلغ {formatCurrencyShort(group.subtotal)}</span>
+                        <span>شركة {group.company}&nbsp;&nbsp;-&nbsp;&nbsp;إجمالي الأصناف {formatNumber(group.items.length)}&nbsp;&nbsp;-&nbsp;&nbsp;إجمالي القطع {formatNumber(group.totalPieces)}&nbsp;&nbsp;-&nbsp;&nbsp;إجمالي المبلغ {formatValue(group.subtotal)}</span>
                         {isEdit && onAddProduct && (
                           <button
                             onClick={() => onAddProduct(group.company)}
@@ -148,6 +152,11 @@ export function OrderProductsSection({ items, mode = 'view', onQuantityChange, o
                   {group.items.map((item, idx) => {
                     const qty = Number(item.unit_quantity || 1)
                     const price = Number(item.unit_price || 0)
+                    const isDozen = item.unit_type === 'dozen'
+                    const displayQty = isDozen ? qty * 12 : qty
+                    const displayUnitType = isDozen ? 'piece' : item.unit_type
+                    const displayPrice = isDozen ? price / 12 : price
+                    const unitLabel = displayUnitType === 'piece' ? UNIT_LABELS.piece : UNIT_LABELS[item.unit_type] || item.unit_type
                     const lineTotal = qty * price
                     const isShortage = shortageProductIds?.has(item.product_id) === true
                     const statusCard = !isEdit ? businessStatusByItem?.[`${item.product_id}:${item.unit_type}`] : undefined
@@ -156,14 +165,14 @@ export function OrderProductsSection({ items, mode = 'view', onQuantityChange, o
                     const rowHover = tone ? '' : 'hover:bg-[#F9FAFB]'
                     return (
                       <Fragment key={item.id || idx}>
-                        <tr className={`border-b border-[#E5E7EB] last:border-0 ${rowHover} transition-colors ${rowBg}`}>
-                          <td className="px-3 py-3">
+                        <tr className={`${rowHover} transition-colors ${rowBg}`}>
+                          <td className="px-3 py-3 border-t border-t-[#F1F3F5] border-l border-l-[#EEF1F4]">
                             <span className="inline-block text-[12px] font-bold font-mono text-blue-700 bg-blue-100 border border-blue-300 px-2.5 py-1 rounded-full" dir="ltr">{item.legacy_code || '—'}</span>
                           </td>
-                          <td className="px-3 py-3">
+                          <td className="px-3 py-3 border-t border-t-[#F1F3F5] border-l border-l-[#EEF1F4]">
                             <p className="font-semibold text-[#111827]">{item.product_name || 'غير متوفر'}</p>
                           </td>
-                          <td className="px-3 py-3 text-center">
+                          <td className="px-3 py-3 text-center border-t border-t-[#F1F3F5] border-l border-l-[#EEF1F4]">
                             {isEdit && onQuantityChange ? (
                               <input
                                 type="text"
@@ -180,12 +189,12 @@ export function OrderProductsSection({ items, mode = 'view', onQuantityChange, o
                                 className="w-12 text-center text-[12px] font-semibold text-[#111827] border border-[#E5E7EB] rounded px-1 py-0.5"
                               />
                             ) : (
-                              <span className="inline-flex items-center text-[12px] font-bold text-[#111827] bg-[#F3F4F6] border border-[#E5E7EB] border-r-0 rounded-full rounded-l-none px-3 py-1">
-                                <span className="text-[#2563EB]">{item.unit_type === 'dozen' ? qty * 12 : qty}</span>
+                              <span className={"inline-flex items-center justify-center rounded-full border px-3 py-1 " + (displayUnitType === 'carton' ? 'bg-[#FFFBEB] border-[#F5D58A]' : 'bg-[#EFF6FF] border-[#BFDBFE]')}>
+                                <span className={"text-[12px] font-bold " + (displayUnitType === 'carton' ? 'text-[#A16207]' : 'text-[#1D4ED8]')}>{displayQty}</span>
                               </span>
                             )}
                           </td>
-                          <td className="px-3 py-3 text-center">
+                          <td className="px-3 py-3 text-center border-t border-t-[#F1F3F5] border-l border-l-[#EEF1F4]">
                             {isEdit && onUnitChange && unitOptions ? (
                               (() => {
                                 const opts = unitOptions[item.product_id] || []
@@ -205,12 +214,12 @@ export function OrderProductsSection({ items, mode = 'view', onQuantityChange, o
                                 )
                               })()
                             ) : (
-                              <span className="inline-flex items-center text-[12px] font-bold bg-[#F3F4F6] border border-[#E5E7EB] border-l-0 rounded-full rounded-r-none px-3 py-1 -ml-4">
-                                <span className="text-[#6B7280]">{item.unit_type === 'dozen' ? UNIT_LABELS.piece : UNIT_LABELS[item.unit_type] || item.unit_type}</span>
+                              <span className={"inline-flex items-center justify-center rounded-full border px-3 py-1 " + (displayUnitType === 'carton' ? 'bg-[#FFFBEB] border-[#F5D58A]' : 'bg-[#EFF6FF] border-[#BFDBFE]')}>
+                                <span className={"text-[12px] font-semibold " + (displayUnitType === 'carton' ? 'text-[#8A5A14]' : 'text-[#315A8A]')}>{unitLabel}</span>
                               </span>
                             )}
                           </td>
-                          <td className="px-3 py-3 text-left">
+                          <td className="px-3 py-3 text-left border-t border-t-[#F1F3F5] border-l border-l-[#EEF1F4]">
                             {isEdit && onPriceChange ? (
                               <input
                                 type="text"
@@ -227,12 +236,12 @@ export function OrderProductsSection({ items, mode = 'view', onQuantityChange, o
                                 className="w-16 text-left text-[12px] font-semibold text-[#111827] border border-[#E5E7EB] rounded px-1 py-0.5"
                               />
                             ) : (
-                              <span className="text-[#111827]">{formatCurrencyShort(price)}</span>
+                              <span className="text-[13px] font-semibold text-[#334155]" dir="ltr">{formatValue(displayPrice)}</span>
                             )}
                           </td>
-                          <td className="px-3 py-3 text-left text-[#111827] font-bold">{formatCurrencyShort(lineTotal)}</td>
+                          <td className="px-3 py-3 text-left text-[13px] font-bold text-[#111827] border-t border-t-[#F1F3F5] border-l border-l-[#EEF1F4]">{formatValue(lineTotal)}</td>
                           {isEdit && (
-                            <td className="px-2 py-3 text-center">
+                            <td className="px-2 py-3 text-center border-t border-t-[#F1F3F5] border-l border-l-[#EEF1F4]">
                               <input
                                 type="checkbox"
                                 checked={selected.has(`${item.product_id}:${item.unit_type}`)}
@@ -277,7 +286,7 @@ export function OrderProductsSection({ items, mode = 'view', onQuantityChange, o
           </div>
           <div className="text-left">
             <p className="text-[11px] text-[#9CA3AF] font-medium">الإجمالي النهائي</p>
-            <p className="text-[21px] font-bold text-[#059669] mt-0.5">{formatCurrencyShort(grandTotal)}</p>
+            <p className="text-[21px] font-bold text-[#059669] mt-0.5">{formatValue(grandTotal)}</p>
           </div>
         </div>
       </div>
