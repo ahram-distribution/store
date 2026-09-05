@@ -379,6 +379,7 @@ BEGIN
 
     v_emp_id := v_session.employee_id;
     v_is_upper := public.is_upper_management(v_emp_id);
+    PERFORM set_config('app.identity_id', v_session.identity_id::text, true);
     v_customers_read := app.has_capability('customers.read');
     v_visible := COALESCE(public.get_visible_employee_ids(p_token), '{}'::uuid[]);
 
@@ -508,10 +509,11 @@ BEGIN
     END IF;
 
     v_emp_id := v_session.employee_id;
+    PERFORM set_config('app.identity_id', v_session.identity_id::text, true);
     v_customers_read := app.has_capability('customers.read');
     v_visible := COALESCE(public.get_visible_employee_ids(p_token), '{}'::uuid[]);
 
-    SELECT COALESCE(jsonb_agg(cx ORDER BY cx.company_name), '[]'::jsonb) INTO v_rows
+    SELECT COALESCE(jsonb_agg(cx), '[]'::jsonb) INTO v_rows
     FROM (
       SELECT jsonb_build_object(
         'id',                  c.id,
@@ -541,7 +543,7 @@ BEGIN
              OR (so.days_since_last_order IS NOT NULL AND so.days_since_last_order >= 45)
              OR fo.has_open
         )
-      )::jsonb AS cx, c.company_name
+      )::jsonb AS cx
       FROM public.customers c
       JOIN public.identities i ON i.id = c.identity_id
       LEFT JOIN public.employees eo ON eo.id = c.owner_id
@@ -568,6 +570,12 @@ BEGIN
       LEFT JOIN LATERAL (
         SELECT COALESCE(sum(o.total_amount) FILTER (WHERE o.created_at >= v_now - interval '30 days'),0) r30,
                COALESCE(sum(o.total_amount) FILTER (WHERE o.created_at >= v_now - interval '60 days' AND o.created_at < v_now - interval '30 days'),0) p30,
+               CASE WHEN COALESCE(sum(o.total_amount) FILTER (WHERE o.created_at >= v_now - interval '60 days' AND o.created_at < v_now - interval '30 days'),0) > 0
+                    THEN round(
+                         100.0 * (COALESCE(sum(o.total_amount) FILTER (WHERE o.created_at >= v_now - interval '30 days'),0)
+                                  - COALESCE(sum(o.total_amount) FILTER (WHERE o.created_at >= v_now - interval '60 days' AND o.created_at < v_now - interval '30 days'),0))
+                         / COALESCE(sum(o.total_amount) FILTER (WHERE o.created_at >= v_now - interval '60 days' AND o.created_at < v_now - interval '30 days'),0), 1)
+                    ELSE NULL END AS trend30d_pct,
                (COALESCE(sum(o.total_amount) FILTER (WHERE o.created_at >= v_now - interval '30 days'),0)
                 < COALESCE(sum(o.total_amount) FILTER (WHERE o.created_at >= v_now - interval '60 days' AND o.created_at < v_now - interval '30 days'),0) * 0.6)
                 AS declining
@@ -598,8 +606,9 @@ BEGIN
              OR (p_status = 'stopped'      AND so.last_order_date IS NOT NULL AND so.days_since_last_order >= 45)
              OR (p_status = 'no_contact_30d' AND (lc.days_since_contact IS NULL OR lc.days_since_contact >= 30))
              OR (p_status = 'new_30d'      AND c.created_at >= v_now - interval '30 days'))
+      ORDER BY c.company_name
       LIMIT GREATEST(1, p_limit)
-    ) s ORDER BY s.company_name;
+    ) s;
 
     RETURN jsonb_build_object('customers', COALESCE(v_rows, '[]'::jsonb));
 END;
@@ -634,6 +643,7 @@ BEGIN
     IF v_session.identity_type = 'customer' THEN RETURN jsonb_build_object('error', 'FORBIDDEN'); END IF;
 
     v_emp_id := v_session.employee_id;
+    PERFORM set_config('app.identity_id', v_session.identity_id::text, true);
     v_customers_read := app.has_capability('customers.read');
     v_visible := COALESCE(public.get_visible_employee_ids(p_token), '{}'::uuid[]);
 
@@ -669,13 +679,13 @@ BEGIN
         'top_companies',        COALESCE((
             SELECT jsonb_agg(t ORDER BY t.total DESC)
             FROM (
-              SELECT comp.company_name AS name, sum(oi.total_price) AS total
+              SELECT comp.company_name AS name, sum(oi0.total_price) AS total
                 FROM orders o
                 JOIN order_items oi0 ON oi0.order_id = o.id
                 JOIN products p ON p.id = oi0.product_id
                 JOIN companies comp ON comp.id = p.company_id
                WHERE o.customer_id = p_customer_id AND public.is_order_in_statistics(o.status)
-               GROUP BY comp.company_name ORDER BY sum(oi.total_price) DESC LIMIT 10
+               GROUP BY comp.company_name ORDER BY sum(oi0.total_price) DESC LIMIT 10
             ) t
         ), '[]'::jsonb)
     ) INTO v_result
@@ -732,6 +742,7 @@ BEGIN
     IF v_session.identity_type = 'customer' THEN RETURN jsonb_build_object('error', 'FORBIDDEN'); END IF;
 
     v_emp_id := v_session.employee_id;
+    PERFORM set_config('app.identity_id', v_session.identity_id::text, true);
     v_customers_read := app.has_capability('customers.read');
     v_visible := COALESCE(public.get_visible_employee_ids(p_token), '{}'::uuid[]);
 
