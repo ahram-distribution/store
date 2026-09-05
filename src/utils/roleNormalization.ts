@@ -2,6 +2,7 @@ export type TargetRole =
   | 'الإدارة العليا'
   | 'مدير بيع'
   | 'مندوب مبيعات'
+  | 'متابعة العملاء'
   | 'مشرف عام'
   | 'مدير مخزن'
   | 'سيلز داخلي'
@@ -33,6 +34,10 @@ const roleMapping: Record<string, TargetRole> = {
   'sales_rep': 'مندوب مبيعات',
   'salesrep': 'مندوب مبيعات',
   'مندوب': 'مندوب مبيعات',
+
+  'متابعة العملاء': 'متابعة العملاء',
+  'customer_followup': 'متابعة العملاء',
+  'customer_follow_up': 'متابعة العملاء',
 
   'مندوب توصيل': 'مندوب توصيل',
   'التوصيل': 'مندوب توصيل',
@@ -99,4 +104,13 @@ export function isDeliveryStaff(roleName: string): boolean {
 export function isDeliveryStaffUser(user: { identity_type: string; roles?: string[] } | null | undefined): boolean {
   if (!user || user.identity_type !== 'employee') return false
   return user.roles?.some((r) => isDeliveryStaff(r)) ?? false
+}
+
+export function isCustomerFollowUpAgent(roleName: string): boolean {
+  return normalizeEmployeeRole(roleName) === 'متابعة العملاء'
+}
+
+export function isCustomerFollowUpAgentUser(user: { identity_type: string; roles?: string[] } | null | undefined): boolean {
+  if (!user || user.identity_type !== 'employee') return false
+  return user.roles?.some((r) => isCustomerFollowUpAgent(r)) ?? false
 }

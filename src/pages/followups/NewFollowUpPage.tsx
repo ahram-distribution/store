@@ -12,6 +12,11 @@ function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
 }
 
+function toLocalInputValue(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
 interface CustomerOption {
   id: string
   company_name: string
@@ -49,6 +54,15 @@ export function NewFollowUpPage() {
     }, 300)
     return () => clearTimeout(debounce)
   }, [customerSearch, token])
+
+  const applyPreset = (kind: '1w' | '2w' | '1m' | '2m') => {
+    const d = new Date()
+    if (kind === '1w') d.setDate(d.getDate() + 7)
+    else if (kind === '2w') d.setDate(d.getDate() + 14)
+    else if (kind === '1m') d.setMonth(d.getMonth() + 1)
+    else d.setMonth(d.getMonth() + 2)
+    setDueAt(toLocalInputValue(d))
+  }
 
   const handleCreate = async () => {
     if (!token) return
@@ -153,6 +167,17 @@ export function NewFollowUpPage() {
         {/* Due */}
         <div>
           <label className="text-[11px] text-text-muted block mb-1">الموعد</label>
+          <div className="flex gap-1.5 mb-1.5 flex-wrap">
+            {([['1w', 'أسبوع'], ['2w', 'أسبوعان'], ['1m', 'شهر'], ['2m', 'شهران']] as const).map(([k, label]) => (
+              <button
+                key={k}
+                onClick={() => applyPreset(k)}
+                className="text-[10px] px-3 py-1.5 rounded-lg font-semibold border bg-white text-text-secondary border-border hover:bg-primary/10"
+              >
+                {label}
+              </button>
+            ))}
+          </div>
           <input
             type="datetime-local"
             value={dueAt}

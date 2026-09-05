@@ -4,6 +4,7 @@ import { followUpService, type FollowUp } from '../../services/followUpService'
 import { FollowUpCard } from '../../components/followups/FollowUpCard'
 import { exportToExcel } from '../../services/excelExporter'
 import { exportToWord } from '../../services/wordExporter'
+import { supabase } from '../../lib/supabase'
 
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
@@ -16,11 +17,27 @@ interface Suggestion {
   followUp?: FollowUp
 }
 
+interface SmartSuggestion {
+  kind: string
+  title: string
+  reason: string
+  suggested_at: string | null
+  suggested_interval_days: number | null
+}
+
+interface SmartCustomer {
+  customer_id: string
+  customer_name: string
+  suggestions: SmartSuggestion[]
+}
+
 export function FollowUpAnalyticsPage() {
   const navigate = useNavigate()
   const token = getToken()
   const [followUps, setFollowUps] = useState<FollowUp[]>([])
   const [loading, setLoading] = useState(true)
+  const [smart, setSmart] = useState<SmartCustomer[]>([])
+  const [smartLoading, setSmartLoading] = useState(false)
 
   useEffect(() => {
     if (!token) { setLoading(false); return }
@@ -33,6 +50,35 @@ export function FollowUpAnalyticsPage() {
     }
     load()
   }, [token])
+
+  useEffect(() => {
+    if (!token || loading || followUps.length === 0) { setSmart([]); return }
+    const nameById = new Map<string, string>()
+    followUps.forEach((f) => {
+      if (f.customer_id && !nameById.has(f.customer_id) && f.customer_name) nameById.set(f.customer_id, f.customer_name)
+    })
+    const ids = Array.from(nameById.keys()).slice(0, 12)
+    if (ids.length === 0) { setSmart([]); return }
+    let cancelled = false
+    setSmartLoading(true)
+    Promise.all(ids.map((id) =>
+      supabase
+        .rpc('get_smart_follow_up_suggestions', { p_token: token, p_customer_id: id })
+        .then(({ data }) => {
+          if (data && data.customer_id && Array.isArray(data.suggestions)) {
+            return { customer_id: data.customer_id, customer_name: nameById.get(id) || '', suggestions: data.suggestions as SmartSuggestion[] }
+          }
+          return null
+        })
+    )).then((rows) => {
+      if (cancelled) return
+      setSmart(rows.filter((r): r is SmartCustomer => r !== null))
+      setSmartLoading(false)
+    }).catch(() => {
+      if (!cancelled) { setSmart([]); setSmartLoading(false) }
+    })
+    return () => { cancelled = true }
+  }, [token, loading, followUps])
 
   const suggestions = useMemo<Suggestion[]>(() => {
     const now = new Date()
@@ -201,6 +247,37 @@ export function FollowUpAnalyticsPage() {
           </div>
         )}
       </div>
+
+      {!loading && (
+        <div className="bg-white rounded-lg border border-border p-3">
+          <h2 className="text-sm font-bold text-text mb-2">اقتراحات مبنية على بيانات العميل</h2>
+          {smartLoading ? (
+            <div className="text-center py-6 text-text-secondary text-sm">جاري التحميل...</div>
+          ) : smart.length === 0 ? (
+            <div className="text-center py-6 text-text-secondary text-xs">لا توجد اقتراحات كافية حالياً</div>
+          ) : (
+            <div className="space-y-2">
+              {smart.map((s) => (
+                <div key={s.customer_id} className="bg-surface rounded-lg p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="text-xs font-bold text-text">{s.customer_name || 'عميل'}</div>
+                    <button onClick={() => navigate(`/followups/new/${s.customer_id}`)} className="text-[10px] text-primary font-semibold shrink-0 bg-primary/10 px-2 py-1 rounded-lg">متابعة</button>
+                  </div>
+                  <div className="space-y-2">
+                    {s.suggestions.map((sg, i) => (
+                      <div key={i} className="text-[11px] text-text-secondary leading-relaxed">
+                        <span className="font-semibold text-text">{sg.title}</span>
+                        {sg.suggested_at && <span className="text-primary"> — 📅 {new Date(sg.suggested_at).toLocaleDateString('ar-EG-u-nu-latn')}</span>}
+                        <div className="text-[10px] text-text-muted">{sg.reason}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {!loading && followUps.length > 0 && (
         <div>

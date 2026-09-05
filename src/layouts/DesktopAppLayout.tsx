@@ -5,7 +5,7 @@ import { useCartStore } from '../store/cart'
 import { ErrorBoundary } from '../components/shared/ErrorBoundary'
 import { useLocation, useNavigate, Link } from 'react-router-dom'
 import { NotificationBell } from '../components/notifications/NotificationBell'
-import { normalizeEmployeeRole, isDeliveryStaffUser, isUpperManagement } from '../utils/roleNormalization'
+import { normalizeEmployeeRole, isDeliveryStaffUser, isUpperManagement, isCustomerFollowUpAgentUser } from '../utils/roleNormalization'
 import { SyncStatusPanel } from '../desktop/components/SyncStatusPanel'
 import { AppUpdater } from '../desktop/components/AppUpdater'
 
@@ -31,6 +31,16 @@ function useDesktopNavItems() {
       { label: 'الرئيسية', path: '/my-deliveries' },
       { label: 'مهماتي', path: '/my-deliveries/tasks' },
       { label: 'الحضور والانصراف', path: '/attendance' },
+    ]
+  }
+
+  if (user && isCustomerFollowUpAgentUser(user)) {
+    return [
+      { label: 'الرئيسية', path: '/dashboard' },
+      { label: 'المتابعات', path: '/followups' },
+      { label: 'كل العملاء', path: '/followups/customers' },
+      { label: 'المفكرة', path: '/followups/notebook' },
+      { label: 'التقارير', path: '/followups/reports' },
     ]
   }
 

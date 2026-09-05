@@ -66,8 +66,13 @@ export function FollowUpTodayPage() {
       <div className="flex gap-1 bg-white rounded-lg border border-border p-1">
         <button onClick={() => navigate('/followups/today')} className="flex-1 text-xs py-1.5 rounded-md font-semibold bg-primary text-white">متابعات اليوم</button>
         <button onClick={() => navigate('/followups/queue')} className="flex-1 text-xs py-1.5 rounded-md font-semibold text-text-secondary hover:bg-neutral-50">قائمة المتابعات</button>
-        <button onClick={() => navigate('/followups/analytics')} className="flex-1 text-xs py-1.5 rounded-md font-semibold text-text-secondary hover:bg-neutral-50">تحليل</button>
-        <button onClick={() => navigate('/customers')} className="flex-1 text-xs py-1.5 rounded-md font-semibold text-text-secondary hover:bg-neutral-50">العملاء</button>
+        <button onClick={() => navigate('/followups/customers')} className="flex-1 text-xs py-1.5 rounded-md font-semibold text-text-secondary hover:bg-neutral-50">كل العملاء</button>
+        <button onClick={() => navigate('/followups/reports')} className="flex-1 text-xs py-1.5 rounded-md font-semibold text-text-secondary hover:bg-neutral-50">التقارير</button>
+      </div>
+
+      {/* Attendance hint */}
+      <div className="bg-amber-50 border border-amber-200 rounded-lg p-2.5 text-[11px] text-amber-700 leading-relaxed">
+        📢 عملاء يحتاجون انتباهاً — راجع <button onClick={() => navigate('/followups/customers')} className="text-primary font-semibold underline">كل العملاء</button> أو لوحة <button onClick={() => navigate('/dashboard')} className="text-primary font-semibold underline">مساحة المتابعة</button> للاقتراحات الذكية اليومية.
       </div>
 
       {/* Summary stats */}

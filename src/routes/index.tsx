@@ -28,6 +28,10 @@ import { AuctionsPage, AuctionDetailPage, AuctionsManagerPage } from '../pages/a
 import { CustomersPage, CustomerProfilePage, NewCustomerPage } from '../pages/customers'
 import { FollowUpTodayPage, FollowUpQueuePage, FollowUpDetailPage, NewFollowUpPage } from '../pages/followups'
 import { FollowUpAnalyticsPage } from '../pages/followups/FollowUpAnalyticsPage'
+import { FollowUpCustomersPage } from '../pages/followups/FollowUpCustomersPage'
+import { FollowUpCustomerProfilePage } from '../pages/followups/FollowUpCustomerProfilePage'
+import { FollowUpNotebookPage } from '../pages/followups/FollowUpNotebookPage'
+import { FollowUpReportsPage } from '../pages/followups/FollowUpReportsPage'
 import { DashboardPage, ExecutiveOperationsWorkspace } from '../pages/dashboard'
 import PerformanceAnalysisPage from '../pages/dashboard/PerformanceAnalysisPage'
 import EmployeeAnalysisPage from '../pages/dashboard/EmployeeAnalysisPage'
@@ -270,6 +274,10 @@ export function AppRoutes() {
       <Route path="/followups/new" element={<ProtectedRoute employeeOnly requireCapability="followups.manage"><NewFollowUpPage /></ProtectedRoute>} />
       <Route path="/followups/new/:customerId" element={<ProtectedRoute employeeOnly requireCapability="followups.manage"><NewFollowUpPage /></ProtectedRoute>} />
       <Route path="/followups/analytics" element={<ProtectedRoute employeeOnly requireCapability="followups.read"><FollowUpAnalyticsPage /></ProtectedRoute>} />
+      <Route path="/followups/customers" element={<ProtectedRoute employeeOnly requireCapability="followups.read"><FollowUpCustomersPage /></ProtectedRoute>} />
+      <Route path="/followups/customers/:customerId" element={<ProtectedRoute employeeOnly requireCapability="followups.read"><FollowUpCustomerProfilePage /></ProtectedRoute>} />
+      <Route path="/followups/notebook" element={<ProtectedRoute employeeOnly requireCapability="followups.read"><FollowUpNotebookPage /></ProtectedRoute>} />
+      <Route path="/followups/reports" element={<ProtectedRoute employeeOnly requireCapability="followups.read"><FollowUpReportsPage /></ProtectedRoute>} />
 
       <Route path="/ops/gps-test" element={<ProtectedRoute requireUpperManagement><GpsTestPage /></ProtectedRoute>} />
 

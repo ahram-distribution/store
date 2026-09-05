@@ -1,6 +1,6 @@
 import { useLocation, Link } from 'react-router-dom'
 import { useAuthStore } from '../../store/auth'
-import { normalizeEmployeeRole, isDeliveryStaffUser } from '../../utils/roleNormalization'
+import { normalizeEmployeeRole, isDeliveryStaffUser, isCustomerFollowUpAgentUser } from '../../utils/roleNormalization'
 
 const SALES_LIST_ROLES = ['الإدارة العليا', 'مدير بيع', 'مندوب مبيعات']
 
@@ -23,6 +23,16 @@ function useNavItems() {
       { label: 'الرئيسية', path: '/my-deliveries', icon: 'H' },
       { label: 'مهماتي', path: '/my-deliveries/tasks', icon: 'O' },
       { label: 'الحضور والانصراف', path: '/attendance', icon: 'A' },
+    ]
+  }
+
+  if (isCustomerFollowUpAgentUser(user)) {
+    return [
+      { label: 'الرئيسية', path: '/dashboard', icon: 'H' },
+      { label: 'المتابعات', path: '/followups', icon: 'F' },
+      { label: 'العملاء', path: '/followups/customers', icon: 'C' },
+      { label: 'المفكرة', path: '/followups/notebook', icon: 'N' },
+      { label: 'التقارير', path: '/followups/reports', icon: 'R' },
     ]
   }
 

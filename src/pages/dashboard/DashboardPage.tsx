@@ -9,6 +9,7 @@ import { ManagementDashboard } from './ManagementDashboard'
 import UpperManagementDashboard from './UpperManagementDashboard'
 import { WarehouseManagerWorkspace } from './WarehouseManagerWorkspace'
 import { ExecutiveOperationsWorkspace } from './ExecutiveOperationsWorkspace'
+import { FollowUpWorkspace } from './FollowUpWorkspace'
 
 import { normalizeEmployeeRole, isDeliveryStaffUser, type TargetRole } from '../../utils/roleNormalization'
 
@@ -17,6 +18,7 @@ const WORKSPACE_HIERARCHY: { target: TargetRole; component: React.ReactNode }[] 
   { target: 'مدير بيع', component: <SalesManagerCCPage /> },
   { target: 'مشرف عام', component: <SalesManagerCCPage /> },
   { target: 'مندوب مبيعات', component: <SalesRepWorkDay /> },
+  { target: 'متابعة العملاء', component: <FollowUpWorkspace /> },
   { target: 'مدير مخزن', component: <WarehouseManagerWorkspace /> },
   { target: 'سيلز داخلي', component: <ManagementDashboard /> },
   { target: 'مدير عمليات تنفيذية', component: <ExecutiveOperationsWorkspace /> },
