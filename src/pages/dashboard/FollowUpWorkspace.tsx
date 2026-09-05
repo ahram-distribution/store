@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { followUpWorkspaceService, type DashboardSummary, type FollowUpCustomerRow } from '../../services/followUpWorkspaceService'
+import { followUpWorkspaceService, type DashboardSummary, type FollowUpCustomerRow, type SmartReason, fetchSmartReasonsBatched, SMART_KIND_LABELS } from '../../services/followUpWorkspaceService'
 import { useAuthStore } from '../../store/auth'
 import { isUpperManagement } from '../../utils/roleNormalization'
 
@@ -62,6 +62,7 @@ export function FollowUpWorkspace() {
   const [dash, setDash] = useState<DashboardSummary | null>(null)
   const [dashAvailable, setDashAvailable] = useState(true)
   const [attention, setAttention] = useState<FollowUpCustomerRow[]>([])
+  const [attentionReasons, setAttentionReasons] = useState<Record<string, SmartReason>>({})
   const [loading, setLoading] = useState(true)
   const [notifyMsg, setNotifyMsg] = useState<string | null>(null)
 
@@ -78,7 +79,13 @@ export function FollowUpWorkspace() {
       try {
         const r = await followUpWorkspaceService.getScreening({ status: 'all', limit: 8 })
         if (cancelled) return
-        if (r.available) setAttention((r.data ?? []).filter((c) => c.requires_attention))
+        if (r.available) {
+          const att = ((r.data?.rows) ?? []).filter((c) => c.requires_attention)
+          setAttention(att)
+          if (att.length > 0) {
+            fetchSmartReasonsBatched(att.map((c) => c.id), 8).then((m) => { if (!cancelled) setAttentionReasons(m) })
+          }
+        }
       } catch { /* ignore */ }
       if (!cancelled) setLoading(false)
     })()
@@ -119,6 +126,11 @@ export function FollowUpWorkspace() {
         </div>
       ) : (
         <>
+          <div className="bg-white rounded-lg border border-border p-3 text-[11px] text-text-secondary">
+            إجمالي العملاء الواقعون تحت المتابعة: <b className="text-text" dir="ltr">{dash.all_customers ?? 0}</b>
+            <button onClick={() => navigate('/followups/customers')} className="mr-2 text-primary font-semibold">عرض القائمة</button>
+          </div>
+
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {COUNTERS.map((c) => {
               const value = Number(dash[c.key] ?? 0)
@@ -177,10 +189,16 @@ export function FollowUpWorkspace() {
                   <div key={c.id} className="flex items-center gap-2 bg-surface rounded-lg p-2.5 text-xs">
                     <div className="flex-1 min-w-0">
                       <div className="font-bold text-text truncate">{c.company_name || 'عميل'}</div>
-                      <div className="text-[10px] text-text-secondary truncate">
-                        {attentionReason(c).join(' • ') || 'يحتاج متابعة'}
-                        {c.due_follow_up_at && <span className="text-primary"> — 📅 {fmtDate(c.due_follow_up_at)}</span>}
-                      </div>
+                      {attentionReasons[c.id] ? (
+                        <div className="text-[10px] font-semibold text-amber-700 leading-snug mt-0.5 truncate" title={attentionReasons[c.id].reason}>
+                          {SMART_KIND_LABELS[attentionReasons[c.id].kind] || attentionReasons[c.id].kind} — {attentionReasons[c.id].reason}
+                        </div>
+                      ) : (
+                        <div className="text-[10px] text-text-secondary truncate">
+                          {attentionReason(c).join(' • ') || 'يحتاج متابعة'}
+                          {c.due_follow_up_at && <span className="text-primary"> — 📅 {fmtDate(c.due_follow_up_at)}</span>}
+                        </div>
+                      )}
                     </div>
                     <div className="flex gap-1 shrink-0">
                       <button onClick={() => navigate(`/followups/new/${c.id}`)} className="text-[10px] text-primary font-semibold bg-primary/10 px-2 py-1 rounded-lg">متابعة</button>

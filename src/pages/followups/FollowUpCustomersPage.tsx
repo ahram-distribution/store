@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { followUpWorkspaceService, type FollowUpCustomerRow } from '../../services/followUpWorkspaceService'
+import { followUpWorkspaceService, type FollowUpCustomerRow, type SmartReason, fetchSmartReasonsBatched, SMART_KIND_LABELS } from '../../services/followUpWorkspaceService'
+import { TimeRangeSelector, type FollowUpTimeRange } from '../../components/followups/TimeRangeSelector'
+import { formatCurrencyShort } from '../../utils/format'
 
 const STATUS_FILTERS: Array<{ key: string; label: string }> = [
   { key: 'all', label: 'الكل' },
@@ -27,9 +29,12 @@ export function FollowUpCustomersPage() {
   const [rows, setRows] = useState<FollowUpCustomerRow[]>([])
   const [loading, setLoading] = useState(true)
   const [unavailable, setUnavailable] = useState(false)
+  const [rangeUnavailable, setRangeUnavailable] = useState(false)
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState(initialStatus)
   const [assigneeId, setAssigneeId] = useState<string>('')
+  const [range, setRange] = useState<FollowUpTimeRange>({ preset: 'since_creation', label: 'منذ إنشاء العميل', from: null, to: null })
+  const [reasons, setReasons] = useState<Record<string, SmartReason>>({})
 
   const setParamStatus = (key: string) => {
     setStatus(key)
@@ -39,6 +44,8 @@ export function FollowUpCustomersPage() {
     setSearchParams(next, { replace: true })
   }
 
+  const rangeActive = range.preset === 'custom' ? range.from !== null || range.to !== null : range.from !== null
+
   const load = useCallback(async () => {
     setLoading(true)
     try {
@@ -47,16 +54,28 @@ export function FollowUpCustomersPage() {
         assigneeId: assigneeId || null,
         status: status === 'all' ? 'all' : status,
         limit: 500,
+        customerId: null,
+        dateFrom: range.from,
+        dateTo: range.to,
       })
-      if (res.available) { setRows(res.data); setUnavailable(false) }
-      else { setRows([]); setUnavailable(true) }
+      if (res.available) { setRows(res.data.rows); setUnavailable(false); setRangeUnavailable(!res.data.extended) }
+      else { setRows([]); setUnavailable(true); setRangeUnavailable(false) }
     } catch {
       setRows([]); setUnavailable(false)
     }
     setLoading(false)
-  }, [search, assigneeId, status])
+  }, [search, assigneeId, status, range])
 
   useEffect(() => { load() }, [load])
+
+  useEffect(() => {
+    let cancelled = false
+    setReasons({})
+    const attentionIds = rows.filter((r) => r.requires_attention).map((r) => r.id)
+    if (attentionIds.length === 0) return
+    fetchSmartReasonsBatched(attentionIds, 20).then((m) => { if (!cancelled) setReasons(m) })
+    return () => { cancelled = true }
+  }, [rows])
 
   const summary = useMemo(() => {
     const flags = {
@@ -112,11 +131,18 @@ export function FollowUpCustomersPage() {
             </button>
           ))}
         </div>
+        <TimeRangeSelector value={range} onChange={setRange} layout="row" />
       </div>
 
       {unavailable && (
         <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-[11px] text-amber-700 leading-relaxed">
           قائمة المتابعة الكاملة غير متاحة حتى يُطبّق تحديث قاعدة البيانات 0023 في النظام — حالياً تظهر المتابعات المسجلة فقط.
+        </div>
+      )}
+
+      {rangeUnavailable && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-[11px] text-amber-700 leading-relaxed">
+          تحليل الفترات الزمنية يُطبّق مع تحديث قاعدة البيانات 0024 — تُعرض حالياً بيانات الحساب الإجمالية.
         </div>
       )}
 
@@ -190,6 +216,25 @@ export function FollowUpCustomersPage() {
                       </span>
                     )}
                   </div>
+                  <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5 text-[10px] text-text-secondary">
+                    <span>عمر العميل: {c.customer_age_days !== undefined && c.customer_age_days !== null ? `${c.customer_age_days} يوم` : '—'}</span>
+                    <span title="إجمالي التاريخ منذ إنشاء العميل (طلبات / مبيعات / زيارات / تواصل / متابعات)">
+                      منذ الإنشاء: {c.total_orders ?? 0} طلب · {formatCurrencyShort(c.total_sales ?? 0)} · {c.total_visits ?? 0} زيارة · {c.total_contacts ?? 0} تواصل · {c.total_follow_ups ?? 0} متابعة
+                    </span>
+                    {rangeActive && (c.range_order_count !== undefined || c.range_visit_count !== undefined) && (
+                      <span className="text-primary" title={`تحليل الفترة ${range.label}`}>
+                        في الفترة ({range.label}): {c.range_order_count ?? 0} طلب · {formatCurrencyShort(c.range_total_sales ?? 0)} · {c.range_visit_count ?? 0} زيارة · {c.range_contact_count ?? 0} تواصل · {c.range_follow_up_count ?? 0} متابعة (منها {c.range_completed_follow_ups ?? 0} مكتملة)
+                      </span>
+                    )}
+                    {c.range_last_order_date && (
+                      <span>آخر طلب بالمجال: {new Date(c.range_last_order_date).toLocaleDateString('ar-EG-u-nu-latn')}</span>
+                    )}
+                  </div>
+                  {reasons[c.id] && (
+                    <div className="mt-0.5 text-[10px] text-amber-700 leading-snug">
+                      <span className="font-semibold">{SMART_KIND_LABELS[reasons[c.id].kind] || reasons[c.id].kind}:</span> {reasons[c.id].reason}
+                    </div>
+                  )}
                 </div>
               )
             })}

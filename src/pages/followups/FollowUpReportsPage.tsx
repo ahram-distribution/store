@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { followUpWorkspaceService, type ReportRow } from '../../services/followUpWorkspaceService'
+import { followUpWorkspaceService, type ReportRow, type FollowUpCustomerRow, type SmartReason, fetchSmartReasonsBatched, SMART_KIND_LABELS, orderTypeDistributionLabel } from '../../services/followUpWorkspaceService'
 import { exportToExcel } from '../../services/excelExporter'
 import { exportToWord } from '../../services/wordExporter'
+import { formatCurrencyShort } from '../../utils/format'
 
 const STATUS_LABELS: Record<string, string> = {
   open: 'مفتوحة', in_progress: 'جارية', completed: 'مكتملة', cancelled: 'ملغية',
@@ -16,12 +17,49 @@ const TABS = [
   { key: 'followups', label: 'المتابعات' },
   { key: 'contacts', label: 'التواصل' },
   { key: 'updates', label: 'تحديثات البيانات' },
+  { key: 'customers', label: 'تحليل العملاء' },
 ] as const
 type TabKey = typeof TABS[number]['key']
 
 function fmtDate(v: unknown): string {
   if (!v) return '—'
   try { return new Date(String(v)).toLocaleDateString('ar-EG-u-nu-latn') } catch { return '—' }
+}
+
+function toCustomerReportRow(c: FollowUpCustomerRow): ReportRow {
+  return {
+    customer: c.company_name || '—',
+    phone: c.phone || '—',
+    owner_name: c.owner_name || '—',
+    agent_name: c.follow_up_assignee_name || '—',
+    ageLabel: c.customer_age_days !== undefined && c.customer_age_days !== null ? `${c.customer_age_days} يوم` : '—',
+    total_orders: c.total_orders ?? 0,
+    total_sales: c.total_sales ?? 0,
+    total_visits: c.total_visits ?? 0,
+    total_contacts: c.total_contacts ?? 0,
+    total_follow_ups: c.total_follow_ups ?? 0,
+    completed_follow_ups: c.completed_follow_ups ?? 0,
+    range_orders: c.range_order_count ?? 0,
+    range_sales: c.range_total_sales ?? 0,
+    range_visits: c.range_visit_count ?? 0,
+    range_contacts: c.range_contact_count ?? 0,
+    range_follow_ups: c.range_follow_up_count ?? 0,
+    range_completed: c.range_completed_follow_ups ?? 0,
+    last_order: c.last_order_date ? fmtDate(c.last_order_date) : '—',
+    last_contact: c.last_contact_date ? fmtDate(c.last_contact_date) : '—',
+    trend: c.trend30d_pct !== undefined && c.trend30d_pct !== null ? `${c.trend30d_pct > 0 ? '+' : ''}${c.trend30d_pct}%` : '—',
+    // ---- 0025: order types, intervals, previous events, smart reason ----
+    order_types_label: orderTypeDistributionLabel(c.order_types),
+    range_order_types_label: orderTypeDistributionLabel(c.range_order_types),
+    avg_interval: c.avg_interval_days !== undefined && c.avg_interval_days !== null ? `${c.avg_interval_days} يوم` : '—',
+    range_avg_interval: c.range_avg_interval_days !== undefined && c.range_avg_interval_days !== null ? `${c.range_avg_interval_days} يوم` : '—',
+    prev_order: c.previous_order_date ? fmtDate(c.previous_order_date) : '—',
+    days_since_last_order: c.days_since_last_order ?? '—',
+    last_visit: c.last_visit_date ? fmtDate(c.last_visit_date) : '—',
+    prev_visit: c.previous_visit_date ? fmtDate(c.previous_visit_date) : '—',
+    days_since_last_visit: c.days_since_last_visit ?? '—',
+    attention_reason: '—',
+  }
 }
 
 export function FollowUpReportsPage() {
@@ -34,8 +72,18 @@ export function FollowUpReportsPage() {
   const [result, setResult] = useState('')
   const [dateFrom, setDateFrom] = useState(MONTH_AGO.toISOString().slice(0, 10))
   const [dateTo, setDateTo] = useState(TODAY.toISOString().slice(0, 10))
+  // ---- 0025: customer-analysis threshold filters ----
+  const [attentionFilter, setAttentionFilter] = useState('all')
+  const [noContactDays, setNoContactDays] = useState('')
+  const [noOrderDays, setNoOrderDays] = useState('')
+  const [decliningOnly, setDecliningOnly] = useState(false)
 
-  const clearFilters = () => { setStatus(''); setResult(''); setDateFrom(''); setDateTo('') }
+  const clearFilters = () => {
+    setStatus(''); setResult(''); setDateFrom(''); setDateTo('')
+    setAttentionFilter('all'); setNoContactDays(''); setNoOrderDays(''); setDecliningOnly(false)
+  }
+
+  const REASON_EXPORT_CAP = 50
 
   const load = useCallback(async (t: TabKey) => {
     setLoading(true)
@@ -47,6 +95,29 @@ export function FollowUpReportsPage() {
       } else if (t === 'contacts') {
         const r = await followUpWorkspaceService.getContactsReport({ ...base, result: result || null })
         if (r.available) { setRows(r.data); setReady(true) } else { setRows([]); setReady(false) }
+      } else if (t === 'customers') {
+        const r = await followUpWorkspaceService.getScreening({ status: 'all', limit: 1000, dateFrom: dateFrom || null, dateTo: dateTo || null })
+        if (r.available && r.data.extended) {
+          let filtered = r.data.rows
+          if (attentionFilter === 'attention') filtered = filtered.filter((c) => c.requires_attention)
+          if (decliningOnly) filtered = filtered.filter((c) => c.previous_30d_total > 0 && c.current_30d_total < c.previous_30d_total * 0.6)
+          if (noContactDays) {
+            const n = Number(noContactDays)
+            filtered = filtered.filter((c) => c.days_since_contact === null || c.days_since_contact >= n)
+          }
+          if (noOrderDays) {
+            const n = Number(noOrderDays)
+            filtered = filtered.filter((c) => (c.days_since_last_order === null ? c.no_orders_ever : c.days_since_last_order >= n))
+          }
+          const reasons: Record<string, SmartReason> = filtered.length > 0 && filtered.length <= REASON_EXPORT_CAP
+            ? await fetchSmartReasonsBatched(filtered.map((c) => c.id), REASON_EXPORT_CAP)
+            : {}
+          setRows(filtered.map((c) => ({
+            ...toCustomerReportRow(c),
+            attention_reason: reasons[c.id] ? `${SMART_KIND_LABELS[reasons[c.id].kind] || reasons[c.id].kind}: ${reasons[c.id].reason}` : '—',
+          })))
+          setReady(true)
+        } else { setRows([]); setReady(false) }
       } else {
         const r = await followUpWorkspaceService.getCustomerUpdatesReport(base)
         if (r.available) { setRows(r.data); setReady(true) } else { setRows([]); setReady(false) }
@@ -55,7 +126,7 @@ export function FollowUpReportsPage() {
       setRows([]); setReady(false)
     }
     setLoading(false)
-  }, [status, result, dateFrom, dateTo])
+  }, [status, result, dateFrom, dateTo, attentionFilter, noContactDays, noOrderDays, decliningOnly])
 
   useEffect(() => { load(tab) }, [tab, load])
 
@@ -63,7 +134,7 @@ export function FollowUpReportsPage() {
     clearFilters(); setTab(t)
   }
 
-  const cols: Array<{ key: string; label: string }> = tab === 'followups'
+  const cols: Array<{ key: string; label: string; format?: 'number' | 'currency' | 'percentage' | 'time' }> = tab === 'followups'
     ? [
         { key: 'customer', label: 'العميل' },
         { key: 'phone', label: 'الهاتف' },
@@ -89,15 +160,48 @@ export function FollowUpReportsPage() {
           { key: 'dateLabel', label: 'تاريخ التواصل' },
           { key: 'notes', label: 'الملاحظات' },
         ]
-      : [
-          { key: 'customer', label: 'العميل' },
-          { key: 'action_type', label: 'الإجراء' },
-          { key: 'field', label: 'الحقل' },
-          { key: 'old_value', label: 'قبل' },
-          { key: 'new_value', label: 'بعد' },
-          { key: 'employee', label: 'بواسطة' },
-          { key: 'createdLabel', label: 'التاريخ' },
-        ]
+      : tab === 'customers'
+        ? [
+            { key: 'customer', label: 'العميل' },
+            { key: 'phone', label: 'الهاتف' },
+            { key: 'owner_name', label: 'المالك' },
+            { key: 'agent_name', label: 'مسؤول المتابعة' },
+            { key: 'ageLabel', label: 'عمر العميل' },
+            { key: 'total_orders', label: 'طلبات (منذ الإنشاء)', format: 'number' },
+            { key: 'total_sales', label: 'مبيعات (منذ الإنشاء)', format: 'currency' },
+            { key: 'total_visits', label: 'زيارات (منذ الإنشاء)', format: 'number' },
+            { key: 'total_contacts', label: 'تواصل (منذ الإنشاء)', format: 'number' },
+            { key: 'total_follow_ups', label: 'متابعات (منذ الإنشاء)', format: 'number' },
+            { key: 'completed_follow_ups', label: 'مكتملة (منذ الإنشاء)', format: 'number' },
+            { key: 'range_orders', label: 'طلبات الفترة', format: 'number' },
+            { key: 'range_sales', label: 'مبيعات الفترة', format: 'currency' },
+            { key: 'range_visits', label: 'زيارات الفترة', format: 'number' },
+            { key: 'range_contacts', label: 'تواصل الفترة', format: 'number' },
+            { key: 'range_follow_ups', label: 'متابعات الفترة', format: 'number' },
+            { key: 'range_completed', label: 'مكتملة الفترة', format: 'number' },
+            { key: 'last_order', label: 'آخر طلب' },
+            { key: 'last_contact', label: 'آخر تواصل' },
+            { key: 'trend', label: 'اتجاه 30 يوم' },
+            { key: 'attention_reason', label: 'سبب المتابعة' },
+            { key: 'order_types_label', label: 'نوع الطلبات (منذ الإنشاء)' },
+            { key: 'avg_interval', label: 'متوسط الفاصل بين الطلبات' },
+            { key: 'prev_order', label: 'الطلب السابق' },
+            { key: 'days_since_last_order', label: 'أيام منذ آخر طلب', format: 'number' },
+            { key: 'last_visit', label: 'آخر زيارة' },
+            { key: 'prev_visit', label: 'الزيارة السابقة' },
+            { key: 'days_since_last_visit', label: 'أيام منذ آخر زيارة', format: 'number' },
+            { key: 'range_order_types_label', label: 'نوع طلبات الفترة' },
+            { key: 'range_avg_interval', label: 'متوسط الفاصل بالفترة' },
+          ]
+        : [
+            { key: 'customer', label: 'العميل' },
+            { key: 'action_type', label: 'الإجراء' },
+            { key: 'field', label: 'الحقل' },
+            { key: 'old_value', label: 'قبل' },
+            { key: 'new_value', label: 'بعد' },
+            { key: 'employee', label: 'بواسطة' },
+            { key: 'createdLabel', label: 'التاريخ' },
+          ]
 
   const METHOD_LABELS: Record<string, string> = {
     call: 'اتصال', visit: 'زيارة', meeting: 'اجتماع', email: 'بريد', sms: 'رسالة', live_chat: 'محادثة', other: 'أخرى',
@@ -114,6 +218,8 @@ export function FollowUpReportsPage() {
       b.next_follow_up_date = fmtDate(r.next_follow_up_at)
       b.order_created_label = r.order_created ? 'نعم' : 'لا'
       b.dateLabel = fmtDate(r.contact_at)
+    } else if (tab === 'customers') {
+      return b
     } else {
       b.createdLabel = fmtDate(r.created_at)
     }
@@ -124,11 +230,11 @@ export function FollowUpReportsPage() {
     if (!rows.length) return
     const data = reportData(rows)
     exportToExcel({
-      title: tab === 'followups' ? 'تقرير متابعة العملاء' : tab === 'contacts' ? 'تقرير التواصل مع العملاء' : 'تقرير تحديثات بيانات العملاء',
+      title: tab === 'customers' ? 'تقرير تحليل عملاء المتابعة' : tab === 'followups' ? 'تقرير متابعة العملاء' : tab === 'contacts' ? 'تقرير التواصل مع العملاء' : 'تقرير تحديثات بيانات العملاء',
       subtitle: 'مرجع المتابعة التشغيلي — نظام الأهرام',
       columns: cols,
       data,
-      fileName: tab === 'followups' ? 'تقرير_المتابعات' : tab === 'contacts' ? 'تقرير_التواصل' : 'تقرير_تحديثات_البيانات',
+      fileName: tab === 'customers' ? 'تقرير_تحليل_العملاء' : tab === 'followups' ? 'تقرير_المتابعات' : tab === 'contacts' ? 'تقرير_التواصل' : 'تقرير_تحديثات_البيانات',
       dateFrom: dateFrom || undefined,
       dateTo: dateTo || undefined,
       presentation: { rtl: true, landscape: true, fitToWidth: true },
@@ -140,14 +246,14 @@ export function FollowUpReportsPage() {
     const data = reportData(rows)
     const wcols = cols.map((c) => ({ key: c.key, label: c.label }))
     exportToWord({
-      title: tab === 'followups' ? 'تقرير متابعة العملاء' : tab === 'contacts' ? 'تقرير التواصل مع العملاء' : 'تقرير تحديثات بيانات العملاء',
+      title: tab === 'customers' ? 'تقرير تحليل عملاء المتابعة' : tab === 'followups' ? 'تقرير متابعة العملاء' : tab === 'contacts' ? 'تقرير التواصل مع العملاء' : 'تقرير تحديثات بيانات العملاء',
       subtitle: 'مرجع المتابعة التشغيلي — نظام الأهرام',
       columns: wcols,
       rows: data,
-      fileName: tab === 'followups' ? 'تقرير_المتابعات_Word' : tab === 'contacts' ? 'تقرير_التواصل_Word' : 'تقرير_تحديثات_البيانات_Word',
+      fileName: tab === 'customers' ? 'تقرير_تحليل_العملاء_Word' : tab === 'followups' ? 'تقرير_المتابعات_Word' : tab === 'contacts' ? 'تقرير_التواصل_Word' : 'تقرير_تحديثات_البيانات_Word',
       summary: [
         { label: 'عدد السجلات', value: String(data.length) },
-        { label: 'الفترة', value: dateFrom && dateTo ? `${dateFrom} — ${dateTo}` : 'كل الفترات' },
+        { label: 'الفترة', value: dateFrom && dateTo ? `${dateFrom} — ${dateTo}` : 'كل الفترات (منذ الإنشاء)' },
       ],
     })
   }
@@ -161,7 +267,7 @@ export function FollowUpReportsPage() {
 
       {!ready && (
         <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-[11px] text-amber-700 leading-relaxed">
-          التقارير التفصيلية غير متاحة حالياً — تُطبّق مع تحديث قاعدة البيانات 0023 (صلاحية تقارير المتابعة وتصدير Excel/Word).
+          التقارير التفصيلية غير متاحة حالياً — تُطبّق مع تحديث قاعدة البيانات المطلوب (0023/0024) بحسب نوع التقرير.
         </div>
       )}
 
@@ -180,7 +286,7 @@ export function FollowUpReportsPage() {
       </div>
 
       <div className="bg-white rounded-lg border border-border p-3 grid grid-cols-2 sm:grid-cols-4 gap-2">
-        {tab !== 'updates' && (
+        {tab !== 'updates' && tab !== 'customers' && (
           <label className="block">
             <span className="text-[10px] text-text-secondary">{tab === 'followups' ? 'الحالة' : 'النتيجة'}</span>
             <select value={tab === 'followups' ? status : result} onChange={(e) => tab === 'followups' ? setStatus(e.target.value) : setResult(e.target.value)} className="mt-0.5 w-full bg-surface rounded-lg px-2 py-2 text-[11px] border border-border">
@@ -204,6 +310,44 @@ export function FollowUpReportsPage() {
           <button onClick={clearFilters} className="px-2 py-2 border border-border rounded-lg text-[11px] text-text-secondary">مسح</button>
         </div>
       </div>
+
+      {tab === 'customers' && (
+        <div className="bg-white rounded-lg border border-border p-3 grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <label className="block">
+            <span className="text-[10px] text-text-secondary">حالة الانتباه</span>
+            <select value={attentionFilter} onChange={(e) => setAttentionFilter(e.target.value)} className="mt-0.5 w-full bg-surface rounded-lg px-2 py-2 text-[11px] border border-border">
+              <option value="all">الكل</option>
+              <option value="attention">يحتاج متابعة الآن</option>
+            </select>
+          </label>
+          <label className="block">
+            <span className="text-[10px] text-text-secondary">لا تواصل منذ (أيام)</span>
+            <select value={noContactDays} onChange={(e) => setNoContactDays(e.target.value)} className="mt-0.5 w-full bg-surface rounded-lg px-2 py-2 text-[11px] border border-border">
+              <option value="">الكل</option>
+              <option value="30">30 يوم فأكثر</option>
+              <option value="60">60 يوم فأكثر</option>
+              <option value="90">90 يوم فأكثر</option>
+            </select>
+          </label>
+          <label className="block">
+            <span className="text-[10px] text-text-secondary">لا طلب منذ (أيام)</span>
+            <select value={noOrderDays} onChange={(e) => setNoOrderDays(e.target.value)} className="mt-0.5 w-full bg-surface rounded-lg px-2 py-2 text-[11px] border border-border">
+              <option value="">الكل</option>
+              <option value="30">30 يوم فأكثر</option>
+              <option value="60">60 يوم فأكثر</option>
+              <option value="90">90 يوم فأكثر</option>
+            </select>
+          </label>
+          <div className="flex items-end">
+            <button
+              onClick={() => setDecliningOnly((v) => !v)}
+              className={`w-full text-[11px] py-2 rounded-lg font-semibold border ${decliningOnly ? 'bg-danger text-white border-danger' : 'bg-surface text-text-secondary border-border'}`}
+            >
+              📉 المتراجعون فقط (مبيعات)
+            </button>
+          </div>
+        </div>
+      )}
 
       {loading ? (
         <div className="text-center py-12 text-text-secondary text-sm">جاري التحميل...</div>

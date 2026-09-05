@@ -1,9 +1,10 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { followUpWorkspaceService, type FollowUpCustomerRow, type CustomerSalesStats, type TimelineEvent } from '../../services/followUpWorkspaceService'
+import { followUpWorkspaceService, type FollowUpCustomerRow, type CustomerSalesStats, type TimelineEvent, type CustomerVisitRow, type CustomerVisitAnalysisStats, type SmartReason, SMART_KIND_LABELS, orderTypeLabel, orderTypeDistributionLabel } from '../../services/followUpWorkspaceService'
 import { followUpService, type FollowUpAssignee } from '../../services/followUpService'
 import { FollowUpContactForm } from '../../components/followups/FollowUpContactForm'
 import { SearchableSelect } from '../../components/shared/SearchableSelect'
+import { TimeRangeSelector, type FollowUpTimeRange } from '../../components/followups/TimeRangeSelector'
 import { formatCurrencyShort, formatDateTime, formatDate } from '../../utils/format'
 import toast from 'react-hot-toast'
 
@@ -12,7 +13,7 @@ const CONTACT_METHOD_LABELS: Record<string, string> = {
 }
 
 const ACTION_LABELS: Record<string, string> = {
-  followup: 'متابعة', contact: 'تواصل', order: 'طلب', audit: 'تعديل',
+  followup: 'متابعة', contact: 'تواصل', order: 'طلب', audit: 'تعديل', visit: 'زيارة', creation: 'إنشاء العميل',
 }
 
 function val(v: unknown): string {
@@ -29,9 +30,13 @@ export function FollowUpCustomerProfilePage() {
   const [stats, setStats] = useState<CustomerSalesStats | null>(null)
   const [timeline, setTimeline] = useState<TimelineEvent[]>([])
   const [assignees, setAssignees] = useState<FollowUpAssignee[]>([])
+  const [visits, setVisits] = useState<CustomerVisitRow[]>([])
+  const [visitStats, setVisitStats] = useState<CustomerVisitAnalysisStats | null>(null)
+  const [range, setRange] = useState<FollowUpTimeRange>({ preset: 'since_creation', label: 'منذ الإنشاء', from: null, to: null })
   const [loading, setLoading] = useState(true)
   const [unavailable, setUnavailable] = useState(false)
   const [timelineAvailable, setTimelineAvailable] = useState(true)
+  const [smartReason, setSmartReason] = useState<SmartReason | null>(null)
 
   const [showContact, setShowContact] = useState(false)
   const [showAssign, setShowAssign] = useState(false)
@@ -56,10 +61,10 @@ export function FollowUpCustomerProfilePage() {
     if (!id) return
     setLoading(true)
     try {
-      const r = await followUpWorkspaceService.getScreening({ limit: 500 })
+      const r = await followUpWorkspaceService.getScreening({ limit: 1, customerId: id })
       if (!r.available) { setUnavailable(true); setTimelineAvailable(false); return }
       setUnavailable(false)
-      setRow(r.data.find((c) => c.id === id) ?? null)
+      setRow(r.data.rows[0] ?? null)
     } catch { setUnavailable(true) }
     setLoading(false)
   }, [id])
@@ -67,10 +72,20 @@ export function FollowUpCustomerProfilePage() {
   const loadStats = useCallback(async () => {
     if (!id) return
     try {
-      const r = await followUpWorkspaceService.getSalesStats(id)
+      const r = await followUpWorkspaceService.getSalesStats(id, { dateFrom: range.from, dateTo: range.to })
       if (r.available) setStats(r.data)
     } catch { /* graceful */ }
-  }, [id])
+  }, [id, range])
+
+  const loadVisits = useCallback(async () => {
+    if (!id) return
+    try {
+      const fromDate = range.from && range.from > '2000-01-01' ? range.from.slice(0, 10) : '2000-01-01'
+      const toDate = (range.to ? range.to.slice(0, 10) : new Date().toISOString().slice(0, 10))
+      const r = await followUpWorkspaceService.getVisitsAnalysis(id, { dateFrom: fromDate, dateTo: toDate })
+      if (r && r.available) { setVisits(r.data.visits); setVisitStats(r.data.stats) }
+    } catch { /* graceful */ }
+  }, [id, range])
 
   const loadTimeline = useCallback(async () => {
     if (!id) return
@@ -85,9 +100,21 @@ export function FollowUpCustomerProfilePage() {
     try { setAssignees(await followUpService.getAssignees()) } catch { setAssignees([]) }
   }, [])
 
+  const loadSmartReason = useCallback(async () => {
+    if (!id) return
+    setSmartReason(null)
+    try {
+      const r = await followUpWorkspaceService.getSmartSuggestions(id)
+      if (r.available && r.data && r.data.suggestions.length > 0) {
+        const s = r.data.suggestions[0]
+        setSmartReason({ kind: s.kind, title: s.title, reason: s.reason })
+      }
+    } catch { /* graceful */ }
+  }, [id])
+
   useEffect(() => {
-    load(); loadStats(); loadTimeline(); loadAssignees()
-  }, [load, loadStats, loadTimeline, loadAssignees])
+    load(); loadStats(); loadTimeline(); loadAssignees(); loadVisits(); loadSmartReason()
+  }, [load, loadStats, loadTimeline, loadAssignees, loadVisits, loadSmartReason])
 
   useEffect(() => {
     if (row) {
@@ -140,6 +167,19 @@ export function FollowUpCustomerProfilePage() {
     return `منذ ${d} يوم`
   }
 
+  const visitsWithDelta = useMemo(() => {
+    const sorted = [...visits].sort((a, b) => (a.check_in_at || '').localeCompare(b.check_in_at || ''))
+    let prev: string | null = null
+    const rows = sorted.map((v) => {
+      const delta = prev !== null
+        ? Math.max(Math.round((new Date(v.check_in_at || '').getTime() - new Date(prev).getTime()) / 86400000), 0)
+        : null
+      prev = v.check_in_at || prev
+      return { ...v, deltaDays: delta }
+    })
+    return [...rows].reverse()
+  }, [visits])
+
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3">
@@ -179,9 +219,35 @@ export function FollowUpCustomerProfilePage() {
                   المبيعات (30 يوم): {row.trend30d_pct > 0 ? '+' : ''}{row.trend30d_pct}%
                 </span>
               )}
+              {row.customer_age_days !== undefined && row.customer_age_days !== null && (
+                <span className="text-text-secondary">عميل منذ {row.customer_age_days} يوم (منذ {formatDate(row.created_at)})</span>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-[10px] text-text-secondary">
+              <span>إجمالي التاريخ منذ الإنشاء: {row.total_orders ?? 0} طلب · {formatCurrencyShort(row.total_sales ?? 0)} · {row.total_visits ?? 0} زيارة · {row.total_contacts ?? 0} تواصل · {row.total_follow_ups ?? 0} متابعة (منها {row.completed_follow_ups ?? 0} مكتملة)</span>
+              {row.first_follow_up_date && <span>أول متابعة: {formatDate(row.first_follow_up_date)}</span>}
+              {row.first_order_date && <span>أول طلب: {formatDate(row.first_order_date)}</span>}
+              {row.avg_interval_days !== undefined && row.avg_interval_days !== null && <span>متوسط الفاصل بين الطلبات: {row.avg_interval_days} يوم</span>}
+              {row.previous_order_date && <span>الطلب السابق: {formatDate(row.previous_order_date)}</span>}
+              {row.previous_visit_date && <span>الزيارة السابقة: {formatDate(row.previous_visit_date)}</span>}
+              {!!row.order_types?.length && <span>الطلبات حسب النوع (منذ الإنشاء): {orderTypeDistributionLabel(row.order_types)}</span>}
             </div>
             {row.requires_attention && <div className="text-[10px] bg-amber-50 text-amber-700 rounded px-2 py-1 inline-block">يحتاج انتباه — يستحق المتابعة</div>}
           </div>
+
+          {/* Smart follow-up reason (from get_smart_follow_up_suggestions) */}
+          {smartReason && (
+            <div className={`rounded-lg border p-3 ${smartReason.kind === 'insufficient' ? 'border-border bg-surface' : 'border-amber-200 bg-amber-50'}`}>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-[10px] font-bold text-amber-700">سبب المتابعة الذكي</span>
+                <span className="text-[10px] font-semibold text-text bg-white border border-amber-200 rounded px-1.5 py-0.5">
+                  {SMART_KIND_LABELS[smartReason.kind] || smartReason.kind}
+                </span>
+                {smartReason.title && <span className="text-[10px] text-amber-700">{smartReason.title}</span>}
+              </div>
+              <div className="text-[11px] text-amber-800 mt-1 leading-relaxed">{smartReason.reason}</div>
+            </div>
+          )}
 
           {/* Actions */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -243,6 +309,66 @@ export function FollowUpCustomerProfilePage() {
             </div>
           )}
 
+          {/* Behavior analysis (period + lifetime) */}
+          <div className="bg-white rounded-lg border border-border p-3">
+            <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
+              <h3 className="text-xs font-bold text-text">تحليل سلوك العميل</h3>
+              <TimeRangeSelector value={range} onChange={setRange} layout="row" />
+            </div>
+            {!stats ? (
+              <div className="text-center py-3 text-text-secondary text-xs">لا يوجد تحليل (تُطبّق حقول السلوك مع تحديث 0024)</div>
+            ) : (
+              <>
+                {stats.period && (
+                  <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                    <div className="bg-surface rounded-lg p-2 text-center"><div className="text-sm font-bold text-text" dir="ltr">{stats.period.order_count}</div><div className="text-[9px] text-text-secondary">طلبات الفترة</div></div>
+                    <div className="bg-surface rounded-lg p-2 text-center"><div className="text-sm font-bold text-text">{formatCurrencyShort(stats.period.total_sales)}</div><div className="text-[9px] text-text-secondary">مبيعات الفترة</div></div>
+                    <div className="bg-surface rounded-lg p-2 text-center"><div className="text-sm font-bold text-text" dir="ltr">{stats.period.avg_interval_days !== null && stats.period.avg_interval_days !== undefined ? `${stats.period.avg_interval_days} يوم` : '—'}</div><div className="text-[9px] text-text-secondary">متوسط الفاصل بالمجال</div></div>
+                    <div className="bg-surface rounded-lg p-2 text-center"><div className="text-sm font-bold text-text" dir="ltr">{stats.visits?.range_count ?? 0}</div><div className="text-[9px] text-text-secondary">زيارات بالمجال</div></div>
+                    <div className="bg-surface rounded-lg p-2 text-center"><div className="text-sm font-bold text-text" dir="ltr">{stats.contacts?.range_count ?? 0}</div><div className="text-[9px] text-text-secondary">تواصل بالمجال</div></div>
+                    <div className="bg-surface rounded-lg p-2 text-center"><div className="text-sm font-bold text-text" dir="ltr">{stats.follow_ups?.range_count ?? 0}<span className="text-[9px] text-text-muted"> / {stats.follow_ups?.range_completed ?? 0}</span></div><div className="text-[9px] text-text-secondary">متابعات بالمجال (مكتملة)</div></div>
+                  </div>
+                )}
+                {!!stats.period?.order_types?.length && (
+                  <div className="mt-1 text-[10px] text-text-secondary">
+                    <span className="font-semibold text-text-muted">طلبات الفترة حسب النوع: </span>
+                    {orderTypeDistributionLabel(stats.period.order_types)}
+                  </div>
+                )}
+                <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-[10px] text-text-secondary">
+                  <span>إجمالي الزيارات: {stats.visits?.total ?? 0}{stats.visits?.last_date ? ` — آخر زيارة ${formatDate(stats.visits.last_date)}` : ''}</span>
+                  <span>إجمالي التواصل: {stats.contacts?.total ?? 0}{stats.contacts?.last_result ? ` — آخر نتيجة: ${stats.contacts.last_result}` : ''}</span>
+                  <span>إجمالي المتابعات: {stats.follow_ups?.total ?? 0} (مكتملة {stats.follow_ups?.completed ?? 0})</span>
+                  {stats.customer?.customer_age_days !== null && stats.customer?.customer_age_days !== undefined && (
+                    <span>عمر العميل: {stats.customer.customer_age_days} يوم</span>
+                  )}
+                </div>
+                {visitStats && stats.period && (
+                  <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1 text-[10px] text-text-secondary">
+                    <span>نجاح الزيارات بالمجال: {visitStats.success_rate}% ({visitStats.successful_visits}/{visitStats.total_visits})</span>
+                    {visitStats.avg_duration_minutes > 0 && <span>متوسط مدة الزيارة: {visitStats.avg_duration_minutes} دقيقة</span>}
+                  </div>
+                )}
+                {visits.length > 0 && (
+                  <div className="mt-2 space-y-1">
+                    <h4 className="text-[10px] font-semibold text-text-muted mb-1">الزيارات بالمجال ({visits.length})</h4>
+                    {visitsWithDelta.slice(0, 6).map((v) => (
+                      <div key={v.id} className="flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] bg-surface rounded px-2 py-1">
+                        <span>📍 {formatDateTime(v.check_in_at || '')}</span>
+                        <span className="font-semibold text-sky-700">
+                          {v.deltaDays === null ? 'أول زيارة' : `الفاصل عن الزيارة السابقة: ${v.deltaDays} يوم`}
+                        </span>
+                        <span>{v.visit_result || v.status || 'زيارة'}</span>
+                        {v.duration_minutes !== null && v.duration_minutes !== undefined && <span>{v.duration_minutes} د</span>}
+                        {v.employee_name && <span>{v.employee_name}</span>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+
           {/* Sales stats */}
           <div className="bg-white rounded-lg border border-border p-3">
             <h3 className="text-xs font-bold text-text mb-2">إحصائيات المبيعات (لأغراض المتابعة)</h3>
@@ -263,6 +389,12 @@ export function FollowUpCustomerProfilePage() {
                     <div className="text-[9px] text-text-secondary">الاتجاه (30 يوم)</div>
                   </div>
                 </div>
+                {!!stats.order_types?.length && (
+                  <div className="mt-2 text-[10px] text-text-secondary">
+                    <span className="font-semibold text-text-muted">الطلبات حسب النوع: </span>
+                    {orderTypeDistributionLabel(stats.order_types)}
+                  </div>
+                )}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
                   {stats.top_products.length > 0 && (
                     <div>
@@ -306,8 +438,8 @@ export function FollowUpCustomerProfilePage() {
               <div className="space-y-2">
                 {timeline.map((ev, i) => {
                   const p = ev.payload
-                  const color = ev.type === 'order' ? 'text-emerald-700' : ev.type === 'audit' ? 'text-text-muted' : ev.type === 'contact' ? 'text-primary' : 'text-amber-600'
-                  const icon = ev.type === 'order' ? '🧾' : ev.type === 'contact' ? '💬' : ev.type === 'audit' ? '✏️' : '📅'
+                  const color = ev.type === 'order' ? 'text-emerald-700' : ev.type === 'visit' ? 'text-sky-600' : ev.type === 'creation' ? 'text-emerald-600' : ev.type === 'audit' ? 'text-text-muted' : ev.type === 'contact' ? 'text-primary' : 'text-amber-600'
+                  const icon = ev.type === 'order' ? '🧾' : ev.type === 'visit' ? '📍' : ev.type === 'creation' ? '🌱' : ev.type === 'contact' ? '💬' : ev.type === 'audit' ? '✏️' : '📅'
                   return (
                     <div key={i} className="flex gap-2 bg-surface rounded-lg p-2.5 text-xs">
                       <span className={color}>{icon}</span>
@@ -319,7 +451,13 @@ export function FollowUpCustomerProfilePage() {
                         <div className="text-[11px] text-text-secondary mt-0.5 leading-relaxed">
                           {ev.type === 'followup' && <>«{val(p.title)}» — {val(p.status)} · {val(p.priority)}{p.due_at ? ` · موعد ${formatDate(String(p.due_at))}` : ''}{p.result ? ` · النتيجة: ${p.result}` : ''}{p.creator ? ` · ${p.creator}` : ''}</>}
                           {ev.type === 'contact' && <>{CONTACT_METHOD_LABELS[val(p.method)] || val(p.method)}{p.reason ? ` · السبب: ${p.reason}` : ''}{p.result ? ` · النتيجة: ${p.result}` : ''}{p.next_action ? ` · الإجراء: ${p.next_action}` : ''}{p.order_created ? ' · ✅ تم إنشاء طلب' : ''}{p.notes ? ` — ${p.notes}` : ''}</>}
-                          {ev.type === 'order' && <>طلب {val(p.order_number)} — {val(p.status)} · {val(p.total_amount)} {val(p.sender) ? ` · ${p.sender}` : ''} (ضمن الإحصائيات: {String(p.is_statistical)})</>}
+                          {ev.type === 'order' && <>طلب {val(p.order_number)} — {val(p.status)}{p.order_type ? ` · ${orderTypeLabel(String(p.order_type))}` : ''}
+                          {p.delta_days === null || p.delta_days === undefined ? ' · أول طلب' : ` · الفاصل عن الطلب السابق: ${Number(p.delta_days)} يوم`}
+                           · {val(p.total_amount)} {val(p.sender) ? ` · ${p.sender}` : ''} (ضمن الإحصائيات: {String(p.is_statistical)})</>}
+                          {ev.type === 'visit' && <>زيارة {val(p.code)}{p.status ? ` — ${p.status}` : ''}
+                          {p.delta_days === null || p.delta_days === undefined ? ' · أول زيارة' : ` · الفاصل عن الزيارة السابقة: ${Number(p.delta_days)} يوم`}
+                          {p.visit_result ? ` · النتيجة: ${p.visit_result}` : ''}{p.duration_minutes ? ` · ${p.duration_minutes} د` : ''}{p.employee ? ` · ${p.employee}` : ''}{p.notes ? ` — ${p.notes}` : ''}</>}
+                          {ev.type === 'creation' && <>بداية حساب العميل — تاريخ الإنشاء {formatDate(String(p.created_at))}</>}
                           {ev.type === 'audit' && <>{val(p.field) ? `${val(p.field)}: ${val(p.old_value)} ← ${val(p.new_value)}` : val(p.note)}{p.employee ? ` · ${p.employee}` : ''}</>}
                         </div>
                       </div>
