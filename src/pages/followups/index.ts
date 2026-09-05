@@ -1,0 +1,5 @@
+export { FollowUpTodayPage } from './FollowUpTodayPage'
+export { FollowUpQueuePage } from './FollowUpQueuePage'
+export { FollowUpDetailPage } from './FollowUpDetailPage'
+export { NewFollowUpPage } from './NewFollowUpPage'
+export { FollowUpAnalyticsPage } from './FollowUpAnalyticsPage'

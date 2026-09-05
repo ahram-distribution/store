@@ -26,6 +26,8 @@ import { FlashOffersPage, FlashOfferDetailPage, FlashOffersManagementPage } from
 import { TierSystemPage, TiersManagerPage } from '../pages/tiers'
 import { AuctionsPage, AuctionDetailPage, AuctionsManagerPage } from '../pages/auctions'
 import { CustomersPage, CustomerProfilePage, NewCustomerPage } from '../pages/customers'
+import { FollowUpTodayPage, FollowUpQueuePage, FollowUpDetailPage, NewFollowUpPage } from '../pages/followups'
+import { FollowUpAnalyticsPage } from '../pages/followups/FollowUpAnalyticsPage'
 import { DashboardPage, ExecutiveOperationsWorkspace } from '../pages/dashboard'
 import PerformanceAnalysisPage from '../pages/dashboard/PerformanceAnalysisPage'
 import EmployeeAnalysisPage from '../pages/dashboard/EmployeeAnalysisPage'
@@ -259,6 +261,15 @@ export function AppRoutes() {
 
 
       <Route path="/notifications" element={<ProtectedRoute><NotificationInbox /></ProtectedRoute>} />
+
+      {/* Customer follow-up module */}
+      <Route path="/followups" element={<ProtectedRoute employeeOnly requireCapability="followups.read"><FollowUpTodayPage /></ProtectedRoute>} />
+      <Route path="/followups/today" element={<ProtectedRoute employeeOnly requireCapability="followups.read"><FollowUpTodayPage /></ProtectedRoute>} />
+      <Route path="/followups/queue" element={<ProtectedRoute employeeOnly requireCapability="followups.read"><FollowUpQueuePage /></ProtectedRoute>} />
+      <Route path="/followups/:id" element={<ProtectedRoute employeeOnly requireCapability="followups.read"><FollowUpDetailPage /></ProtectedRoute>} />
+      <Route path="/followups/new" element={<ProtectedRoute employeeOnly requireCapability="followups.manage"><NewFollowUpPage /></ProtectedRoute>} />
+      <Route path="/followups/new/:customerId" element={<ProtectedRoute employeeOnly requireCapability="followups.manage"><NewFollowUpPage /></ProtectedRoute>} />
+      <Route path="/followups/analytics" element={<ProtectedRoute employeeOnly requireCapability="followups.read"><FollowUpAnalyticsPage /></ProtectedRoute>} />
 
       <Route path="/ops/gps-test" element={<ProtectedRoute requireUpperManagement><GpsTestPage /></ProtectedRoute>} />
 

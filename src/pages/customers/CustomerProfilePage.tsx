@@ -14,6 +14,8 @@ import type { CustomerFormData } from '../../components/customers/CustomerForm'
 import { CustomerAddressCard } from '../../components/customers/CustomerAddressCard'
 import { SearchableSelect } from '../../components/shared/SearchableSelect'
 import { copyToClipboard } from '../../utils/safeClipboard'
+import { followUpService, type CustomerFollowUpHistory } from '../../services/followUpService'
+import { FOLLOW_UP_STATUS_LABELS } from '../../components/followups/FollowUpCard'
 import toast from 'react-hot-toast'
 
 const BUSINESS_TYPES: { value: string; label: string }[] = [
@@ -474,11 +476,13 @@ export function CustomerProfilePage() {
   const navigate = useNavigate()
   const canEdit = useCapability('customers.update')
   const canManage = useCapability('customers.manage')
+  const canFollowUp = useCapability('followups.manage')
   const [customer, setCustomer] = useState<any>(null)
   const [orders, setOrders] = useState<any[]>([])
   const [contacts, setContacts] = useState<any[]>([])
   const [location, setLocation] = useState<any>(null)
   const [ownershipHistory, setOwnershipHistory] = useState<any[]>([])
+  const [followUpHistory, setFollowUpHistory] = useState<CustomerFollowUpHistory | null>(null)
   const [employees, setEmployees] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<Tab>('info')
@@ -535,6 +539,10 @@ export function CustomerProfilePage() {
       if (contRes.data) setContacts(Array.isArray(contRes.data) ? contRes.data : [])
       if (ownRes.data) setOwnershipHistory(Array.isArray(ownRes.data) ? ownRes.data : [])
       if (empRes.data) setEmployees(Array.isArray(empRes.data) ? empRes.data : [])
+      try {
+        const hist = await followUpService.getHistory(id)
+        setFollowUpHistory(hist)
+      } catch { setFollowUpHistory(null) }
       setLoading(false)
     })
   }, [id])
@@ -727,10 +735,16 @@ export function CustomerProfilePage() {
           <div className="bg-white rounded-xl border border-border p-4">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-bold text-text">بيانات العميل</h3>
-              {(canEdit || canManage) && (
-                <button onClick={() => setShowEdit(true)}
-                  className="text-[10px] text-primary font-semibold bg-primary/10 px-2.5 py-1 rounded-lg">تعديل البيانات</button>
-              )}
+              <div className="flex gap-1.5">
+                {canFollowUp && (
+                  <button onClick={() => navigate(`/followups/new/${id}`)}
+                    className="text-[10px] text-accent font-semibold bg-accent/10 px-2.5 py-1 rounded-lg">📌 متابعة</button>
+                )}
+                {(canEdit || canManage) && (
+                  <button onClick={() => setShowEdit(true)}
+                    className="text-[10px] text-primary font-semibold bg-primary/10 px-2.5 py-1 rounded-lg">تعديل البيانات</button>
+                )}
+              </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-2.5">
               <div>
@@ -821,6 +835,49 @@ export function CustomerProfilePage() {
                 className="flex-1 bg-accent/10 text-accent text-xs py-2 rounded-lg font-semibold">نقل الملكية</button>
             </div>
           )}
+
+          <div className="bg-white rounded-xl border border-border p-3">
+            <h3 className="text-xs font-bold text-text mb-2">سجل المتابعات والتواصل</h3>
+            {!followUpHistory || (followUpHistory.followups.length === 0 && followUpHistory.contacts.length === 0) ? (
+              <div className="text-[10px] text-text-secondary text-center py-2">لا توجد متابعات بعد</div>
+            ) : (
+              <div className="space-y-3">
+                {followUpHistory.followups.length > 0 && (
+                  <div>
+                    <h4 className="text-[10px] font-semibold text-text-muted mb-1">المتابعات</h4>
+                    <div className="space-y-1.5">
+                      {followUpHistory.followups.map((f) => (
+                        <div key={f.id} className="bg-surface rounded-lg p-2">
+                          <div className="flex justify-between text-xs">
+                            <span className="font-semibold text-text">{f.title}</span>
+                            <span className="text-[10px] text-text-muted">{FOLLOW_UP_STATUS_LABELS[f.status] || f.status}</span>
+                          </div>
+                          {f.due_at && <div className="text-[9px] text-text-secondary mt-0.5">الموعد: {formatDateTime(f.due_at)}</div>}
+                          {f.result && <div className="text-[10px] text-emerald-700 mt-0.5">النتيجة: {f.result}</div>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {followUpHistory.contacts.length > 0 && (
+                  <div>
+                    <h4 className="text-[10px] font-semibold text-text-muted mb-1">التواصل</h4>
+                    <div className="space-y-1.5">
+                      {followUpHistory.contacts.map((c) => (
+                        <div key={c.id} className="bg-surface rounded-lg p-2">
+                          <div className="flex justify-between text-xs">
+                            <span className="font-semibold text-text">{c.employee_name || 'موظف'}</span>
+                            <span className="text-[9px] text-text-muted">{formatDateTime(c.contact_at)}</span>
+                          </div>
+                          {c.notes && <div className="text-[10px] text-text-secondary mt-0.5">{c.notes}</div>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
 
           {showEdit && (
             <div className="bg-white rounded-xl border border-border p-4">
