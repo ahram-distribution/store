@@ -11,7 +11,14 @@ import { lifeSignalService } from '../../services/lifeSignalService'
 import SmartFilterBar, { type FilterValues } from '../../components/SmartFilterBar'
 import toast from 'react-hot-toast'
 import { usePersistentViewState } from '../../hooks/usePersistentViewState'
-import { resolveDateRangeISO } from '../../lib/dateRange'
+import { resolveDateRangeISO, cairoDateComponents } from '../../lib/dateRange'
+import {
+  buildVisitsReportFilterSummary,
+  buildVisitsReportRows,
+  exportVisitsReportExcel,
+  printVisitsReport,
+  type VisitsReportMeta,
+} from '../../services/visitsReport'
 
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
@@ -115,6 +122,42 @@ export function VisitsPage() {
     return list
   }, [visits, statusFilter, customerFilter, governorateFilter, customerGovMap])
 
+  const reportContext = () => ({
+    datePreset: filters.datePreset,
+    dateFrom: filters.dateFrom || '',
+    dateTo: filters.dateTo || '',
+    search: filters.search || '',
+    employeeId: filters.employeeId || '',
+    statusFilter: statusFilter || '',
+    customerFilter: customerFilter || '',
+    governorateFilter: governorateFilter || '',
+    employees: employees.map((e: any) => ({ id: e.id, name: e.full_name })),
+    customers,
+    governorates,
+  })
+
+  const buildReportMeta = (): VisitsReportMeta => {
+    const [y, m, d] = cairoDateComponents(new Date())
+    const stamp = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+    return {
+      title: 'تقرير الزيارات',
+      subtitle: 'قائمة الزيارات المعروضة على شاشة الزيارات',
+      generatedAt: new Date(),
+      filterLines: buildVisitsReportFilterSummary(reportContext()),
+      fileName: `تقرير_الزيارات_${stamp}`,
+    }
+  }
+
+  const handleReportExcel = () => {
+    if (!filtered.length) return
+    exportVisitsReportExcel(buildVisitsReportRows(filtered, { customers, employees }), buildReportMeta())
+  }
+
+  const handleReportPrint = () => {
+    if (!filtered.length) return
+    printVisitsReport(buildVisitsReportRows(filtered, { customers, employees }), buildReportMeta())
+  }
+
   async function handleCheckin() {
     if (!checkinCustomerId) { toast.error('اختر العميل'); return }
     if (checkinBusy) return
@@ -164,6 +207,12 @@ export function VisitsPage() {
           <h1 className="text-lg font-bold text-text">{filter && filterLabels[filter] ? filterLabels[filter] : 'الزيارات'}</h1>
         </div>
         <div className="flex gap-2">
+          {!loading && filtered.length > 0 && (
+            <>
+              <button onClick={handleReportExcel} className="bg-white border border-border rounded-lg text-[11px] px-2.5 py-1.5 font-semibold text-text hover:bg-neutral-50">📊 Excel</button>
+              <button onClick={handleReportPrint} className="bg-white border border-border rounded-lg text-[11px] px-2.5 py-1.5 font-semibold text-text hover:bg-neutral-50">🖨️ طباعة</button>
+            </>
+          )}
           {!filter && !activeVisit && (
             <button onClick={() => setShowCheckin(true)} className="bg-success text-white text-xs px-3 py-2 rounded-lg">
               + تسجيل دخول

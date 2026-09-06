@@ -1,9 +1,9 @@
-import { formatCurrencyShort } from '../utils/format'
+import { formatCurrencyShort, formatTierName } from '../utils/format'
 import { formatInteger } from '../utils/numbers'
 import { cairoDateComponents } from '../lib/dateRange'
 import { exportToExcel } from './excelExporter'
 import { printInvoice } from '../components/orders/order-printing'
-import { ORDER_STATUS_LABELS, orderTypeLabel, visibleStatusLabel } from '../types/order-display'
+import { orderTypeLabel, visibleStatusLabel } from '../types/order-display'
 
 export interface OrdersReportRow {
   company_name: string
@@ -18,6 +18,7 @@ export interface OrdersReportRow {
   last_order_total: number | null
   last_order_date: string
   status: string
+  tier: string
   order_number: string
   reference_number: string
 }
@@ -54,6 +55,7 @@ export const ORDERS_REPORT_COLUMNS: OrdersReportColumn[] = [
   { key: 'last_order_total', label: 'قيمة آخر طلب سابق', format: 'currency' },
   { key: 'last_order_date', label: 'تاريخ آخر طلب سابق' },
   { key: 'status', label: 'حالة الطلب' },
+  { key: 'tier', label: 'الشريحة' },
   { key: 'order_number', label: 'رقم الطلب' },
   { key: 'reference_number', label: 'الرقم المرجعي' },
 ]
@@ -128,6 +130,7 @@ export function buildOrdersReportRows(orders: any[], governorates: { id: string;
     last_order_total: o.strict_previous_order_total != null ? Number(o.strict_previous_order_total) : null,
     last_order_date: fmtDate(o.strict_previous_order_date),
     status: visibleStatusLabel(o.status || ''),
+    tier: formatTierName(safeStr(o.snapshot_tier_name)),
     order_number: safeStr(o.order_number),
     reference_number: safeStr(o.reference_number),
   }))
@@ -146,11 +149,13 @@ export function buildOrdersReportFilterSummary(ctx: {
   dateFrom: string
   dateTo: string
   search: string
-  employeeId: string
-  statusFilter: string
+  employeeIds: string[]
+  statusFilter: string[]
   customerFilter: string
-  orderTypeFilter: string
-  governorateFilter: string
+  orderTypeFilter: string[]
+  governorateFilter: string[]
+  tierFilter: string[]
+  tiers: { value: string; label: string }[]
   employees: { id: string; name: string }[]
   customers: { id: string; company_name: string }[]
   governorates: { id: string; name_ar: string }[]
@@ -167,14 +172,14 @@ export function buildOrdersReportFilterSummary(ctx: {
 
   if (ctx.search && ctx.search.trim()) out.push(`بحث: "${ctx.search.trim()}"`)
 
-  if (ctx.employeeId) {
-    const emp = ctx.employees.find((e) => e.id === ctx.employeeId)
-    out.push(`المسؤول: ${emp ? emp.name : 'غير محدد'}`)
+  if (ctx.employeeIds.length) {
+    const names = ctx.employeeIds.map((e) => ctx.employees.find((x) => x.id === e)?.name || 'غير محدد')
+    out.push(`المسؤول: ${names.join('، ')}`)
   }
 
-  if (ctx.statusFilter) {
-    const label = ORDER_STATUS_LABELS[ctx.statusFilter] || ctx.statusFilter
-    out.push(`الحالة: ${label}`)
+  if (ctx.statusFilter.length) {
+    const labels = ctx.statusFilter.map((s) => visibleStatusLabel(s))
+    out.push(`الحالة: ${labels.join('، ')}`)
   }
 
   if (ctx.customerFilter) {
@@ -182,13 +187,18 @@ export function buildOrdersReportFilterSummary(ctx: {
     out.push(`العميل: ${cust ? cust.company_name : 'غير محدد'}`)
   }
 
-  if (ctx.orderTypeFilter) {
-    out.push(`نوع الطلب: ${orderTypeLabel(ctx.orderTypeFilter)}`)
+  if (ctx.orderTypeFilter.length) {
+    out.push(`نوع الطلب: ${ctx.orderTypeFilter.map((t) => orderTypeLabel(t)).join('، ')}`)
   }
 
-  if (ctx.governorateFilter) {
-    const gov = ctx.governorates.find((g) => g.id === ctx.governorateFilter)
-    out.push(`المحافظة: ${gov ? gov.name_ar : 'غير محددة'}`)
+  if (ctx.tierFilter.length) {
+    const labels = ctx.tierFilter.map((t) => ctx.tiers.find((x) => x.value === t)?.label || t)
+    out.push(`الشريحة: ${labels.join('، ')}`)
+  }
+
+  if (ctx.governorateFilter.length) {
+    const labels = ctx.governorateFilter.map((g) => ctx.governorates.find((x) => x.id === g)?.name_ar || 'غير محددة')
+    out.push(`المحافظة: ${labels.join('، ')}`)
   }
 
   return out.length ? out : ['بدون فلاتر']
@@ -247,6 +257,7 @@ function reportTableHtml(rows: OrdersReportRow[]): string {
         <td>${fmtMoney(r.last_order_total)}</td>
         <td>${esc(r.last_order_date)}</td>
         <td>${esc(r.status)}</td>
+        <td>${esc(r.tier)}</td>
         <td class="cell-order-no" dir="ltr">${esc(r.order_number)}</td>
         <td class="cell-order-no" dir="ltr">${esc(r.reference_number)}</td>
       </tr>`).join('')
@@ -339,6 +350,7 @@ export function exportOrdersReportExcel(rows: OrdersReportRow[], meta: OrdersRep
     last_order_total: r.last_order_total != null ? r.last_order_total : 0,
     last_order_date: r.last_order_date,
     status: r.status,
+    tier: r.tier,
     order_number: r.order_number,
     reference_number: r.reference_number,
   }))
@@ -348,7 +360,7 @@ export function exportOrdersReportExcel(rows: OrdersReportRow[], meta: OrdersRep
     { label: 'إجمالي قيمة الطلبات', value: totals.totalValue, format: 'currency' },
   ]
 
-  const columnWidths = [26, 12, 14, 26, 14, 15, 18, 12, 14, 12, 14, 16, 16, 14]
+  const columnWidths = [26, 12, 14, 26, 14, 15, 18, 12, 14, 12, 14, 16, 12, 16, 14]
 
   exportToExcel({
     title: meta.title,

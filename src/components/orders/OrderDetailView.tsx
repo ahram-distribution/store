@@ -9,7 +9,7 @@ import { OrderCollectionsSection } from './OrderCollectionsSection'
 import { OrderReturnsSection } from './OrderReturnsSection'
 import { OrderTimelineSection } from './OrderTimelineSection'
 import { OrderEventLogSection } from './OrderEventLogSection'
-import { formatDateTime, formatCurrencyShort } from '../../utils/format'
+import { formatDateTime, formatCurrencyShort, formatTierName } from '../../utils/format'
 import { CustomerAddressCard } from '../customers/CustomerAddressCard'
 import { EXECUTION_GROUP, orderTypeLabel, orderTypeBadgeClass } from '../../types/order-display'
 import { renderDeliveryPermitHtml, printInvoice, downloadInvoicePdf } from './order-printing'
@@ -171,7 +171,7 @@ export function OrderDetailView({ data, actions, onBack, editMode, editItems, on
             <div className="flex items-center justify-between">
               <span className="text-[#6B7280]">🎖 شريحة الطلب</span>
               <span className="font-semibold text-[#111827]">
-                {order.snapshot_tier_name}
+                {formatTierName(order.snapshot_tier_name)}
                 {order.snapshot_tier_discount != null && order.snapshot_tier_discount > 0 && (
                   <span className="text-[#059669]"> ({order.snapshot_tier_discount}%)</span>
                 )}

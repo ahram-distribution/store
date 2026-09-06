@@ -13,6 +13,8 @@ import { ActiveFilters } from '../../components/data-list/ActiveFilters'
 import { CardGrid } from '../../components/data-list/CardGrid'
 import { EmptyState } from '../../components/data-list/EmptyState'
 import { StatusKpiBar } from '../../components/data-list/StatusKpiBar'
+import MultiSelectFilter from '../../components/MultiSelectFilter'
+import { formatTierName } from '../../utils/format'
 import { ORDER_STATUS_LABELS, statusFilterOptions, statusDisplayOrder, visibleStatusLabel } from '../../types/order-display'
 import { useUpperManagement } from '../../hooks/useUpperManagement'
 import {
@@ -26,6 +28,11 @@ import type { ActiveFilterItem, KpiChipConfig } from '../../types/data-list'
 
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
+}
+
+function normalizeFilter(v: unknown): string[] {
+  if (Array.isArray(v)) return v.filter((x): x is string => typeof x === 'string')
+  return typeof v === 'string' && v ? [v] : []
 }
 
 type Tab = 'all' | 'my_orders' | 'my_invoices'
@@ -75,22 +82,45 @@ export function OrdersPage() {
   const params = new URLSearchParams(window.location.search)
   const [viewState, setViewState, resetViewState] = usePersistentViewState('orders-list', {
     tab: (params.get('my') === '1' ? 'my_orders' : 'all') as Tab,
-    statusFilter: '',
+    statusFilter: [] as string[],
     customerFilter: '',
-    orderTypeFilter: '',
-    governorateFilter: '',
+    orderTypeFilter: [] as string[],
+    governorateFilter: [] as string[],
+    tierFilter: [] as string[],
     dateSource: 'created',
-    filters: { datePreset: 'all', dateFrom: '', dateTo: '', search: '', employeeId: '' } as FilterValues,
+    filters: { datePreset: 'all', dateFrom: '', dateTo: '', search: '', employeeId: '', employeeIds: [] } as FilterValues,
   })
-  const { tab, statusFilter, customerFilter, orderTypeFilter, governorateFilter, dateSource, filters } = viewState
+  const { tab, statusFilter, customerFilter, orderTypeFilter, governorateFilter, tierFilter, dateSource, filters } = viewState
+  const statusFilters = useMemo(() => normalizeFilter(statusFilter), [statusFilter])
+  const orderTypeFilters = useMemo(() => normalizeFilter(orderTypeFilter), [orderTypeFilter])
+  const tierFilters = useMemo(() => normalizeFilter(tierFilter), [tierFilter])
+  const governorateFilters = useMemo(() => normalizeFilter(governorateFilter), [governorateFilter])
+  const employeeIdFilters = useMemo(
+    () => normalizeFilter(Array.isArray(filters.employeeIds) ? filters.employeeIds : (filters.employeeId || '')),
+    [filters.employeeIds, filters.employeeId]
+  )
   const [sfResetKey, setSfResetKey] = useState(0)
 
   const STATUS_OPTIONS = useMemo(() => statusFilterOptions(isUpperManagement), [isUpperManagement])
+  const FILTER_STATUS_OPTIONS = useMemo(() => STATUS_OPTIONS.filter((o) => o.value !== ''), [STATUS_OPTIONS])
+  const FILTER_ORDER_TYPE_OPTIONS = useMemo(() => ORDER_TYPE_OPTIONS.filter((o) => o.value !== ''), [])
 
   const smartFilterEmployees = useMemo(
     () => employees.map(e => ({ id: e.identity_id || e.id, name: e.full_name })),
     [employees]
   )
+
+  const tierOptions = useMemo(() => {
+    const byId = new Map<string, string>()
+    for (const o of orders) {
+      const id = o?.tier_id
+      const name = o?.snapshot_tier_name
+      if (id && name && !byId.has(id)) byId.set(id, name)
+    }
+    return Array.from(byId.entries())
+      .map(([value, label]) => ({ value, label: formatTierName(label) }))
+      .sort((a, b) => a.label.localeCompare(b.label, 'ar'))
+  }, [orders])
 
   const resolveDateRange = (f: FilterValues): { from: string | null; to: string | null } => {
     if (f.datePreset === 'all') return { from: null, to: null }
@@ -104,17 +134,14 @@ export function OrdersPage() {
     const range = resolveDateRange(filters)
     const rpcParams: Record<string, unknown> = { p_token: token.trim() }
     if (filters.search) rpcParams.p_search = filters.search
-    if (filters.employeeId) rpcParams.p_created_by = filters.employeeId
     if (range.from) rpcParams.p_date_from = range.from
     if (range.to) rpcParams.p_date_to = range.to
-    if (statusFilter) rpcParams.p_status = statusFilter
     if (customerFilter) rpcParams.p_customer_id = customerFilter
     if (tab === 'my_orders' && currentUserId) rpcParams.p_created_by = currentUserId
-    if (governorateFilter) rpcParams.p_governorate_id = governorateFilter
     rpcParams.p_include_strict_previous = true
     if (dateSource === 'event') rpcParams.p_date_source = 'event'
     return rpcParams
-  }, [filters, statusFilter, customerFilter, tab, currentUserId, governorateFilter, dateSource])
+  }, [filters, customerFilter, tab, currentUserId, dateSource])
 
   const fetchOrders = useCallback(async () => {
     const rpcParams = buildRpcParams()
@@ -164,7 +191,7 @@ export function OrdersPage() {
     return () => window.clearInterval(timer)
   }, [buildRpcParams])
 
-  useEffect(() => { fetchOrders() }, [filters, statusFilter, customerFilter, tab, governorateFilter, dateSource])
+  useEffect(() => { fetchOrders() }, [filters, customerFilter, tab, dateSource])
 
   useEffect(() => {
     const token = getToken()
@@ -190,8 +217,23 @@ export function OrdersPage() {
     if (tab === 'my_invoices' && currentEmpId) {
       list = list.filter((o: any) => o.owner_id === currentEmpId)
     }
-    if (orderTypeFilter) {
-      list = list.filter((o: any) => (o.order_type || 'cash') === orderTypeFilter)
+    if (statusFilters.length) {
+      list = list.filter((o: any) => statusFilters.includes(String(o.status || '')))
+    }
+    if (orderTypeFilters.length) {
+      list = list.filter((o: any) => orderTypeFilters.includes((o.order_type || 'cash')))
+    }
+    if (tierFilters.length) {
+      list = list.filter((o: any) => tierFilters.includes(String(o.tier_id || '')))
+    }
+    if (governorateFilters.length) {
+      list = list.filter((o: any) => governorateFilters.includes(String(o.customer_governorate_id || '')))
+    }
+    if (employeeIdFilters.length) {
+      list = list.filter((o: any) => {
+        const ownerId = String(o.created_by || o.created_by_id || o.order_creator_id || '')
+        return employeeIdFilters.includes(ownerId)
+      })
     }
     return [...list].sort((a: any, b: any) => {
       const keyA = dateSource === 'event' ? (a.last_event_ts || a.created_at || '') : (a.created_at || '')
@@ -199,7 +241,7 @@ export function OrdersPage() {
       if (keyB !== keyA) return keyB > keyA ? 1 : -1
       return (b.created_at || '') > (a.created_at || '') ? 1 : -1
     })
-  }, [orders, tab, currentEmpId, orderTypeFilter, dateSource])
+  }, [orders, tab, currentEmpId, statusFilters, orderTypeFilters, tierFilters, governorateFilters, employeeIdFilters, dateSource])
 
   const sortedTotalValue = useMemo(() => {
     return sorted.reduce((sum: number, o: any) => sum + (Number(o.total_amount) || 0), 0)
@@ -212,7 +254,11 @@ export function OrdersPage() {
   }, [fetchOrders])
 
   const handleStatusToggle = useCallback((status: string) => {
-    setViewState((prev: any) => ({ statusFilter: prev.statusFilter === status ? '' : status }))
+    setViewState((prev: any) => {
+      const cur = normalizeFilter(prev.statusFilter)
+      const next = cur.includes(status) ? cur.filter((s) => s !== status) : [...cur, status]
+      return { statusFilter: next }
+    })
   }, [])
 
   const activeFilterItems: ActiveFilterItem[] = useMemo(() => {
@@ -237,19 +283,24 @@ export function OrdersPage() {
 
     if (filters.search) items.push({ id: 'search', label: 'بحث', value: filters.search })
 
-    if (filters.employeeId) {
-      const emp = employees.find((e: any) => (e.identity_id || e.id) === filters.employeeId)
-      if (emp) items.push({ id: 'employee', label: 'المسؤول', value: emp.full_name })
+    for (const empId of employeeIdFilters) {
+      const emp = smartFilterEmployees.find((e) => e.id === empId)
+      if (emp) items.push({ id: 'employee:' + empId, label: 'المسؤول', value: emp.name, onRemove: () => setViewState({ filters: { ...filters, employeeIds: employeeIdFilters.filter((x) => x !== empId) } }) })
     }
 
-    if (statusFilter) {
-      const label = STATUS_OPTIONS.find((o) => o.value === statusFilter)?.label || visibleStatusLabel(statusFilter) || statusFilter
-      items.push({ id: 'status', label: 'الحالة', value: label, onRemove: () => setViewState({ statusFilter: '' }) })
+    for (const s of statusFilters) {
+      const label = STATUS_OPTIONS.find((o) => o.value === s)?.label || visibleStatusLabel(s) || s
+      items.push({ id: 'status:' + s, label: 'الحالة', value: label, onRemove: () => setViewState({ statusFilter: statusFilters.filter((x) => x !== s) }) })
     }
 
-    if (orderTypeFilter) {
-      const label = ORDER_TYPE_OPTIONS.find((o) => o.value === orderTypeFilter)?.label || orderTypeFilter
-      items.push({ id: 'orderType', label: 'النوع', value: label, onRemove: () => setViewState({ orderTypeFilter: '' }) })
+    for (const v of orderTypeFilters) {
+      const label = ORDER_TYPE_OPTIONS.find((o) => o.value === v)?.label || v
+      items.push({ id: 'orderType:' + v, label: 'النوع', value: label, onRemove: () => setViewState({ orderTypeFilter: orderTypeFilters.filter((x) => x !== v) }) })
+    }
+
+    for (const t of tierFilters) {
+      const tier = tierOptions.find((x) => x.value === t)
+      items.push({ id: 'tier:' + t, label: 'الشريحة', value: tier?.label || t, onRemove: () => setViewState({ tierFilter: tierFilters.filter((x) => x !== t) }) })
     }
 
     if (customerFilter) {
@@ -257,13 +308,13 @@ export function OrdersPage() {
       if (cust) items.push({ id: 'customer', label: 'العميل', value: cust.company_name })
     }
 
-    if (governorateFilter) {
-      const gov = governorates.find((g) => g.id === governorateFilter)
-      if (gov) items.push({ id: 'governorate', label: 'المحافظة', value: gov.name_ar, onRemove: () => setViewState({ governorateFilter: '' }) })
+    for (const gId of governorateFilters) {
+      const gov = governorates.find((g) => g.id === gId)
+      if (gov) items.push({ id: 'governorate:' + gId, label: 'المحافظة', value: gov.name_ar, onRemove: () => setViewState({ governorateFilter: governorateFilters.filter((x) => x !== gId) }) })
     }
 
     return items
-  }, [tab, filters, statusFilter, customerFilter, employees, customers, governorateFilter, governorates, STATUS_OPTIONS, dateSource])
+  }, [tab, filters, statusFilters, orderTypeFilters, tierFilters, governorateFilters, employeeIdFilters, customerFilter, smartFilterEmployees, customers, governorates, STATUS_OPTIONS, dateSource, tierOptions])
 
   const kpiChips: KpiChipConfig[] = useMemo(() => {
     const statusCounts: Record<string, number> = {}
@@ -293,7 +344,7 @@ export function OrdersPage() {
     ? (filters.dateFrom || '...') + ' → ' + (filters.dateTo || '...')
     : (filters.datePreset !== 'all' ? datePresetLabels[filters.datePreset] : undefined)
 
-  const hasActiveFilters = tab !== 'all' || !!statusFilter || !!orderTypeFilter || !!customerFilter || !!governorateFilter || !!filters.search || filters.datePreset !== 'all' || !!filters.employeeId
+  const hasActiveFilters = tab !== 'all' || statusFilters.length > 0 || orderTypeFilters.length > 0 || tierFilters.length > 0 || governorateFilters.length > 0 || employeeIdFilters.length > 0 || !!customerFilter || !!filters.search || filters.datePreset !== 'all'
 
   const handleResetAll = useCallback(() => {
     resetViewState()
@@ -306,12 +357,14 @@ export function OrdersPage() {
     dateFrom: filters.dateFrom || '',
     dateTo: filters.dateTo || '',
     search: filters.search || '',
-    employeeId: filters.employeeId || '',
-    statusFilter,
+    employeeIds: employeeIdFilters,
+    statusFilter: statusFilters,
     customerFilter,
-    orderTypeFilter,
-    governorateFilter,
-    employees,
+    orderTypeFilter: orderTypeFilters,
+    governorateFilter: governorateFilters,
+    tierFilter: tierFilters,
+    tiers: tierOptions,
+    employees: smartFilterEmployees,
     customers,
     governorates,
   })
@@ -365,6 +418,7 @@ export function OrdersPage() {
         searchPlaceholder="بحث برقم الطلب أو اسم العميل..."
         employees={smartFilterEmployees}
         employeeLabel="المسؤول"
+        multiEmployee
         initialFilters={filters}
         onFilterChange={(f) => setViewState({ filters: f })}
       />
@@ -378,20 +432,31 @@ export function OrdersPage() {
         </select>
       </div>
 
-      <div className="flex gap-2">
-        <select value={statusFilter} onChange={(e) => setViewState({ statusFilter: e.target.value })}
-          className="flex-1 border border-border rounded-lg px-2 py-1.5 text-xs bg-white">
-          {STATUS_OPTIONS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-        </select>
-        <select value={orderTypeFilter} onChange={(e) => setViewState({ orderTypeFilter: e.target.value })}
-          className="w-[120px] border border-border rounded-lg px-2 py-1.5 text-xs bg-white">
-          {ORDER_TYPE_OPTIONS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-        </select>
-        <select value={governorateFilter} onChange={(e) => setViewState({ governorateFilter: e.target.value })}
-          className="flex-1 border border-border rounded-lg px-2 py-1.5 text-xs bg-white">
-          <option value="">كل المحافظات</option>
-          {governorates.map((g) => <option key={g.id} value={g.id}>{g.name_ar}</option>)}
-        </select>
+      <div className="flex flex-wrap gap-2">
+        <MultiSelectFilter className="flex-1"
+          allLabel="كل الحالات"
+          searchPlaceholder="بحث بحالة الطلب..."
+          options={FILTER_STATUS_OPTIONS}
+          selected={statusFilters}
+          onChange={(statusFilter) => setViewState({ statusFilter })} />
+        <MultiSelectFilter className="w-[140px] shrink-0"
+          allLabel="كل الأنواع"
+          searchPlaceholder="بحث بنوع الطلب..."
+          options={FILTER_ORDER_TYPE_OPTIONS}
+          selected={orderTypeFilters}
+          onChange={(orderTypeFilter) => setViewState({ orderTypeFilter })} />
+        <MultiSelectFilter className="flex-1"
+          allLabel="كل الشرائح"
+          searchPlaceholder="بحث بالشريحة..."
+          options={tierOptions}
+          selected={tierFilters}
+          onChange={(tierFilter) => setViewState({ tierFilter })} />
+        <MultiSelectFilter className="flex-1"
+          allLabel="كل المحافظات"
+          searchPlaceholder="بحث بالمحافظة..."
+          options={governorates.map((g) => ({ value: g.id, label: g.name_ar }))}
+          selected={governorateFilters}
+          onChange={(governorateFilter) => setViewState({ governorateFilter })} />
       </div>
 
       <ResultsSummary
@@ -411,7 +476,7 @@ export function OrdersPage() {
       <ActiveFilters filters={activeFilterItems} />
 
       {!loading && kpiChips.length > 0 && (
-        <StatusKpiBar chips={kpiChips} selectedId={statusFilter} onToggle={handleStatusToggle} />
+        <StatusKpiBar chips={kpiChips} selectedIds={statusFilters} onToggle={handleStatusToggle} />
       )}
 
       {!initialLoaded ? (

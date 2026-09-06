@@ -86,6 +86,7 @@ export interface KpiChipConfig {
 export interface StatusKpiBarProps {
   chips: KpiChipConfig[]
   selectedId?: string
+  selectedIds?: string[]
   onToggle: (id: string) => void
   className?: string
 }

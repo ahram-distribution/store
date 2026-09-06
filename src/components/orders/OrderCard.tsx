@@ -1,6 +1,6 @@
 import { memo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { formatCurrencyShort, formatDate } from '../../utils/format'
+import { formatCurrencyShort, formatDate, formatTierName } from '../../utils/format'
 import { StatusBadge } from '../shared/StatusBadge'
 import { OrderOwnershipInfo } from './OrderOwnershipInfo'
 import { orderTypeLabel, orderTypeBadgeClass } from '../../types/order-display'
@@ -206,7 +206,7 @@ export const OrderCard = memo(function OrderCard({ order, onClick, orderId, isUn
         <div className="flex flex-wrap gap-1 mt-1.5" dir="rtl">
           {order.snapshot_tier_name && (
             <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700" title="شريحة الطلب">
-              🎖 {order.snapshot_tier_name}
+              🎖 {formatTierName(order.snapshot_tier_name)}
               {order.snapshot_tier_discount != null && order.snapshot_tier_discount > 0 ? ` (${order.snapshot_tier_discount}%)` : ''}
             </span>
           )}

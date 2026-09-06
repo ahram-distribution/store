@@ -1,12 +1,12 @@
 import type { StatusKpiBarProps } from '../../types/data-list'
 
-export function StatusKpiBar({ chips, selectedId, onToggle, className = '' }: StatusKpiBarProps) {
+export function StatusKpiBar({ chips, selectedId, selectedIds, onToggle, className = '' }: StatusKpiBarProps) {
   if (chips.length === 0) return null
 
   return (
     <div className={'flex gap-1.5 overflow-x-auto pb-1 scrollbar-none ' + className}>
       {chips.map((chip) => {
-        const isSelected = chip.id === selectedId
+        const isSelected = selectedIds ? selectedIds.includes(chip.id) : chip.id === selectedId
         const containerClass = isSelected ? chip.activeChipClass : chip.chipClass
 
         return (

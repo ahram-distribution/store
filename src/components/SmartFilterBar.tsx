@@ -1,5 +1,6 @@
 import { useState, memo } from 'react'
 import { SearchableSelect } from './shared/SearchableSelect'
+import MultiSelectFilter from './MultiSelectFilter'
 
 export interface FilterValues {
   datePreset: string
@@ -7,6 +8,7 @@ export interface FilterValues {
   dateTo: string
   search: string
   employeeId: string
+  employeeIds?: string[]
 }
 
 interface SmartFilterBarProps {
@@ -14,6 +16,7 @@ interface SmartFilterBarProps {
   employees: { id: string; name: string }[]
   customerSearch?: boolean
   employeeLabel?: string
+  multiEmployee?: boolean
   onFilterChange: (filters: FilterValues) => void
   initialFilters?: Partial<FilterValues>
   collapsible?: boolean
@@ -29,16 +32,24 @@ const DATE_PRESETS = [
   { key: 'custom', label: 'فترة' },
 ]
 
-export default memo(function SmartFilterBar({ searchPlaceholder, employees, employeeLabel, onFilterChange, initialFilters, collapsible = true }: SmartFilterBarProps) {
+export default memo(function SmartFilterBar({ searchPlaceholder, employees, employeeLabel, multiEmployee, onFilterChange, initialFilters, collapsible = true }: SmartFilterBarProps) {
   const [datePreset, setDatePreset] = useState(initialFilters?.datePreset ?? 'month')
   const [dateFrom, setDateFrom] = useState(initialFilters?.dateFrom ?? '')
   const [dateTo, setDateTo] = useState(initialFilters?.dateTo ?? '')
   const [search, setSearch] = useState(initialFilters?.search ?? '')
   const [employeeId, setEmployeeId] = useState(initialFilters?.employeeId ?? '')
+  const [employeeIds, setEmployeeIds] = useState<string[]>(() => {
+    if (Array.isArray(initialFilters?.employeeIds)) return initialFilters!.employeeIds as string[]
+    if (initialFilters?.employeeId) return [initialFilters.employeeId]
+    return []
+  })
 
   const emit = (partial: Partial<FilterValues>) => {
     const vals: FilterValues = {
-      datePreset, dateFrom, dateTo, search, employeeId, ...partial
+      datePreset, dateFrom, dateTo, search,
+      employeeId: multiEmployee ? '' : employeeId,
+      employeeIds: multiEmployee ? employeeIds : undefined,
+      ...partial
     }
     onFilterChange(vals)
   }
@@ -50,6 +61,8 @@ export default memo(function SmartFilterBar({ searchPlaceholder, employees, empl
     }
     emit({ datePreset: key, dateFrom: key === 'custom' ? dateFrom : '', dateTo: key === 'custom' ? dateTo : '' })
   }
+
+  const employeeOptions = employees.map((e) => ({ value: e.id, label: e.name }))
 
   return (
     <div className="space-y-2">
@@ -81,13 +94,24 @@ export default memo(function SmartFilterBar({ searchPlaceholder, employees, empl
         <input type="text" value={search} onChange={e => { setSearch(e.target.value); emit({ search: e.target.value }) }}
           placeholder={searchPlaceholder || 'بحث بالاسم أو الكود...'}
           className="flex-1 text-xs px-3 py-2 rounded-lg border border-border bg-surface focus:outline-none focus:border-primary transition-colors" />
-        <SearchableSelect
-          items={employees}
-          value={employeeId}
-          onChange={(id) => { setEmployeeId(id); emit({ employeeId: id }) }}
-          placeholder={employeeLabel || 'كل المناديب'}
-          className="w-[240px] shrink-0"
-        />
+        {multiEmployee ? (
+          <MultiSelectFilter
+            className="w-[240px] shrink-0"
+            allLabel={employeeLabel || 'كل المناديب'}
+            searchPlaceholder="بحث باسم المسؤول..."
+            options={employeeOptions}
+            selected={employeeIds}
+            onChange={(next) => { setEmployeeIds(next); emit({ employeeIds: next }) }}
+          />
+        ) : (
+          <SearchableSelect
+            items={employees}
+            value={employeeId}
+            onChange={(id) => { setEmployeeId(id); emit({ employeeId: id }) }}
+            placeholder={employeeLabel || 'كل المناديب'}
+            className="w-[240px] shrink-0"
+          />
+        )}
       </div>
     </div>
   )

@@ -11,7 +11,7 @@ import { isExecutiveDirectorUser, normalizeEmployeeRole } from '../../utils/role
 import { formatCurrencyShort } from '../../utils/format'
 import { resolveConfiguredUnitTypes } from '../../utils/catalog'
 import { UNIT_LABELS, EXECUTION_GROUP } from '../../types/order-display'
-import { computeProductPrices, computePieceQuantity } from '../../engine/pricing'
+import { computeProductPrices, computePieceQuantity, getUnitBasePrice } from '../../engine/pricing'
 import { buildSearchIndex, searchProducts } from '../../utils/smartSearch'
 import { formatMixedQuantity } from '../../utils/quantity-format'
 import { SearchHighlight } from '../../components/shared/SearchHighlight'
@@ -570,7 +570,7 @@ export function OrderDetailPage() {
         unit_quantity: quantity,
         piece_quantity: pieceQuantity,
         unit_price: unitPrice,
-        base_unit_price: prices.baseUnitPrice,
+        base_unit_price: getUnitBasePrice(prices, unitType),
         total_price: totalPrice,
       }
       return [...prev, newItem]
