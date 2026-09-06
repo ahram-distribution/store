@@ -47,6 +47,7 @@ export function OrderDetailView({ data, actions, onBack, editMode, editItems, on
   const grandTotal = useMemo(() => items.reduce((s, i) => s + Number(i.total_price || 0), 0), [items])
   const discountAmount = useMemo(() => Number(order.discount_amount || 0), [order.discount_amount])
   const netTotal = useMemo(() => (order.total_amount != null ? Number(order.total_amount) : grandTotal - discountAmount), [order.total_amount, grandTotal, discountAmount])
+  const discountFactor = useMemo(() => (grandTotal > 0 ? netTotal / grandTotal : 1), [grandTotal, netTotal])
   const timelineEvents = useMemo(() => buildTimelineEvents(data), [data])
 
   const collectedAmount = useMemo(() => {
@@ -317,6 +318,7 @@ export function OrderDetailView({ data, actions, onBack, editMode, editItems, on
         onAddProduct={onAddProduct}
         shortageProductIds={shortageProductIds || undefined}
         businessStatusByItem={businessStatusByItem || undefined}
+        discountFactor={discountFactor}
       />
       {editMode && editActions && (
         <div className="sticky bottom-0 z-10 bg-white border-t border-[#E5E7EB] shadow-[0_-4px_12px_rgba(0,0,0,0.08)] px-4 py-3 -mx-4 lg:-mx-6">

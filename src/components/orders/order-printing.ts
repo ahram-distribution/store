@@ -19,6 +19,10 @@ export function renderPdfHtml(data: UnifiedOrder): string {
   const statusLabel = ORDER_STATUS_LABELS[order.status] || order.status || 'غير معروف'
   const grandTotal = items.reduce((s, i) => s + Number(i.total_price || 0), 0)
 
+  const netTotal = Number(order.total_amount ?? (grandTotal - Number(order.discount_amount || 0)))
+  const netFactor = grandTotal > 0 && netTotal > 0 && netTotal < grandTotal ? netTotal / grandTotal : 1
+  const net = (amount: number) => Math.round(amount * netFactor * 100) / 100
+
   const customerName = useLive ? (lc.company_name || '') : (order.snapshot_customer_name || '')
   const customerCode = useLive ? (lc.code || '') : (order.snapshot_customer_code || '')
   const customerPhone = useLive ? (lc.phone || '') : (order.snapshot_customer_phone || '')
@@ -39,9 +43,9 @@ export function renderPdfHtml(data: UnifiedOrder): string {
       const price = Number(item.unit_price || 0)
       const lineTotal = qty * price
       const unit = UNIT_LABELS[item.unit_type] || item.unit_type || 'قطعة'
-      h += `<tr><td style="font-family:monospace;direction:ltr">${esc(item.legacy_code || 'غير متوفر')}</td><td>${esc(item.product_name)}</td><td>${esc(item.company_name || '')}</td><td>${esc(unit)}</td><td>${qty}</td><td>${formatCurrencyShort(price)}</td><td>${formatCurrencyShort(lineTotal)}</td></tr>`
+      h += `<tr><td style="font-family:monospace;direction:ltr">${esc(item.legacy_code || 'غير متوفر')}</td><td>${esc(item.product_name)}</td><td>${esc(item.company_name || '')}</td><td>${esc(unit)}</td><td>${qty}</td><td>${formatCurrencyShort(net(price))}</td><td>${formatCurrencyShort(net(lineTotal))}</td></tr>`
     }
-    h += `</tbody><tfoot><tr class="total-row"><td colspan="6" style="text-align:left">الإجمالي النهائي</td><td>${formatCurrencyShort(grandTotal)}</td></tr></tfoot></table>`
+    h += `</tbody><tfoot><tr class="total-row"><td colspan="6" style="text-align:left">الإجمالي النهائي</td><td>${formatCurrencyShort(net(grandTotal))}</td></tr></tfoot></table>`
     return h
   }
 
@@ -124,6 +128,10 @@ export function renderDeliveryPermitHtml(data: UnifiedOrder, logoUrl?: string): 
   const totalPieces = items.reduce((s, i) => s + Number(i.piece_quantity || 0), 0)
   const totalQty = items.reduce((s, i) => s + Number(i.unit_quantity || 0), 0)
 
+  const netTotal = Number(order.total_amount ?? (grandTotal - Number(order.discount_amount || 0)))
+  const netFactor = grandTotal > 0 && netTotal > 0 && netTotal < grandTotal ? netTotal / grandTotal : 1
+  const net = (amount: number) => Math.round(amount * netFactor * 100) / 100
+
   const groups = () => {
     const map: Record<string, { company: string; items: typeof items; subtotal: number }> = {}
     for (const item of items) {
@@ -145,10 +153,10 @@ export function renderDeliveryPermitHtml(data: UnifiedOrder, logoUrl?: string): 
         const price = Number(item.unit_price || 0)
         const lineTotal = qty * price
         const unit = UNIT_LABELS[item.unit_type] || item.unit_type || 'قطعة'
-        h += `<tr><td style="font-family:monospace;direction:ltr">${esc(item.legacy_code || 'غير متوفر')}</td><td>${esc(item.product_name)}</td><td>${esc(unit)}</td><td>${qty}</td><td>${formatCurrencyShort(price)}</td><td>${formatCurrencyShort(lineTotal)}</td></tr>`
+        h += `<tr><td style="font-family:monospace;direction:ltr">${esc(item.legacy_code || 'غير متوفر')}</td><td>${esc(item.product_name)}</td><td>${esc(unit)}</td><td>${qty}</td><td>${formatCurrencyShort(net(price))}</td><td>${formatCurrencyShort(net(lineTotal))}</td></tr>`
       }
       if (gs.length > 1) {
-        h += `<tr class="subtotal-row"><td colspan="5" style="text-align:left">إجمالي ${esc(g.company)}</td><td>${formatCurrencyShort(g.subtotal)}</td></tr>`
+        h += `<tr class="subtotal-row"><td colspan="5" style="text-align:left">إجمالي ${esc(g.company)}</td><td>${formatCurrencyShort(net(g.subtotal))}</td></tr>`
       }
     }
     h += '</tbody></table>'
@@ -161,7 +169,7 @@ export function renderDeliveryPermitHtml(data: UnifiedOrder, logoUrl?: string): 
       <div class="summary-row"><span class="summary-label">إجمالي الوحدات</span><span class="summary-value">${formatNumber(totalQty)}</span></div>
       <div class="summary-row"><span class="summary-label">إجمالي القطع</span><span class="summary-value">${formatNumber(totalPieces)}</span></div>
       <hr class="summary-divider" />
-      <div class="summary-row summary-grand"><span class="summary-label">الإجمالي النهائي</span><span class="summary-value">${formatCurrencyShort(grandTotal)}</span></div>
+      <div class="summary-row summary-grand"><span class="summary-label">الإجمالي النهائي</span><span class="summary-value">${formatCurrencyShort(net(grandTotal))}</span></div>
     </div>`
   }
 

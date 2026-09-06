@@ -46,6 +46,9 @@ export function buildWhatsAppMessageFromDisplay(display: OrderDisplayData): stri
   const createdAt = display.createdAt
 
   const grandTotal = items.reduce((s, i) => s + i.totalPrice, 0)
+  const netTotal = display.totalAmount != null ? display.totalAmount : grandTotal
+  const netFactor = grandTotal > 0 && netTotal > 0 && netTotal < grandTotal ? netTotal / grandTotal : 1
+  const net = (n: number) => Math.round(n * netFactor * 100) / 100
 
   let msg = ''
 
@@ -73,7 +76,7 @@ export function buildWhatsAppMessageFromDisplay(display: OrderDisplayData): stri
   msg += 'عدد الأصناف: ' + items.length + '\n'
   if (display.tierName) msg += 'الشريحة: ' + display.tierName + '\n'
   msg += 'طريقة الدفع: ' + (display.paymentMethod === 'cash' ? 'نقداً' : display.paymentMethod === 'ittiman' ? 'ائتمان' : display.paymentMethod || 'غير متوفر') + '\n\n'
-  msg += 'إجمالي الطلب: ' + toEnUS(grandTotal) + ' جنيه\n\n'
+  msg += 'إجمالي الطلب: ' + toEnUS(netTotal) + ' جنيه\n\n'
 
   const grouped: Record<string, OrderDisplayItem[]> = {}
   for (const item of items) {
@@ -90,7 +93,7 @@ export function buildWhatsAppMessageFromDisplay(display: OrderDisplayData): stri
     companyItems.forEach((item, idx) => {
       const num = idx + 1
       msg += num + '. ' + item.productName + '\n\n'
-      msg += 'كود: ' + (item.legacyCode || 'غير متوفر') + '  (' + item.quantity + ' ' + item.unitLabel + ')  ' + toEnUS(item.unitPrice) + ' ج\n\n'
+      msg += 'كود: ' + (item.legacyCode || 'غير متوفر') + '  (' + item.quantity + ' ' + item.unitLabel + ')  ' + toEnUS(net(item.unitPrice)) + ' ج\n\n'
     })
   }
 

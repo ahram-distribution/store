@@ -52,9 +52,10 @@ interface OrderProductsSectionProps {
   onAddProduct?: (companyName: string) => void
   shortageProductIds?: Set<string>
   businessStatusByItem?: Record<string, BusinessStatusCardData>
+  discountFactor?: number
 }
 
-export function OrderProductsSection({ items, mode = 'view', onQuantityChange, onRemoveItem, onPriceChange, onUnitChange, unitOptions, onDeleteSelected, onAddProduct, shortageProductIds, businessStatusByItem }: OrderProductsSectionProps) {
+export function OrderProductsSection({ items, mode = 'view', onQuantityChange, onRemoveItem, onPriceChange, onUnitChange, unitOptions, onDeleteSelected, onAddProduct, shortageProductIds, businessStatusByItem, discountFactor }: OrderProductsSectionProps) {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const toggleSelected = (key: string) => {
     setSelected(prev => {
@@ -98,6 +99,8 @@ export function OrderProductsSection({ items, mode = 'view', onQuantityChange, o
   }, [items])
 
   const isEdit = mode === 'edit'
+  const netFactor = !isEdit && discountFactor && discountFactor > 0 && discountFactor < 1 ? discountFactor : 1
+  const net = (amount: number) => Math.round(amount * netFactor * 100) / 100
 
   return (
     <div>
@@ -137,7 +140,7 @@ export function OrderProductsSection({ items, mode = 'view', onQuantityChange, o
                   <tr className="bg-[#F0FDF4]">
                     <td colSpan={isEdit ? 7 : 6} className="px-3 py-2 text-[15px] font-extrabold text-[#2563EB] border-t border-t-[#D1FAE5] border-l border-l-[#EEF1F4]">
                       <div className="flex items-center justify-between">
-                        <span>شركة {group.company}&nbsp;&nbsp;-&nbsp;&nbsp;إجمالي الأصناف {formatNumber(group.items.length)}&nbsp;&nbsp;-&nbsp;&nbsp;إجمالي القطع {formatNumber(group.totalPieces)}&nbsp;&nbsp;-&nbsp;&nbsp;إجمالي المبلغ {formatValue(group.subtotal)}</span>
+                        <span>شركة {group.company}&nbsp;&nbsp;-&nbsp;&nbsp;إجمالي الأصناف {formatNumber(group.items.length)}&nbsp;&nbsp;-&nbsp;&nbsp;إجمالي القطع {formatNumber(group.totalPieces)}&nbsp;&nbsp;-&nbsp;&nbsp;إجمالي المبلغ {formatValue(net(group.subtotal))}</span>
                         {isEdit && onAddProduct && (
                           <button
                             onClick={() => onAddProduct(group.company)}
@@ -236,10 +239,10 @@ export function OrderProductsSection({ items, mode = 'view', onQuantityChange, o
                                 className="w-16 text-left text-[12px] font-semibold text-[#111827] border border-[#E5E7EB] rounded px-1 py-0.5"
                               />
                             ) : (
-                              <span className="text-[13px] font-semibold text-[#334155]" dir="ltr">{formatValue(displayPrice)}</span>
+                              <span className="text-[13px] font-semibold text-[#334155]" dir="ltr">{formatValue(net(displayPrice))}</span>
                             )}
                           </td>
-                          <td className="px-3 py-3 text-left text-[13px] font-bold text-[#111827] border-t border-t-[#F1F3F5] border-l border-l-[#EEF1F4]">{formatValue(lineTotal)}</td>
+                          <td className="px-3 py-3 text-left text-[13px] font-bold text-[#111827] border-t border-t-[#F1F3F5] border-l border-l-[#EEF1F4]">{formatValue(net(lineTotal))}</td>
                           {isEdit && (
                             <td className="px-2 py-3 text-center border-t border-t-[#F1F3F5] border-l border-l-[#EEF1F4]">
                               <input
@@ -286,7 +289,7 @@ export function OrderProductsSection({ items, mode = 'view', onQuantityChange, o
           </div>
           <div className="text-left">
             <p className="text-[11px] text-[#9CA3AF] font-medium">الإجمالي النهائي</p>
-            <p className="text-[21px] font-bold text-[#059669] mt-0.5">{formatValue(grandTotal)}</p>
+            <p className="text-[21px] font-bold text-[#059669] mt-0.5">{formatValue(net(grandTotal))}</p>
           </div>
         </div>
       </div>
