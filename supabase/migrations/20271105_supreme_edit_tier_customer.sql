@@ -19,10 +19,14 @@
 --   - p_clear_shipping         : remove the shipping method (wins over the option id).
 --   - p_customer_id            : reassign the order to another active customer and
 --                                refill the frozen customer snapshot fields.
---   - Discount recompute: when any of (tier / payment / shipping) is set or
---     removed, discount_amount, total_amount and effective_discount_percent are
---     recomputed additively from the NEW item subtotal + tier% + payment% +
---     shipping%, replacing the manually-typed discount (per product decision).
+--   - Discount: after ANY edit, the discount D from each option is recomputed as
+--     tier % + payment % + shipping % (additive, applied ONCE) against the NEW
+--     item subtotal and applied to the order:
+--       discount_amount     = subtotal * (tier% + payment% + shipping%) / 100
+--       effective_discount_percent = tier% + payment% + shipping% (or NULL if 0)
+--     Percentages come from the resulting order state (selected option if changed,
+--     otherwise the frozen snapshot). p_discount_amount is kept for signature
+--     compatibility but no longer used.
 -- ============================================================================
 
 CREATE OR REPLACE FUNCTION public.governed_supreme_edit_order_v2(
@@ -364,19 +368,17 @@ BEGIN
 
   v_subtotal := COALESCE(v_subtotal, 0);
 
-  -- Discount recompute (additive tier + payment + shipping) when any of the
-  -- option refs (tier / payment / shipping) was actually set or removed in this
-  -- edit; otherwise keep current behavior (manual p_discount_amount, 0 default).
+  -- Discount always recomputed after the edit and applied to the NEW subtotal
+  -- (product requirement: recompute the discount percentages and apply them).
+  -- Percentages come from the resulting order state: selected option when it was
+  -- changed in this edit, otherwise the frozen snapshot percentage. Additive sum
+  -- (tier + payment + shipping), Method B — applied ONCE on the subtotal.
   v_discount_changed := v_tier_changed OR v_payment_changed OR v_shipping_changed;
-  IF v_discount_changed THEN
-    v_tier_discount := CASE WHEN v_tier_changed THEN COALESCE(v_tier_discount, 0) ELSE COALESCE(v_order.snapshot_tier_discount, 0) END;
-    v_payment_discount := CASE WHEN v_payment_changed THEN COALESCE(v_payment_discount, 0) ELSE COALESCE(v_order.snapshot_payment_discount, 0) END;
-    v_shipping_discount := CASE WHEN v_shipping_changed THEN COALESCE(v_shipping_discount, 0) ELSE COALESCE(v_order.snapshot_shipping_discount, 0) END;
-    v_effective := v_tier_discount + v_payment_discount + v_shipping_discount;
-    v_discount_amount := ROUND((v_subtotal * v_effective / 100)::numeric, 2);
-  ELSE
-    v_discount_amount := COALESCE(p_discount_amount, 0);
-  END IF;
+  v_tier_discount := CASE WHEN v_tier_changed THEN COALESCE(v_tier_discount, 0) ELSE COALESCE(v_order.snapshot_tier_discount, 0) END;
+  v_payment_discount := CASE WHEN v_payment_changed THEN COALESCE(v_payment_discount, 0) ELSE COALESCE(v_order.snapshot_payment_discount, 0) END;
+  v_shipping_discount := CASE WHEN v_shipping_changed THEN COALESCE(v_shipping_discount, 0) ELSE COALESCE(v_order.snapshot_shipping_discount, 0) END;
+  v_effective := v_tier_discount + v_payment_discount + v_shipping_discount;
+  v_discount_amount := ROUND((v_subtotal * v_effective / 100)::numeric, 2);
   v_total := GREATEST(v_subtotal - v_discount_amount, 0);
 
   -- Non-blocking notice when the new tier's minimum order amount is not reached.
@@ -402,9 +404,7 @@ BEGIN
     shipping_method_option_id = CASE WHEN v_shipping_changed THEN v_new_shipping_id ELSE shipping_method_option_id END,
     snapshot_shipping_name = CASE WHEN v_shipping_changed THEN v_new_shipping_name ELSE snapshot_shipping_name END,
     snapshot_shipping_discount = CASE WHEN v_shipping_changed THEN v_shipping_discount ELSE snapshot_shipping_discount END,
-    effective_discount_percent = CASE
-      WHEN v_discount_changed THEN (CASE WHEN v_effective > 0 THEN v_effective ELSE NULL END)
-      ELSE effective_discount_percent END,
+    effective_discount_percent = CASE WHEN v_effective > 0 THEN v_effective ELSE NULL END,
     customer_id = CASE WHEN v_customer_changed THEN p_customer_id ELSE customer_id END,
     snapshot_customer_code = CASE WHEN v_customer_changed THEN v_cust_code ELSE snapshot_customer_code END,
     snapshot_customer_name = CASE WHEN v_customer_changed THEN v_cust_name ELSE snapshot_customer_name END,
@@ -504,7 +504,7 @@ BEGIN
     'payment_changed', v_payment_changed,
     'shipping_method_option_id', CASE WHEN v_shipping_changed THEN v_new_shipping_id ELSE v_order.shipping_method_option_id END,
     'shipping_changed', v_shipping_changed,
-    'effective_discount_percent', CASE WHEN v_discount_changed THEN (CASE WHEN v_effective > 0 THEN v_effective ELSE NULL END) ELSE v_order.effective_discount_percent END,
+    'effective_discount_percent', CASE WHEN v_effective > 0 THEN v_effective ELSE NULL END,
     'customer_id', CASE WHEN v_customer_changed THEN p_customer_id ELSE v_order.customer_id END,
     'customer_changed', v_customer_changed
   );
@@ -512,7 +512,7 @@ END;
 $$;
 
 COMMENT ON FUNCTION public.governed_supreme_edit_order_v2 IS
-  'تعديل أعلى إدارة (v2): أصناف + شريحة/دفع/شحن (تغيير أو إزالة) + عميل. إعادة حساب الخصم التراكمي (شريحة + دفع + شحن) عند أي تغيير في خيارات الخصم.';
+  'تعديل أعلى إدارة (v2): أصناف + شريحة/دفع/شحن (تغيير أو إزالة) + عميل. بعد أي تعديل يُعاد حساب نسب الخصم (شريحة + دفع + شحن مجمعة) وتُطبَّق على إجمالي الطلب الجديد.';
 
 GRANT EXECUTE ON FUNCTION public.governed_supreme_edit_order_v2(
   text, uuid, jsonb, text, numeric, text, character varying, uuid, boolean, uuid, uuid, boolean, uuid, boolean
