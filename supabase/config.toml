@@ -1,0 +1,9 @@
+# Supabase project config
+# Minimal config for deploying the existing send-push Edge Function.
+# The function MUST run with verify_jwt = false: the in-DB push pipeline
+# (fn_create_notification via pg_net) calls it with `Authorization: Bearer push-invoke`
+# which is NOT a Supabase JWT — the default JWT verification would reject it (401).
+project_id = "ahram-distribution"
+
+[functions.send-push]
+verify_jwt = false

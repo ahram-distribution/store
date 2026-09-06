@@ -15,7 +15,15 @@ export function CartItem({ item, onUpdateQuantity, onRemove }: CartItemProps) {
       <div className="flex-1 min-w-0">
         <h4 className="text-sm font-medium text-text truncate">{item.productName}</h4>
         <div className="text-xs text-text-secondary mt-0.5">
-          {UNIT_LABELS[item.unitType] || item.unitType} &middot; {formatCurrencyShort(item.unitPrice)} للوحدة
+          {UNIT_LABELS[item.unitType] || item.unitType} &middot;
+          {typeof item.baseUnitPrice === 'number' && item.baseUnitPrice > item.unitPrice ? (
+            <>
+              <span className="line-through">{formatCurrencyShort(item.baseUnitPrice)}</span>{' '}
+              <span className="text-success font-semibold">{formatCurrencyShort(item.unitPrice)}</span> للوحدة
+            </>
+          ) : (
+            <>{formatCurrencyShort(item.unitPrice)} للوحدة</>
+          )}
         </div>
         <div className="text-xs text-text-secondary">
           إجمالي القطع: {formatNumber(item.pieceQuantity)}

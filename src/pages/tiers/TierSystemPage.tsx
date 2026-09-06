@@ -1,15 +1,11 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { tierService } from '../../services/tiers'
+import { discountOptionsService, type DiscountOptionsBundle } from '../../services/discountOptions'
 import { useCartStore } from '../../store/cart'
-import { formatCurrencyShort } from '../../utils/format'
-import type { TierRecord } from '../../types/storefront'
+import { DiscountOptionSelector, type SelectableDiscountOption } from '../../components/storefront/DiscountOptionSelector'
+import { formatCurrencyShort, formatArabicAmountWithCurrency, formatTierName } from '../../utils/format'
 
-const TIER_BADGE_COLORS: Record<string, string> = {
-  '0': '#CD7F32',
-  '1': '#A8A8A8',
-  '2': '#D4AF37',
-}
+const TIER_BADGE_COLORS: string[] = ['#CD7F32', '#A8A8A8', '#D4AF37', '#C9A227', '#8B5CF6', '#10B981', '#3B82F6', '#EC4899']
 
 function BadgeIcon({ color }: { color: string }) {
   return (
@@ -19,16 +15,28 @@ function BadgeIcon({ color }: { color: string }) {
   )
 }
 
-function marketingDiscount(pct: number): number {
-  return Math.ceil(pct)
+function formatPercent(pct: number): string {
+  return pct % 1 === 0 ? String(pct) : Number(pct.toFixed(1)).toString()
+}
+
+function actualDiscountValue(base: number, pct: number): number {
+  return Math.round(base * (pct / 100) * 100) / 100
 }
 
 export function TierSystemPage() {
   const navigate = useNavigate()
-  const [tiers, setTiers] = useState<TierRecord[]>([])
+  const [bundle, setBundle] = useState<DiscountOptionsBundle | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const { selectTier, selectedTierId, getTotals } = useCartStore()
+  const {
+    selectTier,
+    selectedTierId,
+    selectedPaymentMethodId,
+    selectPaymentMethod,
+    selectedShippingMethodId,
+    selectShippingMethod,
+    getTotals,
+  } = useCartStore()
   const totals = getTotals()
 
   useEffect(() => {
@@ -36,13 +44,13 @@ export function TierSystemPage() {
       setLoading(true)
       setError(null)
       try {
-        const data = await tierService.getTiers()
-        setTiers(data)
+        const data = await discountOptionsService.getAll()
+        setBundle(data)
       } catch (err: any) {
         if (err?.code === 'PGRST116' || err?.message?.includes('relation') || err?.message?.includes('does not exist')) {
-          setTiers([])
+          setBundle(null)
         } else {
-          setError(err.message || 'فشل تحميل الشرائح')
+          setError(err.message || 'فشل تحميل الخيارات')
         }
       } finally {
         setLoading(false)
@@ -58,114 +66,179 @@ export function TierSystemPage() {
     </div>
   )
 
-  const selectedTier = tiers.find(t => t.id === selectedTierId) ?? null
+  const visibleTiers = (bundle?.tiers ?? [])
+    .filter((x) => x.isActive && x.isVisible)
+    .sort((a, b) => (b.minimumOrderAmount ?? 0) - (a.minimumOrderAmount ?? 0))
+  const visiblePayments = reachableSorter(bundle?.paymentMethods ?? [])
+  const visibleShipping = reachableSorter(bundle?.shippingMethods ?? [])
+
+  function reachableSorter<T extends { isActive: boolean; isVisible: boolean; sortOrder: number }>(list: T[]): T[] {
+    return list.filter((x) => x.isActive && x.isVisible).sort((a, b) => a.sortOrder - b.sortOrder)
+  }
+
+  const tierOptions: SelectableDiscountOption[] = visibleTiers.map((t) => ({
+    id: t.id,
+    name: t.name,
+    discountPercent: t.discountPercent,
+    minimumOrderAmount: t.minimumOrderAmount,
+    color: t.color,
+    iconUrl: t.iconUrl,
+  }))
+
+  const paymentOptions: SelectableDiscountOption[] = visiblePayments.map((m) => ({
+    id: m.id,
+    name: m.name,
+    discountPercent: m.discountPercent,
+  }))
+
+  const shippingOptions: SelectableDiscountOption[] = visibleShipping.map((m) => ({
+    id: m.id,
+    name: m.name,
+    discountPercent: m.discountPercent,
+  }))
+
+  const selectedTier = bundle?.tiers.find((t) => t.id === selectedTierId) ?? null
+  const selectedPayment = bundle?.paymentMethods.find((m) => m.id === selectedPaymentMethodId) ?? null
+  const selectedShipping = bundle?.shippingMethods.find((m) => m.id === selectedShippingMethodId) ?? null
 
   return (
     <div className="space-y-4">
-      {/* Back + Title */}
       <div className="flex items-center gap-3">
         <button onClick={() => navigate(-1)} className="text-text-secondary text-lg">&larr;</button>
-        <h1 className="text-lg font-bold text-text">مركز الشرائح</h1>
+        <h1 className="text-lg font-bold text-text">مركز الخصومات</h1>
       </div>
 
-      {/* Current Tier Header */}
+      {/* Current selections header */}
       <div className="bg-white rounded-xl border border-border p-4">
-        <div className="text-sm text-text-secondary mb-1">الشريحة الحالية:</div>
+        <div className="text-sm text-text-secondary mb-1">اختياراتك الحالية:</div>
         <div className="text-base font-bold text-text">
           {selectedTier ? selectedTier.name : 'السعر الرسمي'}
+          {selectedPayment && <span> · {selectedPayment.name}</span>}
+          {selectedShipping && <span> · {selectedShipping.name}</span>}
         </div>
         <div className="mt-3 pt-3 border-t border-border">
-          <div className="text-sm text-text-secondary">إجمالي مشترياتك الحالية</div>
-          <div className="text-lg font-bold text-text mt-0.5">{formatCurrencyShort(totals.productSubtotal)}</div>
+          <div className="text-sm text-text-secondary">إجمالي المشتريات (الأساسي)</div>
+          <div className="text-lg font-bold text-text mt-0.5">{formatCurrencyShort(totals.productBaseSubtotal)}</div>
+          {totals.productBaseSubtotal > 0 && totals.totalDiscount > 0 && (
+            <div className="text-xs font-semibold text-success mt-1">
+              قيمة الخصم الفعلية: -{formatCurrencyShort(totals.totalDiscount)}
+            </div>
+          )}
         </div>
       </div>
 
-      {tiers.length === 0 && (
+      {totals.totalDiscount > 0 && (
+        <div className="bg-success/10 border border-success/30 rounded-lg p-3">
+          <div className="flex justify-between text-sm">
+            <span className="text-success font-semibold">إجمالي الخصم ({totals.totalDiscountPercent}%)</span>
+            <span className="text-success font-semibold">-{formatCurrencyShort(totals.totalDiscount)}</span>
+          </div>
+          <div className="flex justify-between text-sm mt-1">
+            <span className="text-text-secondary">الإجمالي النهائي</span>
+            <span className="font-bold text-text">{formatCurrencyShort(totals.netTotal)}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Tier cards */}
+      {visibleTiers.length > 0 && (
+        <div className="space-y-3">
+          {visibleTiers.map((tier, index) => {
+            const isSelected = selectedTierId === tier.id
+            const badgeColor = tier.color || TIER_BADGE_COLORS[index % TIER_BADGE_COLORS.length]
+            const actualValue = actualDiscountValue(totals.productBaseSubtotal, tier.discountPercent)
+
+            return (
+              <div
+                key={tier.id}
+                className={`bg-white rounded-xl border-2 transition-all ${
+                  isSelected ? 'border-primary bg-primary/[0.03] shadow-sm' : 'border-border'
+                }`}
+              >
+                <div className="p-4 space-y-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: `${badgeColor}20` }}>
+                      <BadgeIcon color={badgeColor} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-base font-bold text-text">{formatTierName(tier.name)}</div>
+                      {tier.description && <div className="text-xs text-text-secondary truncate">{tier.description}</div>}
+                    </div>
+                    {isSelected && (
+                      <span className="shrink-0 text-[11px] font-bold px-2 py-1 rounded-full bg-primary text-white">✓ محددة</span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-bold px-3 py-1 rounded-full bg-success/10 text-success">
+                      خصم {formatPercent(tier.discountPercent)}%
+                    </span>
+                    {totals.productBaseSubtotal > 0 && tier.discountPercent > 0 && (
+                      <span className="text-xs font-semibold text-success">
+                        قيمة الخصم الفعلية: ≈ {formatCurrencyShort(actualValue)}
+                      </span>
+                    )}
+                  </div>
+
+                  {tier.minimumOrderAmount > 0 && (
+                    <div className="text-xs text-text-secondary">
+                      الحد الأدنى: <span className="font-semibold text-text">{formatArabicAmountWithCurrency(tier.minimumOrderAmount)}</span>
+                    </div>
+                  )}
+
+                  {!isSelected && (
+                    <button
+                      onClick={() => selectTier(tier.id)}
+                      className="w-full text-sm py-2.5 rounded-lg bg-primary text-white active:bg-primary-dark transition-colors"
+                    >
+                      اختيار الشريحة
+                    </button>
+                  )}
+                  {isSelected && (
+                    <button
+                      onClick={() => selectTier(null)}
+                      className="w-full text-sm py-2.5 rounded-lg bg-white text-text-secondary border border-border active:bg-surface transition-colors"
+                    >
+                      العودة للسعر الأساسي
+                    </button>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {visibleTiers.length === 0 && (
         <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-center">
           <p className="text-sm text-blue-700 font-semibold mb-1">قريباً</p>
           <p className="text-xs text-blue-600">سيتم تفعيل الشرائح السعرية قريباً. تابعنا لتصلك العروض.</p>
         </div>
       )}
 
-      {/* Tier Cards */}
-      <div className="space-y-3">
-        {tiers.map((tier, index) => {
-          const isSelected = selectedTierId === tier.id
-          const badgeColor = tier.color || TIER_BADGE_COLORS[String(index)] || '#9CA3AF'
-          const mktPct = marketingDiscount(tier.discountPercent)
+      {/* Payment + shipping groups */}
+      <DiscountOptionSelector
+        groupLabel="طريقة الدفع"
+        noneLabel="نقدي / بدون طريقة"
+        options={paymentOptions}
+        selectedId={visiblePayments.some((m) => m.id === selectedPaymentMethodId) ? selectedPaymentMethodId : null}
+        onSelect={selectPaymentMethod}
+        baseAmount={totals.productBaseSubtotal}
+      />
 
-          return (
-            <div
-              key={tier.id}
-              className={`bg-white rounded-xl border-2 transition-all ${
-                isSelected
-                  ? 'border-[#C9A227] shadow-sm'
-                  : 'border-border'
-              }`}
-            >
-              <div className="p-4 space-y-3">
-                {/* Badge + Name */}
-                <div className="flex items-center gap-3">
-                  <div
-                    className="w-10 h-10 rounded-full flex items-center justify-center"
-                    style={{ backgroundColor: `${badgeColor}20` }}
-                  >
-                    <BadgeIcon color={badgeColor} />
-                  </div>
-                  <div>
-                    <div className="text-base font-bold text-text">{tier.name}</div>
-                  </div>
-                </div>
+      <DiscountOptionSelector
+        groupLabel="طريقة الشحن"
+        noneLabel="بدون طريقة شحن"
+        options={shippingOptions}
+        selectedId={visibleShipping.some((m) => m.id === selectedShippingMethodId) ? selectedShippingMethodId : null}
+        onSelect={selectShippingMethod}
+        baseAmount={totals.productBaseSubtotal}
+      />
 
-                {/* Marketing Discount */}
-                <div className="flex items-center gap-2">
-                  <span
-                    className="text-sm font-bold px-3 py-1 rounded-full"
-                    style={{
-                      backgroundColor: `${badgeColor}15`,
-                      color: badgeColor,
-                    }}
-                  >
-                    خصم يصل إلى {mktPct}%
-                  </span>
-                </div>
-
-                {/* Minimum */}
-                {tier.minimumOrderAmount > 0 && (
-                  <div className="text-sm text-text-secondary">
-                    الحد الأدنى للمشتريات: {formatCurrencyShort(tier.minimumOrderAmount)}
-                  </div>
-                )}
-
-                {/* Action Buttons */}
-                {!isSelected && (
-                  <button
-                    onClick={() => selectTier(tier.id)}
-                    className="w-full text-sm py-2.5 rounded-lg bg-primary text-white active:bg-primary-dark transition-colors"
-                  >
-                    اختيار الشريحة
-                  </button>
-                )}
-                {isSelected && (
-                  <div className="space-y-2">
-                    <button
-                      disabled
-                      className="w-full text-sm py-2.5 rounded-lg bg-success/10 text-success font-semibold cursor-default"
-                    >
-                      الشريحة الحالية
-                    </button>
-                    <button
-                      onClick={() => selectTier(null)}
-                      className="w-full text-sm py-2.5 rounded-lg bg-white text-text-secondary border border-border active:bg-surface transition-colors"
-                    >
-                      العودة للسعر الرسمي
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-          )
-        })}
+      <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+        <p className="text-xs text-amber-700">
+          الخصم من كل مجموعة يُجمع ويُطبق مرة واحدة على السعر الأساسي. مثال: شريحة 2.5% + دفع 1% + شحن 1% = خصم إجمالي 4.5% على إجمالي المشتريات.
+        </p>
       </div>
     </div>
   )

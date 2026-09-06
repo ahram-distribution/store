@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useCartStore } from '../../store/cart'
 import { useAuthStore } from '../../store/auth'
-import { formatCurrencyShort } from '../../utils/format'
+import { formatCurrencyShort, formatArabicAmountWithCurrency, formatTierName } from '../../utils/format'
 import { supabase } from '../../lib/supabase'
 import { sendWhatsAppFromDisplay } from '../../lib/whatsapp'
 import { buildOrderDisplayData, UNIT_LABELS } from '../../types/order-display'
@@ -41,11 +41,13 @@ export function OrderReviewPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const orderType = useCartStore((s) => s.orderType)
-  const { items, dealItems, flashOfferItems, products, getSelectedTier, getTotals, resetOrderContext, selectedCustomer, editingOrderId } = useCartStore()
+  const { items, dealItems, flashOfferItems, products, getSelectedTier, getSelectedPaymentMethod, getSelectedShippingMethod, getTotals, resetOrderContext, selectedCustomer, editingOrderId } = useCartStore()
   const user = useAuthStore((s) => s.user)
   const [submitting, setSubmitting] = useState(false)
 
   const selectedTier = getSelectedTier()
+  const selectedPaymentMethod = getSelectedPaymentMethod()
+  const selectedShippingMethod = getSelectedShippingMethod()
   const totals = getTotals()
   const [availabilityByItem, setAvailabilityByItem] = useState<Record<string, AvailabilityResult>>({})
 
@@ -106,7 +108,7 @@ export function OrderReviewPage() {
     }
 
     if (selectedTier && !totals.meetsTierMinimum) {
-      toast.error(`لم يتم الوصول إلى الحد الأدنى للشريحة (${formatCurrencyShort(totals.tierMinimum)})`)
+      toast.error(`لم يتم الوصول إلى الحد الأدنى للشريحة (${formatArabicAmountWithCurrency(totals.tierMinimum)})`)
       navigate('/cart')
       return
     }
@@ -166,6 +168,14 @@ export function OrderReviewPage() {
           setSubmitting(false)
           return
         }
+        supabase.rpc('governed_update_order_discount_options', {
+          p_token: token,
+          p_order_id: editingOrderId,
+          p_tier_id: selectedTier?.id || null,
+          p_payment_method_option_id: selectedPaymentMethod?.id || null,
+          p_shipping_method_option_id: selectedShippingMethod?.id || null,
+          p_reason: 'تحديث خيارات الخصم أثناء تعديل الطلب',
+        }).then(() => {}).catch(() => {})
         toast.success('تم تحديث الطلب وإرساله بنجاح!')
       } else {
         const { data: created, error: createError } = await supabase.rpc('governed_create_order', {
@@ -180,6 +190,8 @@ export function OrderReviewPage() {
           p_execution_accuracy_meters: null,
           p_execution_captured_at: null,
           p_order_type: orderType || 'cash',
+          p_payment_method_option_id: selectedPaymentMethod?.id || null,
+          p_shipping_method_option_id: selectedShippingMethod?.id || null,
         })
         if (createError) { toast.error('تعذر تجهيز الطلب للإرسال. يرجى المحاولة مرة أخرى.'); setSubmitting(false); return }
         if (!created) { toast.error('تعذر تجهيز الطلب للإرسال. يرجى المحاولة مرة أخرى.'); setSubmitting(false); return }
@@ -254,9 +266,27 @@ export function OrderReviewPage() {
       {selectedTier && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
           <div className="text-xs text-blue-800">
-            <span className="font-semibold">الشريحة: {selectedTier.name}</span>
-            {' | '}خصم يصل إلى {Math.ceil(selectedTier.discountPercent)}%
-            {' | '}الحد الأدنى: {formatCurrencyShort(selectedTier.minimumOrderAmount)}
+            <span className="font-semibold">الشريحة: {formatTierName(selectedTier.name)}</span>
+            {' | '}خصم {selectedTier.discountPercent}%
+            {' | '}الحد الأدنى: {formatArabicAmountWithCurrency(selectedTier.minimumOrderAmount)}
+          </div>
+        </div>
+      )}
+
+      {selectedPaymentMethod && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+          <div className="text-xs text-blue-800">
+            <span className="font-semibold">طريقة الدفع: {selectedPaymentMethod.name}</span>
+            {' | '}خصم {selectedPaymentMethod.discountPercent}%
+          </div>
+        </div>
+      )}
+
+      {selectedShippingMethod && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+          <div className="text-xs text-blue-800">
+            <span className="font-semibold">طريقة الشحن: {selectedShippingMethod.name}</span>
+            {' | '}خصم {selectedShippingMethod.discountPercent}%
           </div>
         </div>
       )}
@@ -360,8 +390,8 @@ export function OrderReviewPage() {
 
       <div className="bg-white rounded-xl border border-border p-4 space-y-2">
         <div className="flex justify-between text-sm text-text-secondary">
-          <span>إجمالي المنتجات</span>
-          <span>{formatCurrencyShort(totals.productSubtotal)}</span>
+          <span>إجمالي المنتجات (الأساسي)</span>
+          <span>{formatCurrencyShort(totals.productBaseSubtotal)}</span>
         </div>
         {flashOfferItems.length > 0 && (
           <div className="flex justify-between text-sm text-amber-600">
@@ -377,8 +407,20 @@ export function OrderReviewPage() {
         )}
         {totals.tierDiscount > 0 && (
           <div className="flex justify-between text-sm text-success">
-            <span>خصم الشريحة ({selectedTier?.name})</span>
+            <span>خصم الشريحة ({selectedTier?.name ?? ''})</span>
             <span>-{formatCurrencyShort(totals.tierDiscount)}</span>
+          </div>
+        )}
+        {totals.paymentDiscount > 0 && (
+          <div className="flex justify-between text-sm text-success">
+            <span>خصم طريقة الدفع ({selectedPaymentMethod?.name ?? ''})</span>
+            <span>-{formatCurrencyShort(totals.paymentDiscount)}</span>
+          </div>
+        )}
+        {totals.shippingDiscount > 0 && (
+          <div className="flex justify-between text-sm text-success">
+            <span>خصم طريقة الشحن ({selectedShippingMethod?.name ?? ''})</span>
+            <span>-{formatCurrencyShort(totals.shippingDiscount)}</span>
           </div>
         )}
         <hr className="border-border" />

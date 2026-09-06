@@ -156,6 +156,53 @@ export function OrderDetailView({ data, actions, onBack, editMode, editItems, on
         </div>
       </div>
 
+      {/* ── 2.1 DISCOUNT GROUPS (tier / payment / shipping snapshots) ── */}
+      {(order.snapshot_tier_name || order.snapshot_payment_name || order.snapshot_shipping_name) && (
+        <div className="bg-white rounded-lg border border-[#E5E7EB] shadow-sm p-4 space-y-1.5 text-[13px]">
+          <div className="flex items-center justify-between mb-0.5">
+            <p className="text-[12px] font-bold text-[#111827]">الخصومات المطبقة (مجمدة عند الإنشاء)</p>
+            {order.effective_discount_percent != null && order.effective_discount_percent > 0 && (
+              <span className="text-[11px] bg-[#ECFDF5] text-[#059669] px-2 py-0.5 rounded-full font-bold">
+                إجمالي الخصم {order.effective_discount_percent}%
+              </span>
+            )}
+          </div>
+          {order.snapshot_tier_name && (
+            <div className="flex items-center justify-between">
+              <span className="text-[#6B7280]">🎖 شريحة الطلب</span>
+              <span className="font-semibold text-[#111827]">
+                {order.snapshot_tier_name}
+                {order.snapshot_tier_discount != null && order.snapshot_tier_discount > 0 && (
+                  <span className="text-[#059669]"> ({order.snapshot_tier_discount}%)</span>
+                )}
+              </span>
+            </div>
+          )}
+          {order.snapshot_payment_name && (
+            <div className="flex items-center justify-between">
+              <span className="text-[#6B7280]">💳 طريقة الدفع</span>
+              <span className="font-semibold text-[#111827]">
+                {order.snapshot_payment_name}
+                {order.snapshot_payment_discount != null && order.snapshot_payment_discount > 0 && (
+                  <span className="text-[#059669]"> ({order.snapshot_payment_discount}%)</span>
+                )}
+              </span>
+            </div>
+          )}
+          {order.snapshot_shipping_name && (
+            <div className="flex items-center justify-between">
+              <span className="text-[#6B7280]">🚚 طريقة الشحن</span>
+              <span className="font-semibold text-[#111827]">
+                {order.snapshot_shipping_name}
+                {order.snapshot_shipping_discount != null && order.snapshot_shipping_discount > 0 && (
+                  <span className="text-[#059669]"> ({order.snapshot_shipping_discount}%)</span>
+                )}
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ── 3. CUSTOMER: Name, Phone, Address, Location ── */}
       <div className="bg-white rounded-lg border border-[#E5E7EB] shadow-sm p-4 space-y-2 text-[13px]">
         <div>

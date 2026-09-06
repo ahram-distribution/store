@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { usePersistentViewState } from '../../hooks/usePersistentViewState'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
+import { discountOptionsService, mergeSnapshotIntoRow } from '../../services/discountOptions'
 import { useAuthStore } from '../../store/auth'
 import { useEntityViewsStore } from '../../store/entityViews'
 import { resolveDateRangeISO, cairoDateComponents } from '../../lib/dateRange'
@@ -120,7 +121,15 @@ export function OrdersPage() {
     if (!rpcParams) { setLoading(false); setInitialLoaded(true); return }
     setLoading(true)
     const { data } = await supabase.rpc('get_unified_orders', rpcParams)
-    if (data) setOrders(Array.isArray(data) ? data : [])
+    const rows = (Array.isArray(data) ? data : []) as any[]
+    try {
+      const snaps = await discountOptionsService.getOrderDiscountSnapshots(rows.map((r) => r.id).filter(Boolean))
+      const byId = new Map(snaps.map((s) => [s.orderId, s]))
+      for (const row of rows) mergeSnapshotIntoRow(row, byId.get(row.id))
+    } catch {
+      // best-effort merge
+    }
+    if (data) setOrders(rows)
     setLoading(false)
     setInitialLoaded(true)
   }, [buildRpcParams])
@@ -139,7 +148,15 @@ export function OrdersPage() {
       silentRefreshing.current = true
       try {
         const { data } = await supabase.rpc('get_unified_orders', rpcParams)
-        if (data) setOrders(Array.isArray(data) ? data : [])
+        const rows = (Array.isArray(data) ? data : []) as any[]
+        try {
+          const snaps = await discountOptionsService.getOrderDiscountSnapshots(rows.map((r) => r.id).filter(Boolean))
+          const byId = new Map(snaps.map((s) => [s.orderId, s]))
+          for (const row of rows) mergeSnapshotIntoRow(row, byId.get(row.id))
+        } catch {
+          // best-effort merge
+        }
+        if (data) setOrders(rows)
       } finally {
         silentRefreshing.current = false
       }

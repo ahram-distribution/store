@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { CartItem, CartDealItem, CartTotals, TierConfig, ProductWithPrice, UnitType, DailyDealRecord, FlashOfferRecord } from '../types/storefront'
-import { computeProductPrices, getEffectiveUnitPrice, computePieceQuantity, computeCartTotals } from '../engine/pricing'
+import type { CartItem, CartDealItem, CartTotals, TierConfig, PaymentMethodOption, ShippingMethodOption, ProductWithPrice, UnitType, DailyDealRecord, FlashOfferRecord } from '../types/storefront'
+import { computeProductPrices, getFinalUnitPrice, getUnitBasePrice, computePieceQuantity, computeCartTotals } from '../engine/pricing'
 import { supabase } from '../lib/supabase'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import toast from 'react-hot-toast'
@@ -30,7 +30,11 @@ interface CartState {
   dealItems: CartDealItem[]
   flashOfferItems: CartDealItem[]
   selectedTierId: string | null
+  selectedPaymentMethodId: string | null
+  selectedShippingMethodId: string | null
   tiers: TierConfig[]
+  paymentMethods: PaymentMethodOption[]
+  shippingMethods: ShippingMethodOption[]
   products: ProductWithPrice[]
   selectedCustomer: CartCustomer | null
   editingOrderId: string | null
@@ -41,9 +45,13 @@ interface CartState {
   geoResolveEpoch: number
 
   setTiers: (tiers: TierConfig[]) => void
+  setPaymentMethods: (paymentMethods: PaymentMethodOption[]) => void
+  setShippingMethods: (shippingMethods: ShippingMethodOption[]) => void
   setProducts: (products: ProductWithPrice[]) => void
   syncProduct: (product: ProductWithPrice) => void
   selectTier: (tierId: string | null) => void
+  selectPaymentMethod: (paymentMethodId: string | null) => void
+  selectShippingMethod: (shippingMethodId: string | null) => void
   addItem: (product: ProductWithPrice, unitType: UnitType, unitQuantity: number) => void
   removeItem: (productId: string, unitType: UnitType) => void
   updateQuantity: (productId: string, unitType: UnitType, unitQuantity: number) => void
@@ -57,12 +65,14 @@ interface CartState {
   resetOrderContext: () => void
   getTotals: () => CartTotals
   getSelectedTier: () => TierConfig | null
+  getSelectedPaymentMethod: () => PaymentMethodOption | null
+  getSelectedShippingMethod: () => ShippingMethodOption | null
   getEffectivePrice: (product: ProductWithPrice, unitType: UnitType) => number
   recalculateAll: () => void
   setSelectedCustomer: (customer: CartCustomer | null) => void
   setEditingOrder: (orderId: string | null) => void
   setOrderType: (orderType: string) => void
-  restoreCart: (items: CartItem[], editingOrderId: string, restoreOrderType?: string) => void
+  restoreCart: (items: CartItem[], editingOrderId: string, restoreOrderType?: string, restoreTierId?: string | null, restorePaymentMethodId?: string | null, restoreShippingMethodId?: string | null) => void
   resolveGeographicPricing: (governorateId: string | null, companyId?: string, productId?: string) => Promise<void>
   resolveEmployeeGeographicContext: (employeeId: string) => Promise<void>
   setGeographicContext: (ctx: GeographicContext | null) => void
@@ -82,8 +92,8 @@ export const useCartStore = create(
       const enforceCartInvariant = () => {
         const s = get()
         const cartEmpty = s.items.length === 0 && s.dealItems.length === 0 && s.flashOfferItems.length === 0
-        if (cartEmpty && (s.selectedCustomer || s.orderType || s.selectedTierId)) {
-          set({ selectedCustomer: null, orderType: '', selectedTierId: null, editingOrderId: null })
+        if (cartEmpty && (s.selectedCustomer || s.orderType || s.selectedTierId || s.selectedPaymentMethodId || s.selectedShippingMethodId)) {
+          set({ selectedCustomer: null, orderType: '', selectedTierId: null, selectedPaymentMethodId: null, selectedShippingMethodId: null, editingOrderId: null })
         }
       }
 
@@ -98,7 +108,11 @@ export const useCartStore = create(
       dealItems: [],
       flashOfferItems: [],
       selectedTierId: null,
+      selectedPaymentMethodId: null,
+      selectedShippingMethodId: null,
       tiers: [],
+      paymentMethods: [],
+      shippingMethods: [],
       products: [],
       selectedCustomer: null,
       editingOrderId: null,
@@ -109,6 +123,10 @@ export const useCartStore = create(
       geoResolveEpoch: 0,
 
       setTiers: (tiers) => set({ tiers }),
+
+      setPaymentMethods: (paymentMethods) => set({ paymentMethods }),
+
+      setShippingMethods: (shippingMethods) => set({ shippingMethods }),
 
       setProducts: (products) => set({ products }),
 
@@ -127,6 +145,16 @@ export const useCartStore = create(
         get().recalculateAll()
       },
 
+      selectPaymentMethod: (paymentMethodId) => {
+        set({ selectedPaymentMethodId: paymentMethodId })
+        get().recalculateAll()
+      },
+
+      selectShippingMethod: (shippingMethodId) => {
+        set({ selectedShippingMethodId: shippingMethodId })
+        get().recalculateAll()
+      },
+
       addItem: (product, unitType, unitQuantity) => {
         if (!product.isActive || product.isOutOfStock) {
           toast.error('هذا المنتج غير متوفر حالياً')
@@ -141,10 +169,12 @@ export const useCartStore = create(
 
         const state = get()
         const tier = state.getSelectedTier()
+        const payment = state.getSelectedPaymentMethod()
+        const shipping = state.getSelectedShippingMethod()
         const geoAdj = getAdjForProduct(state, product.id)
-        const prices = computeProductPrices(product, tier, undefined, geoAdj || undefined)
-        const hasTier = tier !== null
-        const unitPrice = getEffectiveUnitPrice(prices, unitType, hasTier)
+        const prices = computeProductPrices(product, tier, undefined, geoAdj || undefined, payment, shipping)
+        const baseUnitPrice = getUnitBasePrice(prices, unitType)
+        const finalUnitPrice = getFinalUnitPrice(prices, unitType)
         const pieceQuantity = computePieceQuantity(unitQuantity, unitType, product.cartonQuantity)
 
         const existingIndex = state.items.findIndex(
@@ -158,8 +188,10 @@ export const useCartStore = create(
           newItems[existingIndex] = {
             ...existing,
             unitQuantity: newQuantity,
+            baseUnitPrice: Math.round(baseUnitPrice * 100) / 100,
             geoAdjustPercent: geoAdj,
-            totalPrice: Math.round(unitPrice * newQuantity * 100) / 100,
+            unitPrice: Math.round(finalUnitPrice * 100) / 100,
+            totalPrice: Math.round(finalUnitPrice * newQuantity * 100) / 100,
             pieceQuantity: pieceQuantity + existing.pieceQuantity,
           }
           set({ items: newItems })
@@ -170,8 +202,9 @@ export const useCartStore = create(
             unitType,
             unitQuantity,
             pieceQuantity,
-            unitPrice: Math.round(unitPrice * 100) / 100,
-            totalPrice: Math.round(unitPrice * unitQuantity * 100) / 100,
+            baseUnitPrice: Math.round(baseUnitPrice * 100) / 100,
+            unitPrice: Math.round(finalUnitPrice * 100) / 100,
+            totalPrice: Math.round(finalUnitPrice * unitQuantity * 100) / 100,
             imageUrl: product.imageUrl,
             companyId: product.companyId,
             companyName: product.companyName,
@@ -195,13 +228,15 @@ export const useCartStore = create(
         }
         const state = get()
         const tier = state.getSelectedTier()
+        const payment = state.getSelectedPaymentMethod()
+        const shipping = state.getSelectedShippingMethod()
         const product = state.products.find((p) => p.id === productId)
         if (!product) return
 
         const geoAdj = getAdjForProduct(state, product.id)
-        const prices = computeProductPrices(product, tier, undefined, geoAdj || undefined)
-        const hasTier = tier !== null
-        const unitPrice = getEffectiveUnitPrice(prices, unitType, hasTier)
+        const prices = computeProductPrices(product, tier, undefined, geoAdj || undefined, payment, shipping)
+        const baseUnitPrice = getUnitBasePrice(prices, unitType)
+        const finalUnitPrice = getFinalUnitPrice(prices, unitType)
         const pieceQuantity = computePieceQuantity(unitQuantity, unitType, product.cartonQuantity)
 
         set({
@@ -211,9 +246,10 @@ export const useCartStore = create(
                   ...item,
                   unitQuantity,
                   pieceQuantity,
+                  baseUnitPrice: Math.round(baseUnitPrice * 100) / 100,
                   geoAdjustPercent: geoAdj,
-                  unitPrice: Math.round(unitPrice * 100) / 100,
-                  totalPrice: Math.round(unitPrice * unitQuantity * 100) / 100,
+                  unitPrice: Math.round(finalUnitPrice * 100) / 100,
+                  totalPrice: Math.round(finalUnitPrice * unitQuantity * 100) / 100,
                 }
               : item
           ),
@@ -301,6 +337,8 @@ export const useCartStore = create(
           selectedCustomer: null,
           orderType: '',
           selectedTierId: null,
+          selectedPaymentMethodId: null,
+          selectedShippingMethodId: null,
           editingOrderId: null,
           geographicContext: null,
           geoItemAdjustments: {},
@@ -312,7 +350,9 @@ export const useCartStore = create(
       getTotals: () => {
         const state = get()
         const tier = state.getSelectedTier()
-        return computeCartTotals(state.items, tier, state.dealItems, state.flashOfferItems)
+        const payment = state.getSelectedPaymentMethod()
+        const shipping = state.getSelectedShippingMethod()
+        return computeCartTotals(state.items, tier, state.dealItems, state.flashOfferItems, undefined, payment, shipping)
       },
 
       getSelectedTier: () => {
@@ -321,31 +361,47 @@ export const useCartStore = create(
         return state.tiers.find((t) => t.id === state.selectedTierId) ?? null
       },
 
+      getSelectedPaymentMethod: () => {
+        const state = get()
+        if (!state.selectedPaymentMethodId) return null
+        return state.paymentMethods.find((p) => p.id === state.selectedPaymentMethodId) ?? null
+      },
+
+      getSelectedShippingMethod: () => {
+        const state = get()
+        if (!state.selectedShippingMethodId) return null
+        return state.shippingMethods.find((s) => s.id === state.selectedShippingMethodId) ?? null
+      },
+
       getEffectivePrice: (product, unitType) => {
         const state = get()
         const tier = state.getSelectedTier()
+        const payment = state.getSelectedPaymentMethod()
+        const shipping = state.getSelectedShippingMethod()
         const geoAdj = getAdjForProduct(state, product.id)
-        const prices = computeProductPrices(product, tier, undefined, geoAdj || undefined)
-        const hasTier = tier !== null
-        return getEffectiveUnitPrice(prices, unitType, hasTier)
+        const prices = computeProductPrices(product, tier, undefined, geoAdj || undefined, payment, shipping)
+        return getFinalUnitPrice(prices, unitType)
       },
 
       recalculateAll: () => {
         const state = get()
         const tier = state.getSelectedTier()
+        const payment = state.getSelectedPaymentMethod()
+        const shipping = state.getSelectedShippingMethod()
         const newItems = state.items.map((item) => {
           const product = state.products.find((p) => p.id === item.productId)
           if (!product) return item
           const geoAdj = getAdjForProduct(state, item.productId)
-          const prices = computeProductPrices(product, tier, undefined, geoAdj || undefined)
-          const hasTier = tier !== null
-          const unitPrice = getEffectiveUnitPrice(prices, item.unitType, hasTier)
+          const prices = computeProductPrices(product, tier, undefined, geoAdj || undefined, payment, shipping)
+          const baseUnitPrice = getUnitBasePrice(prices, item.unitType)
+          const finalUnitPrice = getFinalUnitPrice(prices, item.unitType)
           const pieceQuantity = computePieceQuantity(item.unitQuantity, item.unitType, product.cartonQuantity)
           return {
             ...item,
+            baseUnitPrice: Math.round(baseUnitPrice * 100) / 100,
             geoAdjustPercent: geoAdj,
-            unitPrice: Math.round(unitPrice * 100) / 100,
-            totalPrice: Math.round(unitPrice * item.unitQuantity * 100) / 100,
+            unitPrice: Math.round(finalUnitPrice * 100) / 100,
+            totalPrice: Math.round(finalUnitPrice * item.unitQuantity * 100) / 100,
             pieceQuantity,
           }
         })
@@ -534,7 +590,7 @@ export const useCartStore = create(
         }
       },
 
-      restoreCart: (orderItems, editingOrderId, restoreOrderType) => {
+      restoreCart: (orderItems, editingOrderId, restoreOrderType, restoreTierId, restorePaymentMethodId, restoreShippingMethodId) => {
         const state = get()
         const items: CartItem[] = orderItems.map((i: any) => {
           const product = state.products.find(p => p.id === i.product_id)
@@ -544,6 +600,7 @@ export const useCartStore = create(
             unitType: i.unit_type,
             unitQuantity: i.unit_quantity,
             pieceQuantity: i.piece_quantity,
+            baseUnitPrice: i.base_unit_price ?? undefined,
             unitPrice: i.unit_price,
             totalPrice: i.total_price,
             imageUrl: i.image_url || undefined,
@@ -552,7 +609,14 @@ export const useCartStore = create(
             companyName: product?.companyName,
           }
         })
-        set({ items, editingOrderId, orderType: restoreOrderType || '' })
+        set({
+          items,
+          editingOrderId,
+          orderType: restoreOrderType || '',
+          selectedTierId: restoreTierId !== undefined ? restoreTierId : state.selectedTierId,
+          selectedPaymentMethodId: restorePaymentMethodId !== undefined ? restorePaymentMethodId : state.selectedPaymentMethodId,
+          selectedShippingMethodId: restoreShippingMethodId !== undefined ? restoreShippingMethodId : state.selectedShippingMethodId,
+        })
       },
 
       getDealItems: () => get().dealItems,

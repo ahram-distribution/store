@@ -1,4 +1,15 @@
-import type { ComputedPrices, ProductWithPrice, TierConfig, UnitType, CartItem, CartDealItem, CartTotals, TierExceptionLookup } from '../types/storefront'
+import type {
+  ComputedPrices,
+  ProductWithPrice,
+  TierConfig,
+  PaymentMethodOption,
+  ShippingMethodOption,
+  UnitType,
+  CartItem,
+  CartDealItem,
+  CartTotals,
+  TierExceptionLookup,
+} from '../types/storefront'
 
 export function computePieceQuantity(unitQuantity: number, unitType: UnitType, cartonQuantity: number): number {
   const multiplier = unitType === 'piece' ? 1 : unitType === 'dozen' ? 12 : cartonQuantity
@@ -28,6 +39,22 @@ export function computeEffectiveDiscountPercent(
   return tier.discountPercent
 }
 
+/**
+ * Sum of the three independent discount groups (Method B — sum then apply once).
+ * Example: tier 2.5% + payment 1% + shipping 1% => 4.5% applied ONCE on the base price.
+ */
+export function computeTotalDiscountPercent(
+  tier: TierConfig | null,
+  paymentOption?: PaymentMethodOption | null,
+  shippingOption?: ShippingMethodOption | null,
+  exceptionLookup?: TierExceptionLookup | null
+): number {
+  const tierPart = computeEffectiveDiscountPercent(tier, exceptionLookup)
+  const paymentPart = paymentOption?.discountPercent ?? 0
+  const shippingPart = shippingOption?.discountPercent ?? 0
+  return tierPart + paymentPart + shippingPart
+}
+
 export function computeExceptionAwareTierPrice(
   basePrice: number,
   tier: TierConfig | null,
@@ -42,7 +69,9 @@ export function computeProductPrices(
   product: ProductWithPrice,
   tier: TierConfig | null,
   exceptionLookup?: TierExceptionLookup | null,
-  geographicAdjustment?: number | null
+  geographicAdjustment?: number | null,
+  paymentOption?: PaymentMethodOption | null,
+  shippingOption?: ShippingMethodOption | null
 ): ComputedPrices {
   const geoAdj = geographicAdjustment ?? 0
   const piecePrice = Math.round(applyGeographicAdjustment(product.piecePrice, geoAdj) * 100) / 100
@@ -50,6 +79,8 @@ export function computeProductPrices(
   const cartonPrice = Math.round(applyGeographicAdjustment(product.cartonPrice, geoAdj) * 100) / 100
   const effectiveDiscount = computeEffectiveDiscountPercent(tier, exceptionLookup)
   const effectiveTier = tier ? { ...tier, discountPercent: effectiveDiscount } : null
+  const totalDiscountPercent = computeTotalDiscountPercent(tier, paymentOption, shippingOption, exceptionLookup)
+  const totalTier = { ...(tier ?? {}), discountPercent: totalDiscountPercent } as TierConfig
 
   return {
     piecePrice,
@@ -59,17 +90,25 @@ export function computeProductPrices(
     tierDozenPrice: computeTierPrice(dozenPrice, effectiveTier),
     tierCartonPrice: computeTierPrice(cartonPrice, effectiveTier),
     discountPercent: effectiveDiscount,
+    paymentDiscountPercent: paymentOption?.discountPercent ?? 0,
+    shippingDiscountPercent: shippingOption?.discountPercent ?? 0,
+    totalDiscountPercent,
+    finalPiecePrice: computeTierPrice(piecePrice, totalTier),
+    finalDozenPrice: computeTierPrice(dozenPrice, totalTier),
+    finalCartonPrice: computeTierPrice(cartonPrice, totalTier),
+  }
+}
+
+export function getUnitBasePrice(prices: ComputedPrices, unitType: UnitType): number {
+  switch (unitType) {
+    case 'piece': return prices.piecePrice
+    case 'dozen': return prices.dozenPrice
+    case 'carton': return prices.cartonPrice
   }
 }
 
 export function getEffectiveUnitPrice(prices: ComputedPrices, unitType: UnitType, hasTier: boolean): number {
-  if (!hasTier) {
-    switch (unitType) {
-      case 'piece': return prices.piecePrice
-      case 'dozen': return prices.dozenPrice
-      case 'carton': return prices.cartonPrice
-    }
-  }
+  if (!hasTier) return getUnitBasePrice(prices, unitType)
   switch (unitType) {
     case 'piece': return prices.tierPiecePrice
     case 'dozen': return prices.tierDozenPrice
@@ -77,42 +116,84 @@ export function getEffectiveUnitPrice(prices: ComputedPrices, unitType: UnitType
   }
 }
 
+/** Final unit price after ALL discount groups are applied once (used by the cart). */
+export function getFinalUnitPrice(prices: ComputedPrices, unitType: UnitType): number {
+  switch (unitType) {
+    case 'piece': return prices.finalPiecePrice
+    case 'dozen': return prices.finalDozenPrice
+    case 'carton': return prices.finalCartonPrice
+  }
+}
+
+function round2(n: number): number {
+  return Math.round(n * 100) / 100
+}
+
 export function computeCartTotals(
   items: CartItem[],
   tier: TierConfig | null,
   dealItems?: CartDealItem[],
   flashOfferItems?: CartDealItem[],
-  exceptionLookup?: TierExceptionLookup | null
+  exceptionLookup?: TierExceptionLookup | null,
+  paymentOption?: PaymentMethodOption | null,
+  shippingOption?: ShippingMethodOption | null
 ): CartTotals {
-  const productSubtotal = items.reduce((sum, item) => sum + item.totalPrice, 0)
   const dealTotal = (dealItems ?? []).reduce((sum, d) => sum + d.totalPrice, 0)
   const flashOfferTotal = (flashOfferItems ?? []).reduce((sum, d) => sum + d.totalPrice, 0)
 
-  const effectiveDiscountPercent = computeEffectiveDiscountPercent(tier, exceptionLookup)
-  const tierDiscount = effectiveDiscountPercent > 0
-    ? items.reduce((sum, item) => {
-        const baseTotal = item.totalPrice / (1 - effectiveDiscountPercent / 100)
-        return sum + (baseTotal - item.totalPrice)
-      }, 0)
-    : 0
+  const totalDiscountPercent = computeTotalDiscountPercent(tier, paymentOption, shippingOption, exceptionLookup)
+  const capPct = Math.min(totalDiscountPercent, 99.99)
 
-  const subtotal = productSubtotal + dealTotal + flashOfferTotal
-  const netTotal = productSubtotal - tierDiscount + dealTotal + flashOfferTotal
+  let productBaseSubtotal = 0
+  let productSubtotal = 0
+
+  for (const item of items) {
+    productSubtotal += item.totalPrice
+    const baseTotal =
+      typeof item.baseUnitPrice === 'number' && item.baseUnitPrice >= 0
+        ? item.baseUnitPrice * item.unitQuantity
+        : totalDiscountPercent > 0
+          ? item.totalPrice / (1 - capPct / 100)
+          : item.totalPrice
+    productBaseSubtotal += baseTotal
+  }
+
+  const totalDiscount = Math.max(0, productBaseSubtotal - productSubtotal)
+
+  const tierPercent = computeEffectiveDiscountPercent(tier, exceptionLookup)
+  const paymentPercent = paymentOption?.discountPercent ?? 0
+  const shippingPercent = shippingOption?.discountPercent ?? 0
+
+  const allocate = (part: number): number => {
+    if (totalDiscountPercent <= 0 || totalDiscount <= 0) return 0
+    return round2(totalDiscount * (part / totalDiscountPercent))
+  }
+  const tierDiscount = allocate(tierPercent)
+  const paymentDiscount = allocate(paymentPercent)
+  const shippingDiscount = allocate(shippingPercent)
+
+  const subtotal = round2(productSubtotal + dealTotal + flashOfferTotal)
+  const netTotal = subtotal
 
   const tierMinimum = tier?.minimumOrderAmount ?? 0
-  const meetsTierMinimum = productSubtotal >= tierMinimum
-  const remainingForMinimum = meetsTierMinimum ? 0 : tierMinimum - productSubtotal
+  const meetsTierMinimum = productBaseSubtotal >= tierMinimum
+  const remainingForMinimum = meetsTierMinimum ? 0 : Math.max(0, tierMinimum - productBaseSubtotal)
 
   return {
     subtotal,
+    totalDiscount: round2(totalDiscount),
     tierDiscount,
+    paymentDiscount,
+    shippingDiscount,
+    totalDiscountPercent,
     netTotal,
     itemCount: items.length + (dealItems?.length ?? 0) + (flashOfferItems?.length ?? 0),
     meetsTierMinimum,
     remainingForMinimum,
     tierMinimum,
     dealTotal: dealTotal + flashOfferTotal,
-    productSubtotal,
+    productSubtotal: round2(productSubtotal),
+    productBaseSubtotal: round2(productBaseSubtotal),
   }
 }
 
@@ -120,18 +201,24 @@ export function recalculateCartItem(
   item: CartItem,
   product: ProductWithPrice,
   tier: TierConfig | null,
-  geographicAdjustment?: number | null
+  geographicAdjustment?: number | null,
+  paymentOption?: PaymentMethodOption | null,
+  shippingOption?: ShippingMethodOption | null
 ): CartItem {
-  const prices = computeProductPrices(product, tier, undefined, geographicAdjustment)
+  const prices = computeProductPrices(product, tier, undefined, geographicAdjustment, paymentOption, shippingOption)
   const hasTier = tier !== null
-  const unitPrice = getEffectiveUnitPrice(prices, item.unitType, hasTier)
-  const totalPrice = unitPrice * item.unitQuantity
+  const baseUnitPrice = getUnitBasePrice(prices, item.unitType)
+  const finalUnitPrice = getFinalUnitPrice(prices, item.unitType)
+  const totalPrice = finalUnitPrice * item.unitQuantity
   const pieceQuantity = computePieceQuantity(item.unitQuantity, item.unitType, product.cartonQuantity)
 
   return {
     ...item,
-    unitPrice: Math.round(unitPrice * 100) / 100,
+    baseUnitPrice: Math.round(baseUnitPrice * 100) / 100,
+    unitPrice: Math.round(finalUnitPrice * 100) / 100,
     totalPrice: Math.round(totalPrice * 100) / 100,
     pieceQuantity,
   }
 }
+
+export { round2 }

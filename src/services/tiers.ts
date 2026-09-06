@@ -5,7 +5,7 @@ function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
 }
 
-function mapTierRecord(row: any): TierRecord {
+export function mapTierRecord(row: any): TierRecord {
   return {
     id: row.id,
     name: row.name,

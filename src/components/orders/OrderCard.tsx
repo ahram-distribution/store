@@ -37,6 +37,12 @@ interface OrderCardProps {
     previous_order_date?: string | null
     previous_order_total?: number | null
     collection_badge?: { label: string; className: string }
+    snapshot_tier_name?: string | null
+    snapshot_tier_discount?: number | null
+    snapshot_payment_name?: string | null
+    snapshot_payment_discount?: number | null
+    snapshot_shipping_name?: string | null
+    snapshot_shipping_discount?: number | null
   }
   onClick?: () => void
   orderId?: string
@@ -195,6 +201,29 @@ export const OrderCard = memo(function OrderCard({ order, onClick, orderId, isUn
           </span>
         )}
       </div>
+
+      {(order.snapshot_tier_name || order.snapshot_payment_name || order.snapshot_shipping_name) && (
+        <div className="flex flex-wrap gap-1 mt-1.5" dir="rtl">
+          {order.snapshot_tier_name && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700" title="شريحة الطلب">
+              🎖 {order.snapshot_tier_name}
+              {order.snapshot_tier_discount != null && order.snapshot_tier_discount > 0 ? ` (${order.snapshot_tier_discount}%)` : ''}
+            </span>
+          )}
+          {order.snapshot_payment_name && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-sky-100 text-sky-700" title="طريقة الدفع">
+              💳 {order.snapshot_payment_name}
+              {order.snapshot_payment_discount != null && order.snapshot_payment_discount > 0 ? ` (${order.snapshot_payment_discount}%)` : ''}
+            </span>
+          )}
+          {order.snapshot_shipping_name && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700" title="طريقة الشحن">
+              🚚 {order.snapshot_shipping_name}
+              {order.snapshot_shipping_discount != null && order.snapshot_shipping_discount > 0 ? ` (${order.snapshot_shipping_discount}%)` : ''}
+            </span>
+          )}
+        </div>
+      )}
 
       <p className="text-[11px] text-text-secondary mt-1">{dateStr} {timeStr}</p>
     </div>

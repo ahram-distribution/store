@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
+import { discountOptionsService, mergeSnapshotIntoRow } from '../../services/discountOptions'
 import { OrderDetailView } from '../../components/orders/OrderDetailView'
 import { OrderStatusManager } from '../../components/orders/OrderStatusManager'
 import { useCapability } from '../../hooks/useCapability'
@@ -157,7 +158,7 @@ export function OrderDetailPage() {
     const token = getToken()
     if (!token) { setLoading(false); return }
 
-    supabase.rpc('get_unified_order', { p_token: token, p_id: id }).then((res) => {
+    supabase.rpc('get_unified_order', { p_token: token, p_id: id }).then(async (res) => {
       if (res.error) {
         console.error('[OrderDetail] RPC error:', res.error)
         toast.error('تعذر تحميل بيانات الطلب. حاول مرة أخرى.')
@@ -185,6 +186,12 @@ export function OrderDetailPage() {
         toast.error('تعذر تحميل بيانات الطلب. حاول مرة أخرى.')
         setLoading(false)
         return
+      }
+      try {
+        const snaps = await discountOptionsService.getOrderDiscountSnapshots([id])
+        mergeSnapshotIntoRow(raw.order, snaps[0])
+      } catch {
+        // snapshot merge is best-effort
       }
       setData(raw as UnifiedOrder)
       setLoading(false)
@@ -563,6 +570,7 @@ export function OrderDetailPage() {
         unit_quantity: quantity,
         piece_quantity: pieceQuantity,
         unit_price: unitPrice,
+        base_unit_price: prices.baseUnitPrice,
         total_price: totalPrice,
       }
       return [...prev, newItem]

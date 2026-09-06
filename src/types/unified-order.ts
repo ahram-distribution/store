@@ -72,7 +72,15 @@ export interface UnifiedOrderHeader {
   execution_captured_at: string | null
   execution_location_id: string | null
   tier_id: string | null
+  payment_method_option_id: string | null
+  shipping_method_option_id: string | null
   effective_discount_percent: number | null
+  snapshot_tier_name: string | null
+  snapshot_tier_discount: number | null
+  snapshot_payment_name: string | null
+  snapshot_payment_discount: number | null
+  snapshot_shipping_name: string | null
+  snapshot_shipping_discount: number | null
   snapshot_customer_name: string | null
   snapshot_customer_phone: string | null
   snapshot_customer_address: string | null
@@ -130,6 +138,7 @@ export interface UnifiedOrderItem {
   unit_quantity: number
   piece_quantity: number
   unit_price: number
+  base_unit_price: number | null
   total_price: number
 }
 
@@ -280,6 +289,15 @@ export interface UnifiedOrderListItem {
   owner_name: string | null
   created_by: string | null
   created_by_name: string | null
+  tier_id: string | null
+  payment_method_option_id: string | null
+  shipping_method_option_id: string | null
+  snapshot_tier_name: string | null
+  snapshot_tier_discount: number | null
+  snapshot_payment_name: string | null
+  snapshot_payment_discount: number | null
+  snapshot_shipping_name: string | null
+  snapshot_shipping_discount: number | null
   created_at: string
   updated_at: string
   submitted_at: string | null

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useCartStore } from '../../store/cart'
 import { useAccountStore } from '../../store/account'
 import { useOrdersStore } from '../../store/orders'
-import { formatCurrencyShort } from '../../utils/format'
+import { formatCurrencyShort, formatArabicAmountWithCurrency, formatTierName } from '../../utils/format'
 import { StatusBadge } from '../../components/shared/StatusBadge'
 import { UNIT_LABELS } from '../../types/order-display'
 import { GuidedError } from '../../components/shared/GuidedError'
@@ -119,8 +119,8 @@ export function CheckoutPage() {
       {selectedTier && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
           <div className="text-xs text-blue-800">
-            <span className="font-semibold">الشريحة: {selectedTier.name}</span>
-            {' | '}خصم يصل إلى {Math.ceil(selectedTier.discountPercent)}% | الحد الأدنى: {formatCurrencyShort(selectedTier.minimumOrderAmount)}
+            <span className="font-semibold">الشريحة: {formatTierName(selectedTier.name)}</span>
+            {' | '}خصم {selectedTier.discountPercent}% | الحد الأدنى: {formatArabicAmountWithCurrency(selectedTier.minimumOrderAmount)}
           </div>
         </div>
       )}
@@ -198,8 +198,8 @@ export function CheckoutPage() {
       {selectedTier && !totals.meetsTierMinimum && (
         <GuidedError
           title="لم يتم الوصول إلى الحد الأدنى للشريحة"
-          reason={`الحد الأدنى لشريحة ${selectedTier.name} هو ${formatCurrencyShort(selectedTier.minimumOrderAmount)}`}
-          correctiveAction={`أضف منتجات بقيمة ${formatCurrencyShort(totals.remainingForMinimum)} على الأقل للوصول للحد الأدنى`}
+          reason={`الحد الأدنى لشريحة ${formatTierName(selectedTier.name)} هو ${formatArabicAmountWithCurrency(selectedTier.minimumOrderAmount)}`}
+          correctiveAction={`أضف منتجات بقيمة ${formatArabicAmountWithCurrency(totals.remainingForMinimum)} على الأقل للوصول للحد الأدنى`}
           navigationTarget="/cart"
           navigationLabel="العودة للسلة"
         />

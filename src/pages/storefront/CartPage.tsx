@@ -3,10 +3,12 @@ import { useEffect, useState, useMemo, useCallback } from 'react'
 import { useCartStore } from '../../store/cart'
 import { useAuthStore } from '../../store/auth'
 import { TierSelector } from '../../components/storefront/TierSelector'
+import { PaymentMethodSelector } from '../../components/storefront/PaymentMethodSelector'
+import { ShippingMethodSelector } from '../../components/storefront/ShippingMethodSelector'
 import { TierMinimumNotice } from '../../components/storefront/TierMinimumNotice'
 import { EmptyCart } from '../../components/storefront/EmptyCart'
 import { SearchableSelect } from '../../components/shared/SearchableSelect'
-import { formatCurrencyShort } from '../../utils/format'
+import { formatCurrencyShort, formatArabicAmountWithCurrency, formatTierName } from '../../utils/format'
 import { formatNumber } from '../../utils/numbers'
 import { UNIT_LABELS } from '../../types/order-display'
 import { supabase } from '../../lib/supabase'
@@ -39,8 +41,7 @@ export function CartPage() {
   const navigate = useNavigate()
   const [hydrated, setHydrated] = useState(false)
   const { token: authToken, user } = useAuthStore()
-  const isDirectCustomer = user?.identity_type === 'customer'
-  const [editingOrderType, setEditingOrderType] = useState(false)
+const isDirectCustomer = user?.identity_type === 'customer'
   const [editingCustomer, setEditingCustomer] = useState(false)
   const [customers, setCustomers] = useState<any[]>([])
   const [availabilityByItem, setAvailabilityByItem] = useState<Record<string, AvailabilityResult>>({})
@@ -74,17 +75,19 @@ export function CartPage() {
     removeDeal,
     removeFlashOffer,
     getSelectedTier,
+    getSelectedPaymentMethod,
+    getSelectedShippingMethod,
     getTotals,
     selectedCustomer,
-    orderType,
     setSelectedCustomer,
-    setOrderType,
     geographicContext,
     geoResolveEpoch,
     ensureGeoItemAdjustments,
   } = useCartStore()
 
   const selectedTier = getSelectedTier()
+  const selectedPaymentMethod = getSelectedPaymentMethod()
+  const selectedShippingMethod = getSelectedShippingMethod()
   const totals = getTotals()
 
   useEffect(() => {
@@ -153,7 +156,7 @@ export function CartPage() {
     }
 
     if (selectedTier && !totals.meetsTierMinimum) {
-      toast.error(`الحد الأدنى للشريحة ${formatCurrencyShort(totals.tierMinimum)} — أضف منتجات بقيمة ${formatCurrencyShort(totals.remainingForMinimum)}`)
+      toast.error(`الحد الأدنى للشريحة ${formatArabicAmountWithCurrency(totals.tierMinimum)} — أضف منتجات بقيمة ${formatArabicAmountWithCurrency(totals.remainingForMinimum)}`)
       return
     }
     if (items.length === 0 && (dealItems.length > 0 || flashOfferItems.length > 0)) {
@@ -178,39 +181,6 @@ export function CartPage() {
       {/* Order Context Card */}
       {items.length > 0 && (
         <div className="bg-white rounded-xl border border-border p-3 space-y-2">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-xs text-text-secondary">نوع الطلب</div>
-              {editingOrderType ? (
-                <div className="flex gap-2 mt-1">
-                  <button
-                    onClick={() => { setOrderType('cash'); setEditingOrderType(false) }}
-                    className={`text-xs px-3 py-1 rounded-lg border transition-colors ${
-                      orderType === 'cash' ? 'bg-primary text-white border-primary' : 'border-border hover:bg-surface'
-                    }`}
-                  >
-                    نقداً
-                  </button>
-                  <button
-                    onClick={() => { setOrderType('ittiman'); setEditingOrderType(false) }}
-                    className={`text-xs px-3 py-1 rounded-lg border transition-colors ${
-                      orderType === 'ittiman' ? 'bg-primary text-white border-primary' : 'border-border hover:bg-surface'
-                    }`}
-                  >
-                    ائتمان
-                  </button>
-                </div>
-              ) : (
-                <div className="text-sm font-semibold text-text">{orderType === 'ittiman' ? 'ائتمان' : 'نقداً'}</div>
-              )}
-            </div>
-            {!editingOrderType && !isDirectCustomer && (
-              <button onClick={() => setEditingOrderType(true)} className="text-xs text-primary font-semibold">تغيير</button>
-            )}
-          </div>
-
-          <hr className="border-border" />
-
           <div className="flex items-center justify-between">
             <div className="flex-1 min-w-0">
               <div className="text-xs text-text-secondary">العميل</div>
@@ -246,11 +216,44 @@ export function CartPage() {
         cartTotal={totals.netTotal}
       />
 
+      {/* Payment + Shipping method selectors */}
+      <PaymentMethodSelector />
+      <ShippingMethodSelector />
+
+      {/* Compact tier summary */}
       {selectedTier && (
+        <div className="rounded-xl border border-primary/20 bg-primary/[0.03] p-3">
+          <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+            <div className="text-[11px] text-text-secondary">الشريحة الحالية</div>
+            <div className="text-sm font-bold text-text text-left">{formatTierName(selectedTier.name)}</div>
+            <div className="text-[11px] text-text-secondary">الخصم</div>
+            <div className="text-sm font-bold text-success text-left">
+              {selectedTier.discountPercent % 1 === 0 ? selectedTier.discountPercent : Number(selectedTier.discountPercent.toFixed(1))}%
+            </div>
+            <div className="text-[11px] text-text-secondary">الحد الأدنى</div>
+            <div className="text-sm font-semibold text-text text-left">
+              {formatArabicAmountWithCurrency(totals.tierMinimum)}
+            </div>
+            <div className="text-[11px] text-text-secondary">المتبقي</div>
+            {totals.meetsTierMinimum ? (
+              <div className="text-sm font-bold text-success text-left">✓ تم تحقيق الشريحة</div>
+            ) : (
+              <div className="text-sm font-bold text-warning text-left">
+                {formatArabicAmountWithCurrency(totals.remainingForMinimum)}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {selectedTier && !totals.meetsTierMinimum && (
         <TierMinimumNotice
           remainingForMinimum={totals.remainingForMinimum}
           tierMinimum={totals.tierMinimum}
           tierName={selectedTier.name}
+          currentAmount={totals.productBaseSubtotal}
+          met={false}
+          discountPercent={selectedTier.discountPercent}
         />
       )}
 
@@ -401,10 +404,11 @@ export function CartPage() {
       })}
 
       {/* Grand Total */}
-      <div className="bg-white rounded-xl border border-border p-4 space-y-2">
-        <div className="flex justify-between text-sm text-text-secondary">
-          <span>إجمالي المنتجات</span>
-          <span>{formatCurrencyShort(totals.productSubtotal)}</span>
+      <div className="bg-white rounded-xl border border-border p-4 space-y-2.5">
+        <div className="text-xs font-bold text-text-secondary">ملخص الطلب</div>
+        <div className="flex justify-between text-sm text-text">
+          <span>إجمالي المنتجات (الأساسي)</span>
+          <span className="font-medium">{formatCurrencyShort(totals.productBaseSubtotal)}</span>
         </div>
         {flashOfferItems.length > 0 && (
           <div className="flex justify-between text-sm text-amber-600">
@@ -420,12 +424,24 @@ export function CartPage() {
         )}
         {totals.tierDiscount > 0 && (
           <div className="flex justify-between text-sm text-success">
-            <span>خصم الشريحة ({selectedTier?.name})</span>
-            <span>-{formatCurrencyShort(totals.tierDiscount)}</span>
+            <span>خصم الشريحة ({selectedTier ? formatTierName(selectedTier.name) : ''})</span>
+            <span className="font-semibold">-{formatCurrencyShort(totals.tierDiscount)}</span>
+          </div>
+        )}
+        {totals.paymentDiscount > 0 && (
+          <div className="flex justify-between text-sm text-success">
+            <span>خصم طريقة الدفع ({selectedPaymentMethod?.name ?? ''})</span>
+            <span className="font-semibold">-{formatCurrencyShort(totals.paymentDiscount)}</span>
+          </div>
+        )}
+        {totals.shippingDiscount > 0 && (
+          <div className="flex justify-between text-sm text-success">
+            <span>خصم طريقة الشحن ({selectedShippingMethod?.name ?? ''})</span>
+            <span className="font-semibold">-{formatCurrencyShort(totals.shippingDiscount)}</span>
           </div>
         )}
         <hr className="border-border" />
-        <div className="flex justify-between text-base font-bold text-text">
+        <div className="flex justify-between text-lg font-extrabold text-text">
           <span>الإجمالي النهائي</span>
           <span>{formatCurrencyShort(totals.netTotal)}</span>
         </div>

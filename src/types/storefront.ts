@@ -16,6 +16,7 @@ export interface CartItem {
   companyId?: string
   companyName?: string
   geoAdjustPercent?: number
+  baseUnitPrice?: number
 }
 
 export interface CartDealItem {
@@ -41,6 +42,26 @@ export interface TierConfig {
   isVisible: boolean
   startsAt: string | null
   endsAt: string | null
+}
+
+export interface PaymentMethodOption {
+  id: string
+  name: string
+  discountPercent: number
+  sortOrder: number
+  isVisible: boolean
+  isActive: boolean
+  updatedAt?: string
+}
+
+export interface ShippingMethodOption {
+  id: string
+  name: string
+  discountPercent: number
+  sortOrder: number
+  isVisible: boolean
+  isActive: boolean
+  updatedAt?: string
 }
 
 export interface ProductUnitPrice {
@@ -75,11 +96,21 @@ export interface ComputedPrices {
   tierDozenPrice: number
   tierCartonPrice: number
   discountPercent: number
+  paymentDiscountPercent: number
+  shippingDiscountPercent: number
+  totalDiscountPercent: number
+  finalPiecePrice: number
+  finalDozenPrice: number
+  finalCartonPrice: number
 }
 
 export interface CartTotals {
   subtotal: number
+  totalDiscount: number
   tierDiscount: number
+  paymentDiscount: number
+  shippingDiscount: number
+  totalDiscountPercent: number
   netTotal: number
   itemCount: number
   meetsTierMinimum: boolean
@@ -87,6 +118,7 @@ export interface CartTotals {
   tierMinimum: number
   dealTotal: number
   productSubtotal: number
+  productBaseSubtotal: number
 }
 
 export interface GuidedError {
