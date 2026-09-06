@@ -45,6 +45,8 @@ export function OrderDetailView({ data, actions, onBack, editMode, editItems, on
   const { order, customer, items, collections, current_delivery, modification_history } = data
 
   const grandTotal = useMemo(() => items.reduce((s, i) => s + Number(i.total_price || 0), 0), [items])
+  const discountAmount = useMemo(() => Number(order.discount_amount || 0), [order.discount_amount])
+  const netTotal = useMemo(() => (order.total_amount != null ? Number(order.total_amount) : grandTotal - discountAmount), [order.total_amount, grandTotal, discountAmount])
   const timelineEvents = useMemo(() => buildTimelineEvents(data), [data])
 
   const collectedAmount = useMemo(() => {
@@ -150,8 +152,15 @@ export function OrderDetailView({ data, actions, onBack, editMode, editItems, on
           <div className="text-[13px] text-[#6B7280]">
             <span>{formatDateTime(order.created_at)}</span>
           </div>
-          <div className="text-[18px] font-bold text-[#111827]">
-            {formatCurrencyShort(grandTotal)}
+          <div className="text-left">
+            <div className="text-[18px] font-bold text-[#111827]">
+              {formatCurrencyShort(netTotal)}
+            </div>
+            {discountAmount > 0 && (
+              <div className="text-[11px] text-[#059669] font-medium">
+                (الخصم −{formatCurrencyShort(discountAmount)})
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -160,7 +169,7 @@ export function OrderDetailView({ data, actions, onBack, editMode, editItems, on
       {(order.snapshot_tier_name || order.snapshot_payment_name || order.snapshot_shipping_name) && (
         <div className="bg-white rounded-lg border border-[#E5E7EB] shadow-sm p-4 space-y-1.5 text-[13px]">
           <div className="flex items-center justify-between mb-0.5">
-            <p className="text-[12px] font-bold text-[#111827]">الخصومات المطبقة (مجمدة عند الإنشاء)</p>
+            <p className="text-[12px] font-bold text-[#111827]">الخصومات المطبقة على الطلب</p>
             {order.effective_discount_percent != null && order.effective_discount_percent > 0 && (
               <span className="text-[11px] bg-[#ECFDF5] text-[#059669] px-2 py-0.5 rounded-full font-bold">
                 إجمالي الخصم {order.effective_discount_percent}%
@@ -198,6 +207,12 @@ export function OrderDetailView({ data, actions, onBack, editMode, editItems, on
                   <span className="text-[#059669]"> ({order.snapshot_shipping_discount}%)</span>
                 )}
               </span>
+            </div>
+          )}
+          {discountAmount > 0 && (
+            <div className="flex items-center justify-between border-t border-[#E5E7EB] pt-1.5 mt-1.5">
+              <span className="text-[#6B7280]">الخصم (مبلغ)</span>
+              <span className="font-bold text-[#059669]">−{formatCurrencyShort(discountAmount)}</span>
             </div>
           )}
         </div>

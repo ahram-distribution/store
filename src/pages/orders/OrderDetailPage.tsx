@@ -984,6 +984,11 @@ export function OrderDetailPage() {
             <div className="flex items-center gap-3">
               <div className="flex-1 text-xs text-[#6B7280]">
                 <span className="font-semibold text-[#111827]">{editItems.length}</span> صنف · <span className="font-semibold text-[#059669]">{formatCurrencyShort(editTotal)}</span>
+                {editModeType === 'supreme' && projectedDiscountPercent > 0 && (
+                  <span className="text-[#059669] font-semibold">
+                    {' '}— خصم {projectedDiscountPercent}% · الإجمالي بعد الخصم {formatCurrencyShort(Math.max(editTotal - (editTotal * projectedDiscountPercent / 100), 0))}
+                  </span>
+                )}
               </div>
               <button
                 onClick={() => { setEditMode(false); setShowProductSearch(false); }}
