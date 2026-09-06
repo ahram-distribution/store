@@ -8,7 +8,7 @@ import { useCapability } from '../../hooks/useCapability'
 import { useAuthStore } from '../../store/auth'
 import { useEntityViewsStore } from '../../store/entityViews'
 import { isExecutiveDirectorUser, normalizeEmployeeRole } from '../../utils/roleNormalization'
-import { formatCurrencyShort } from '../../utils/format'
+import { formatCurrencyShort, formatTierName } from '../../utils/format'
 import { resolveConfiguredUnitTypes } from '../../utils/catalog'
 import { UNIT_LABELS, EXECUTION_GROUP } from '../../types/order-display'
 import { computeProductPrices, computePieceQuantity, getUnitBasePrice } from '../../engine/pricing'
@@ -136,6 +136,14 @@ export function OrderDetailPage() {
   const [editNotes, setEditNotes] = useState<string>('')
   const [editModeType, setEditModeType] = useState<'supreme' | 'executive'>('supreme')
   const [editOrderType, setEditOrderType] = useState<string>('cash')
+  const [editTierId, setEditTierId] = useState<string | null>(null)
+  const [editCustomerId, setEditCustomerId] = useState<string | null>(null)
+  const [editTiers, setEditTiers] = useState<any[]>([])
+  const [editCustomers, setEditCustomers] = useState<any[]>([])
+  const [editPaymentId, setEditPaymentId] = useState<string | null>(null)
+  const [editShippingId, setEditShippingId] = useState<string | null>(null)
+  const [editPaymentOptions, setEditPaymentOptions] = useState<any[]>([])
+  const [editShippingOptions, setEditShippingOptions] = useState<any[]>([])
   const [submitting, setSubmitting] = useState(false)
   const [products, setProducts] = useState<ProductWithPrice[]>([])
   const [companies, setCompanies] = useState<any[]>([])
@@ -388,6 +396,25 @@ export function OrderDetailPage() {
   }, [editMode, id])
 
   useEffect(() => {
+    if (!editMode || editModeType !== 'supreme' || !id) return
+    const token = getToken()
+    if (!token) return
+    Promise.all([
+      discountOptionsService.getAll().catch(() => null),
+      supabase.rpc('get_governed_customers', { p_token: token }),
+    ]).then(([bundle, custRes]) => {
+      if (bundle) {
+        setEditTiers(bundle.tiers.filter((t) => t.isActive !== false))
+        setEditPaymentOptions(bundle.paymentMethods.filter((p) => p.isActive !== false))
+        setEditShippingOptions(bundle.shippingMethods.filter((s) => s.isActive !== false))
+      }
+      if (custRes.data && Array.isArray(custRes.data)) {
+        setEditCustomers(custRes.data)
+      }
+    })
+  }, [editMode, editModeType, id])
+
+  useEffect(() => {
     if (!transferMode) return
     const token = getToken()
     if (!token) return
@@ -440,6 +467,10 @@ export function OrderDetailPage() {
     setShowProductSearch(false)
     setSelectedCompanyId(null)
     setSearchQuery('')
+    setEditTierId(null)
+    setEditCustomerId(null)
+    setEditPaymentId(null)
+    setEditShippingId(null)
     loadOrder()
   }
 
@@ -494,6 +525,10 @@ export function OrderDetailPage() {
     setEditItems(data.items.map(i => ({ ...i })))
     setEditNotes(data.order.notes || '')
     setEditOrderType((data.order as any).order_type || 'cash')
+    setEditTierId(data.order.tier_id)
+    setEditCustomerId(data.order.customer_id)
+    setEditPaymentId(data.order.payment_method_option_id)
+    setEditShippingId(data.order.shipping_method_option_id)
     setEditModeType(type)
     setEditMode(true)
   }
@@ -630,15 +665,29 @@ export function OrderDetailPage() {
         total_price: Math.round(i.total_price * 100) / 100,
       }))
 
-      const { data: result, error } = await supabase.rpc('governed_supreme_edit_order', {
+      const currentTierId = data?.order.tier_id ?? null
+      const currentCustomerId = data?.order.customer_id ?? null
+      const currentPaymentId = data?.order.payment_method_option_id ?? null
+      const currentShippingId = data?.order.shipping_method_option_id ?? null
+
+      const params: Record<string, any> = {
         p_token: token,
         p_order_id: id,
         p_items: payload,
         p_notes: editNotes || null,
-        p_discount_amount: null,
+        p_discount_amount: Number(data?.order?.discount_amount ?? 0),
         p_reason: 'تعديل بواسطة الإدارة العليا',
         p_order_type: editOrderType,
-      })
+        p_tier_id: editTierId,
+        p_clear_tier: editTierId === null && currentTierId !== null,
+        p_customer_id: editCustomerId,
+        p_payment_method_option_id: editPaymentId,
+        p_clear_payment: editPaymentId === null && currentPaymentId !== null,
+        p_shipping_method_option_id: editShippingId,
+        p_clear_shipping: editShippingId === null && currentShippingId !== null,
+      }
+
+      const { data: result, error } = await supabase.rpc('governed_supreme_edit_order_v2', params)
 
       setSubmitting(false)
       if (error) { toast.error('فشل حفظ التعديلات: ' + error.message); return }
@@ -687,6 +736,34 @@ export function OrderDetailPage() {
   }, [products, selectedCompanyId, searchQuery, searchIndices])
 
   const editTotal = useMemo(() => editItems.reduce((s, i) => s + i.total_price, 0), [editItems])
+
+  const projectedDiscountPercent = useMemo(() => {
+    const currentTierId = data?.order.tier_id ?? null
+    const currentPaymentId = data?.order.payment_method_option_id ?? null
+    const currentShippingId = data?.order.shipping_method_option_id ?? null
+    let tierPct = 0
+    if (editTierId) {
+      const found = editTiers.find((t: any) => t.id === editTierId)
+      tierPct = found
+        ? Number(found.discountPercent ?? 0)
+        : (editTierId === currentTierId ? Number(data?.order.snapshot_tier_discount ?? 0) : 0)
+    }
+    let paymentPct = 0
+    if (editPaymentId) {
+      const found = editPaymentOptions.find((p: any) => p.id === editPaymentId)
+      paymentPct = found
+        ? Number(found.discountPercent ?? 0)
+        : (editPaymentId === currentPaymentId ? Number(data?.order.snapshot_payment_discount ?? 0) : 0)
+    }
+    let shippingPct = 0
+    if (editShippingId) {
+      const found = editShippingOptions.find((s: any) => s.id === editShippingId)
+      shippingPct = found
+        ? Number(found.discountPercent ?? 0)
+        : (editShippingId === currentShippingId ? Number(data?.order.snapshot_shipping_discount ?? 0) : 0)
+    }
+    return tierPct + paymentPct + shippingPct
+  }, [editTierId, editTiers, editPaymentId, editPaymentOptions, editShippingId, editShippingOptions, data])
 
   if (loading) return <div className="text-center py-12 text-text-secondary text-sm">جاري التحميل...</div>
   if (!data) return <div className="text-center py-12 text-text-secondary text-sm">الطلب غير موجود</div>
@@ -802,6 +879,89 @@ export function OrderDetailPage() {
         eventLog={eventLog}
         editActions={
           <div className="space-y-3">
+            {editModeType === 'supreme' && (
+              <div className="bg-white rounded-xl border border-[#E5E7EB] p-3 space-y-2">
+                <h3 className="text-sm font-semibold text-[#111827]">تغيير العميل</h3>
+                <SearchableSelect
+                  items={editCustomers.map((c: any) => ({ id: c.id, name: [c.company_name, c.code].filter(Boolean).join(' — ') }))}
+                  value={editCustomerId || ''}
+                  onChange={(cid) => setEditCustomerId(cid || null)}
+                  placeholder="اختر عميلاً آخر..."
+                />
+              </div>
+            )}
+            {editModeType === 'supreme' && (
+              <div className="bg-white rounded-xl border border-[#E5E7EB] p-3 space-y-2">
+                <h3 className="text-sm font-semibold text-[#111827]">الشريحة السعرية (الخصم)</h3>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => setEditTierId(null)}
+                    className={`text-[11px] px-3 py-1.5 rounded-lg border transition-colors ${!editTierId ? 'bg-[#111827] text-white border-[#111827]' : 'bg-white text-[#6B7280] border-[#E5E7EB]'}`}
+                  >
+                    السعر الأساسي (بدون شريحة)
+                  </button>
+                  {editTiers.map((t: any) => (
+                    <button
+                      key={t.id}
+                      onClick={() => setEditTierId(t.id)}
+                      className={`text-[11px] px-3 py-1.5 rounded-lg border transition-colors ${editTierId === t.id ? 'bg-[#111827] text-white border-[#111827]' : 'bg-white text-[#6B7280] border-[#E5E7EB]'}`}
+                    >
+                      {formatTierName(t.name)}
+                      {Number(t.discountPercent) > 0 ? ` (${t.discountPercent}%)` : ''}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[11px] text-[#059669] font-bold">
+                  الخصم المتوقع بعد الحفظ: {projectedDiscountPercent}%
+                </p>
+              </div>
+            )}
+            {editModeType === 'supreme' && (
+              <div className="bg-white rounded-xl border border-[#E5E7EB] p-3 space-y-2">
+                <h3 className="text-sm font-semibold text-[#111827]">طريقة الدفع 💳</h3>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => setEditPaymentId(null)}
+                    className={`text-[11px] px-3 py-1.5 rounded-lg border transition-colors ${!editPaymentId ? 'bg-[#111827] text-white border-[#111827]' : 'bg-white text-[#6B7280] border-[#E5E7EB]'}`}
+                  >
+                    بدون طريقة دفع
+                  </button>
+                  {editPaymentOptions.map((p: any) => (
+                    <button
+                      key={p.id}
+                      onClick={() => setEditPaymentId(p.id)}
+                      className={`text-[11px] px-3 py-1.5 rounded-lg border transition-colors ${editPaymentId === p.id ? 'bg-[#111827] text-white border-[#111827]' : 'bg-white text-[#6B7280] border-[#E5E7EB]'}`}
+                    >
+                      {p.name}
+                      {Number(p.discountPercent) > 0 ? ` (${p.discountPercent}%)` : ''}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {editModeType === 'supreme' && (
+              <div className="bg-white rounded-xl border border-[#E5E7EB] p-3 space-y-2">
+                <h3 className="text-sm font-semibold text-[#111827]">طريقة الشحن 🚚</h3>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => setEditShippingId(null)}
+                    className={`text-[11px] px-3 py-1.5 rounded-lg border transition-colors ${!editShippingId ? 'bg-[#111827] text-white border-[#111827]' : 'bg-white text-[#6B7280] border-[#E5E7EB]'}`}
+                  >
+                    بدون طريقة شحن
+                  </button>
+                  {editShippingOptions.map((s: any) => (
+                    <button
+                      key={s.id}
+                      onClick={() => setEditShippingId(s.id)}
+                      className={`text-[11px] px-3 py-1.5 rounded-lg border transition-colors ${editShippingId === s.id ? 'bg-[#111827] text-white border-[#111827]' : 'bg-white text-[#6B7280] border-[#E5E7EB]'}`}
+                    >
+                      {s.name}
+                      {Number(s.discountPercent) > 0 ? ` (${s.discountPercent}%)` : ''}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             {editModeType === 'supreme' && (
               <div className="bg-white rounded-xl border border-[#E5E7EB] p-3">
                 <h3 className="text-sm font-semibold text-[#111827] mb-2">نوع الطلب</h3>
