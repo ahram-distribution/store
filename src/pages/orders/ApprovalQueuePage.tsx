@@ -64,9 +64,6 @@ export function ApprovalQueuePage() {
                   <p className="text-xs text-text-secondary">{o.customer_name || 'غير متوفر'}</p>
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
-                  {o.payment_method === 'credit' && (
-                    <span className="text-[10px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full">آجل</span>
-                  )}
                   <span className="text-[10px] bg-accent/10 text-accent px-2 py-0.5 rounded-full">{getAge(o.created_at)}</span>
                 </div>
               </div>

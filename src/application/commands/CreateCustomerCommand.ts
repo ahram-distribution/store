@@ -3,7 +3,6 @@ import type { ICommandHandler } from '../contracts/ICommandHandler'
 import type { ApplicationResult } from '../results/ApplicationResult'
 import { success, failure } from '../results/ApplicationResult'
 import { createPhoneNumber } from '../../domain/value-objects/PhoneNumber'
-import { createMoney } from '../../domain/value-objects/Money'
 import { createCustomer } from '../../domain/models/customer'
 import type { Customer } from '../../domain/models/customer'
 import type { ICustomerProvider } from '../../providers/contracts/ICustomerProvider'
@@ -20,7 +19,6 @@ export interface CreateCustomerCommand extends ICommand {
   readonly city: string
   readonly governorate: string
   readonly customerType: 'retail' | 'wholesale' | 'distributor'
-  readonly creditLimit: number
   readonly session: Session
 }
 
@@ -36,8 +34,7 @@ export class CreateCustomerHandler implements ICommandHandler<CreateCustomerComm
     const id = crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`
     const phone = createPhoneNumber(command.phone)
     const address = { street: command.street, district: command.district, city: command.city, governorate: command.governorate }
-    const creditLimit = createMoney(command.creditLimit)
-    const customer = createCustomer(id, command.companyId, '', command.customerType, command.tradeName, command.fullName, phone, address, creditLimit)
+    const customer = createCustomer(id, command.companyId, '', command.customerType, command.tradeName, command.fullName, phone, address)
     try {
       await this.customerProvider.registerNewCustomer(customer)
       return success(customer satisfies Customer)

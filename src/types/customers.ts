@@ -6,8 +6,6 @@ export interface CustomerCardData {
   business_type: string | null
   email: string | null
   phone: string | null
-  credit_limit: number | null
-  credit_days: number | null
   owner_id: string | null
   owner_name: string | null
   is_active: boolean

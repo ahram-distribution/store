@@ -37,6 +37,28 @@ export const TIER_COLUMNS: ColumnDef[] = [
   { key: 'updated_at', label: 'آخر تحديث', inputType: 'text', readonly: true, hidden: true },
 ]
 
+/* ───────── PAYMENT METHOD OPTIONS ───────── */
+export const PAYMENT_METHOD_COLUMNS: ColumnDef[] = [
+  { key: 'id', label: 'المُعرّف', inputType: 'text', readonly: true },
+  { key: 'name', label: 'اسم طريقة الدفع', inputType: 'text', required: true, maxLength: 100 },
+  { key: 'discount_percent', label: 'نسبة الخصم (%)', inputType: 'number', step: 0.01, min: 0, max: 100 },
+  { key: 'sort_order', label: 'ترتيب العرض', inputType: 'number', min: 0 },
+  { key: 'is_visible', label: 'ظاهر للعملاء', inputType: 'boolean' },
+  { key: 'is_active', label: 'نشط', inputType: 'boolean' },
+  { key: 'updated_at', label: 'آخر تحديث', inputType: 'text', readonly: true, hidden: true },
+]
+
+/* ───────── SHIPPING METHOD OPTIONS ───────── */
+export const SHIPPING_METHOD_COLUMNS: ColumnDef[] = [
+  { key: 'id', label: 'المُعرّف', inputType: 'text', readonly: true },
+  { key: 'name', label: 'اسم طريقة الشحن', inputType: 'text', required: true, maxLength: 100 },
+  { key: 'discount_percent', label: 'نسبة الخصم (%)', inputType: 'number', step: 0.01, min: 0, max: 100 },
+  { key: 'sort_order', label: 'ترتيب العرض', inputType: 'number', min: 0 },
+  { key: 'is_visible', label: 'ظاهر للعملاء', inputType: 'boolean' },
+  { key: 'is_active', label: 'نشط', inputType: 'boolean' },
+  { key: 'updated_at', label: 'آخر تحديث', inputType: 'text', readonly: true, hidden: true },
+]
+
 /* ───────── DAILY DEALS ───────── */
 export const DAILY_DEAL_COLUMNS: ColumnDef[] = [
   { key: 'id', label: 'المُعرّف', inputType: 'text', readonly: true },
@@ -108,18 +130,6 @@ export const AUCTION_COLUMNS: ColumnDef[] = [
     ] },
   { key: 'winner_amount', label: 'قيمة الفائز', inputType: 'number', readonly: true, step: 0.01 },
   { key: 'winner_id', label: 'الفائز', inputType: 'text', readonly: true },
-  { key: 'created_at', label: 'تاريخ الإنشاء', inputType: 'text', readonly: true, hidden: true },
-  { key: 'updated_at', label: 'آخر تحديث', inputType: 'text', readonly: true, hidden: true },
-]
-
-/* ───────── CREDIT PROGRAMS ───────── */
-export const CREDIT_PROGRAM_COLUMNS: ColumnDef[] = [
-  { key: 'id', label: 'المُعرّف', inputType: 'text', readonly: true },
-  { key: 'name', label: 'اسم البرنامج', inputType: 'text', required: true, maxLength: 100 },
-  { key: 'credit_limit', label: 'الحد الائتماني', inputType: 'number', required: true, step: 0.01, min: 0 },
-  { key: 'credit_days', label: 'عدد الأيام', inputType: 'number', required: true, min: 1 },
-  { key: 'terms', label: 'الشروط', inputType: 'textarea' },
-  { key: 'is_active', label: 'نشط', inputType: 'boolean' },
   { key: 'created_at', label: 'تاريخ الإنشاء', inputType: 'text', readonly: true, hidden: true },
   { key: 'updated_at', label: 'آخر تحديث', inputType: 'text', readonly: true, hidden: true },
 ]

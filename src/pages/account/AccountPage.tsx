@@ -16,8 +16,6 @@ interface CustomerData {
   type: string
   status: string
   balance: number
-  credit_limit: number
-  credit_days: number
   owner_id: string | null
 }
 
@@ -87,10 +85,9 @@ export function AccountPage() {
                     <p className="text-xs text-text-secondary">{customer.phone} · {customer.type === 'pharmacy' ? 'صيدلية' : customer.type === 'wholesale' ? 'جملة' : customer.type === 'retail' ? 'تجزئة' : customer.type === 'clinic' ? 'عيادة' : customer.type}</p>
                   </div>
                 </div>
-                <div className="grid grid-cols-3 gap-2 text-center">
+                <div className="grid grid-cols-2 gap-2 text-center">
                   <div className="bg-surface rounded-lg p-2"><div className="text-xs text-text-secondary">الرصيد</div><div className="text-sm font-bold text-danger">{formatCurrencyShort(customer.balance)}</div></div>
-                  <div className="bg-surface rounded-lg p-2"><div className="text-xs text-text-secondary">الحد الائتماني</div><div className="text-sm font-bold text-text">{formatCurrencyShort(customer.credit_limit)}</div></div>
-                  <div className="bg-surface rounded-lg p-2"><div className="text-xs text-text-secondary">مدة الائتمان</div><div className="text-sm font-bold text-text">{customer.credit_days} يوم</div></div>
+                  <div className="bg-surface rounded-lg p-2"><div className="text-xs text-text-secondary">نوع الحساب</div><div className="text-sm font-bold text-text">{customer.type === 'pharmacy' ? 'صيدلية' : customer.type === 'wholesale' ? 'جملة' : customer.type === 'retail' ? 'تجزئة' : customer.type === 'clinic' ? 'عيادة' : customer.type}</div></div>
                 </div>
               </div>
 

@@ -97,7 +97,6 @@ const sampleCustomerRow = () => ({
   phone: '01234567890',
   customer_type: 'retail',
   is_active: true,
-  credit_limit: 5000,
   outstanding_balance: 0,
   address_line1: 'St',
   address_line2: 'District',
@@ -162,12 +161,12 @@ describe('LegacySalesOrderProvider', () => {
     })
   })
 
-  it('recordPayment calls governed_record_credit_payment', async () => {
+  it('recordPayment calls governed_create_collection', async () => {
     mockRpc.mockResolvedValue({ data: null, error: null })
-    const order = { id: 'ord-1' } as any
+    const order = { id: 'ord-1', customerId: 'cust-1', grandTotal: { amount: 500 } } as any
     await provider.recordPayment(order)
-    expect(mockRpc).toHaveBeenCalledWith('governed_record_credit_payment', {
-      p_token: 'test-token', p_invoice_id: 'ord-1', p_payment_method: 'cash',
+    expect(mockRpc).toHaveBeenCalledWith('governed_create_collection', {
+      p_token: 'test-token', p_customer_id: 'cust-1', p_amount: 500, p_method: 'cash', p_reference_number: null, p_notes: null,
     })
   })
 
@@ -223,12 +222,11 @@ describe('LegacyCustomerProvider', () => {
       tradeName: 'Test Co', fullName: 'Test Customer',
       phone: { number: '0123', countryCode: '+2' },
       customerType: 'retail',
-      creditLimit: { amount: 5000, currency: 'EGP' },
       address: { street: 'St', district: 'D', city: 'C', governorate: 'G' },
     } as any
     await provider.registerNewCustomer(customer)
     expect(mockRpc).toHaveBeenCalledWith('governed_create_customer', expect.objectContaining({
-      p_name: 'Test Co', p_phone: '0123', p_credit_limit: 5000,
+      p_company_name: 'Test Co', p_phone: '0123',
     }))
   })
 
@@ -237,14 +235,6 @@ describe('LegacyCustomerProvider', () => {
     await provider.suspendCustomer('cust-1')
     expect(mockRpc).toHaveBeenCalledWith('governed_deactivate_customer', {
       p_token: 'test-token', p_id: 'cust-1',
-    })
-  })
-
-  it('updateCreditLimit calls governed_update_customer', async () => {
-    mockRpc.mockResolvedValue({ data: null, error: null })
-    await provider.updateCreditLimit('cust-1', 10000)
-    expect(mockRpc).toHaveBeenCalledWith('governed_update_customer', {
-      p_token: 'test-token', p_id: 'cust-1', p_credit_limit: 10000,
     })
   })
 
@@ -417,12 +407,12 @@ describe('LegacyAttendanceProvider', () => {
 describe('LegacyCollectionProvider', () => {
   const provider = new LegacyCollectionProvider(mockContext())
 
-  it('receiveCashPayment calls governed_record_credit_payment', async () => {
+  it('receiveCashPayment calls governed_create_collection', async () => {
     mockRpc.mockResolvedValue({ data: null, error: null })
-    const payment = { orderId: 'ord-1', amount: { amount: 500 } } as any
+    const payment = { orderId: 'ord-1', customerId: 'cust-1', amount: { amount: 500 } } as any
     await provider.receiveCashPayment(payment)
-    expect(mockRpc).toHaveBeenCalledWith('governed_record_credit_payment', {
-      p_token: 'test-token', p_invoice_id: 'ord-1', p_payment_method: 'cash',
+    expect(mockRpc).toHaveBeenCalledWith('governed_create_collection', {
+      p_token: 'test-token', p_customer_id: 'cust-1', p_amount: 500, p_method: 'cash', p_reference_number: null, p_notes: null,
     })
   })
 

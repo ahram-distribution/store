@@ -28,7 +28,6 @@ interface ModuleCounts {
   orders_new: number
   customers_active: number
   visits_active: number
-  credit_due: number
   employees_active: number
 }
 
@@ -53,7 +52,6 @@ const MODULE_ROUTES: Record<string, string> = {
   orders: '/command-center/modules/orders',
   customers: '/command-center/modules/customers',
   visits: '/command-center/modules/visits',
-  credit: '/command-center/modules/credit',
   inventory: '/command-center/modules/inventory',
   employees: '/command-center/modules/employees',
   returns: '/command-center/modules/returns',
@@ -76,7 +74,6 @@ const MODULE_EMOJI: Record<string, string> = {
   orders: '🛒',
   customers: '👥',
   visits: '📍',
-  credit: '💳',
   inventory: '📦',
   employees: '👤',
   returns: '📋',
@@ -96,7 +93,7 @@ const MODULE_EMOJI: Record<string, string> = {
 }
 
 const MODULE_TIERS = {
-  primary: ['orders', 'customers', 'visits', 'credit', 'inventory', 'employees', 'attendance'],
+  primary: ['orders', 'customers', 'visits', 'inventory', 'employees', 'attendance'],
   secondary: ['returns', 'collections', 'delivery', 'reports', 'sales-analytics', 'warehouse'],
   technical: ['targets', 'permissions', 'auctions', 'daily-deals', 'flash-offers', 'tiers', 'deals'],
 }
@@ -154,7 +151,7 @@ export function CommandCenterPage() {
 
   const summary = data?.summary || { total_modules: 0, healthy: 0, degraded: 0, down: 0, broken: 0, production_ready: 0, decisions_pct: 0 }
   const actions = data?.required_actions || []
-  const counts = data?.module_counts || { orders_new: 0, customers_active: 0, visits_active: 0, credit_due: 0, employees_active: 0 }
+  const counts = data?.module_counts || { orders_new: 0, customers_active: 0, visits_active: 0, employees_active: 0 }
 
   if (loading) {
     return <div className="text-center py-12 text-text-secondary text-sm">جاري تحميل مركز القيادة...</div>
@@ -269,7 +266,6 @@ export function CommandCenterPage() {
               key === 'orders' && counts.orders_new > 0 ? `${counts.orders_new} جديدة` :
               key === 'customers' && counts.customers_active > 0 ? `${counts.customers_active} نشط` :
               key === 'visits' && counts.visits_active > 0 ? `${counts.visits_active} نشطة` :
-              key === 'credit' && counts.credit_due > 0 ? `${counts.credit_due} مستحق` :
               key === 'employees' && counts.employees_active > 0 ? `${counts.employees_active} نشط` :
               undefined
             return renderModuleCard(key, sublabel)

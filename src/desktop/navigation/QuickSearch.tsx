@@ -23,7 +23,6 @@ const searchIndex: SearchItem[] = [
   { workspaceType: 'attendance', label: 'الحضور', category: 'الموارد البشرية', keywords: ['attendance', 'حضور', 'دوام'] },
   { workspaceType: 'employees', label: 'الموظفين', category: 'الموارد البشرية', keywords: ['employees', 'موظفين'] },
   { workspaceType: 'warehouse', label: 'المخازن', category: 'المخزون', keywords: ['warehouse', 'مخازن', 'مستودعات'] },
-  { workspaceType: 'credit', label: 'الائتمان', category: 'المالية', keywords: ['credit', 'ائتمان', 'اقساط'] },
   { workspaceType: 'settings', label: 'الإعدادات', category: 'النظام', keywords: ['settings', 'اعدادات', 'ضبط'] },
 ]
 

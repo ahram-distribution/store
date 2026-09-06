@@ -2,7 +2,6 @@ export { type Capability, type Role, type Identity, type Session, createIdentity
 export { type Customer, createCustomer, suspendCustomer, isCustomerSuspended, canPlaceOrder } from './customer'
 export { type Category, type Product, type ProductUnit, createProduct, createCategory, markProductOutOfStock, markProductInStock } from './product'
 export { type OrderLine, type SalesOrder, createOrderLine, createSalesOrder, submitOrder, reviewOrder, approveOrder, rejectOrder, cancelOrder, recordPayment, addLineToOrder } from './salesOrder'
-export { type CreditNote, type Credit, createCredit, applyCredit, payDownCredit } from './credit'
 export { type Payment, type CheckPayment, createCashPayment, createCheckPayment, depositCheck, clearCheck, bounceCheck } from './payment'
 export { type AttendanceRecord, type Workday, startWorkday, endWorkday, createAttendanceRecord, recordCheckOut } from './attendance'
 export { type InventoryRecord, type StockReservation, createInventoryRecord, adjustInventory, countInventory, reserveStock, fulfillReservation, releaseReservation } from './inventory'

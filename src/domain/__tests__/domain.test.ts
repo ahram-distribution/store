@@ -41,8 +41,6 @@ import { createIdentity, deactivateIdentity, hasCapability } from '../models/ide
 
 import { createCashPayment, createCheckPayment, depositCheck, clearCheck, bounceCheck } from '../models/payment'
 
-import { createCredit, applyCredit, payDownCredit } from '../models/credit'
-
 import { startWorkday, endWorkday } from '../models/attendance'
 
 import { createInventoryRecord, adjustInventory, countInventory } from '../models/inventory'
@@ -321,24 +319,24 @@ describe('Customer aggregate', () => {
   const address = { street: 'St', district: 'D', city: 'C', governorate: 'G' }
 
   it('creates active with zero balance', () => {
-    const c = createCustomer('c-1', 'comp-1', 'retail' as any, 'Trade', 'Full', phone, address, createMoney(5000))
+    const c = createCustomer('c-1', 'comp-1', 'MC-1', 'retail' as any, 'Trade', 'Full', phone, address)
     expect(c.status).toBe('active')
     expect(c.outstandingBalance.amount).toBe(0)
   })
 
   it('can be suspended', () => {
-    const c = createCustomer('c-2', 'comp-1', 'retail' as any, 'T', 'F', phone, address, createMoney(5000))
+    const c = createCustomer('c-2', 'comp-1', 'MC-2', 'retail' as any, 'T', 'F', phone, address)
     const suspended = suspendCustomer(c)
     expect(isCustomerSuspended(suspended)).toBe(true)
   })
 
-  it('can place order when active and under limit', () => {
-    const c = createCustomer('c-3', 'comp-1', 'retail' as any, 'T', 'F', phone, address, createMoney(5000))
+  it('can place order when active', () => {
+    const c = createCustomer('c-3', 'comp-1', 'MC-3', 'retail' as any, 'T', 'F', phone, address)
     expect(canPlaceOrder(c)).toBe(true)
   })
 
   it('cannot place order when suspended', () => {
-    const c = createCustomer('c-4', 'comp-1', 'retail' as any, 'T', 'F', phone, address, createMoney(5000))
+    const c = createCustomer('c-4', 'comp-1', 'MC-4', 'retail' as any, 'T', 'F', phone, address)
     expect(canPlaceOrder(suspendCustomer(c))).toBe(false)
   })
 })
@@ -372,26 +370,6 @@ describe('Check Payment', () => {
     const check = createCheckPayment('ch-2', 'ord-1', 'cust-1', createMoney(500), 'CH-002', 'Bank XYZ', new Date())
     const bounced = bounceCheck(depositCheck(check))
     expect(bounced.status).toBe('bounced')
-  })
-})
-
-describe('Credit', () => {
-  it('enforces limit', () => {
-    const credit = createCredit('cust-1', createMoney(1000))
-    expect(() => applyCredit('cust-1', credit, createMoney(1500), 'Large order')).toThrow('Credit limit exceeded')
-  })
-
-  it('allows credit within limit', () => {
-    const credit = createCredit('cust-1', createMoney(1000))
-    const updated = applyCredit('cust-1', credit, createMoney(500), 'Order #1')
-    expect(updated.outstandingBalance.amount).toBe(500)
-  })
-
-  it('pays down', () => {
-    let credit = createCredit('cust-1', createMoney(1000))
-    credit = applyCredit('cust-1', credit, createMoney(800), 'Order')
-    credit = payDownCredit(credit, createMoney(300))
-    expect(credit.outstandingBalance.amount).toBe(500)
   })
 })
 

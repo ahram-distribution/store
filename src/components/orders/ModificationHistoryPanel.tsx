@@ -7,6 +7,8 @@ const FIELD_LABELS: Record<string, string> = {
   customer_id: 'العميل',
   customer_name: 'اسم العميل',
   tier_id: 'الشريحة السعرية',
+  payment_method_option_id: 'طريقة الدفع',
+  shipping_method_option_id: 'طريقة الشحن',
   payment_method: 'طريقة الدفع',
   owner_id: 'مسؤول العميل',
   notes: 'الملاحظات',
@@ -148,7 +150,7 @@ function findChangedFields(oldSnap: Record<string, any> | null, newSnap: Record<
   const changed: Array<{ key: string; old: any; new: any }> = []
   const allKeys = new Set([...Object.keys(oldSnap!), ...Object.keys(newSnap!)])
   for (const key of allKeys) {
-    if (key === 'assigned_delivery_rep' || key === 'credit_program_id') continue
+    if (key === 'assigned_delivery_rep') continue
     const oldVal = oldSnap![key]
     const newVal = newSnap![key]
     if (key === 'customer_name' && oldVal === newVal) continue

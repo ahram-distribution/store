@@ -9,7 +9,6 @@ export interface CreateCustomerValidatorInput extends ICommand {
   readonly district: string
   readonly city: string
   readonly governorate: string
-  readonly creditLimit: number
 }
 
 export const createCustomerValidator: IValidator<CreateCustomerValidatorInput> = {
@@ -20,7 +19,6 @@ export const createCustomerValidator: IValidator<CreateCustomerValidatorInput> =
     if (!input.fullName) errors.push({ field: 'fullName', message: 'Full name is required' })
     if (!input.phone) errors.push({ field: 'phone', message: 'Phone is required' })
     if (!input.city) errors.push({ field: 'city', message: 'City is required' })
-    if (input.creditLimit < 0) errors.push({ field: 'creditLimit', message: 'Credit limit cannot be negative' })
     return errors
   },
 }

@@ -37,15 +37,6 @@ export class LegacyCustomerProvider implements ICustomerProvider {
     if (error) throw new ProviderException(error.message, PROVIDER_NAME, error)
   }
 
-  async updateCreditLimit(customerId: string, newLimit: number): Promise<void> {
-    const { error } = await supabase.rpc('governed_update_customer', {
-      p_token: this.context.token,
-      p_id: customerId,
-      p_credit_limit: newLimit,
-    })
-    if (error) throw new ProviderException(error.message, PROVIDER_NAME, error)
-  }
-
   async getCustomerById(id: string): Promise<Customer | null> {
     const { data, error } = await supabase.rpc('get_governed_customer', {
       p_token: this.context.token,

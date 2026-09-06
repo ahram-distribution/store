@@ -135,7 +135,6 @@ const sampleCustomerRow = () => ({
   phone: '01234567890',
   customer_type: 'retail',
   is_active: true,
-  credit_limit: 5000,
   outstanding_balance: 0,
   address_line1: 'St',
   address_line2: 'District',
@@ -308,7 +307,6 @@ describe('SupabaseCustomerProvider', () => {
       companyId: 'comp-1', tradeName: 'Test Co', fullName: 'Test',
       phone: { number: '0123', countryCode: '+2' },
       customerType: 'retail',
-      creditLimit: { amount: 5000 },
       address: { street: 'St', district: 'D', city: 'C', governorate: 'G' },
     } as any
     await provider.registerNewCustomer(customer)
@@ -321,12 +319,6 @@ describe('SupabaseCustomerProvider', () => {
     await provider.suspendCustomer('cust-1')
     expect(mockChain.update).toHaveBeenCalledWith({ is_active: false })
     expect(mockChain.eq).toHaveBeenCalledWith('id', 'cust-1')
-  })
-
-  it('updateCreditLimit updates credit_limit', async () => {
-    mockResult(null)
-    await provider.updateCreditLimit('cust-1', 10000)
-    expect(mockChain.update).toHaveBeenCalledWith({ credit_limit: 10000 })
   })
 
   it('getCustomerById returns mapped Customer', async () => {

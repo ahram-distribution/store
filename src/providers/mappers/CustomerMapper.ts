@@ -20,7 +20,6 @@ export class CustomerMapper {
         governorate: row.governorate_name ?? row.governorate ?? '',
       },
       status: (row.is_active !== false ? 'active' : 'suspended') as DocumentStatus,
-      creditLimit: createMoney(Number(row.credit_limit) || 0),
       outstandingBalance: createMoney(Number(row.outstanding_balance) || 0),
       createdAt: new Date(row.created_at),
       updatedAt: new Date(row.updated_at ?? row.created_at),

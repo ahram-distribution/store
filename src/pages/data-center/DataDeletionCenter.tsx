@@ -194,9 +194,6 @@ export function DataDeletionCenter() {
     returns: 'المرتجعات',
     addresses: 'العناوين',
     contacts: 'جهات الاتصال',
-    credit_accounts: 'حسابات الائتمان',
-    credit_ledger: 'دفتر الائتمان',
-    credit_invoices: 'فواتير الائتمان',
     order_items: 'بنود الطلب',
     inventory: 'المخزون',
     product_units: 'وحدات المنتج',
@@ -244,9 +241,6 @@ export function DataDeletionCenter() {
 
     // Employee cascade keys (not already in main map)
     tracking_cleanup_log: 'سجل تنظيف التتبع',
-    credit_applications: 'طلبات الائتمان',
-    credit_contracts: 'عقود الائتمان',
-    credit_invoice_cheques: 'شيكات الفواتير',
     daily_deals: 'العروض اليومية',
     flash_offers: 'العروض الخاصة',
     packages: 'الباقات',

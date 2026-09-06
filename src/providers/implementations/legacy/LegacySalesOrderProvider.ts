@@ -76,10 +76,13 @@ export class LegacySalesOrderProvider implements ISalesOrderProvider {
   }
 
   async recordPayment(order: SalesOrder): Promise<void> {
-    const { error } = await supabase.rpc('governed_record_credit_payment', {
+    const { error } = await supabase.rpc('governed_create_collection', {
       p_token: this.context.token,
-      p_invoice_id: order.id,
-      p_payment_method: 'cash',
+      p_customer_id: order.customerId,
+      p_amount: order.grandTotal.amount,
+      p_method: 'cash',
+      p_reference_number: null,
+      p_notes: null,
     })
     if (error) throw new ProviderException(error.message, PROVIDER_NAME, error)
   }

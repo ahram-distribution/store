@@ -36,13 +36,6 @@ function useNavItems() {
     ]
   }
 
-  if (userRoles.includes('معتمد ائتماني')) {
-    return [
-      { label: 'الحضور والانصراف', path: '/attendance', icon: 'A' },
-      { label: 'فواتير الائتمان', path: '/credit/collector', icon: 'C' },
-    ]
-  }
-
   const showSalesList = SALES_LIST_ROLES.some((r) => normalizedRoles.includes(r))
 
   const items = [

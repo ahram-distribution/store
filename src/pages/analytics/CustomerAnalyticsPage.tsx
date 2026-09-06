@@ -24,12 +24,6 @@ interface CustomerCard {
     days_since_last_visit: number | null
     total_visits: number
   }
-  credit_status: {
-    current_balance: number
-    credit_limit: number
-    credit_utilization_pct: number
-    cash_vs_credit_ratio: number
-  }
   risk_indicators: {
     days_since_last_order: number | null
     inactive_risk: boolean
@@ -105,12 +99,6 @@ export function CustomerAnalyticsPage() {
         <StatRow label="إجمالي الزيارات" value={card.visit_summary.total_visits?.toString()} />
         {card.visit_summary.last_visit_date && <StatRow label="آخر زيارة" value={new Date(card.visit_summary.last_visit_date).toLocaleDateString('ar-EG-u-nu-latn')} />}
         {card.visit_summary.days_since_last_visit != null && <StatRow label="أيام منذ آخر زيارة" value={`${card.visit_summary.days_since_last_visit} يوم`} />}
-      </Section>
-
-      <Section title="الوضع الائتماني">
-        <StatRow label="الرصيد الحالي" value={card.credit_status.current_balance != null ? formatCurrencyShort(card.credit_status.current_balance) : ''} />
-        <StatRow label="الحد الائتماني" value={card.credit_status.credit_limit != null ? formatCurrencyShort(card.credit_status.credit_limit) : ''} />
-        <StatRow label="نسبة الاستخدام" value={card.credit_status.credit_utilization_pct != null ? `${card.credit_status.credit_utilization_pct.toFixed(1)}%` : 'غير متوفر'} />
       </Section>
 
       <Section title="مؤشرات المخاطر">

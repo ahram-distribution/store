@@ -437,16 +437,6 @@ export function SupremeOrderEditor({ orderId, initialItems, initialNotes, initia
             نقدي
           </button>
           <button
-            onClick={() => setOrderType('credit')}
-            className={`flex-1 text-xs px-3 py-2 rounded-lg border transition-colors ${
-              orderType === 'credit'
-                ? 'bg-accent text-white border-accent'
-                : 'bg-white text-text-secondary border-border'
-            }`}
-          >
-            آجل
-          </button>
-          <button
             onClick={() => setOrderType('ittiman')}
             className={`flex-1 text-xs px-3 py-2 rounded-lg border transition-colors ${
               orderType === 'ittiman'

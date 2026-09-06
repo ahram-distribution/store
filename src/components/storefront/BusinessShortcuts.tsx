@@ -5,7 +5,6 @@ const shortcuts = [
   { label: 'عرض الساعة', icon: '⏰', path: '/flash-offers' },
   { label: 'المزاد', icon: '🏷️', path: '/auctions' },
   { label: 'الشرائح', icon: '📊', path: '/tiers' },
-  { label: 'الائتمان', icon: '💳', path: '/credit' },
 ]
 
 export function BusinessShortcuts() {

@@ -37,14 +37,6 @@ export class SupabaseCustomerProvider implements ICustomerProvider {
     if (error) throw new ProviderException(error.message, PROVIDER_NAME, error)
   }
 
-  async updateCreditLimit(customerId: string, newLimit: number): Promise<void> {
-    const { error } = await supabase
-      .from('customers')
-      .update({ credit_limit: newLimit })
-      .eq('id', customerId)
-    if (error) throw new ProviderException(error.message, PROVIDER_NAME, error)
-  }
-
   async getCustomerById(id: string): Promise<Customer | null> {
     const { data, error } = await supabase
       .from('customers')

@@ -17,7 +17,6 @@ import { CreateCustomerHandler } from '../application/commands/CreateCustomerCom
 import { ReceiveCollectionHandler } from '../application/commands/ReceiveCollectionCommand'
 import { StartWorkdayHandler } from '../application/commands/StartWorkdayCommand'
 import { EndWorkdayHandler } from '../application/commands/EndWorkdayCommand'
-import { ReserveCreditHandler } from '../application/commands/ReserveCreditCommand'
 import { GetOrderHandler } from '../application/queries/GetOrderQuery'
 import { GetCustomerHandler } from '../application/queries/GetCustomerQuery'
 import { SearchProductsHandler } from '../application/queries/SearchProductsQuery'
@@ -58,7 +57,6 @@ export function composeApplication(config: AppConfig): ApplicationApi {
   }))
   commandHandlers.set('StartWorkdayCommand', new StartWorkdayHandler({ attendanceProvider: providers.attendance }))
   commandHandlers.set('EndWorkdayCommand', new EndWorkdayHandler({ attendanceProvider: providers.attendance }))
-  commandHandlers.set('ReserveCreditCommand', new ReserveCreditHandler({ customerProvider: providers.customer }))
 
   queryHandlers.set('GetOrderQuery', new GetOrderHandler({ salesOrderProvider: providers.salesOrder }))
   queryHandlers.set('GetCustomerQuery', new GetCustomerHandler({ customerProvider: providers.customer }))

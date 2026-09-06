@@ -21,22 +21,18 @@ export class MockCustomerProvider implements ICustomerProvider, IProvider {
     return
   }
 
-  async updateCreditLimit(customerId: string, newLimit: number): Promise<void> {
-    return
-  }
-
   async getCustomerById(id: string): Promise<Customer | null> {
     if (id === 'nonexistent') return null
     return {
       id,
       companyId: 'comp-1',
+      code: 'MC-001',
       customerType: 'retail',
       tradeName: 'Mock Customer',
       fullName: 'Mock Customer Full',
       phone: { number: '01234567890', countryCode: '+2' },
       address: { street: 'Mock St', district: 'Mock District', city: 'Mock City', governorate: 'Mock Gov' },
       status: 'active',
-      creditLimit: createMoney(5000),
       outstandingBalance: createMoney(0),
       createdAt: new Date('2026-01-01T00:00:00Z'),
       updatedAt: new Date('2026-01-01T00:00:00Z'),

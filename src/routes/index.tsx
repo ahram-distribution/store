@@ -41,7 +41,6 @@ import { ModuleLauncherPage } from '../pages/dashboard/ModuleLauncherPage'
 import { AnalyticsListPage } from '../pages/analytics/AnalyticsListPage'
 import { CustomerAnalyticsPage } from '../pages/analytics/CustomerAnalyticsPage'
 import CustomerIntelligenceOverviewPage from '../pages/analytics/CustomerIntelligenceOverviewPage'
-import { CreditProgramsPage, CreditProgramsManagerPage, CreditApplicationsPage, CreditReviewPage, CustomerCreditPage, CreditManagementPage } from '../pages/credit'
 import { DeliveryDetailPage, CollectionFollowupPage } from '../pages/delivery'
 import { DeliveryStaffHome } from '../pages/delivery/DeliveryStaffHome'
 import { DeliveryOrdersPage } from '../pages/delivery/DeliveryOrdersPage'
@@ -52,7 +51,6 @@ import { JourneyListPage } from '../pages/delivery/JourneyListPage'
 import { JourneyManagePage } from '../pages/delivery/JourneyManagePage'
 import { ShippingOrdersPage } from '../pages/delivery/ShippingOrdersPage'
 import { ShippingOrderDetailPage } from '../pages/delivery/ShippingOrderDetailPage'
-import { CollectorInvoicesPage, CreditInvoicesManagementPage, CreditInvoiceDetailsPage } from '../pages/credit-collection'
 import { WarehousePage, WarehouseReviewPage, WarehousePrepDetail } from '../pages/warehouse'
 import { EmployeesPage, EmployeeProfilePage, HierarchyPage, EmployeeManagementPage } from '../pages/employees'
 import { CompanyProfilePage } from '../pages/companies'
@@ -189,16 +187,6 @@ export function AppRoutes() {
       <Route path="/auctions" element={<ProtectedRoute><AuctionsPage /></ProtectedRoute>} />
       <Route path="/auctions/manage" element={<ProtectedRoute requireCapability="auctions.manage"><AuctionsManagerPage /></ProtectedRoute>} />
       <Route path="/auctions/:id" element={<ProtectedRoute><AuctionDetailPage /></ProtectedRoute>} />
-      <Route path="/credit" element={<ProtectedRoute><CustomerCreditPage /></ProtectedRoute>} />
-      <Route path="/customer/credit" element={<Navigate to="/credit" replace />} />
-      <Route path="/credit/manage" element={<ProtectedRoute requireCapability="credit.manage"><CreditManagementPage /></ProtectedRoute>} />
-      <Route path="/credit/programs" element={<ProtectedRoute requireCapability="credit.manage"><CreditProgramsPage /></ProtectedRoute>} />
-      <Route path="/credit/programs/manage" element={<ProtectedRoute requireCapability="credit.program.manage"><CreditProgramsManagerPage /></ProtectedRoute>} />
-      <Route path="/credit/applications" element={<ProtectedRoute requireCapability="credit.view"><CreditApplicationsPage /></ProtectedRoute>} />
-      <Route path="/credit/applications/:id" element={<ProtectedRoute requireCapability="credit.review"><CreditReviewPage /></ProtectedRoute>} />
-      <Route path="/credit/collector" element={<ProtectedRoute employeeOnly><CollectorInvoicesPage /></ProtectedRoute>} />
-      <Route path="/credit/invoices" element={<ProtectedRoute requireUpperManagement><CreditInvoicesManagementPage /></ProtectedRoute>} />
-      <Route path="/credit/invoices/:orderId" element={<ProtectedRoute employeeOnly><CreditInvoiceDetailsPage /></ProtectedRoute>} />
       <Route path="/warehouse" element={<ProtectedRoute requireCapability="warehouse.prepare"><WarehousePage /></ProtectedRoute>} />
       <Route path="/warehouse/review" element={<ProtectedRoute requireCapability="warehouse.prepare"><WarehouseReviewPage /></ProtectedRoute>} />
       <Route path="/warehouse/prep/:id" element={<ProtectedRoute requireCapability="warehouse.prepare"><WarehousePrepDetail /></ProtectedRoute>} />

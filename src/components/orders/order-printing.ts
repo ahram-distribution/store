@@ -45,7 +45,7 @@ export function renderPdfHtml(data: UnifiedOrder): string {
     return h
   }
 
-  const paymentLabel = order.payment_method === 'cash' ? 'نقداً' : order.payment_method === 'credit' ? 'آجل' : order.payment_method || ''
+  const paymentLabel = order.payment_method === 'cash' ? 'نقداً' : order.payment_method === 'ittiman' ? 'ائتمان' : order.payment_method || ''
 
   return `<!DOCTYPE html>
 <html dir="rtl" lang="ar">
@@ -118,7 +118,7 @@ export function renderDeliveryPermitHtml(data: UnifiedOrder, logoUrl?: string): 
   const customerPhone = useLive ? (lc.phone || '') : (order.snapshot_customer_phone || '')
   const customerAddress = useLive ? [lc.governorate, lc.city, lc.address_line1, lc.address_line2].filter(Boolean).join(' - ') : (order.snapshot_customer_address || '')
   const repName = order.order_creator_name || order.snapshot_sender_name || ''
-  const paymentLabel = order.payment_method === 'cash' ? 'نقداً' : order.payment_method === 'credit' ? 'آجل' : order.payment_method || ''
+  const paymentLabel = order.payment_method === 'cash' ? 'نقداً' : order.payment_method === 'ittiman' ? 'ائتمان' : order.payment_method || ''
 
   const grandTotal = items.reduce((s, i) => s + Number(i.total_price || 0), 0)
   const totalPieces = items.reduce((s, i) => s + Number(i.piece_quantity || 0), 0)

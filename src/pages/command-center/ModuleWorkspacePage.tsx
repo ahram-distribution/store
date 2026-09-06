@@ -38,7 +38,6 @@ const MODULE_CONFIGS: Record<string, ModuleConfig> = {
       { icon: '\u{1F464}', label: 'عملائي', path: '/customers?my=1' },
       { icon: '\u{1F4CD}', label: 'زيارات العملاء', path: '/visits' },
       { icon: '\u{1F4CA}', label: 'تحليلات العملاء', path: '/analytics/customers' },
-      { icon: '\u{1F4B3}', label: 'الائتمان', path: '/credit' },
     ],
   },
   visits: {
@@ -48,16 +47,6 @@ const MODULE_CONFIGS: Record<string, ModuleConfig> = {
       { icon: '\u{1F4CD}', label: 'كل الزيارات', path: '/visits' },
       { icon: '\u{2795}', label: 'زيارة جديدة', path: '/visits/new' },
       { icon: '\u{25B6}\u{FE0F}', label: 'بدء زيارة', path: '/visits?filter=active' },
-    ],
-  },
-  credit: {
-    title: 'الائتمان',
-    icon: '\u{1F4B3}',
-    operations: [
-      { icon: '\u{1F4B3}', label: 'الائتمان', path: '/credit' },
-      { icon: '\u{1F4CB}', label: 'طلبات الائتمان', path: '/credit/applications' },
-      { icon: '\u{1F4E6}', label: 'برامج الائتمان', path: '/credit/programs' },
-      { icon: '\u{2699}\u{FE0F}', label: 'إدارة الائتمان', path: '/credit/manage' },
     ],
   },
   inventory: {

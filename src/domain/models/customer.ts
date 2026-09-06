@@ -13,7 +13,6 @@ export interface Customer {
   readonly phone: PhoneNumber
   readonly address: Address
   readonly status: DocumentStatus
-  readonly creditLimit: import('../value-objects').Money
   readonly outstandingBalance: import('../value-objects').Money
   readonly createdAt: Date
   readonly updatedAt: Date
@@ -28,14 +27,12 @@ export function createCustomer(
   fullName: string,
   phone: PhoneNumber,
   address: Address,
-  creditLimit: import('../value-objects').Money,
 ): Customer {
   const now = new Date()
   return {
     id, companyId, code: code || '',
     customerType, tradeName, fullName, phone, address,
     status: 'active' as DocumentStatus,
-    creditLimit,
     outstandingBalance: { amount: 0, currency: 'EGP' },
     createdAt: now,
     updatedAt: now,
@@ -52,5 +49,4 @@ export function isCustomerSuspended(customer: Customer): boolean {
 
 export function canPlaceOrder(customer: Customer): boolean {
   return customer.status === 'active'
-    && customer.outstandingBalance.amount <= customer.creditLimit.amount
 }

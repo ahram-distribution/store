@@ -1,8 +1,7 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { sendWhatsAppFromDisplay, copyWhatsAppFromDisplay } from '../../lib/whatsapp'
 import { buildOrderDisplayData } from '../../types/order-display'
-import { creditService } from '../../services/credit'
 import { StatusBadge } from '../shared/StatusBadge'
 import { OrderProductsSection } from './OrderProductsSection'
 import { OrderDeliverySection } from './OrderDeliverySection'
@@ -44,7 +43,6 @@ interface OrderDetailViewProps {
 export function OrderDetailView({ data, actions, onBack, editMode, editItems, onQuantityChange, onRemoveItem, onPriceChange, onUnitChange, unitOptions, onDeleteSelected, onAddProduct, editActions, shortageProductIds, inventorySnapshot, businessStatusByItem, eventLog }: OrderDetailViewProps) {
   const navigate = useNavigate()
   const { order, customer, items, collections, current_delivery, modification_history } = data
-  const [overLimit, setOverLimit] = useState<boolean | null>(null)
 
   const grandTotal = useMemo(() => items.reduce((s, i) => s + Number(i.total_price || 0), 0), [items])
   const timelineEvents = useMemo(() => buildTimelineEvents(data), [data])
@@ -61,14 +59,6 @@ export function OrderDetailView({ data, actions, onBack, editMode, editItems, on
     : 'محصل جزئى'
 
   const deliveryAttempts = useMemo(() => data.delivery_history?.length || 0, [data.delivery_history])
-
-  useEffect(() => {
-    if (order.payment_method === 'credit' && ['submitted', 'reviewing'].includes(order.status)) {
-      creditService.checkOrderOverLimit(order.id).then((r) => {
-        if (r.over_limit) setOverLimit(true)
-      }).catch(() => {})
-    }
-  }, [order.id, order.payment_method, order.status])
 
   function handlePdf(compact: boolean) {
     const logoUrl = window.location.origin + '/store/branding/ahram-logo.png'
@@ -130,11 +120,6 @@ export function OrderDetailView({ data, actions, onBack, editMode, editItems, on
               <button onClick={onBack} className="text-[13px] text-[#2563EB] hover:text-[#1D4ED8] transition-colors shrink-0 font-medium">
                 الرجوع للطلبات
               </button>
-            )}
-            {overLimit && (
-              <span className="text-[10px] bg-[#FEF2F2] text-[#DC2626] px-2 py-0.5 rounded-full border border-[#FECACA] shrink-0 font-medium">
-                تجاوز الحد
-              </span>
             )}
           </div>
           <div className="mt-2 flex justify-center">

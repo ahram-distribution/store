@@ -77,7 +77,7 @@ describe('CustomerMapper', () => {
       id: 'cust-1', company_id: 'comp-1', name: 'Test Co',
       full_name: 'Test Customer', phone: '01234567890',
       customer_type: 'retail', is_active: true,
-      credit_limit: 5000, outstanding_balance: 1000,
+      outstanding_balance: 1000,
       address_line1: 'Street', address_line2: 'District',
       city: 'Cairo', governorate: 'Cairo',
       created_at: '2026-01-01T00:00:00Z',
@@ -87,7 +87,6 @@ describe('CustomerMapper', () => {
     expect(result.tradeName).toBe('Test Co')
     expect(result.customerType).toBe('retail')
     expect(result.status).toBe('active')
-    expect(result.creditLimit.amount).toBe(5000)
     expect(result.outstandingBalance.amount).toBe(1000)
     expect(result.address.city).toBe('Cairo')
   })

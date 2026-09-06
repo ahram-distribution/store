@@ -805,12 +805,6 @@ export function OrderDetailPage() {
                     نقدي
                   </button>
                   <button
-                    onClick={() => setEditOrderType('credit')}
-                    className={`flex-1 text-xs px-3 py-2 rounded-lg border transition-colors ${editOrderType === 'credit' ? 'bg-purple-500 text-white border-purple-500' : 'bg-white text-[#6B7280] border-[#E5E7EB]'}`}
-                  >
-                    آجل
-                  </button>
-                  <button
                     onClick={() => setEditOrderType('ittiman')}
                     className={`flex-1 text-xs px-3 py-2 rounded-lg border transition-colors ${editOrderType === 'ittiman' ? 'bg-blue-500 text-white border-blue-500' : 'bg-white text-[#6B7280] border-[#E5E7EB]'}`}
                   >

@@ -42,7 +42,6 @@ const datePresetLabels: Record<string, string> = {
 const ORDER_TYPE_OPTIONS = [
   { value: '', label: 'كل الأنواع' },
   { value: 'cash', label: 'نقدي' },
-  { value: 'credit', label: 'آجل' },
   { value: 'ittiman', label: 'ائتمان' },
 ]
 

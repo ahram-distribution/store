@@ -165,7 +165,7 @@ export function OrderCustomerSection({ customer, order, lastVisit }: OrderCustom
             </div>
             <div>
               <p className="text-[11px] text-[#9CA3AF] font-medium">النوع</p>
-              <p className="text-[13px] font-semibold text-[#111827] mt-0.5">{order.payment_method === 'credit' ? 'آجل' : 'نقدي'}</p>
+              <p className="text-[13px] font-semibold text-[#111827] mt-0.5">{order.payment_method === 'ittiman' ? 'ائتمان' : 'نقدي'}</p>
             </div>
             <div>
               <p className="text-[11px] text-[#9CA3AF] font-medium">المندوب</p>

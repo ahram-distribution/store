@@ -192,14 +192,6 @@ export function CartPage() {
                     نقداً
                   </button>
                   <button
-                    onClick={() => { setOrderType('credit'); setEditingOrderType(false) }}
-                    className={`text-xs px-3 py-1 rounded-lg border transition-colors ${
-                      orderType === 'credit' ? 'bg-primary text-white border-primary' : 'border-border hover:bg-surface'
-                    }`}
-                  >
-                    آجل
-                  </button>
-                  <button
                     onClick={() => { setOrderType('ittiman'); setEditingOrderType(false) }}
                     className={`text-xs px-3 py-1 rounded-lg border transition-colors ${
                       orderType === 'ittiman' ? 'bg-primary text-white border-primary' : 'border-border hover:bg-surface'
@@ -209,7 +201,7 @@ export function CartPage() {
                   </button>
                 </div>
               ) : (
-                <div className="text-sm font-semibold text-text">{orderType === 'credit' ? 'آجل' : orderType === 'ittiman' ? 'ائتمان' : orderType === 'cash' ? 'نقداً' : 'غير محدد'}</div>
+                <div className="text-sm font-semibold text-text">{orderType === 'ittiman' ? 'ائتمان' : 'نقداً'}</div>
               )}
             </div>
             {!editingOrderType && !isDirectCustomer && (

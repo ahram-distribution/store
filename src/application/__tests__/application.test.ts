@@ -31,7 +31,6 @@ import { CreateCustomerHandler } from '../commands/CreateCustomerCommand'
 import { ReceiveCollectionHandler } from '../commands/ReceiveCollectionCommand'
 import { StartWorkdayHandler } from '../commands/StartWorkdayCommand'
 import { EndWorkdayHandler } from '../commands/EndWorkdayCommand'
-import { ReserveCreditHandler } from '../commands/ReserveCreditCommand'
 
 // ── Queries ────────────────────────────────────────────────────
 import { GetOrderHandler } from '../queries/GetOrderQuery'
@@ -152,18 +151,18 @@ describe('CreateCustomerValidator', () => {
     const errors = createCustomerValidator.validate({
       commandId: 'c1', commandType: 'CreateCustomerCommand', timestamp: new Date(),
       tradeName: '', fullName: 'Test', phone: '0123', street: 'S', district: 'D', city: 'C', governorate: 'G',
-      customerType: 'retail', creditLimit: 1000, session: mockSession(),
+      customerType: 'retail', session: mockSession(),
     })
     expect(errors.some(e => e.field === 'tradeName')).toBe(true)
   })
 
-  it('rejects negative credit limit', () => {
+  it('rejects missing phone', () => {
     const errors = createCustomerValidator.validate({
       commandId: 'c1', commandType: 'CreateCustomerCommand', timestamp: new Date(),
-      tradeName: 'T', fullName: 'Test', phone: '0123', street: 'S', district: 'D', city: 'C', governorate: 'G',
-      customerType: 'retail', creditLimit: -100, session: mockSession(),
+      tradeName: 'T', fullName: 'Test', phone: '', street: 'S', district: 'D', city: 'C', governorate: 'G',
+      customerType: 'retail', session: mockSession(),
     })
-    expect(errors.some(e => e.field === 'creditLimit')).toBe(true)
+    expect(errors.some(e => e.field === 'phone')).toBe(true)
   })
 })
 
@@ -392,14 +391,14 @@ describe('CancelOrderHandler', () => {
 
 describe('CreateCustomerHandler', () => {
   it('creates customer', async () => {
-    const customerProvider = { registerNewCustomer: vi.fn(), suspendCustomer: vi.fn(), updateCreditLimit: vi.fn(), getCustomerById: vi.fn(), searchCustomers: vi.fn() }
+    const customerProvider = { registerNewCustomer: vi.fn(), suspendCustomer: vi.fn(), getCustomerById: vi.fn(), searchCustomers: vi.fn() }
     const handler = new CreateCustomerHandler({ customerProvider })
 
     const result = await handler.handle({
       commandId: 'c1', commandType: 'CreateCustomerCommand', timestamp: new Date(),
       companyId: 'comp-1', tradeName: 'Test Co', fullName: 'Test Customer', phone: '01234567890',
       street: 'St', district: 'D', city: 'C', governorate: 'G',
-      customerType: 'retail', creditLimit: 5000, session: mockSession(),
+      customerType: 'retail', session: mockSession(),
     })
 
     expect(isSuccess(result)).toBe(true)
@@ -477,24 +476,6 @@ describe('EndWorkdayHandler', () => {
   })
 })
 
-describe('ReserveCreditHandler', () => {
-  it('reserves credit within limit', async () => {
-    const customer = { id: 'cust-1', companyId: 'comp-1', customerType: 'retail' as const, tradeName: 'Test', fullName: 'Test Customer', phone: { number: '0123', countryCode: '+2' }, address: { street: 'S', district: 'D', city: 'C', governorate: 'G' }, status: 'active' as const, creditLimit: { amount: 5000, currency: 'EGP' }, outstandingBalance: { amount: 0, currency: 'EGP' }, createdAt: new Date(), updatedAt: new Date() }
-    const customerProvider = { registerNewCustomer: vi.fn(), suspendCustomer: vi.fn(), updateCreditLimit: vi.fn(), getCustomerById: vi.fn().mockResolvedValue(customer), searchCustomers: vi.fn() }
-    const handler = new ReserveCreditHandler({ customerProvider })
-
-    const result = await handler.handle({
-      commandId: 'c1', commandType: 'ReserveCreditCommand', timestamp: new Date(),
-      customerId: 'cust-1', amount: 2000, reason: 'Order #123', session: mockSession(),
-    })
-
-    expect(isSuccess(result)).toBe(true)
-    if (isSuccess(result)) {
-      expect(result.data.outstandingBalance.amount).toBe(2000)
-    }
-  })
-})
-
 // ═══════════════════════════════════════════════════════════════
 //  QUERY HANDLER TESTS
 // ═══════════════════════════════════════════════════════════════
@@ -510,8 +491,8 @@ describe('Query handlers', () => {
   })
 
   it('GetCustomerHandler returns customer', async () => {
-    const customer = { id: 'cust-1', companyId: 'comp-1', customerType: 'retail' as const, tradeName: 'T', fullName: 'F', phone: { number: '0123', countryCode: '+2' }, address: { street: 'S', district: 'D', city: 'C', governorate: 'G' }, status: 'active' as const, creditLimit: { amount: 5000, currency: 'EGP' }, outstandingBalance: { amount: 0, currency: 'EGP' }, createdAt: new Date(), updatedAt: new Date() }
-    const customerProvider = { registerNewCustomer: vi.fn(), suspendCustomer: vi.fn(), updateCreditLimit: vi.fn(), getCustomerById: vi.fn().mockResolvedValue(customer), searchCustomers: vi.fn() }
+    const customer = { id: 'cust-1', companyId: 'comp-1', customerType: 'retail' as const, tradeName: 'T', fullName: 'F', phone: { number: '0123', countryCode: '+2' }, address: { street: 'S', district: 'D', city: 'C', governorate: 'G' }, status: 'active' as const, outstandingBalance: { amount: 0, currency: 'EGP' }, createdAt: new Date(), updatedAt: new Date() }
+    const customerProvider = { registerNewCustomer: vi.fn(), suspendCustomer: vi.fn(), getCustomerById: vi.fn().mockResolvedValue(customer), searchCustomers: vi.fn() }
     const handler = new GetCustomerHandler({ customerProvider })
 
     const result = await handler.handle({ queryId: 'q1', queryType: 'GetCustomerQuery', customerId: 'cust-1' })

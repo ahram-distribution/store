@@ -7,7 +7,6 @@ import { supabase } from '../../lib/supabase'
 import { sendWhatsAppFromDisplay } from '../../lib/whatsapp'
 import { buildOrderDisplayData, UNIT_LABELS } from '../../types/order-display'
 import toast from 'react-hot-toast'
-import { creditService } from '../../services/credit'
 import { lifeSignalService } from '../../services/lifeSignalService'
 import { checkCartAvailability, buildBusinessStatusCard, type AvailabilityResult } from '../../utils/cart-availability'
 import { formatMixedQuantity } from '../../utils/quantity-format'
@@ -215,11 +214,6 @@ export function OrderReviewPage() {
           return
         }
         toast.success('تم إرسال الطلب بنجاح!')
-      }
-
-      const creditResult = await creditService.reserveCreditForOrder(order.id).catch(() => null)
-      if (creditResult?.over_limit) {
-        toast('الطلب يتجاوز الحد الائتماني وسيتم مراجعته من الإدارة العليا', { icon: '⚠️', duration: 5000 })
       }
     } catch (err: any) {
       toast.error('حدث خطأ أثناء إنشاء الطلب')

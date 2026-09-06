@@ -53,10 +53,6 @@ export function DashboardPage() {
     return <ExecutiveOperationsWorkspace />
   }
 
-  if (roles.includes('معتمد ائتماني')) {
-    return <Navigate to="/credit/collector" replace />
-  }
-
   for (const { target, component } of WORKSPACE_HIERARCHY) {
     if (roles.some((r: string) => normalizeEmployeeRole(r) === target)) {
       return <>{component}</>

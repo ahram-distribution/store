@@ -74,7 +74,6 @@ export interface CustomerRow {
   phone: string | null
   customer_type: string | null
   is_active: boolean | null
-  credit_limit: number | null
   outstanding_balance: number | null
   address_line1: string | null
   address_line2: string | null
@@ -92,7 +91,6 @@ export interface CustomerInsert {
   phone?: string | null
   customer_type?: string | null
   is_active?: boolean | null
-  credit_limit?: number | null
   outstanding_balance?: number | null
   address_line1?: string | null
   address_line2?: string | null
@@ -104,7 +102,6 @@ export interface CustomerUpdate {
   name?: string
   full_name?: string | null
   is_active?: boolean | null
-  credit_limit?: number | null
   address_line1?: string | null
   address_line2?: string | null
   city?: string | null

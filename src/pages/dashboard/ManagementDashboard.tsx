@@ -18,30 +18,16 @@ interface MgmtData {
   today_visits: number
 }
 
-interface CreditStats {
-  new_apps: number
-  under_review: number
-  docs_pending: number
-  approved: number
-  rejected: number
-  suspended: number
-}
-
 export function ManagementDashboard() {
   const navigate = useNavigate()
   const [data, setData] = useState<MgmtData | null>(null)
-  const [credit, setCredit] = useState<CreditStats | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     const token = getToken()
     if (!token) return
-    Promise.all([
-      supabase.rpc('get_dashboard_management', { p_token: token }),
-      supabase.rpc('get_credit_dashboard_stats', { p_token: token })
-    ]).then(([mgmt, cr]) => {
+    supabase.rpc('get_dashboard_management', { p_token: token }).then((mgmt) => {
       if (mgmt.data) setData(mgmt.data as MgmtData)
-      if (cr.data) setCredit(cr.data as CreditStats)
       setLoading(false)
     })
   }, [])
@@ -87,40 +73,6 @@ export function ManagementDashboard() {
       >
         تحليلات العملاء
       </button>
-
-      <div className="bg-white rounded-xl border border-border p-4 space-y-3">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-text">الائتمان</h3>
-          <button onClick={() => navigate('/credit/applications')} className="text-xs text-primary font-semibold">عرض الكل</button>
-        </div>
-        <div className="grid grid-cols-3 gap-2">
-          <div className="text-center p-2 bg-blue-50 rounded-lg">
-            <p className="text-lg font-bold text-blue-700">{credit?.new_apps ?? 0}</p>
-            <p className="text-xs text-blue-600">جديد</p>
-          </div>
-          <div className="text-center p-2 bg-yellow-50 rounded-lg">
-            <p className="text-lg font-bold text-yellow-700">{credit?.under_review ?? 0}</p>
-            <p className="text-xs text-yellow-600">قيد المراجعة</p>
-          </div>
-          <div className="text-center p-2 bg-orange-50 rounded-lg">
-            <p className="text-lg font-bold text-orange-700">{credit?.docs_pending ?? 0}</p>
-            <p className="text-xs text-orange-600">مستندات</p>
-          </div>
-          <div className="text-center p-2 bg-green-50 rounded-lg">
-            <p className="text-lg font-bold text-green-700">{credit?.approved ?? 0}</p>
-            <p className="text-xs text-green-600">معتمد</p>
-          </div>
-          <div className="text-center p-2 bg-red-50 rounded-lg">
-            <p className="text-lg font-bold text-red-700">{credit?.rejected ?? 0}</p>
-            <p className="text-xs text-red-600">مرفوض</p>
-          </div>
-          <div className="text-center p-2 bg-gray-100 rounded-lg">
-            <p className="text-lg font-bold text-gray-700">{credit?.suspended ?? 0}</p>
-            <p className="text-xs text-gray-600">معلق</p>
-          </div>
-        </div>
-        <button onClick={() => navigate('/credit/programs')} className="w-full bg-surface text-text rounded-xl p-2 text-xs font-semibold">إدارة برامج الائتمان</button>
-      </div>
 
       <button onClick={() => navigate('/settings/company')}
         className="w-full bg-white rounded-xl border border-border p-3 text-right active:bg-surface transition-colors flex items-center gap-3">

@@ -85,7 +85,6 @@ interface CrewEmp { id: string; code: string; full_name: string; role_names: str
 
 const PAYMENT_LABELS: Record<string, string> = {
   cash: 'نقدي',
-  credit: 'آجل',
   ittiman: 'ائتمان',
 }
 

@@ -72,7 +72,7 @@ export function buildWhatsAppMessageFromDisplay(display: OrderDisplayData): stri
   msg += '━━━━━━━━━━━━━━\n\n'
   msg += 'عدد الأصناف: ' + items.length + '\n'
   if (display.tierName) msg += 'الشريحة: ' + display.tierName + '\n'
-  msg += 'طريقة الدفع: ' + (display.paymentMethod === 'cash' ? 'نقداً' : display.paymentMethod === 'credit' ? 'آجل' : display.paymentMethod || 'غير متوفر') + '\n\n'
+  msg += 'طريقة الدفع: ' + (display.paymentMethod === 'cash' ? 'نقداً' : display.paymentMethod === 'ittiman' ? 'ائتمان' : display.paymentMethod || 'غير متوفر') + '\n\n'
   msg += 'إجمالي الطلب: ' + toEnUS(grandTotal) + ' جنيه\n\n'
 
   const grouped: Record<string, OrderDisplayItem[]> = {}

@@ -15,10 +15,13 @@ export class LegacyCollectionProvider implements ICollectionProvider {
   }
 
   async receiveCashPayment(payment: Payment): Promise<void> {
-    const { error } = await supabase.rpc('governed_record_credit_payment', {
+    const { error } = await supabase.rpc('governed_create_collection', {
       p_token: this.context.token,
-      p_invoice_id: payment.orderId,
-      p_payment_method: 'cash',
+      p_customer_id: payment.customerId,
+      p_amount: payment.amount.amount,
+      p_method: 'cash',
+      p_reference_number: null,
+      p_notes: null,
     })
     if (error) throw new ProviderException(error.message, PROVIDER_NAME, error)
   }
