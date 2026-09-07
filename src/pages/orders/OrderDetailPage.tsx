@@ -522,7 +522,19 @@ export function OrderDetailPage() {
 
   function startEdit(type: 'supreme' | 'executive' = 'supreme') {
     if (!data) return
-    setEditItems(data.items.map(i => ({ ...i })))
+    setEditItems(data.items.map(i => {
+      const isBaseStored = Number(i.base_unit_price || 0) > 0
+      const base = isBaseStored ? Number(i.base_unit_price) : Number(i.unit_price || 0)
+      const netUnit = Number(i.unit_price || 0)
+      const qty = Number(i.unit_quantity || 1)
+      return {
+        ...i,
+        unit_price: base,
+        base_unit_price: base,
+        total_price: Math.round(base * qty * 100) / 100,
+        _original_net_unit: netUnit,
+      }
+    }))
     setEditNotes(data.order.notes || '')
     setEditOrderType((data.order as any).order_type || 'cash')
     setEditTierId(data.order.tier_id)

@@ -20,13 +20,18 @@
 --   - p_customer_id            : reassign the order to another active customer and
 --                                refill the frozen customer snapshot fields.
 --   - Discount: after ANY edit, the discount D from each option is recomputed as
---     tier % + payment % + shipping % (additive, applied ONCE) against the NEW
---     item subtotal and applied to the order:
---       discount_amount     = subtotal * (tier% + payment% + shipping%) / 100
---       effective_discount_percent = tier% + payment% + shipping% (or NULL if 0)
---     Percentages come from the resulting order state (selected option if changed,
---     otherwise the frozen snapshot). p_discount_amount is kept for signature
---     compatibility but no longer used.
+--     tier % + payment % + shipping % (additive, applied ONCE) and applied PER
+--     ITEM against its BASE (pre-discount) unit price:
+--       For every item:  unit_price = ROUND(base_unit_price * (1 - eff%/100), 2)
+--       subtotal        = SUM(base_unit_price * quantity)          (السعر الأساسي)
+--       discount_amount = SUM(base_total - net_total) per item
+--       total_amount    = subtotal - discount_amount
+--     The p_items unit_price is treated as the BASE PRICE (السعر الأساسي) the
+--     editor writes; it is persisted in base_unit_price so that removing the
+--     discount later restores the base price exactly. Percentages come from the
+--     resulting order state (selected option if changed, otherwise the frozen
+--     snapshot). p_discount_amount is kept for signature compatibility but no
+--     longer used.
 -- ============================================================================
 
 CREATE OR REPLACE FUNCTION public.governed_supreme_edit_order_v2(
@@ -97,6 +102,10 @@ DECLARE
   v_cust_name text;
   v_cust_phone text;
   v_cust_address text;
+  v_base_price numeric(12,2);
+  v_net_price numeric(12,2);
+  v_item_net_total numeric(12,2);
+  v_item_base_total numeric(12,2);
 BEGIN
   SELECT * INTO v_session FROM app.sessions WHERE token = p_token::uuid AND expires_at > now();
   IF NOT FOUND THEN RETURN jsonb_build_object('error', 'INVALID_SESSION'); END IF;
@@ -280,14 +289,24 @@ BEGIN
     jsonb_build_object(
       'product_id', oi.product_id, 'unit_type', oi.unit_type,
       'unit_quantity', oi.unit_quantity, 'piece_quantity', oi.piece_quantity,
-      'unit_price', oi.unit_price, 'total_price', oi.total_price
+      'unit_price', oi.unit_price, 'base_unit_price', oi.base_unit_price, 'total_price', oi.total_price
     )
   ) INTO v_old_items
   FROM public.order_items oi WHERE oi.order_id = p_order_id;
 
   DELETE FROM public.order_items WHERE order_id = p_order_id;
 
+  -- Discount percentages (tier + payment + shipping, additive) resolved from the
+  -- resulting order state BEFORE items are written so the per-item net price can
+  -- be computed. Computed on every edit, applied once.
+  v_tier_discount := CASE WHEN v_tier_changed THEN COALESCE(v_tier_discount, 0) ELSE COALESCE(v_order.snapshot_tier_discount, 0) END;
+  v_payment_discount := CASE WHEN v_payment_changed THEN COALESCE(v_payment_discount, 0) ELSE COALESCE(v_order.snapshot_payment_discount, 0) END;
+  v_shipping_discount := CASE WHEN v_shipping_changed THEN COALESCE(v_shipping_discount, 0) ELSE COALESCE(v_order.snapshot_shipping_discount, 0) END;
+  v_effective := v_tier_discount + v_payment_discount + v_shipping_discount;
+  v_discount_changed := v_tier_changed OR v_payment_changed OR v_shipping_changed;
+
   v_subtotal := 0;
+  v_discount_amount := 0;
 
   FOR v_item IN SELECT * FROM jsonb_array_elements(p_items)
   LOOP
@@ -297,21 +316,32 @@ BEGIN
       RETURN jsonb_build_object('error', 'PRODUCT_NOT_FOUND', 'detail', 'Product ' || (v_item->>'product_id'));
     END IF;
 
-    INSERT INTO public.order_items (order_id, product_id, unit_type, unit_quantity, piece_quantity, unit_price, total_price)
+    -- p_items unit_price is the BASE (السعر الأساسي) the editor wrote.
+    v_base_price := ROUND(COALESCE((v_item->>'unit_price')::numeric, 0), 2);
+    IF v_effective > 0 THEN
+      v_net_price := ROUND((v_base_price * (1 - v_effective / 100))::numeric, 2);
+    ELSE
+      v_net_price := v_base_price;
+    END IF;
+    v_item_base_total := ROUND((v_base_price * (v_item->>'unit_quantity')::int)::numeric, 2);
+    v_item_net_total := ROUND((v_net_price * (v_item->>'unit_quantity')::int)::numeric, 2);
+
+    INSERT INTO public.order_items (order_id, product_id, unit_type, unit_quantity, piece_quantity, unit_price, total_price, base_unit_price)
     VALUES (
       p_order_id, (v_item->>'product_id')::uuid, v_item->>'unit_type',
       (v_item->>'unit_quantity')::int, COALESCE((v_item->>'piece_quantity')::int, 0),
-      COALESCE((v_item->>'unit_price')::numeric, 0), COALESCE((v_item->>'total_price')::numeric, 0)
+      v_net_price, v_item_net_total, v_base_price
     );
 
-    v_subtotal := v_subtotal + COALESCE((v_item->>'total_price')::numeric, 0);
+    v_subtotal := v_subtotal + v_item_base_total;
+    v_discount_amount := v_discount_amount + (v_item_base_total - v_item_net_total);
   END LOOP;
 
   SELECT jsonb_agg(
     jsonb_build_object(
       'product_id', oi.product_id, 'unit_type', oi.unit_type,
       'unit_quantity', oi.unit_quantity, 'piece_quantity', oi.piece_quantity,
-      'unit_price', oi.unit_price, 'total_price', oi.total_price
+      'unit_price', oi.unit_price, 'base_unit_price', oi.base_unit_price, 'total_price', oi.total_price
     )
   ) INTO v_new_items
   FROM public.order_items oi WHERE oi.order_id = p_order_id;
@@ -367,18 +397,7 @@ BEGIN
   END IF;
 
   v_subtotal := COALESCE(v_subtotal, 0);
-
-  -- Discount always recomputed after the edit and applied to the NEW subtotal
-  -- (product requirement: recompute the discount percentages and apply them).
-  -- Percentages come from the resulting order state: selected option when it was
-  -- changed in this edit, otherwise the frozen snapshot percentage. Additive sum
-  -- (tier + payment + shipping), Method B — applied ONCE on the subtotal.
-  v_discount_changed := v_tier_changed OR v_payment_changed OR v_shipping_changed;
-  v_tier_discount := CASE WHEN v_tier_changed THEN COALESCE(v_tier_discount, 0) ELSE COALESCE(v_order.snapshot_tier_discount, 0) END;
-  v_payment_discount := CASE WHEN v_payment_changed THEN COALESCE(v_payment_discount, 0) ELSE COALESCE(v_order.snapshot_payment_discount, 0) END;
-  v_shipping_discount := CASE WHEN v_shipping_changed THEN COALESCE(v_shipping_discount, 0) ELSE COALESCE(v_order.snapshot_shipping_discount, 0) END;
-  v_effective := v_tier_discount + v_payment_discount + v_shipping_discount;
-  v_discount_amount := ROUND((v_subtotal * v_effective / 100)::numeric, 2);
+  v_discount_amount := COALESCE(v_discount_amount, 0);
   v_total := GREATEST(v_subtotal - v_discount_amount, 0);
 
   -- Non-blocking notice when the new tier's minimum order amount is not reached.

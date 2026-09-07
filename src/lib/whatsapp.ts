@@ -47,7 +47,8 @@ export function buildWhatsAppMessageFromDisplay(display: OrderDisplayData): stri
 
   const grandTotal = items.reduce((s, i) => s + i.totalPrice, 0)
   const netTotal = display.totalAmount != null ? display.totalAmount : grandTotal
-  const netFactor = grandTotal > 0 && netTotal > 0 && netTotal < grandTotal ? netTotal / grandTotal : 1
+  const hasNetItems = items.length > 0 && items.some(i => i.baseUnitPrice > 0 && Math.abs(i.baseUnitPrice - i.unitPrice) > 0.009)
+  const netFactor = hasNetItems ? 1 : grandTotal > 0 && netTotal > 0 && netTotal < grandTotal ? netTotal / grandTotal : 1
   const net = (n: number) => Math.round(n * netFactor * 100) / 100
 
   let msg = ''

@@ -40,6 +40,7 @@ export interface OrderDisplayItem {
   unitLabel: string
   quantity: number
   unitPrice: number
+  baseUnitPrice: number
   totalPrice: number
 }
 
@@ -262,6 +263,7 @@ export function buildOrderDisplayData(params: {
   const items: OrderDisplayItem[] = itemList.map((i: any) => {
     const qty = Number(i.unit_quantity || 1)
     const price = Number(i.unit_price || 0)
+    const basePrice = Number(i.base_unit_price || i.unit_price || 0)
     const isDozen = i.unit_type === 'dozen'
     return {
       id: i.id,
@@ -274,6 +276,7 @@ export function buildOrderDisplayData(params: {
       unitLabel: i.unit_type === 'dozen' ? UNIT_LABELS.piece : UNIT_LABELS[i.unit_type] || i.unit_type || 'قطعة',
       quantity: isDozen ? qty * 12 : qty,
       unitPrice: isDozen ? price / 12 : price,
+      baseUnitPrice: isDozen ? basePrice / 12 : basePrice,
       totalPrice: qty * price,
     }
   })

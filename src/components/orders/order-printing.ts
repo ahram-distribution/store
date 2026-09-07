@@ -20,7 +20,12 @@ export function renderPdfHtml(data: UnifiedOrder): string {
   const grandTotal = items.reduce((s, i) => s + Number(i.total_price || 0), 0)
 
   const netTotal = Number(order.total_amount ?? (grandTotal - Number(order.discount_amount || 0)))
-  const netFactor = grandTotal > 0 && netTotal > 0 && netTotal < grandTotal ? netTotal / grandTotal : 1
+  const hasNetItems = items.length > 0 && items.some((i: any) => {
+    const base = Number(i.base_unit_price ?? 0)
+    const unit = Number(i.unit_price ?? 0)
+    return base > 0 && Math.abs(base - unit) > 0.009
+  })
+  const netFactor = !hasNetItems && grandTotal > 0 && netTotal > 0 && netTotal < grandTotal ? netTotal / grandTotal : 1
   const net = (amount: number) => Math.round(amount * netFactor * 100) / 100
 
   const customerName = useLive ? (lc.company_name || '') : (order.snapshot_customer_name || '')
@@ -129,7 +134,12 @@ export function renderDeliveryPermitHtml(data: UnifiedOrder, logoUrl?: string): 
   const totalQty = items.reduce((s, i) => s + Number(i.unit_quantity || 0), 0)
 
   const netTotal = Number(order.total_amount ?? (grandTotal - Number(order.discount_amount || 0)))
-  const netFactor = grandTotal > 0 && netTotal > 0 && netTotal < grandTotal ? netTotal / grandTotal : 1
+  const hasNetItems = items.length > 0 && items.some((i: any) => {
+    const base = Number(i.base_unit_price ?? 0)
+    const unit = Number(i.unit_price ?? 0)
+    return base > 0 && Math.abs(base - unit) > 0.009
+  })
+  const netFactor = !hasNetItems && grandTotal > 0 && netTotal > 0 && netTotal < grandTotal ? netTotal / grandTotal : 1
   const net = (amount: number) => Math.round(amount * netFactor * 100) / 100
 
   const groups = () => {

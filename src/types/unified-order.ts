@@ -140,6 +140,7 @@ export interface UnifiedOrderItem {
   unit_price: number
   base_unit_price: number | null
   total_price: number
+  _original_net_unit?: number
 }
 
 export interface UnifiedStatusHistoryEntry {
