@@ -8,6 +8,8 @@ export interface CompanyFormData {
   is_visible: boolean
   display_order: number
   tierDiscounts: Record<string, string>
+  paymentDiscounts: Record<string, string>
+  shippingDiscounts: Record<string, string>
 }
 
 function getToken(): string | null {
@@ -21,14 +23,17 @@ function invalidate() {
 
 export async function fetchGovernedData() {
   const token = getToken()
-  if (!token) return { companies: [], tiers: [] }
-  const [compRes, tiersRes] = await Promise.all([
+  if (!token) return { companies: [], tiers: [], paymentMethods: [], shippingMethods: [] }
+  const [compRes, tiersRes, optsRes] = await Promise.all([
     supabase.rpc('get_governed_companies', { p_token: token }),
     supabase.rpc('get_governed_tiers', { p_token: token }),
+    supabase.rpc('get_governed_discount_options', { p_token: token ?? null }),
   ])
   return {
     companies: Array.isArray(compRes.data) ? compRes.data : [],
     tiers: Array.isArray(tiersRes.data) ? tiersRes.data : [],
+    paymentMethods: Array.isArray(optsRes.data?.payment_methods) ? optsRes.data.payment_methods : [],
+    shippingMethods: Array.isArray(optsRes.data?.shipping_methods) ? optsRes.data.shipping_methods : [],
   }
 }
 
@@ -69,6 +74,30 @@ export async function createCompany(form: CompanyFormData): Promise<{ id?: strin
         })
       }
     }
+    for (const [optionId, discount] of Object.entries(form.paymentDiscounts)) {
+      if (discount !== undefined && discount !== '') {
+        const parsed = parseFloat(discount)
+        if (isNaN(parsed) || parsed < 0 || parsed > 100) continue
+        await supabase.rpc('governed_set_payment_method_company_exception', {
+          p_token: token,
+          p_payment_method_option_id: optionId,
+          p_company_id: targetId,
+          p_discount_percent: parsed,
+        })
+      }
+    }
+    for (const [optionId, discount] of Object.entries(form.shippingDiscounts)) {
+      if (discount !== undefined && discount !== '') {
+        const parsed = parseFloat(discount)
+        if (isNaN(parsed) || parsed < 0 || parsed > 100) continue
+        await supabase.rpc('governed_set_shipping_method_company_exception', {
+          p_token: token,
+          p_shipping_method_option_id: optionId,
+          p_company_id: targetId,
+          p_discount_percent: parsed,
+        })
+      }
+    }
   }
 
   invalidate()
@@ -80,6 +109,10 @@ export async function updateCompany(
   form: CompanyFormData,
   tiers: any[],
   existingExceptions: { tier_id: string; id: string }[],
+  paymentMethods: any[],
+  existingPaymentExceptions: { payment_method_option_id: string; id: string }[],
+  shippingMethods: any[],
+  existingShippingExceptions: { shipping_method_option_id: string; id: string }[],
 ): Promise<{ error?: string }> {
   const token = getToken()
   if (!token) return { error: 'No session' }
@@ -109,6 +142,46 @@ export async function updateCompany(
       })
     } else if (existingEx) {
       await supabase.rpc('governed_remove_tier_company_exception', {
+        p_token: token,
+        p_exception_id: existingEx.id,
+      })
+    }
+  }
+
+  for (const method of paymentMethods) {
+    const newDiscount = form.paymentDiscounts[method.id]
+    const existingEx = existingPaymentExceptions.find((ex) => ex.payment_method_option_id === method.id)
+    if (newDiscount !== undefined && newDiscount !== '') {
+      const parsed = parseFloat(newDiscount)
+      if (isNaN(parsed) || parsed < 0 || parsed > 100) continue
+      await supabase.rpc('governed_set_payment_method_company_exception', {
+        p_token: token,
+        p_payment_method_option_id: method.id,
+        p_company_id: id,
+        p_discount_percent: parsed,
+      })
+    } else if (existingEx) {
+      await supabase.rpc('governed_remove_payment_method_company_exception', {
+        p_token: token,
+        p_exception_id: existingEx.id,
+      })
+    }
+  }
+
+  for (const method of shippingMethods) {
+    const newDiscount = form.shippingDiscounts[method.id]
+    const existingEx = existingShippingExceptions.find((ex) => ex.shipping_method_option_id === method.id)
+    if (newDiscount !== undefined && newDiscount !== '') {
+      const parsed = parseFloat(newDiscount)
+      if (isNaN(parsed) || parsed < 0 || parsed > 100) continue
+      await supabase.rpc('governed_set_shipping_method_company_exception', {
+        p_token: token,
+        p_shipping_method_option_id: method.id,
+        p_company_id: id,
+        p_discount_percent: parsed,
+      })
+    } else if (existingEx) {
+      await supabase.rpc('governed_remove_shipping_method_company_exception', {
         p_token: token,
         p_exception_id: existingEx.id,
       })
@@ -157,6 +230,30 @@ export function extractTierExceptions(companyId: string, tiers: any[]) {
     for (const ex of (tier.company_exceptions || []).filter((e: any) => e.company_id === companyId)) {
       exceptions.push({ tier_id: tier.id, id: ex.id, discount_percent: ex.discount_percent })
       discounts[tier.id] = String(ex.discount_percent)
+    }
+  }
+  return { discounts, exceptions }
+}
+
+export function extractPaymentExceptions(companyId: string, paymentMethods: any[]) {
+  const discounts: Record<string, string> = {}
+  const exceptions: { payment_method_option_id: string; id: string; discount_percent: number }[] = []
+  for (const method of paymentMethods) {
+    for (const ex of (method.company_exceptions || []).filter((e: any) => e.company_id === companyId)) {
+      exceptions.push({ payment_method_option_id: method.id, id: ex.id, discount_percent: ex.discount_percent })
+      discounts[method.id] = String(ex.discount_percent)
+    }
+  }
+  return { discounts, exceptions }
+}
+
+export function extractShippingExceptions(companyId: string, shippingMethods: any[]) {
+  const discounts: Record<string, string> = {}
+  const exceptions: { shipping_method_option_id: string; id: string; discount_percent: number }[] = []
+  for (const method of shippingMethods) {
+    for (const ex of (method.company_exceptions || []).filter((e: any) => e.company_id === companyId)) {
+      exceptions.push({ shipping_method_option_id: method.id, id: ex.id, discount_percent: ex.discount_percent })
+      discounts[method.id] = String(ex.discount_percent)
     }
   }
   return { discounts, exceptions }

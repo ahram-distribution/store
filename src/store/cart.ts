@@ -1,7 +1,8 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { CartItem, CartDealItem, CartTotals, TierConfig, PaymentMethodOption, ShippingMethodOption, ProductWithPrice, UnitType, DailyDealRecord, FlashOfferRecord } from '../types/storefront'
+import type { CartItem, CartDealItem, CartTotals, TierConfig, PaymentMethodOption, ShippingMethodOption, ProductWithPrice, UnitType, DailyDealRecord, FlashOfferRecord, TierExceptionLookup } from '../types/storefront'
 import { computeProductPrices, getFinalUnitPrice, getUnitBasePrice, computePieceQuantity, computeCartTotals } from '../engine/pricing'
+import { resolveExceptionLookup, type DiscountPricingContext } from '../services/discountOptions'
 import { supabase } from '../lib/supabase'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import toast from 'react-hot-toast'
@@ -47,6 +48,8 @@ interface CartState {
   setTiers: (tiers: TierConfig[]) => void
   setPaymentMethods: (paymentMethods: PaymentMethodOption[]) => void
   setShippingMethods: (shippingMethods: ShippingMethodOption[]) => void
+  discountContext: DiscountPricingContext | null
+  setDiscountContext: (context: DiscountPricingContext | null) => void
   setProducts: (products: ProductWithPrice[]) => void
   syncProduct: (product: ProductWithPrice) => void
   selectTier: (tierId: string | null) => void
@@ -103,6 +106,21 @@ export const useCartStore = create(
         return s.geographicContext?.adjustmentPercent ?? 0
       }
 
+      const buildLookup = (
+        s: ReturnType<typeof get>,
+        product: { id: string; companyId?: string } | null | undefined
+      ): TierExceptionLookup | null | undefined => {
+        if (!s.discountContext || !product) return undefined
+        return resolveExceptionLookup(
+          s.discountContext,
+          s.getSelectedTier(),
+          s.getSelectedPaymentMethod(),
+          s.getSelectedShippingMethod(),
+          product.id,
+          product.companyId
+        )
+      }
+
       return {
       items: [],
       dealItems: [],
@@ -113,6 +131,7 @@ export const useCartStore = create(
       tiers: [],
       paymentMethods: [],
       shippingMethods: [],
+      discountContext: null,
       products: [],
       selectedCustomer: null,
       editingOrderId: null,
@@ -127,6 +146,11 @@ export const useCartStore = create(
       setPaymentMethods: (paymentMethods) => set({ paymentMethods }),
 
       setShippingMethods: (shippingMethods) => set({ shippingMethods }),
+
+      setDiscountContext: (discountContext) => {
+        set({ discountContext })
+        get().recalculateAll()
+      },
 
       setProducts: (products) => set({ products }),
 
@@ -172,7 +196,7 @@ export const useCartStore = create(
         const payment = state.getSelectedPaymentMethod()
         const shipping = state.getSelectedShippingMethod()
         const geoAdj = getAdjForProduct(state, product.id)
-        const prices = computeProductPrices(product, tier, undefined, geoAdj || undefined, payment, shipping)
+        const prices = computeProductPrices(product, tier, buildLookup(state, product), geoAdj || undefined, payment, shipping)
         const baseUnitPrice = getUnitBasePrice(prices, unitType)
         const finalUnitPrice = getFinalUnitPrice(prices, unitType)
         const pieceQuantity = computePieceQuantity(unitQuantity, unitType, product.cartonQuantity)
@@ -234,7 +258,7 @@ export const useCartStore = create(
         if (!product) return
 
         const geoAdj = getAdjForProduct(state, product.id)
-        const prices = computeProductPrices(product, tier, undefined, geoAdj || undefined, payment, shipping)
+        const prices = computeProductPrices(product, tier, buildLookup(state, product), geoAdj || undefined, payment, shipping)
         const baseUnitPrice = getUnitBasePrice(prices, unitType)
         const finalUnitPrice = getFinalUnitPrice(prices, unitType)
         const pieceQuantity = computePieceQuantity(unitQuantity, unitType, product.cartonQuantity)
@@ -352,7 +376,14 @@ export const useCartStore = create(
         const tier = state.getSelectedTier()
         const payment = state.getSelectedPaymentMethod()
         const shipping = state.getSelectedShippingMethod()
-        return computeCartTotals(state.items, tier, state.dealItems, state.flashOfferItems, undefined, payment, shipping)
+        const exceptionsByProduct: Record<string, TierExceptionLookup | null> = {}
+        if (state.discountContext) {
+          for (const item of state.items) {
+            const lookup = buildLookup(state, item)
+            if (lookup !== undefined) exceptionsByProduct[item.productId] = lookup
+          }
+        }
+        return computeCartTotals(state.items, tier, state.dealItems, state.flashOfferItems, undefined, payment, shipping, exceptionsByProduct)
       },
 
       getSelectedTier: () => {
@@ -379,7 +410,7 @@ export const useCartStore = create(
         const payment = state.getSelectedPaymentMethod()
         const shipping = state.getSelectedShippingMethod()
         const geoAdj = getAdjForProduct(state, product.id)
-        const prices = computeProductPrices(product, tier, undefined, geoAdj || undefined, payment, shipping)
+        const prices = computeProductPrices(product, tier, buildLookup(state, product), geoAdj || undefined, payment, shipping)
         return getFinalUnitPrice(prices, unitType)
       },
 
@@ -392,7 +423,7 @@ export const useCartStore = create(
           const product = state.products.find((p) => p.id === item.productId)
           if (!product) return item
           const geoAdj = getAdjForProduct(state, item.productId)
-          const prices = computeProductPrices(product, tier, undefined, geoAdj || undefined, payment, shipping)
+          const prices = computeProductPrices(product, tier, buildLookup(state, product), geoAdj || undefined, payment, shipping)
           const baseUnitPrice = getUnitBasePrice(prices, item.unitType)
           const finalUnitPrice = getFinalUnitPrice(prices, item.unitType)
           const pieceQuantity = computePieceQuantity(item.unitQuantity, item.unitType, product.cartonQuantity)
@@ -623,6 +654,12 @@ export const useCartStore = create(
       getFlashOfferItems: () => get().flashOfferItems,
       }
     },
-    { name: 'ahram-cart' }
+    {
+      name: 'ahram-cart',
+      partialize: (state) => {
+        const { discountContext, ...rest } = state as any
+        return rest
+      },
+    } as any
   )
 )

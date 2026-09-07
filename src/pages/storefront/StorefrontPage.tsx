@@ -7,7 +7,7 @@ import { useCompaniesStore, type CompanyItem } from '../../store/companies'
 import { ProductCard } from '../../components/storefront/ProductCard'
 import { StorefrontBanner, StorefrontFooter } from '../../components/storefront/CompanyInfoSection'
 import { computeProductPrices } from '../../engine/pricing'
-import { discountOptionsService } from '../../services/discountOptions'
+import { discountOptionsService, buildDiscountPricingContext, resolveExceptionLookup } from '../../services/discountOptions'
 import { DiscountOptionSelector, type SelectableDiscountOption } from '../../components/storefront/DiscountOptionSelector'
 import { formatCurrencyShort } from '../../utils/format'
 import { formatNumber } from '../../utils/numbers'
@@ -40,6 +40,8 @@ export function StorefrontPage() {
     setTiers,
     setPaymentMethods,
     setShippingMethods,
+    setDiscountContext,
+    discountContext,
     selectedTierId,
     selectTier,
     selectedPaymentMethodId,
@@ -186,10 +188,11 @@ export function StorefrontPage() {
       setTiers(mappedTiers)
       setPaymentMethods(mappedPayments)
       setShippingMethods(mappedShipping)
+      setDiscountContext(buildDiscountPricingContext(bundle))
     } catch {
       // fall back to nothing; selectors render accordingly
     }
-  }, [authToken, setTiers, setPaymentMethods, setShippingMethods])
+  }, [authToken, setTiers, setPaymentMethods, setShippingMethods, setDiscountContext])
 
   const fetchCustomers = useCallback(async () => {
     if (!authToken || user?.identity_type !== 'employee') return
@@ -344,6 +347,12 @@ export function StorefrontPage() {
   const selectedShippingMethod = getSelectedShippingMethod()
   const totals = getTotals()
   const cartItemCount = items.length
+
+  const resolveLookupFor = useCallback((product: { id: string; companyId?: string }) => {
+    return discountContext
+      ? resolveExceptionLookup(discountContext, selectedTier, selectedPaymentMethod, selectedShippingMethod, product.id, product.companyId)
+      : undefined
+  }, [discountContext, selectedTier, selectedPaymentMethod, selectedShippingMethod])
 
   const cartItemKeys = useMemo(() => {
     const keys = new Set<string>()
@@ -815,7 +824,7 @@ export function StorefrontPage() {
             <div key={product.id} id={'product-' + product.id} className="rounded-xl transition-all duration-500">
               <ProductCard
                 product={product}
-                prices={computeProductPrices(product, selectedTier, undefined, geoAdjustForProduct(product.id), selectedPaymentMethod, selectedShippingMethod)}
+                prices={computeProductPrices(product, selectedTier, resolveLookupFor(product), geoAdjustForProduct(product.id), selectedPaymentMethod, selectedShippingMethod)}
                 hasTier={selectedTier !== null}
                 tierName={selectedTier?.name ?? null}
                 onAddToCart={handleAddToCart}
@@ -847,7 +856,7 @@ export function StorefrontPage() {
           <div className="relative w-full max-w-md max-h-[92vh] overflow-y-auto rounded-2xl shadow-2xl animate-zoom-in">
             <ProductCard
               product={expandedProduct}
-              prices={computeProductPrices(expandedProduct, selectedTier, undefined, geoAdjustForProduct(expandedProduct.id), selectedPaymentMethod, selectedShippingMethod)}
+              prices={computeProductPrices(expandedProduct, selectedTier, resolveLookupFor(expandedProduct), geoAdjustForProduct(expandedProduct.id), selectedPaymentMethod, selectedShippingMethod)}
               hasTier={selectedTier !== null}
               tierName={selectedTier?.name ?? null}
               onAddToCart={handleAddToCart}

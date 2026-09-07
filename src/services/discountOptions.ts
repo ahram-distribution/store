@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabase'
-import type { TierRecord, PaymentMethodOption, ShippingMethodOption } from '../types/storefront'
+import type { TierRecord, TierConfig, TierExceptionLookup, PaymentMethodOption, ShippingMethodOption } from '../types/storefront'
 import { mapTierRecord } from './tiers'
 
 function getToken(): string | null {
@@ -15,6 +15,18 @@ function mapPaymentMethodOption(row: any): PaymentMethodOption {
     isVisible: row.is_visible ?? true,
     isActive: row.is_active ?? true,
     updatedAt: row.updated_at || null,
+    companyExceptions: (row.company_exceptions || []).map((ex: any) => ({
+      id: ex.id,
+      companyId: ex.company_id,
+      companyName: ex.company_name,
+      discountPercent: Number(ex.discount_percent ?? 0),
+    })),
+    productExceptions: (row.product_exceptions || []).map((ex: any) => ({
+      id: ex.id,
+      productId: ex.product_id,
+      productName: ex.product_name,
+      discountPercent: Number(ex.discount_percent ?? 0),
+    })),
   }
 }
 
@@ -27,6 +39,18 @@ function mapShippingMethodOption(row: any): ShippingMethodOption {
     isVisible: row.is_visible ?? true,
     isActive: row.is_active ?? true,
     updatedAt: row.updated_at || null,
+    companyExceptions: (row.company_exceptions || []).map((ex: any) => ({
+      id: ex.id,
+      companyId: ex.company_id,
+      companyName: ex.company_name,
+      discountPercent: Number(ex.discount_percent ?? 0),
+    })),
+    productExceptions: (row.product_exceptions || []).map((ex: any) => ({
+      id: ex.id,
+      productId: ex.product_id,
+      productName: ex.product_name,
+      discountPercent: Number(ex.discount_percent ?? 0),
+    })),
   }
 }
 
@@ -34,6 +58,84 @@ export interface DiscountOptionsBundle {
   tiers: TierRecord[]
   paymentMethods: PaymentMethodOption[]
   shippingMethods: ShippingMethodOption[]
+}
+
+// ---------------------------------------------------------------------------
+// Discount override resolution — single governed path used by the engine.
+// Precedence per group (independently): product override > company override
+// > option global. Each override is keyed by the SELECTED option id, so the
+// tier/payment/shipping context stays as the admin configured the options.
+// ---------------------------------------------------------------------------
+
+export interface DiscountExceptionIndex {
+  companies: Record<string, number>
+  products: Record<string, number>
+}
+
+export interface DiscountPricingContext {
+  tiers: Record<string, DiscountExceptionIndex>
+  payments: Record<string, DiscountExceptionIndex>
+  shippings: Record<string, DiscountExceptionIndex>
+}
+
+function indexExceptions(
+  options: Array<{
+    id: string
+    companyExceptions?: Array<{ companyId: string; discountPercent: number }>
+    productExceptions?: Array<{ productId: string; discountPercent: number }>
+  }>
+): Record<string, DiscountExceptionIndex> {
+  const out: Record<string, DiscountExceptionIndex> = {}
+  for (const o of options ?? []) {
+    const companies: Record<string, number> = {}
+    const products: Record<string, number> = {}
+    for (const ce of o.companyExceptions ?? []) companies[ce.companyId] = Number(ce.discountPercent)
+    for (const pe of o.productExceptions ?? []) products[pe.productId] = Number(pe.discountPercent)
+    out[o.id] = { companies, products }
+  }
+  return out
+}
+
+export function buildDiscountPricingContext(bundle: DiscountOptionsBundle): DiscountPricingContext {
+  return {
+    tiers: indexExceptions(bundle.tiers as any),
+    payments: indexExceptions(bundle.paymentMethods as any),
+    shippings: indexExceptions(bundle.shippingMethods as any),
+  }
+}
+
+export function resolveExceptionLookup(
+  context: DiscountPricingContext | null | undefined,
+  tier: TierConfig | null,
+  payment: PaymentMethodOption | null,
+  shipping: ShippingMethodOption | null,
+  productId: string,
+  companyId?: string | null
+): TierExceptionLookup | null {
+  if (!tier || !context) return null
+  const company = companyId ?? ''
+  const tierIdx = context.tiers[tier.id]
+  const payIdx = payment ? context.payments[payment.id] : undefined
+  const shipIdx = shipping ? context.shippings[shipping.id] : undefined
+  const tierProduct = tierIdx?.products[productId]
+  const tierCompany = tierIdx?.companies[company]
+  const payProduct = payIdx?.products[productId]
+  const payCompany = payIdx?.companies[company]
+  const shipProduct = shipIdx?.products[productId]
+  const shipCompany = shipIdx?.companies[company]
+  return {
+    productException: tierProduct !== undefined ? tierProduct : null,
+    companyException: tierCompany !== undefined ? tierCompany : null,
+    tierDefault: tier.discountPercent,
+    paymentOverride: {
+      productException: payProduct !== undefined ? payProduct : null,
+      companyException: payCompany !== undefined ? payCompany : null,
+    },
+    shippingOverride: {
+      productException: shipProduct !== undefined ? shipProduct : null,
+      companyException: shipCompany !== undefined ? shipCompany : null,
+    },
+  }
 }
 
 export interface OrderDiscountSnapshot {

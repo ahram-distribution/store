@@ -3,11 +3,13 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../store/auth'
 import { useCartStore } from '../../store/cart'
-import { applyGeographicAdjustment } from '../../engine/pricing'
+import { applyGeographicAdjustment, computeTotalDiscountPercent, round2 } from '../../engine/pricing'
 import { normalizeEmployeeRole, type TargetRole } from '../../utils/roleNormalization'
 import { buildSearchIndex, searchProducts, type ProductSearchIndex } from '../../utils/smartSearch'
 import { SearchHighlight } from '../../components/shared/SearchHighlight'
 import { exportToExcel } from '../../services/excelExporter'
+import { discountOptionsService, buildDiscountPricingContext, resolveExceptionLookup, type DiscountPricingContext } from '../../services/discountOptions'
+import type { TierRecord, PaymentMethodOption, ShippingMethodOption } from '../../types/storefront'
 import {
   getGovernorateAdjustmentRows,
   getSectorAdjustmentRows,
@@ -71,6 +73,25 @@ function isProductAvailable(p: ProductRow): boolean {
   return !!p.carton_price && Number(p.carton_price) > 0
 }
 
+interface PreviewPrices {
+  finalPiece: number
+  finalCarton: number
+  finalDozen: number
+}
+
+interface PricePreview {
+  totalDiscountPercent: number
+  tierLabel: string
+  paymentLabel: string
+  shippingLabel: string
+  finalByProduct: Map<string, PreviewPrices>
+}
+
+/** Final price = base × (1 − combinedDiscount/100), applied ONCE from the geographic/base price. */
+function computePreviewFinalPrice(basePrice: number, totalDiscountPercent: number): number {
+  return round2(basePrice * (1 - Math.min(totalDiscountPercent, 99.99) / 100))
+}
+
 function esc(s: string | null | undefined): string {
   if (!s) return ''
   const d = document.createElement('div')
@@ -78,40 +99,60 @@ function esc(s: string | null | undefined): string {
   return d.innerHTML
 }
 
-function generatePrintHtml(groups: CompanyGroup[], logoUrl: string, regionLabel?: string): string {
+function generatePrintHtml(groups: CompanyGroup[], logoUrl: string, regionLabel?: string, preview?: PricePreview): string {
   const now = new Date()
   const dateStr = now.toLocaleDateString('ar-EG-u-nu-latn', { day: '2-digit', month: '2-digit', year: 'numeric' })
   const timeStr = now.toLocaleTimeString('ar-EG-u-nu-latn', { hour: '2-digit', minute: '2-digit', hour12: false })
   const docTitle = regionLabel ? `قائمة أسعار — ${regionLabel}` : 'قائمة أسعار البيع'
+  const discounted = !!preview && preview.totalDiscountPercent > 0
+  const colCount = discounted ? 6 : 4
 
   function productRow(p: ProductRow, bgColor: string): string {
     const code = esc(p.legacy_code || '---')
     const name = esc(p.product_name)
     const piece = Number(p.piece_price) || 0
     const carton = Number(p.carton_price) || 0
+    const finals = preview?.finalByProduct.get(p.id)
     const cellStyle = `border:1px solid #e2e8f0;padding:4px 3px;text-align:center;vertical-align:middle;background:${bgColor}`
-    return `<tr>
+    const dash = '<span style="color:#d1d5db;font-size:9px">&mdash;</span>'
+    const baseVal = (v: number) => (v > 0 ? `<span style="font-size:10px;font-weight:700;color:#111827">${formatPrice(v)}</span>` : dash)
+    const finalVal = (v: number) => (v > 0 ? `<span style="font-size:11px;font-weight:800;color:#0b5cad">${formatPrice(v)}</span>` : dash)
+    if (!discounted) {
+      return `<tr>
       <td style="width:8%;${cellStyle};font-family:monospace;direction:ltr;font-size:10px;color:#475569">${code}</td>
       <td style="width:60%;${cellStyle};text-align:right;padding:4px 6px;font-size:11px;line-height:1.5;color:#111827">${name}</td>
-      <td style="width:16%;${cellStyle}">${piece > 0 ? `<span style="font-size:10px;font-weight:700;color:#111827">${formatPrice(piece)}</span>` : '<span style="color:#d1d5db;font-size:9px">&mdash;</span>'}</td>
-      <td style="width:16%;${cellStyle}">${carton > 0 ? `<span style="font-size:10px;font-weight:700;color:#111827">${formatPrice(carton)}</span>` : '<span style="color:#d1d5db;font-size:9px">&mdash;</span>'}</td>
+      <td style="width:16%;${cellStyle}">${baseVal(piece)}</td>
+      <td style="width:16%;${cellStyle}">${baseVal(carton)}</td>
+    </tr>`
+    }
+    return `<tr>
+      <td style="width:7%;${cellStyle};font-family:monospace;direction:ltr;font-size:10px;color:#475569">${code}</td>
+      <td style="width:43%;${cellStyle};text-align:right;padding:4px 6px;font-size:11px;line-height:1.5;color:#111827">${name}</td>
+      <td style="width:12.5%;${cellStyle}">${baseVal(piece)}</td>
+      <td style="width:12.5%;${cellStyle}">${finalVal(finals ? finals.finalPiece : piece)}</td>
+      <td style="width:12.5%;${cellStyle}">${baseVal(carton)}</td>
+      <td style="width:12.5%;${cellStyle}">${finalVal(finals ? finals.finalCarton : carton)}</td>
     </tr>`
   }
 
   function groupSection(g: CompanyGroup, idx: number): string {
     const bgColor = idx % 2 === 0 ? '#f8fafc' : '#f7faff'
-    const header = `<tr><td colspan="4" style="background:${bgColor};border-bottom:1px solid #e2e8f0;padding:5px 10px;border-left:1px solid #e2e8f0;border-right:1px solid #e2e8f0;border-top:none"><div style="display:flex;align-items:center;gap:6px"><span style="display:inline-block;width:6px;height:6px;border-radius:1px;background:rgba(0,82,204,0.6)"></span><span style="font-weight:700;color:#111827;font-size:11px">${esc(g.companyName)}</span><span style="font-weight:400;color:#6b7280;font-size:9px">${g.products.length} منتج</span></div></td></tr>`
+    const header = `<tr><td colspan="${colCount}" style="background:${bgColor};border-bottom:1px solid #e2e8f0;padding:5px 10px;border-left:1px solid #e2e8f0;border-right:1px solid #e2e8f0;border-top:none"><div style="display:flex;align-items:center;gap:6px"><span style="display:inline-block;width:6px;height:6px;border-radius:1px;background:rgba(0,82,204,0.6)"></span><span style="font-weight:700;color:#111827;font-size:11px">${esc(g.companyName)}</span><span style="font-weight:400;color:#6b7280;font-size:9px">${g.products.length} منتج</span></div></td></tr>`
     const body = g.products.map((p) => productRow(p, bgColor)).join('')
     return header + body
   }
+
+  const pricingMeta = discounted
+    ? `<div style="color:#0b5cad;font-weight:600;font-size:9px;margin-top:4px">الخصم المطبق: ${preview.tierLabel} + ${preview.paymentLabel} + ${preview.shippingLabel} = ${preview.totalDiscountPercent}% (يُطبق مرة واحدة على السعر الأساسي)</div>`
+    : ''
 
   return `<!DOCTYPE html>
 <html dir="rtl" lang="ar">
 <head>
 <meta charset="UTF-8">
-<title>قائمة أسعار البيع</title>
+<title>${docTitle}</title>
 <style>
-  @page { size: A4; margin: 12mm 10mm }
+  @page { size: A4${discounted ? ' landscape' : ''}; margin: 12mm 10mm }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: 'Segoe UI', Tahoma, Arial, sans-serif; font-size: 10px; color: #111827; line-height: 1.5; padding: 0; }
   .top-bar { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px; margin-bottom: 10px; }
@@ -127,6 +168,9 @@ function generatePrintHtml(groups: CompanyGroup[], logoUrl: string, regionLabel?
   th:nth-child(2) { width: 60%; }
   th:nth-child(3) { width: 16%; }
   th:nth-child(4) { width: 16%; }
+  ${discounted ? `  th:nth-child(1) { width: 7%; }
+  th:nth-child(2) { width: 43%; }
+  th:nth-child(3), th:nth-child(4), th:nth-child(5), th:nth-child(6) { width: 12.5%; }` : ''}
   thead { display: table-header-group; }
   tbody { display: table-row-group; }
   tbody tr { page-break-inside: avoid; }
@@ -148,6 +192,7 @@ function generatePrintHtml(groups: CompanyGroup[], logoUrl: string, regionLabel?
   <div style="flex:2">
     <div class="doc-title">${docTitle}</div>
     <div class="doc-meta">${regionLabel ? `القائمة: ${regionLabel}<br/>` : ''}تاريخ الطباعة: ${dateStr}<br/>وقت الطباعة: ${timeStr}</div>
+    ${pricingMeta}
   </div>
 </div>
 </td></tr>
@@ -155,10 +200,7 @@ function generatePrintHtml(groups: CompanyGroup[], logoUrl: string, regionLabel?
 <table>
   <thead>
     <tr>
-      <th>الكود</th>
-      <th>اسم الصنف</th>
-      <th>سعر القطعة</th>
-      <th>سعر الكرتونة</th>
+      ${discounted ? '<th>الكود</th><th>اسم الصنف</th><th>سعر القطعة</th><th>القطعة بعد الخصم</th><th>سعر الكرتونة</th><th>الكرتونة بعد الخصم</th>' : '<th>الكود</th><th>اسم الصنف</th><th>سعر القطعة</th><th>سعر الكرتونة</th>'}
     </tr>
   </thead>
   <tbody>
@@ -198,6 +240,14 @@ export default function SalesListPage() {
   const [geoOverride, setGeoOverride] = useState<Record<string, number> | null>(null)
   const [geoOverrideRows, setGeoOverrideRows] = useState<GeoAdjustmentRow[]>([])
   const [geoResolving, setGeoResolving] = useState(false)
+  const [tierOptions, setTierOptions] = useState<TierRecord[]>([])
+  const [paymentOptions, setPaymentOptions] = useState<PaymentMethodOption[]>([])
+  const [shippingOptions, setShippingOptions] = useState<ShippingMethodOption[]>([])
+  const [selectedTierId, setSelectedTierId] = useState('')
+  const [selectedPaymentId, setSelectedPaymentId] = useState('')
+  const [selectedShippingId, setSelectedShippingId] = useState('')
+  const [pricingLoading, setPricingLoading] = useState(false)
+  const [discountContext, setDiscountContext] = useState<DiscountPricingContext | null>(null)
 
   const userRoles = user?.roles || []
   const normalizedRoles = userRoles.map(normalizeEmployeeRole)
@@ -253,6 +303,28 @@ export default function SalesListPage() {
         setSectors(data.map((s: { id?: string; name?: string; name_ar?: string | null }) => ({ id: s.id || '', name: s.name_ar || s.name || '' })).filter((s) => !!s.id))
       })
   }, [isUpperMgmt, authToken])
+
+  useEffect(() => {
+    if (!authToken) return
+    let cancelled = false
+    setPricingLoading(true)
+    discountOptionsService.getAll()
+      .then((bundle) => {
+        if (cancelled) return
+        const now = new Date()
+        setTierOptions(
+          bundle.tiers
+            .filter((t) => t.isActive && t.isVisible && (!t.startsAt || new Date(t.startsAt) <= now) && (!t.endsAt || new Date(t.endsAt) >= now))
+            .sort((a, b) => (b.minimumOrderAmount ?? 0) - (a.minimumOrderAmount ?? 0))
+        )
+        setPaymentOptions(bundle.paymentMethods.filter((m) => m.isActive && m.isVisible).sort((a, b) => a.sortOrder - b.sortOrder))
+        setShippingOptions(bundle.shippingMethods.filter((m) => m.isActive && m.isVisible).sort((a, b) => a.sortOrder - b.sortOrder))
+        setDiscountContext(buildDiscountPricingContext(bundle))
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setPricingLoading(false) })
+    return () => { cancelled = true }
+  }, [authToken])
 
   useEffect(() => {
     if (!isUpperMgmt) {
@@ -332,6 +404,43 @@ export default function SalesListPage() {
   const hiddenForList = isUpperMgmt && geoOverride !== null ? overrideHiddenProductIds : ctxHiddenProductIds
 
   const saleableProducts = useMemo(() => geoAdjustedProducts.filter((p) => isProductAvailable(p) && !hiddenForList.has(p.id)), [geoAdjustedProducts, hiddenForList])
+
+  const selectedTier = useMemo(() => tierOptions.find((t) => t.id === selectedTierId) ?? null, [tierOptions, selectedTierId])
+  const selectedPayment = useMemo(() => paymentOptions.find((m) => m.id === selectedPaymentId) ?? null, [paymentOptions, selectedPaymentId])
+  const selectedShipping = useMemo(() => shippingOptions.find((m) => m.id === selectedShippingId) ?? null, [shippingOptions, selectedShippingId])
+
+  const totalDiscountPercent = useMemo(
+    () => computeTotalDiscountPercent(selectedTier, selectedPayment, selectedShipping),
+    [selectedTier, selectedPayment, selectedShipping]
+  )
+  const hasDiscount = totalDiscountPercent > 0
+
+  const effectiveTotalFor = useCallback((p: { id: string; company_id?: string }): number => {
+    if (!discountContext) return totalDiscountPercent
+    const lookup = resolveExceptionLookup(discountContext, selectedTier, selectedPayment, selectedShipping, p.id, p.company_id)
+    return computeTotalDiscountPercent(selectedTier, selectedPayment, selectedShipping, lookup ?? undefined)
+  }, [discountContext, selectedTier, selectedPayment, selectedShipping, totalDiscountPercent])
+
+  const pricePreview = useMemo(() => {
+    const map = new Map<string, PreviewPrices>()
+    for (const p of geoAdjustedProducts) {
+      const effTotal = effectiveTotalFor(p)
+      map.set(p.id, {
+        finalPiece: computePreviewFinalPrice(Number(p.piece_price) || 0, effTotal),
+        finalCarton: computePreviewFinalPrice(Number(p.carton_price) || 0, effTotal),
+        finalDozen: computePreviewFinalPrice(Number(p.dozen_price) || 0, effTotal),
+      })
+    }
+    return map
+  }, [geoAdjustedProducts, effectiveTotalFor])
+
+  const pricePreviewExport = useMemo<PricePreview>(() => ({
+    totalDiscountPercent,
+    tierLabel: selectedTier ? `${selectedTier.name} (${selectedTier.discountPercent}%)` : 'بدون خصم',
+    paymentLabel: selectedPayment ? `${selectedPayment.name} (${selectedPayment.discountPercent}%)` : 'بدون خصم',
+    shippingLabel: selectedShipping ? `${selectedShipping.name} (${selectedShipping.discountPercent}%)` : 'بدون خصم',
+    finalByProduct: pricePreview,
+  }), [totalDiscountPercent, selectedTier, selectedPayment, selectedShipping, pricePreview])
 
   const companyNames = useMemo(() => {
     const names = new Set<string>()
@@ -417,14 +526,14 @@ export default function SalesListPage() {
     setPdfPhase('preparing')
     try {
       const logoUrl = window.location.origin + '/store/branding/ahram-logo.png'
-      const html = generatePrintHtml(groupedProducts, logoUrl, regionInfo?.label ?? undefined)
+      const html = generatePrintHtml(groupedProducts, logoUrl, regionInfo?.label ?? undefined, pricePreviewExport)
       printHtml(html)
       setPdfPhase('done')
     } finally {
       setPdfLoading(false)
       setPdfPhase('idle')
     }
-  }, [pdfLoading, groupedProducts, regionInfo])
+  }, [pdfLoading, groupedProducts, regionInfo, pricePreviewExport])
 
   const handleDownloadExcel = useCallback(() => {
     if (smartFiltered.length === 0) return
@@ -437,15 +546,48 @@ export default function SalesListPage() {
       { key: 'dozen_price', label: 'سعر الدستة', format: 'currency' },
       { key: 'carton_price', label: 'سعر الكرتونة', format: 'currency' },
     ]
-    const data: Record<string, unknown>[] = smartFiltered.map((p) => ({
-      legacy_code: p.legacy_code || '',
-      product_name: p.product_name,
-      carton_quantity: Number(p.carton_quantity) || 0,
-      company_name: p.company_name || '',
-      piece_price: Number(p.piece_price) || 0,
-      dozen_price: Number(p.dozen_price) || 0,
-      carton_price: Number(p.carton_price) || 0,
-    }))
+    if (hasDiscount) {
+      columns.push(
+        { key: 'tier_discount', label: 'خصم الشريحة' },
+        { key: 'payment_discount', label: 'خصم وسيلة الدفع' },
+        { key: 'shipping_discount', label: 'خصم طريقة الشحن' },
+        { key: 'total_discount', label: 'إجمالي الخصم' },
+        { key: 'final_piece_price', label: 'سعر القطعة النهائي', format: 'currency' },
+        { key: 'final_dozen_price', label: 'سعر الدستة النهائي', format: 'currency' },
+        { key: 'final_carton_price', label: 'سعر الكرتونة النهائي', format: 'currency' },
+      )
+    }
+    const data: Record<string, unknown>[] = smartFiltered.map((p) => {
+      const row: Record<string, unknown> = {
+        legacy_code: p.legacy_code || '',
+        product_name: p.product_name,
+        carton_quantity: Number(p.carton_quantity) || 0,
+        company_name: p.company_name || '',
+        piece_price: Number(p.piece_price) || 0,
+        dozen_price: Number(p.dozen_price) || 0,
+        carton_price: Number(p.carton_price) || 0,
+      }
+      if (hasDiscount) {
+        const finals = pricePreview.get(p.id)
+        row.tier_discount = selectedTier ? `${selectedTier.name} (${selectedTier.discountPercent}%)` : 'بدون'
+        row.payment_discount = selectedPayment ? `${selectedPayment.name} (${selectedPayment.discountPercent}%)` : 'بدون'
+        row.shipping_discount = selectedShipping ? `${selectedShipping.name} (${selectedShipping.discountPercent}%)` : 'بدون'
+        row.total_discount = `${effectiveTotalFor(p)}%`
+        row.final_piece_price = finals?.finalPiece ?? Number(p.piece_price) ?? 0
+        row.final_dozen_price = finals?.finalDozen ?? Number(p.dozen_price) ?? 0
+        row.final_carton_price = finals?.finalCarton ?? Number(p.carton_price) ?? 0
+      }
+      return row
+    })
+    const filters = [
+      `القائمة: ${regionInfo ? regionInfo.label : 'القائمة الأساسية'}`,
+      `اسم الشركة: ${companyFilter || 'الكل'}`,
+      `نص البحث: ${search.trim() ? `"${search.trim()}"` : 'الكل'}`,
+      `الشريحة: ${selectedTier ? `${selectedTier.name} (${selectedTier.discountPercent}%)` : 'بدون خصم'}`,
+      `وسيلة الدفع: ${selectedPayment ? `${selectedPayment.name} (${selectedPayment.discountPercent}%)` : 'بدون خصم'}`,
+      `طريقة الشحن: ${selectedShipping ? `${selectedShipping.name} (${selectedShipping.discountPercent}%)` : 'بدون خصم'}`,
+    ]
+    if (hasDiscount) filters.push(`إجمالي الخصم المطبق: ${totalDiscountPercent}%`)
     exportToExcel({
       title: 'قائمة أسعار البيع',
       subtitle: regionInfo ? `قائمة أسعار — ${regionInfo.label}` : 'أسعار البيع المعتمدة للمنتجات المتاحة للبيع',
@@ -453,15 +595,11 @@ export default function SalesListPage() {
       data,
       fileName: regionInfo ? `قائمة_أسعار_${regionInfo.name}` : 'قائمة_أسعار_البيع',
       summary: [{ label: 'عدد الأصناف', value: data.length, format: 'number' }],
-      filters: [
-        `القائمة: ${regionInfo ? regionInfo.label : 'القائمة الأساسية'}`,
-        `اسم الشركة: ${companyFilter || 'الكل'}`,
-        `نص البحث: ${search.trim() ? `"${search.trim()}"` : 'الكل'}`,
-      ],
-      columnWidths: [16, 38, 13, 24, 13, 13, 13],
+      filters,
+      columnWidths: hasDiscount ? [16, 38, 13, 24, 13, 13, 13, 24, 24, 24, 12, 15, 15, 15] : [16, 38, 13, 24, 13, 13, 13],
       presentation: { rtl: true, landscape: true, fitToWidth: true, printTitles: true },
     })
-  }, [smartFiltered, companyFilter, search, regionInfo])
+  }, [smartFiltered, companyFilter, search, regionInfo, hasDiscount, selectedTier, selectedPayment, selectedShipping, totalDiscountPercent, pricePreview, effectiveTotalFor])
 
   if (!hasAccess) {
     return (
@@ -598,6 +736,54 @@ export default function SalesListPage() {
           )}
         </div>
 
+        <div className="mb-3 flex flex-wrap items-center gap-x-5 gap-y-2 bg-card rounded-lg border border-border px-3 py-2">
+          <span className="text-[10px] font-semibold text-text-secondary">معاينة التسعير</span>
+          <label className="text-[10px] font-semibold text-text-secondary">الشريحة</label>
+          <select
+            value={selectedTierId}
+            onChange={(e) => setSelectedTierId(e.target.value)}
+            className="border border-border rounded-lg px-2 py-1.5 text-xs bg-card shrink-0 focus:outline-none focus:ring-2 focus:ring-primary"
+          >
+            <option value="">بدون خصم (0%)</option>
+            {tierOptions.map((t) => (
+              <option key={t.id} value={t.id}>{t.name} ({t.discountPercent}%)</option>
+            ))}
+          </select>
+          <label className="text-[10px] font-semibold text-text-secondary">وسيلة الدفع</label>
+          <select
+            value={selectedPaymentId}
+            onChange={(e) => setSelectedPaymentId(e.target.value)}
+            className="border border-border rounded-lg px-2 py-1.5 text-xs bg-card shrink-0 focus:outline-none focus:ring-2 focus:ring-primary"
+          >
+            <option value="">بدون خصم (0%)</option>
+            {paymentOptions.map((m) => (
+              <option key={m.id} value={m.id}>{m.name} ({m.discountPercent}%)</option>
+            ))}
+          </select>
+          <label className="text-[10px] font-semibold text-text-secondary">طريقة الشحن</label>
+          <select
+            value={selectedShippingId}
+            onChange={(e) => setSelectedShippingId(e.target.value)}
+            className="border border-border rounded-lg px-2 py-1.5 text-xs bg-card shrink-0 focus:outline-none focus:ring-2 focus:ring-primary"
+          >
+            <option value="">بدون خصم (0%)</option>
+            {shippingOptions.map((m) => (
+              <option key={m.id} value={m.id}>{m.name} ({m.discountPercent}%)</option>
+            ))}
+          </select>
+          {hasDiscount && (
+            <>
+              <span className="rounded-full bg-primary/10 text-primary text-[10px] font-bold px-2.5 py-1">
+                إجمالي الخصم: {totalDiscountPercent}%
+              </span>
+              <span className="text-[10px] text-text-muted">
+                السعر النهائي = السعر الأساسي × (1 - إجمالي الخصم٪) — يُطبق مرة واحدة، بدون تغيير السعر الأساسي
+              </span>
+            </>
+          )}
+          {pricingLoading && <span className="text-[10px] text-text-muted">جاري تحميل الخيارات...</span>}
+        </div>
+
         {loading ? (
           <div className="text-center py-16 text-text-muted text-sm">جاري تحميل المنتجات...</div>
         ) : smartFiltered.length === 0 ? (
@@ -611,8 +797,14 @@ export default function SalesListPage() {
                 <tr className="bg-surface border-b border-border">
                   <th className="w-[8%] px-2 py-2 text-center text-[10px] font-semibold text-text-secondary uppercase tracking-wider">الكود</th>
                   <th className="w-[60%] px-3 py-2 text-right text-[10px] font-semibold text-text-secondary uppercase tracking-wider">اسم الصنف</th>
-                  <th className="w-[16%] px-2 py-2 text-center text-[10px] font-semibold text-text-secondary uppercase tracking-wider">سعر القطعة</th>
-                  <th className="w-[16%] px-2 py-2 text-center text-[10px] font-semibold text-text-secondary uppercase tracking-wider">سعر الكرتونة</th>
+                  <th className="w-[16%] px-2 py-2 text-center text-[10px] font-semibold text-text-secondary uppercase tracking-wider">
+                    سعر القطعة
+                    {hasDiscount && <div className="font-normal text-[9px] uppercase tracking-normal">النهائي / الأساسي</div>}
+                  </th>
+                  <th className="w-[16%] px-2 py-2 text-center text-[10px] font-semibold text-text-secondary uppercase tracking-wider">
+                    سعر الكرتونة
+                    {hasDiscount && <div className="font-normal text-[9px] uppercase tracking-normal">النهائي / الأساسي</div>}
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -629,6 +821,7 @@ export default function SalesListPage() {
                     </tr>
                     {group.products.map((p) => {
                       const rowBg = groupIdx % 2 === 0 ? 'bg-[#f8fafc]' : 'bg-[#f7faff]'
+                      const finals = hasDiscount ? pricePreview.get(p.id) : undefined
                       return (
                         <tr key={p.id} className={`border-b border-border/50 ${rowBg}`}>
                           <td className="px-1.5 py-1.5 text-center font-mono text-[10px] text-text-muted ltr align-middle">
@@ -639,14 +832,28 @@ export default function SalesListPage() {
                           </td>
                           <td className="px-1.5 py-1.5 text-center align-middle">
                             {Number(p.piece_price) > 0 ? (
-                              <span className="text-xs font-bold text-text">{formatPrice(Number(p.piece_price))}</span>
+                              <div className="flex flex-col items-center leading-tight">
+                                {hasDiscount && (
+                                  <span className="text-sm font-extrabold text-primary">{formatPrice(finals?.finalPiece ?? Number(p.piece_price))}</span>
+                                )}
+                                <span className={hasDiscount ? 'text-[9px] text-text-muted line-through' : 'text-xs font-bold text-text'}>
+                                  {formatPrice(Number(p.piece_price))}
+                                </span>
+                              </div>
                             ) : (
                               <span className="text-text-muted text-[10px]">&mdash;</span>
                             )}
                           </td>
                           <td className="px-1.5 py-1.5 text-center align-middle">
                             {Number(p.carton_price) > 0 ? (
-                              <span className="text-xs font-bold text-text">{formatPrice(Number(p.carton_price))}</span>
+                              <div className="flex flex-col items-center leading-tight">
+                                {hasDiscount && (
+                                  <span className="text-sm font-extrabold text-primary">{formatPrice(finals?.finalCarton ?? Number(p.carton_price))}</span>
+                                )}
+                                <span className={hasDiscount ? 'text-[9px] text-text-muted line-through' : 'text-xs font-bold text-text'}>
+                                  {formatPrice(Number(p.carton_price))}
+                                </span>
+                              </div>
                             ) : (
                               <span className="text-text-muted text-[10px]">&mdash;</span>
                             )}

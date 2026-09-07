@@ -44,6 +44,34 @@ export interface TierConfig {
   endsAt: string | null
 }
 
+export interface PaymentOptionException {
+  id: string
+  companyId: string
+  companyName: string
+  discountPercent: number
+}
+
+export interface PaymentProductException {
+  id: string
+  productId: string
+  productName: string
+  discountPercent: number
+}
+
+export interface ShippingOptionException {
+  id: string
+  companyId: string
+  companyName: string
+  discountPercent: number
+}
+
+export interface ShippingProductException {
+  id: string
+  productId: string
+  productName: string
+  discountPercent: number
+}
+
 export interface PaymentMethodOption {
   id: string
   name: string
@@ -52,6 +80,8 @@ export interface PaymentMethodOption {
   isVisible: boolean
   isActive: boolean
   updatedAt?: string
+  companyExceptions?: PaymentOptionException[]
+  productExceptions?: PaymentProductException[]
 }
 
 export interface ShippingMethodOption {
@@ -62,6 +92,8 @@ export interface ShippingMethodOption {
   isVisible: boolean
   isActive: boolean
   updatedAt?: string
+  companyExceptions?: ShippingOptionException[]
+  productExceptions?: ShippingProductException[]
 }
 
 export interface ProductUnitPrice {
@@ -405,8 +437,15 @@ export interface TierRecord extends TierConfig {
   updatedAt?: string
 }
 
+export interface DiscountOverridePair {
+  productException: number | null
+  companyException: number | null
+}
+
 export interface TierExceptionLookup {
   productException: number | null
   companyException: number | null
   tierDefault: number
+  paymentOverride?: DiscountOverridePair | null
+  shippingOverride?: DiscountOverridePair | null
 }

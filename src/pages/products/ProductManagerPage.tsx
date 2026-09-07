@@ -18,6 +18,7 @@ import { useCartStore } from '../../store/cart'
 import { toProductWithPrice } from '../../utils/catalog'
 import { parseProductExcelFile, buildImportPreview, type ImportRow, type ImportPreview, type MissingProductRow } from '../../services/productExcelImport'
 import { exportProductStockTemplate } from '../../services/productExcelExport'
+import { discountOptionsService } from '../../services/discountOptions'
 
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
@@ -79,6 +80,8 @@ export function ProductManagerPage() {
   const products = useCatalogStore((s) => s.products)
   const [companies, setCompanies] = useState<any[]>([])
   const [allTiers, setAllTiers] = useState<any[]>([])
+  const [paymentOptions, setPaymentOptions] = useState<any[]>([])
+  const [shippingOptions, setShippingOptions] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -181,6 +184,11 @@ export function ProductManagerPage() {
     if (compRes.data) setCompanies(Array.isArray(compRes.data) ? compRes.data : [])
     if (tiersRes.data) setAllTiers(Array.isArray(tiersRes.data) ? tiersRes.data : [])
     if (policyRes.data && !policyRes.error) setGlobalPolicies(policyRes.data)
+    const opts = await discountOptionsService.getAll().catch(() => null)
+    if (opts) {
+      setPaymentOptions(opts.paymentMethods)
+      setShippingOptions(opts.shippingMethods)
+    }
     setLoading(false)
   }
 
@@ -508,8 +516,12 @@ export function ProductManagerPage() {
     units: ['piece', 'dozen', 'carton'], is_active: true, is_out_of_stock: false,
   })
   const [editTierDiscounts, setEditTierDiscounts] = useState<Record<string, string>>({})
+  const [editPaymentDiscounts, setEditPaymentDiscounts] = useState<Record<string, string>>({})
+  const [editShippingDiscounts, setEditShippingDiscounts] = useState<Record<string, string>>({})
   const [editSaving, setEditSaving] = useState(false)
   const [discountsOpen, setDiscountsOpen] = useState(false)
+  const [paymentDiscountsOpen, setPaymentDiscountsOpen] = useState(false)
+  const [shippingDiscountsOpen, setShippingDiscountsOpen] = useState(false)
 
   const openEdit = useCallback((product: any) => {
     const currentStock = product.inventory?.quantity ?? ''
@@ -538,7 +550,23 @@ export function ProductManagerPage() {
       if (exs.length > 0) discounts[tier.id] = String(exs[0].discount_percent)
     }
     setEditTierDiscounts(discounts)
-  }, [allTiers])
+
+    // Build payment method overrides from product exceptions
+    const payDiscounts: Record<string, string> = {}
+    for (const opt of paymentOptions) {
+      const exs = (opt.productExceptions || []).filter((ex: any) => ex.productId === product.id)
+      if (exs.length > 0) payDiscounts[opt.id] = String(exs[0].discountPercent)
+    }
+    setEditPaymentDiscounts(payDiscounts)
+
+    // Build shipping method overrides from product exceptions
+    const shipDiscounts: Record<string, string> = {}
+    for (const opt of shippingOptions) {
+      const exs = (opt.productExceptions || []).filter((ex: any) => ex.productId === product.id)
+      if (exs.length > 0) shipDiscounts[opt.id] = String(exs[0].discountPercent)
+    }
+    setEditShippingDiscounts(shipDiscounts)
+  }, [allTiers, paymentOptions, shippingOptions])
 
   const handleViewDetails = useCallback((product: any) => {
     nav(`/products/${product.id}`)
@@ -715,6 +743,64 @@ export function ProductManagerPage() {
           p_token: token, p_product_id: editTarget.id,
           p_discount_percent: parsed, p_tier_id: tier.id,
           p_applies_to_all_tiers: false,
+        }))
+        if (err) { toast.error(err); setEditSaving(false); return }
+      }
+
+      // 9. Payment method discount exceptions — same serialize remove→set pattern.
+      for (const opt of paymentOptions) {
+        const newDiscount = editPaymentDiscounts[opt.id]
+        const existingEx = (opt.productExceptions || []).find((ex: any) => ex.productId === editTarget.id)
+        const keepExisting = existingEx && parseFloat(newDiscount) === Number(existingEx.discountPercent)
+        if (newDiscount === undefined || newDiscount === '' || keepExisting) {
+          if (newDiscount === '' && existingEx) {
+            const err = rpcError(await supabase.rpc('governed_remove_payment_method_product_exception', {
+              p_token: token, p_exception_id: existingEx.id,
+            }))
+            if (err) { toast.error(err); setEditSaving(false); return }
+          }
+          continue
+        }
+        const parsed = parseFloat(newDiscount)
+        if (isNaN(parsed) || parsed < 0 || parsed > 100) continue
+        if (existingEx) {
+          const err = rpcError(await supabase.rpc('governed_remove_payment_method_product_exception', {
+            p_token: token, p_exception_id: existingEx.id,
+          }))
+          if (err) { toast.error(err); setEditSaving(false); return }
+        }
+        const err = rpcError(await supabase.rpc('governed_set_payment_method_product_exception', {
+          p_token: token, p_payment_method_option_id: opt.id,
+          p_product_id: editTarget.id, p_discount_percent: parsed,
+        }))
+        if (err) { toast.error(err); setEditSaving(false); return }
+      }
+
+      // 10. Shipping method discount exceptions — same serialize remove→set pattern.
+      for (const opt of shippingOptions) {
+        const newDiscount = editShippingDiscounts[opt.id]
+        const existingEx = (opt.productExceptions || []).find((ex: any) => ex.productId === editTarget.id)
+        const keepExisting = existingEx && parseFloat(newDiscount) === Number(existingEx.discountPercent)
+        if (newDiscount === undefined || newDiscount === '' || keepExisting) {
+          if (newDiscount === '' && existingEx) {
+            const err = rpcError(await supabase.rpc('governed_remove_shipping_method_product_exception', {
+              p_token: token, p_exception_id: existingEx.id,
+            }))
+            if (err) { toast.error(err); setEditSaving(false); return }
+          }
+          continue
+        }
+        const parsed = parseFloat(newDiscount)
+        if (isNaN(parsed) || parsed < 0 || parsed > 100) continue
+        if (existingEx) {
+          const err = rpcError(await supabase.rpc('governed_remove_shipping_method_product_exception', {
+            p_token: token, p_exception_id: existingEx.id,
+          }))
+          if (err) { toast.error(err); setEditSaving(false); return }
+        }
+        const err = rpcError(await supabase.rpc('governed_set_shipping_method_product_exception', {
+          p_token: token, p_shipping_method_option_id: opt.id,
+          p_product_id: editTarget.id, p_discount_percent: parsed,
         }))
         if (err) { toast.error(err); setEditSaving(false); return }
       }
@@ -1230,6 +1316,93 @@ export function ProductManagerPage() {
                   })
                 )
               )}
+              <p className="text-[10px] text-text-secondary">اترك الحقل فارغًا لاستخدام الخصم الافتراضي العام للشريحة (صفر = بدون خصم لهذه الشريحة)</p>
+              </section>
+
+              {/* ── Payment Method Discounts ── */}
+              <section className="bg-surface/40 border border-border rounded-xl p-4 space-y-3">
+                <button
+                  type="button"
+                  onClick={() => setPaymentDiscountsOpen((o) => !o)}
+                  className="w-full flex items-center justify-between gap-2"
+                >
+                  <span className="text-sm font-extrabold text-text">خصم طرق الدفع (استثناءات منتج)</span>
+                  <ChevronDown className={`w-4 h-4 text-text-secondary transition-transform ${paymentDiscountsOpen ? 'rotate-180' : ''}`} />
+                </button>
+                {paymentDiscountsOpen && (
+                  paymentOptions.length === 0 ? (
+                  <p className="text-xs text-text-secondary">لا توجد طرق دفع</p>
+                ) : (
+                  paymentOptions.map((opt: any) => {
+                    const exDiscount = editPaymentDiscounts[opt.id]
+                    const hasException = exDiscount !== undefined && exDiscount !== ''
+                    const effectiveDiscount = hasException ? parseFloat(exDiscount) : (opt.discountPercent ?? 0)
+                    return (
+                      <div key={opt.id} className="flex items-center gap-3 border border-border rounded-lg bg-white px-3 py-2.5">
+                        <div className="flex-1 min-w-0">
+                          <span className="text-xs font-semibold text-text block truncate">{opt.name}</span>
+                          <span className="text-[10px] text-text-secondary">الافتراضي: {opt.discountPercent}%</span>
+                        </div>
+                        {canManage ? (
+                          <div className="flex items-center gap-1.5">
+                            <input type="text" inputMode="decimal"
+                              value={exDiscount ?? ''}
+                              onChange={(e) => setEditPaymentDiscounts((prev) => ({ ...prev, [opt.id]: toEnglishDigits(e.target.value) }))}
+                              placeholder="نسبة" className="w-16 border border-border rounded-md px-2 py-1 text-xs text-center bg-white" dir="ltr" />
+                            <span className="text-[10px] text-text-secondary">%</span>
+                          </div>
+                        ) : (
+                          <span className="text-xs font-semibold">{effectiveDiscount}%</span>
+                        )}
+                      </div>
+                    )
+                  })
+                )
+                )}
+                <p className="text-[10px] text-text-secondary">اترك الحقل فارغًا لاستخدام الخصم الافتراضي العام للوسيلة (صفر = بدون خصم لهذه الوسيلة)</p>
+              </section>
+
+              {/* ── Shipping Method Discounts ── */}
+              <section className="bg-surface/40 border border-border rounded-xl p-4 space-y-3">
+                <button
+                  type="button"
+                  onClick={() => setShippingDiscountsOpen((o) => !o)}
+                  className="w-full flex items-center justify-between gap-2"
+                >
+                  <span className="text-sm font-extrabold text-text">خصم طرق الشحن (استثناءات منتج)</span>
+                  <ChevronDown className={`w-4 h-4 text-text-secondary transition-transform ${shippingDiscountsOpen ? 'rotate-180' : ''}`} />
+                </button>
+                {shippingDiscountsOpen && (
+                  shippingOptions.length === 0 ? (
+                  <p className="text-xs text-text-secondary">لا توجد طرق شحن</p>
+                ) : (
+                  shippingOptions.map((opt: any) => {
+                    const exDiscount = editShippingDiscounts[opt.id]
+                    const hasException = exDiscount !== undefined && exDiscount !== ''
+                    const effectiveDiscount = hasException ? parseFloat(exDiscount) : (opt.discountPercent ?? 0)
+                    return (
+                      <div key={opt.id} className="flex items-center gap-3 border border-border rounded-lg bg-white px-3 py-2.5">
+                        <div className="flex-1 min-w-0">
+                          <span className="text-xs font-semibold text-text block truncate">{opt.name}</span>
+                          <span className="text-[10px] text-text-secondary">الافتراضي: {opt.discountPercent}%</span>
+                        </div>
+                        {canManage ? (
+                          <div className="flex items-center gap-1.5">
+                            <input type="text" inputMode="decimal"
+                              value={exDiscount ?? ''}
+                              onChange={(e) => setEditShippingDiscounts((prev) => ({ ...prev, [opt.id]: toEnglishDigits(e.target.value) }))}
+                              placeholder="نسبة" className="w-16 border border-border rounded-md px-2 py-1 text-xs text-center bg-white" dir="ltr" />
+                            <span className="text-[10px] text-text-secondary">%</span>
+                          </div>
+                        ) : (
+                          <span className="text-xs font-semibold">{effectiveDiscount}%</span>
+                        )}
+                      </div>
+                    )
+                  })
+                )
+                )}
+                <p className="text-[10px] text-text-secondary">اترك الحقل فارغًا لاستخدام الخصم الافتراضي العام للطريقة (صفر = بدون خصم لهذه الطريقة)</p>
               </section>
 
               {/* ── Product Image ── */}

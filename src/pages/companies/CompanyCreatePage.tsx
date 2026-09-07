@@ -9,13 +9,17 @@ export function CompanyCreatePage() {
   const nav = useNavigate()
   const canManage = useCapability('companies.manage')
   const [tiers, setTiers] = useState<any[]>([])
+  const [paymentMethods, setPaymentMethods] = useState<any[]>([])
+  const [shippingMethods, setShippingMethods] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     (async () => {
-      const { tiers: t } = await fetchGovernedData()
+      const { tiers: t, paymentMethods: pm, shippingMethods: sm } = await fetchGovernedData()
       setTiers(t)
+      setPaymentMethods(pm)
+      setShippingMethods(sm)
       setLoading(false)
     })()
   }, [])
@@ -41,6 +45,8 @@ export function CompanyCreatePage() {
     <CompanyForm
       mode="create"
       tiers={tiers}
+      paymentMethods={paymentMethods}
+      shippingMethods={shippingMethods}
       saving={saving}
       canManage={canManage}
       onSubmit={handleSubmit}

@@ -9,6 +9,7 @@ import type {
   CartDealItem,
   CartTotals,
   TierExceptionLookup,
+  DiscountOverridePair,
 } from '../types/storefront'
 
 export function computePieceQuantity(unitQuantity: number, unitType: UnitType, cartonQuantity: number): number {
@@ -39,6 +40,33 @@ export function computeEffectiveDiscountPercent(
   return tier.discountPercent
 }
 
+/** Resolves one override group: product override > company override > option global. */
+function resolveGroupOverride(globalPercent: number, override?: DiscountOverridePair | null): number {
+  if (override?.productException !== null && override?.productException !== undefined) {
+    return override.productException
+  }
+  if (override?.companyException !== null && override?.companyException !== undefined) {
+    return override.companyException
+  }
+  return globalPercent
+}
+
+export function computeEffectivePaymentDiscountPercent(
+  paymentOption?: PaymentMethodOption | null,
+  exceptionLookup?: TierExceptionLookup | null
+): number {
+  if (!paymentOption) return 0
+  return resolveGroupOverride(paymentOption.discountPercent, exceptionLookup?.paymentOverride)
+}
+
+export function computeEffectiveShippingDiscountPercent(
+  shippingOption?: ShippingMethodOption | null,
+  exceptionLookup?: TierExceptionLookup | null
+): number {
+  if (!shippingOption) return 0
+  return resolveGroupOverride(shippingOption.discountPercent, exceptionLookup?.shippingOverride)
+}
+
 /**
  * Sum of the three independent discount groups (Method B — sum then apply once).
  * Example: tier 2.5% + payment 1% + shipping 1% => 4.5% applied ONCE on the base price.
@@ -50,8 +78,8 @@ export function computeTotalDiscountPercent(
   exceptionLookup?: TierExceptionLookup | null
 ): number {
   const tierPart = computeEffectiveDiscountPercent(tier, exceptionLookup)
-  const paymentPart = paymentOption?.discountPercent ?? 0
-  const shippingPart = shippingOption?.discountPercent ?? 0
+  const paymentPart = computeEffectivePaymentDiscountPercent(paymentOption, exceptionLookup)
+  const shippingPart = computeEffectiveShippingDiscountPercent(shippingOption, exceptionLookup)
   return tierPart + paymentPart + shippingPart
 }
 
@@ -90,8 +118,8 @@ export function computeProductPrices(
     tierDozenPrice: computeTierPrice(dozenPrice, effectiveTier),
     tierCartonPrice: computeTierPrice(cartonPrice, effectiveTier),
     discountPercent: effectiveDiscount,
-    paymentDiscountPercent: paymentOption?.discountPercent ?? 0,
-    shippingDiscountPercent: shippingOption?.discountPercent ?? 0,
+    paymentDiscountPercent: computeEffectivePaymentDiscountPercent(paymentOption, exceptionLookup),
+    shippingDiscountPercent: computeEffectiveShippingDiscountPercent(shippingOption, exceptionLookup),
     totalDiscountPercent,
     finalPiecePrice: computeTierPrice(piecePrice, totalTier),
     finalDozenPrice: computeTierPrice(dozenPrice, totalTier),
@@ -136,7 +164,8 @@ export function computeCartTotals(
   flashOfferItems?: CartDealItem[],
   exceptionLookup?: TierExceptionLookup | null,
   paymentOption?: PaymentMethodOption | null,
-  shippingOption?: ShippingMethodOption | null
+  shippingOption?: ShippingMethodOption | null,
+  exceptionsByProduct?: Record<string, TierExceptionLookup | null>
 ): CartTotals {
   const dealTotal = (dealItems ?? []).reduce((sum, d) => sum + d.totalPrice, 0)
   const flashOfferTotal = (flashOfferItems ?? []).reduce((sum, d) => sum + d.totalPrice, 0)
@@ -144,33 +173,44 @@ export function computeCartTotals(
   const totalDiscountPercent = computeTotalDiscountPercent(tier, paymentOption, shippingOption, exceptionLookup)
   const capPct = Math.min(totalDiscountPercent, 99.99)
 
+  const lookupForItem = (item: CartItem): TierExceptionLookup | null | undefined => {
+    if (exceptionsByProduct && item.productId in exceptionsByProduct) {
+      return exceptionsByProduct[item.productId]
+    }
+    return exceptionLookup
+  }
+
   let productBaseSubtotal = 0
   let productSubtotal = 0
+  let tierDiscount = 0
+  let paymentDiscount = 0
+  let shippingDiscount = 0
 
   for (const item of items) {
     productSubtotal += item.totalPrice
+    const lookup = lookupForItem(item)
+    const itemTotalPct = computeTotalDiscountPercent(tier, paymentOption, shippingOption, lookup ?? exceptionLookup)
+    const itemCapPct = Math.min(itemTotalPct, 99.99)
     const baseTotal =
       typeof item.baseUnitPrice === 'number' && item.baseUnitPrice >= 0
         ? item.baseUnitPrice * item.unitQuantity
-        : totalDiscountPercent > 0
-          ? item.totalPrice / (1 - capPct / 100)
+        : itemTotalPct > 0
+          ? item.totalPrice / (1 - itemCapPct / 100)
           : item.totalPrice
     productBaseSubtotal += baseTotal
+
+    const itemDiscount = Math.max(0, baseTotal - item.totalPrice)
+    if (itemTotalPct > 0 && itemDiscount > 0) {
+      const itemTierPercent = computeEffectiveDiscountPercent(tier, lookup ?? exceptionLookup)
+      const itemPaymentPercent = computeEffectivePaymentDiscountPercent(paymentOption, lookup ?? exceptionLookup)
+      const itemShippingPercent = computeEffectiveShippingDiscountPercent(shippingOption, lookup ?? exceptionLookup)
+      tierDiscount += round2(itemDiscount * (itemTierPercent / itemTotalPct))
+      paymentDiscount += round2(itemDiscount * (itemPaymentPercent / itemTotalPct))
+      shippingDiscount += round2(itemDiscount * (itemShippingPercent / itemTotalPct))
+    }
   }
 
   const totalDiscount = Math.max(0, productBaseSubtotal - productSubtotal)
-
-  const tierPercent = computeEffectiveDiscountPercent(tier, exceptionLookup)
-  const paymentPercent = paymentOption?.discountPercent ?? 0
-  const shippingPercent = shippingOption?.discountPercent ?? 0
-
-  const allocate = (part: number): number => {
-    if (totalDiscountPercent <= 0 || totalDiscount <= 0) return 0
-    return round2(totalDiscount * (part / totalDiscountPercent))
-  }
-  const tierDiscount = allocate(tierPercent)
-  const paymentDiscount = allocate(paymentPercent)
-  const shippingDiscount = allocate(shippingPercent)
 
   const subtotal = round2(productSubtotal + dealTotal + flashOfferTotal)
   const netTotal = subtotal
@@ -203,9 +243,10 @@ export function recalculateCartItem(
   tier: TierConfig | null,
   geographicAdjustment?: number | null,
   paymentOption?: PaymentMethodOption | null,
-  shippingOption?: ShippingMethodOption | null
+  shippingOption?: ShippingMethodOption | null,
+  exceptionLookup?: TierExceptionLookup | null
 ): CartItem {
-  const prices = computeProductPrices(product, tier, undefined, geographicAdjustment, paymentOption, shippingOption)
+  const prices = computeProductPrices(product, tier, exceptionLookup, geographicAdjustment, paymentOption, shippingOption)
   const hasTier = tier !== null
   const baseUnitPrice = getUnitBasePrice(prices, item.unitType)
   const finalUnitPrice = getFinalUnitPrice(prices, item.unitType)

@@ -7,6 +7,8 @@ export interface CompanyFormData {
   is_visible: boolean
   display_order: number
   tierDiscounts: Record<string, string>
+  paymentDiscounts: Record<string, string>
+  shippingDiscounts: Record<string, string>
 }
 
 interface CompanyFormProps {
@@ -17,7 +19,11 @@ interface CompanyFormProps {
   initialLogoUrl?: string
   initialIsVisible?: boolean
   tiers: any[]
+  paymentMethods?: any[]
+  shippingMethods?: any[]
   initialTierDiscounts?: Record<string, string>
+  initialPaymentDiscounts?: Record<string, string>
+  initialShippingDiscounts?: Record<string, string>
   saving: boolean
   canManage: boolean
   onSubmit: (data: CompanyFormData) => void
@@ -32,7 +38,11 @@ export function CompanyForm({
   initialLogoUrl = '',
   initialIsVisible = true,
   tiers,
+  paymentMethods = [],
+  shippingMethods = [],
   initialTierDiscounts = {},
+  initialPaymentDiscounts = {},
+  initialShippingDiscounts = {},
   saving,
   canManage,
   onSubmit,
@@ -44,6 +54,8 @@ export function CompanyForm({
   const [logoUrl, setLogoUrl] = useState(initialLogoUrl)
   const [isVisible, setIsVisible] = useState(initialIsVisible)
   const [tierDiscounts, setTierDiscounts] = useState<Record<string, string>>(initialTierDiscounts)
+  const [paymentDiscounts, setPaymentDiscounts] = useState<Record<string, string>>(initialPaymentDiscounts)
+  const [shippingDiscounts, setShippingDiscounts] = useState<Record<string, string>>(initialShippingDiscounts)
 
   const parsedOrder = displayOrder !== '' ? parseInt(displayOrder, 10) : NaN
   const canSave = canManage && companyName.trim() !== '' && legacyCode.trim() !== '' && !isNaN(parsedOrder) && parsedOrder >= 1 && !saving
@@ -65,6 +77,8 @@ export function CompanyForm({
       is_visible: isVisible,
       display_order: parsedOrder,
       tierDiscounts,
+      paymentDiscounts,
+      shippingDiscounts,
     })
   }
 
@@ -175,6 +189,71 @@ export function CompanyForm({
                 })}
               </div>
             )}
+            <p className="text-[10px] text-text-secondary mt-1">اترك الحقل فارغًا لاستخدام الخصم الافتراضي العام للشريحة (صفر = بدون خصم لهذه الشريحة)</p>
+          </div>
+
+          {/* Row 6: Payment Method Discounts */}
+          <div>
+            <label className="text-[10px] text-text-secondary font-bold block mb-2">استثناءات خصم طرق الدفع</label>
+            {paymentMethods.length === 0 ? (
+              <p className="text-xs text-text-secondary">لا توجد طرق دفع</p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                {paymentMethods.map((method: any) => {
+                  const val = paymentDiscounts[method.id] ?? ''
+                  const global = method.discount_percent ?? 0
+                  return (
+                    <div key={method.id} className="flex items-center gap-3 border border-border rounded-xl px-3 py-2.5 bg-surface/30">
+                      <div className="flex-1 min-w-0">
+                        <span className="text-xs font-bold text-text block truncate">{method.name}</span>
+                        <span className="text-[10px] text-text-secondary">الافتراضي: {global}%</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <input type="number" min="0" max="100" step="0.01"
+                          value={val}
+                          onChange={(e) => setPaymentDiscounts((prev) => ({ ...prev, [method.id]: e.target.value }))}
+                          placeholder="—"
+                          className="w-14 border border-border rounded-lg px-2 py-1 text-[11px] text-center bg-white focus:outline-none focus:ring-1 focus:ring-primary/20 transition-all" dir="ltr" />
+                        <span className="text-[10px] text-text-secondary">%</span>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+            <p className="text-[10px] text-text-secondary mt-1">اترك الحقل فارغًا لاستخدام الخصم الافتراضي العام للوسيلة (صفر = بدون خصم لهذه الوسيلة)</p>
+          </div>
+
+          {/* Row 7: Shipping Method Discounts */}
+          <div>
+            <label className="text-[10px] text-text-secondary font-bold block mb-2">استثناءات خصم طرق الشحن</label>
+            {shippingMethods.length === 0 ? (
+              <p className="text-xs text-text-secondary">لا توجد طرق شحن</p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                {shippingMethods.map((method: any) => {
+                  const val = shippingDiscounts[method.id] ?? ''
+                  const global = method.discount_percent ?? 0
+                  return (
+                    <div key={method.id} className="flex items-center gap-3 border border-border rounded-xl px-3 py-2.5 bg-surface/30">
+                      <div className="flex-1 min-w-0">
+                        <span className="text-xs font-bold text-text block truncate">{method.name}</span>
+                        <span className="text-[10px] text-text-secondary">الافتراضي: {global}%</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <input type="number" min="0" max="100" step="0.01"
+                          value={val}
+                          onChange={(e) => setShippingDiscounts((prev) => ({ ...prev, [method.id]: e.target.value }))}
+                          placeholder="—"
+                          className="w-14 border border-border rounded-lg px-2 py-1 text-[11px] text-center bg-white focus:outline-none focus:ring-1 focus:ring-primary/20 transition-all" dir="ltr" />
+                        <span className="text-[10px] text-text-secondary">%</span>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+            <p className="text-[10px] text-text-secondary mt-1">اترك الحقل فارغًا لاستخدام الخصم الافتراضي العام للطريقة (صفر = بدون خصم لهذه الطريقة)</p>
           </div>
         </div>
 
