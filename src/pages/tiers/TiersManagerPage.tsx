@@ -29,7 +29,7 @@ function toLocalISO(v: any): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
-type SectionKey = 'tiers' | 'payments' | 'shipping'
+type SectionKey = 'tiers' | 'payments' | 'shipping' | 'bonusMode'
 
 interface RowSpec {
   rows: any[]
@@ -64,8 +64,36 @@ export function TiersManagerPage() {
     preview: { action: 'archive' | 'delete'; references?: Record<string, number> }
   } | null>(null)
 
+  // ---- Phase 1: global Bonus Mode control (governed RPCs) ----
+  const [bonusMode, setBonusMode] = useState<{
+    bonus_mode_enabled: boolean
+    mode: string
+    last_change: {
+      old_mode: string | null
+      new_mode: string
+      reason: string | null
+      changed_by: string
+      changed_by_name: string | null
+      changed_at: string
+    } | null
+    is_upper_management: boolean
+    error?: string
+  } | null>(null)
+  const [bonusLoading, setBonusLoading] = useState(false)
+  const [bonusChanging, setBonusChanging] = useState(false)
+  const [bonusTarget, setBonusTarget] = useState(false)
+  const [bonusReason, setBonusReason] = useState('')
+
+  // Authorization comes from the SERVER (is_upper_management in the RPC
+  // response). tiers.manage is deliberately NOT used for the Bonus-mode toggle.
+  const canToggleBonusMode = bonusMode?.is_upper_management === true && !bonusChanging
+
   useEffect(() => {
     refreshRows()
+  }, [])
+
+  useEffect(() => {
+    loadBonusConfig()
   }, [])
 
   const specs: Record<SectionKey, RowSpec> = {
@@ -98,6 +126,16 @@ export function TiersManagerPage() {
       deleteRpc: 'governed_delete_shipping_method_option',
       createLabel: 'إنشاء طريقة شحن جديدة',
       listLabel: (r) => `${rowVal(r, 'name')} (${formatPercent(Number(rowVal(r, 'discount_percent') ?? 0))}%)`,
+    },
+    bonusMode: {
+      rows: [],
+      columns: [],
+      nameOf: () => '',
+      createRpc: '',
+      updateRpc: '',
+      deleteRpc: '',
+      createLabel: '',
+      listLabel: () => '',
     },
   }
 
@@ -146,6 +184,47 @@ export function TiersManagerPage() {
 
   // keeps selection synced after a refresh
   const saveSelectionOnRowRef = { current: () => { if (selectedId) selectRow(selectedId) } }
+
+  async function loadBonusConfig() {
+    setBonusLoading(true)
+    try {
+      const token = getToken()
+      const { data, error } = await supabase.rpc('get_governed_bonus_config', { p_token: token ?? null })
+      if (error) { toast.error(error.message); setBonusMode(null); return }
+      if (data?.error) { toast.error(data.error); setBonusMode(null); return }
+      setBonusMode(data)
+      setBonusTarget(!!data?.bonus_mode_enabled)
+    } finally {
+      setBonusLoading(false)
+    }
+  }
+
+  async function changeBonusMode() {
+    if (!canToggleBonusMode) return
+    setBonusChanging(true)
+    const token = getToken()
+    try {
+      const { data, error } = await supabase.rpc('governed_set_bonus_mode', {
+        p_token: token,
+        p_enabled: bonusTarget,
+        p_reason: bonusReason.trim() || null,
+      })
+      if (error) { toast.error(error.message); return }
+      if (data?.error === 'FORBIDDEN') { toast.error('غير مصرح: صلاحية الإدارة العليا مطلوبة لتغيير وضع البونص'); return }
+      if (data?.error) { toast.error(data.error); return }
+      if (data?.changed === false) {
+        toast('الوضع مطابق فعلاً — لا تغيير مسجل')
+      } else {
+        toast.success(bonusTarget ? 'تم التفعيل: بونص شرائح' : 'تم الإغلاق: خصم مباشر على المنتجات')
+      }
+      setBonusReason('')
+      await loadBonusConfig()
+    } catch (err: any) {
+      toast.error(err.message || 'حدث خطأ')
+    } finally {
+      setBonusChanging(false)
+    }
+  }
 
   async function handleSave() {
     if (!selectedId || !canManage) return
@@ -256,6 +335,7 @@ export function TiersManagerPage() {
     tiers: { label: 'الشرائح السعرية', short: 'شرائح' },
     payments: { label: 'طرق الدفع', short: 'دفع' },
     shipping: { label: 'طرق الشحن', short: 'شحن' },
+    bonusMode: { label: 'التحكم في طريقة الاستفادة من الخصم', short: 'استفادة الخصم' },
   }
 
   const actionBtn = 'shrink-0 text-[11px] font-semibold rounded-lg px-2.5 py-1 active:opacity-90 disabled:opacity-40 border'
@@ -284,7 +364,89 @@ export function TiersManagerPage() {
       </div>
 
       {/* Cards */}
-      {loading ? (
+      {section === 'bonusMode' ? (
+        <div className="space-y-3">
+          <div className="bg-white rounded-xl border border-border p-3 space-y-2">
+            <div className="text-sm font-bold text-text">التحكم في طريقة الاستفادة من الخصم</div>
+
+            {bonusLoading && !bonusMode ? (
+              <div className="text-center py-6 text-text-secondary text-sm">جاري التحميل...</div>
+            ) : bonusMode ? (
+              <>
+                <div
+                  className={`flex items-center justify-between rounded-xl border-2 px-3 py-2.5 ${
+                    bonusMode.bonus_mode_enabled ? 'border-primary/40 bg-primary/5' : 'border-border bg-white'
+                  }`}
+                >
+                  <div className="text-sm font-semibold text-text">
+                    {bonusMode.bonus_mode_enabled ? 'بونص شرائح' : 'خصم مباشر على المنتجات'}
+                  </div>
+                  <span className={`shrink-0 text-[10px] font-semibold rounded-full px-2 py-0.5 ${
+                    bonusMode.bonus_mode_enabled
+                      ? 'text-primary bg-primary/10'
+                      : 'text-text-secondary bg-text-secondary/10'
+                  }`}>
+                    {bonusMode.bonus_mode_enabled ? 'مُفعّل' : 'افتراضي (مُغلق)'}
+                  </span>
+                </div>
+
+                {!(bonusMode.is_upper_management) && (
+                  <div className="text-[11px] text-warning bg-warning/10 rounded-lg px-3 py-2">
+                    عرض فقط — تغيير الوضع يتطلب صلاحية الإدارة العليا. صلاحية «إدارة الشرائح» لا تكفي.
+                  </div>
+                )}
+
+                {(bonusMode as any)?.last_change?.new_mode && (
+                  <div className="text-[11px] text-text-secondary leading-relaxed">
+                    آخر تغيير: {bonusMode.last_change!.new_mode === 'bonus_tiers' ? 'بونص شرائح' : 'خصم مباشر'} بواسطة{' '}
+                    {bonusMode.last_change!.changed_by_name || '—'} ({new Date(bonusMode.last_change!.changed_at).toLocaleString('ar-EG')})
+                    {bonusMode.last_change!.reason ? ` — السبب: ${bonusMode.last_change!.reason}` : ''}
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-2">
+                  {[false, true].map((enabled) => {
+                    const isSel = bonusTarget === enabled
+                    return (
+                      <button
+                        key={String(enabled)}
+                        onClick={() => setBonusTarget(enabled)}
+                        disabled={!bonusMode.is_upper_management}
+                        className={`rounded-xl border-2 px-3 py-2.5 text-right transition-colors ${
+                          isSel ? 'border-primary bg-primary/5' : 'border-border bg-white'
+                        } ${bonusMode.is_upper_management ? 'cursor-pointer' : 'opacity-60 cursor-not-allowed'}`}
+                      >
+                        <div className="text-xs font-bold text-text">{enabled ? 'بونص شرائح' : 'خصم مباشر على المنتجات'}</div>
+                        <div className="text-[10px] text-text-secondary mt-0.5">
+                          {enabled ? 'تفعيل نظام البونص' : 'الوضع الافتراضي الحالي'}
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+
+                {canToggleBonusMode && (
+                  <>
+                    <input
+                      value={bonusReason}
+                      onChange={(e) => setBonusReason(e.target.value)}
+                      placeholder="سبب التغيير (اختياري)"
+                      className="w-full rounded-xl border border-border px-3 py-2 text-xs text-text bg-white"
+                    />
+                    <button
+                      onClick={changeBonusMode}
+                      disabled={!canToggleBonusMode}
+                      className="w-full bg-primary text-white rounded-xl py-2.5 text-xs font-semibold active:opacity-90 disabled:opacity-40"
+                    >
+                      {bonusChanging ? 'جاري التطبيق...' : 'تطبيق الوضع المحدد'}
+                    </button>
+                  </>
+                )}
+              </>
+            ) : null}
+          </div>
+        </div>
+      ) : loading ? (
         <div className="text-center py-10 text-text-secondary text-sm">جاري التحميل...</div>
       ) : spec.rows.length === 0 ? (
         <div className="text-center py-10 text-text-secondary text-sm">
@@ -377,14 +539,14 @@ export function TiersManagerPage() {
         </div>
       )}
 
-      {canManage && (
+      {canManage && section !== 'bonusMode' && (
         <button onClick={handleCreate} disabled={saving}
           className="w-full bg-primary/10 text-primary rounded-xl py-2.5 text-sm font-semibold active:opacity-90 disabled:opacity-40">
           + {spec.createLabel}
         </button>
       )}
 
-      {selectedId && spec.rows.some((r: any) => r.id === selectedId) && (
+      {section !== 'bonusMode' && selectedId && spec.rows.some((r: any) => r.id === selectedId) && (
         <div className="space-y-4">
           <DynamicSchemaEditor
             title="بيانات العنصر"
@@ -403,7 +565,7 @@ export function TiersManagerPage() {
         </div>
       )}
 
-      {!selectedId && !loading && (
+      {section !== 'bonusMode' && !selectedId && !loading && (
         <div className="text-center py-12 text-text-secondary text-sm">
           اضغط على أي بطاقة لتعديل بياناتها، أو استخدم الأزرار المباشرة للتفعيل والإظهار والحذف
         </div>
