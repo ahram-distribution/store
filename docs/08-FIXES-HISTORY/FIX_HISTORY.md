@@ -141,6 +141,22 @@
 
 ## الإصلاحات المنجزة
 
+### [FIX-018] — Bonus Catalog RPC يفشل بسبب alias خارج نطاق الاستعلام
+- **الوصف:** استدعاء `get_governed_bonus_products` في Production كان يفشل برسالة
+  `missing FROM-clause entry for table "a"`، فيمنع تحميل كتالوج البونص.
+- **السبب:** استخدمت الدالة `g.a.adjustment_percent` رغم أن نتيجة الـ LATERAL
+  مسماة `g` وتعرض `adjustment_percent` مباشرة.
+- **الإصلاح:** migration مستقلة تعيد تعريف الـ RPC بالـ alias الصحيح
+  `g.adjustment_percent`، وتثبت شرط الأهلية المعتمد:
+  `product.bonus_enabled OR company.bonus_enabled OR company.legacy_code = '7000'`.
+  لا تغيّر `products.company_id` ولا تلمس `get_governed_products`.
+- **الملف المتأثر:** `supabase/migrations/20271113_fix_governed_bonus_products_rpc.sql`
+  (يشير إلى FIX-018).
+- **التحقق:** استدعاء SQL وPostgREST بالمعاملات المسماة للواجهة أعادا HTTP 200 و18 منتجًا؛
+  تحقق transactionي من product toggle وcompany toggle مع rollback كامل — PASS.
+- **الأولوية:** حرجة
+- **الحالة:** منجزة ومنشورة
+
 ### [FIX-017] — governed_cancel_order يكتب employee_id في order_status_history.changed_by (FK 23503)
 - **الوصف:** `order_status_history.changed_by` يحمل FK إلى `identities(id)`، لكن
   `governed_cancel_order` كان يكتب `v_session.employee_id` (معرّف الموظف ليس معرّف هوية)
