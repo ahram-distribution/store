@@ -99,16 +99,26 @@ COMMENT ON FUNCTION public.get_governed_bonus_products IS
 
 -- ----------------------------------------------------------------------------
 -- 2. get_governed_products — superset: bonus eligibility flags per product.
---    Additive output keys only; signature and filtering behavior unchanged.
+--    Additive output keys only. NOTE: we must extend the CANONICAL p_token text
+--    (8-arg) signature — NOT create a second p_token uuid overload — because a
+--    uuid overload caused PostgREST PGRST203 ambiguity historically (see
+--    20270802/20270808). Old signature and filtering behavior unchanged.
 -- ----------------------------------------------------------------------------
 
+-- Defensive drop of any stale uuid overload (idempotent; keeps PostgREST clean)
+DROP FUNCTION IF EXISTS public.get_governed_products(
+  uuid, boolean, boolean, text, uuid, boolean
+);
+
 CREATE OR REPLACE FUNCTION public.get_governed_products(
-  p_token uuid,
-  p_active_only boolean DEFAULT true,
-  p_visible_only boolean DEFAULT true,
+  p_token text,
+  p_active_only boolean DEFAULT false,
+  p_visible_only boolean DEFAULT false,
   p_search text DEFAULT NULL::text,
   p_company_id uuid DEFAULT NULL::uuid,
-  p_count_only boolean DEFAULT false
+  p_count_only boolean DEFAULT false,
+  p_page integer DEFAULT NULL::integer,
+  p_per_page integer DEFAULT NULL::integer
 )
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -118,8 +128,17 @@ AS $$
 DECLARE
   v_session app.sessions;
   v_result jsonb;
+  v_offset integer;
+  v_limit integer;
+  v_token uuid;
 BEGIN
-  SELECT * INTO v_session FROM app.sessions WHERE token = p_token AND expires_at > now();
+  BEGIN
+    v_token := p_token::uuid;
+  EXCEPTION WHEN others THEN
+    RETURN jsonb_build_object('error', 'INVALID_SESSION');
+  END;
+
+  SELECT * INTO v_session FROM app.sessions WHERE token = v_token AND expires_at > now();
   IF NOT FOUND THEN RETURN jsonb_build_object('error', 'INVALID_SESSION'); END IF;
 
   IF p_count_only THEN
@@ -127,13 +146,19 @@ BEGIN
     FROM products p
     WHERE (NOT p_active_only OR p.is_active = true)
       AND (NOT p_visible_only OR p.is_visible = true)
+      AND (NOT p_active_only OR (p.carton_price IS NOT NULL AND p.carton_price > 0))
       AND (p_search IS NULL OR p.product_name ILIKE '%' || p_search || '%' OR p.legacy_code ILIKE '%' || p_search || '%')
       AND (p_company_id IS NULL OR p.company_id = p_company_id);
     RETURN v_result;
   END IF;
 
-  SELECT jsonb_agg(
-    jsonb_build_object(
+  v_limit := COALESCE(p_per_page, 1000000);
+  v_offset := COALESCE((p_page - 1) * v_limit, 0);
+
+  SELECT jsonb_agg(sub.data)
+  INTO v_result
+  FROM (
+    SELECT jsonb_build_object(
       'id', p.id,
       'product_name', p.product_name,
       'legacy_code', p.legacy_code,
@@ -164,21 +189,24 @@ BEGIN
         '[]'::jsonb
       ),
       'inventory', (SELECT jsonb_build_object('quantity', inv.quantity) FROM inventory inv WHERE inv.product_id = p.id LIMIT 1)
-    )
+    ) AS data
+    FROM products p
+    JOIN companies comp ON comp.id = p.company_id
+    WHERE (NOT p_active_only OR p.is_active = true)
+      AND (NOT p_visible_only OR p.is_visible = true)
+      AND (NOT p_active_only OR (p.carton_price IS NOT NULL AND p.carton_price > 0))
+      AND (p_search IS NULL OR p.product_name ILIKE '%' || p_search || '%' OR p.legacy_code ILIKE '%' || p_search || '%')
+      AND (p_company_id IS NULL OR p.company_id = p_company_id)
     ORDER BY p.product_name
-  ) INTO v_result
-  FROM products p
-  JOIN companies comp ON comp.id = p.company_id
-  WHERE (NOT p_active_only OR p.is_active = true)
-    AND (NOT p_visible_only OR p.is_visible = true)
-    AND (p_search IS NULL OR p.product_name ILIKE '%' || p_search || '%' OR p.legacy_code ILIKE '%' || p_search || '%')
-    AND (p_company_id IS NULL OR p.company_id = p_company_id);
+    LIMIT v_limit
+    OFFSET v_offset
+  ) sub;
 
   RETURN COALESCE(v_result, '[]'::jsonb);
 END;
 $$;
 
-COMMENT ON FUNCTION public.get_governed_products(uuid, boolean, boolean, text, uuid, boolean) IS
+COMMENT ON FUNCTION public.get_governed_products(text, boolean, boolean, text, uuid, boolean, integer, integer) IS
   'قائمة المنتجات المحكومة مع علامات أهلية البونص (بونص المنتج، بونص الشركة، كود الشركة) للتحكم من بطاقة إدارة المنتج.';
 
 -- ----------------------------------------------------------------------------
