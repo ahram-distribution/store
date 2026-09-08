@@ -1,8 +1,9 @@
 import { memo } from 'react'
-import { Edit3, Eye, Power, Trash2, Star, Package, Building2, Calendar, EyeOff, Loader2 } from 'lucide-react'
+import { Edit3, Eye, Power, Trash2, Star, Package, Building2, Calendar, EyeOff, Loader2, Gift } from 'lucide-react'
 import { formatCurrencyShort } from '../../utils/format'
 import { SearchHighlight } from '../shared/SearchHighlight'
 import { InventoryBreakdown } from '../shared/InventoryBreakdown'
+import { BONUS_COPY } from '../../constants/bonusCopy'
 
 interface ProductCardProps {
   product: any
@@ -11,7 +12,9 @@ interface ProductCardProps {
   onDelete: () => void
   onViewDetails: () => void
   onToggleVisibility: (product: any) => void
+  onToggleBonus?: (product: any) => void
   toggling?: boolean
+  bonusToggling?: boolean
   searchQuery?: string
   canManage?: boolean
 }
@@ -22,9 +25,10 @@ const UNIT_LABELS: Record<string, string> = {
   carton: 'كرتونة',
 }
 
-export const ProductCard = memo(function ProductCard({ product, onEdit, onToggleActive, onDelete, onViewDetails, onToggleVisibility, toggling, searchQuery, canManage = true }: ProductCardProps) {
+export const ProductCard = memo(function ProductCard({ product, onEdit, onToggleActive, onDelete, onViewDetails, onToggleVisibility, onToggleBonus, toggling, bonusToggling, searchQuery, canManage = true }: ProductCardProps) {
   const isVisible = product.is_active === true && product.is_visible !== false
   const isOutOfStock = product.is_out_of_stock === true && product.is_active !== false
+  const isBonusEnabled = product.bonus_enabled === true
   const units = (product.product_units || []).filter((u: any) => u.is_active !== false)
   const unitNames = units.map((u: any) => UNIT_LABELS[u.unit_type] || u.unit_type).join(' - ')
 
@@ -63,6 +67,22 @@ export const ProductCard = memo(function ProductCard({ product, onEdit, onToggle
             موقوف
           </div>
         ) : null}
+        {canManage && onToggleBonus && (
+          <button
+            type="button"
+            onClick={() => onToggleBonus(product)}
+            disabled={bonusToggling}
+            title={isBonusEnabled ? `إيقاف — ${BONUS_COPY.productToggle}` : BONUS_COPY.productToggle}
+            className={`absolute top-2 left-2 flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-[10px] font-bold shadow-sm border transition-colors disabled:opacity-60 disabled:cursor-not-allowed select-none ${
+              isBonusEnabled
+                ? 'bg-violet-600 text-white border-violet-600 hover:bg-violet-700'
+                : 'bg-white/95 text-violet-600 border-violet-200 hover:bg-violet-50'
+            }`}
+          >
+            {bonusToggling ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Gift className="w-3.5 h-3.5" />}
+            <span>{bonusToggling ? 'جاري...' : isBonusEnabled ? 'بونص مفعل' : 'تفعيل البونص'}</span>
+          </button>
+        )}
         {canManage && (
           <button
             type="button"
@@ -98,6 +118,14 @@ export const ProductCard = memo(function ProductCard({ product, onEdit, onToggle
           <Building2 className="w-3 h-3 shrink-0" />
           <span className="truncate">{product.company_name || '—'}</span>
         </div>
+
+        {/* Company-level Bonus eligibility hint */}
+        {product.company_bonus_enabled === true && (
+          <div className="flex items-center gap-1.5 text-[10px] text-violet-600">
+            <Gift className="w-3 h-3 shrink-0" />
+            <span className="truncate">{BONUS_COPY.productCompanyHint}</span>
+          </div>
+        )}
 
         {/* Stock Balance */}
         <InventoryBreakdown quantity={product.inventory?.quantity ?? 0} cartonQuantity={product.carton_quantity ?? 0} />

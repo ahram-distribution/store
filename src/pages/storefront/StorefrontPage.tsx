@@ -67,6 +67,7 @@ export function StorefrontPage() {
     geoItemAdjustments,
     geoResolveEpoch,
     ensureGeoItemAdjustments,
+    refreshBonusMode,
   } = useCartStore()
 
   const [searchQuery, setSearchQuery] = useState(searchParams.get('q') || '')
@@ -204,7 +205,8 @@ export function StorefrontPage() {
     fetchProducts()
     fetchDiscountOptions()
     fetchCustomers()
-  }, [fetchProducts, fetchDiscountOptions, fetchCustomers])
+    refreshBonusMode()
+  }, [fetchProducts, fetchDiscountOptions, fetchCustomers, refreshBonusMode])
 
   useEffect(() => {
     if (!editOrderId || !authToken) return

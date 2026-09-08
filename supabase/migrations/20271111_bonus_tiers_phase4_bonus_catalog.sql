@@ -1,0 +1,318 @@
+-- ============================================================================
+-- BONUS TIERS — PHASE 4: BONUS CATALOG + ELIGIBILITY CONTROLS
+-- Companion: docs\Bonus Tiers — Final Implementation Design Review.md (approved)
+--            docs\Bonus Tiers — بونص الشرائح.md (v2.2, locked business spec)
+--
+-- SCOPE (ADDITIVE ONLY — no destructive DDL, no data rewrites):
+--   1. get_governed_bonus_products — Bonus catalog RPC (design D.1 #3).
+--   2. get_governed_products        — superset: exposes bonus_enabled,
+--                                     company_bonus_enabled, company_legacy_code.
+--   3. get_governed_companies       — superset: exposes bonus_enabled.
+--   4. governed_update_product      — superset: p_bonus_enabled (products.manage).
+--   5. governed_update_company      — superset: p_bonus_enabled (companies.manage).
+--
+-- ELIGIBILITY PREDICATE (approved, OR-only, no exclusion override):
+--   products.bonus_enabled OR companies.bonus_enabled
+--   The dedicated Bonus company "هدايا و بونص" (legacy code 7000) is created in
+--   Phase 1 with companies.bonus_enabled = true, so its products are eligible
+--   through the company flag — products are NEVER reassigned into company 7000.
+--
+-- GEOGRAPHIC PRICING: the Bonus catalog reuses the AUTHORITATIVE geographic
+--   resolver (get_effective_geographic_adjustment) when a governorate is
+--   supplied; otherwise it returns raw base prices. No second pricing system.
+--
+-- OFF-MODE ISOLATION: products outside the catalog are untouched; the catalog
+--   is read-only to customer sessions; the superset mutations use COALESCE so
+--   NULL = no change (existing behavior unchanged by the added parameter).
+-- ============================================================================
+
+-- ----------------------------------------------------------------------------
+-- 1. get_governed_bonus_products (design D.1 #3)
+--    Session-validated, read-only. Returns ONLY active + visible + Bonus-eligible
+--    products with their raw storefront base prices and, when p_governorate_id is
+--    supplied, the winning geographic adjustment_percent per product (reusing the
+--    authoritative single resolver — no second pricing system). The caller overlays
+--    the adjustment on the base price exactly like the main storefront does.
+-- ----------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION public.get_governed_bonus_products(
+  p_token uuid,
+  p_governorate_id uuid DEFAULT NULL,
+  p_company_ids uuid[] DEFAULT NULL
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, extensions
+AS $$
+DECLARE
+  v_session app.sessions;
+  v_result jsonb;
+BEGIN
+  SELECT * INTO v_session FROM app.sessions WHERE token = p_token AND expires_at > now();
+  IF NOT FOUND THEN RETURN jsonb_build_object('error', 'INVALID_SESSION'); END IF;
+
+  SELECT jsonb_agg(
+    jsonb_build_object(
+      'id', p.id,
+      'product_name', p.product_name,
+      'legacy_code', p.legacy_code,
+      'company_id', p.company_id,
+      'company_name', comp.company_name,
+      'company_legacy_code', comp.legacy_code,
+      'is_active', p.is_active,
+      'is_visible', p.is_visible,
+      'is_out_of_stock', p.is_out_of_stock,
+      'image_url', p.image_url,
+      'carton_price', p.carton_price,
+      'carton_quantity', p.carton_quantity,
+      'piece_price', p.piece_price,
+      'dozen_price', p.dozen_price,
+      'bonus_enabled', p.bonus_enabled,
+      'company_bonus_enabled', comp.bonus_enabled,
+      'geo_adjustment_percent', CASE WHEN p_governorate_id IS NULL THEN NULL::numeric
+        ELSE g.a.adjustment_percent END,
+      'product_units', COALESCE(
+        (SELECT jsonb_agg(
+          jsonb_build_object('id', pu.id, 'unit_type', pu.unit_type, 'is_active', pu.is_active)
+          ORDER BY pu.unit_type
+        ) FROM product_units pu WHERE pu.product_id = p.id),
+        '[]'::jsonb
+      )
+    )
+    ORDER BY p.product_name
+  ) INTO v_result
+  FROM products p
+  JOIN companies comp ON comp.id = p.company_id
+  LEFT JOIN LATERAL public.get_effective_geographic_adjustment(p_governorate_id, p.company_id, p.id) g ON true
+  WHERE p.is_active = true
+    AND p.is_visible = true
+    AND (p.bonus_enabled OR comp.bonus_enabled)
+    AND (p_company_ids IS NULL OR p.company_id = ANY(p_company_ids));
+
+  RETURN COALESCE(v_result, '[]'::jsonb);
+END;
+$$;
+
+COMMENT ON FUNCTION public.get_governed_bonus_products IS
+  'كتالوج منتجات البونص والهدايا — المنتجات النشطة والظاهرة والمؤهلة فقط (بونص عبر المنتج أو عبر الشركة، أو عبر شركة البونص 7000). الأسعار أساسية (بدون خصم) مع نسبة التسعير الجغرافي عند تمرير المحافظة، ويُطبق الخصم في الواجهة عبر الآلية المعتمدة نفسها.';
+
+-- ----------------------------------------------------------------------------
+-- 2. get_governed_products — superset: bonus eligibility flags per product.
+--    Additive output keys only; signature and filtering behavior unchanged.
+-- ----------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION public.get_governed_products(
+  p_token uuid,
+  p_active_only boolean DEFAULT true,
+  p_visible_only boolean DEFAULT true,
+  p_search text DEFAULT NULL::text,
+  p_company_id uuid DEFAULT NULL::uuid,
+  p_count_only boolean DEFAULT false
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, extensions
+AS $$
+DECLARE
+  v_session app.sessions;
+  v_result jsonb;
+BEGIN
+  SELECT * INTO v_session FROM app.sessions WHERE token = p_token AND expires_at > now();
+  IF NOT FOUND THEN RETURN jsonb_build_object('error', 'INVALID_SESSION'); END IF;
+
+  IF p_count_only THEN
+    SELECT jsonb_build_object('count', COUNT(*)) INTO v_result
+    FROM products p
+    WHERE (NOT p_active_only OR p.is_active = true)
+      AND (NOT p_visible_only OR p.is_visible = true)
+      AND (p_search IS NULL OR p.product_name ILIKE '%' || p_search || '%' OR p.legacy_code ILIKE '%' || p_search || '%')
+      AND (p_company_id IS NULL OR p.company_id = p_company_id);
+    RETURN v_result;
+  END IF;
+
+  SELECT jsonb_agg(
+    jsonb_build_object(
+      'id', p.id,
+      'product_name', p.product_name,
+      'legacy_code', p.legacy_code,
+      'description', p.description,
+      'company_id', p.company_id,
+      'company_name', comp.company_name,
+      'company_legacy_code', comp.legacy_code,
+      'company_bonus_enabled', comp.bonus_enabled,
+      'bonus_enabled', p.bonus_enabled,
+      'is_active', p.is_active,
+      'is_visible', p.is_visible,
+      'is_out_of_stock', p.is_out_of_stock,
+      'image_url', p.image_url,
+      'carton_price', p.carton_price,
+      'carton_quantity', p.carton_quantity,
+      'piece_price', p.piece_price,
+      'dozen_price', p.dozen_price,
+      'recently_available_at', p.recently_available_at,
+      'created_at', p.created_at,
+      'negative_selling_allowed', p.negative_selling_allowed,
+      'inventory_deduction_status', p.inventory_deduction_status,
+      'oos_source', p.oos_source,
+      'product_units', COALESCE(
+        (SELECT jsonb_agg(
+          jsonb_build_object('id', pu.id, 'unit_type', pu.unit_type, 'is_active', pu.is_active)
+          ORDER BY pu.unit_type
+        ) FROM product_units pu WHERE pu.product_id = p.id),
+        '[]'::jsonb
+      ),
+      'inventory', (SELECT jsonb_build_object('quantity', inv.quantity) FROM inventory inv WHERE inv.product_id = p.id LIMIT 1)
+    )
+    ORDER BY p.product_name
+  ) INTO v_result
+  FROM products p
+  JOIN companies comp ON comp.id = p.company_id
+  WHERE (NOT p_active_only OR p.is_active = true)
+    AND (NOT p_visible_only OR p.is_visible = true)
+    AND (p_search IS NULL OR p.product_name ILIKE '%' || p_search || '%' OR p.legacy_code ILIKE '%' || p_search || '%')
+    AND (p_company_id IS NULL OR p.company_id = p_company_id);
+
+  RETURN COALESCE(v_result, '[]'::jsonb);
+END;
+$$;
+
+COMMENT ON FUNCTION public.get_governed_products(uuid, boolean, boolean, text, uuid, boolean) IS
+  'قائمة المنتجات المحكومة مع علامات أهلية البونص (بونص المنتج، بونص الشركة، كود الشركة) للتحكم من بطاقة إدارة المنتج.';
+
+-- ----------------------------------------------------------------------------
+-- 3. get_governed_companies — superset: bonus_enabled flag per company.
+-- ----------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION public.get_governed_companies(p_token uuid)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, extensions
+AS $$
+DECLARE
+  v_session app.sessions;
+  v_result jsonb;
+BEGIN
+  SELECT * INTO v_session FROM app.sessions WHERE token = p_token AND expires_at > now();
+  IF NOT FOUND THEN RETURN jsonb_build_object('error', 'INVALID_SESSION'); END IF;
+
+  SELECT jsonb_agg(
+    jsonb_build_object(
+      'id', comp.id,
+      'company_name', comp.company_name,
+      'legacy_code', comp.legacy_code,
+      'is_active', comp.is_active,
+      'is_visible', comp.is_visible,
+      'logo_url', comp.logo_url,
+      'bonus_enabled', comp.bonus_enabled,
+      'created_at', comp.created_at,
+      'product_count', (SELECT COUNT(*) FROM products p WHERE p.company_id = comp.id)
+    ) ORDER BY comp.company_name
+  ) INTO v_result FROM companies comp;
+
+  RETURN COALESCE(v_result, '[]'::jsonb);
+END;
+$$;
+
+COMMENT ON FUNCTION public.get_governed_companies IS
+  'قائمة الشركات مع عدد المنتجات والشعار والرؤية وعلامة بونص الشركة';
+
+-- ----------------------------------------------------------------------------
+-- 4. governed_update_product — superset: p_bonus_enabled (products.manage).
+--    Trailing nullable parameter; COALESCE keeps NULL = no change.
+-- ----------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION public.governed_update_product(
+  p_token uuid,
+  p_id uuid,
+  p_product_name varchar DEFAULT NULL,
+  p_description text DEFAULT NULL,
+  p_legacy_code varchar DEFAULT NULL,
+  p_image_url text DEFAULT NULL,
+  p_bonus_enabled boolean DEFAULT NULL
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, extensions
+AS $$
+DECLARE
+  v_session app.sessions;
+BEGIN
+  SELECT * INTO v_session FROM app.sessions WHERE token = p_token AND expires_at > now();
+  IF NOT FOUND THEN RETURN jsonb_build_object('error', 'INVALID_SESSION'); END IF;
+
+  PERFORM check_capability(p_token, 'products.manage');
+
+  UPDATE public.products
+  SET
+    product_name = COALESCE(p_product_name, product_name),
+    description = COALESCE(p_description, description),
+    legacy_code = COALESCE(p_legacy_code, legacy_code),
+    image_url = COALESCE(p_image_url, image_url),
+    bonus_enabled = COALESCE(p_bonus_enabled, bonus_enabled),
+    updated_at = now()
+  WHERE id = p_id;
+
+  RETURN jsonb_build_object('success', true);
+END;
+$$;
+
+COMMENT ON FUNCTION public.governed_update_product(uuid, uuid, varchar, text, varchar, text, boolean) IS
+  'تعديل بيانات منتج (مع الصورة وأهلية البونص يضاف إلى الهدايا والبونص)';
+
+-- ----------------------------------------------------------------------------
+-- 5. governed_update_company — superset: p_bonus_enabled (companies.manage).
+--    When true, ALL products of the company become Bonus-eligible.
+-- ----------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION public.governed_update_company(
+  p_token uuid,
+  p_id uuid,
+  p_company_name varchar DEFAULT NULL,
+  p_legacy_code varchar DEFAULT NULL,
+  p_logo_url text DEFAULT NULL,
+  p_is_visible boolean DEFAULT NULL,
+  p_bonus_enabled boolean DEFAULT NULL
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, extensions
+AS $$
+DECLARE
+  v_session app.sessions;
+BEGIN
+  SELECT * INTO v_session FROM app.sessions WHERE token = p_token AND expires_at > now();
+  IF NOT FOUND THEN RETURN jsonb_build_object('error', 'INVALID_SESSION'); END IF;
+
+  PERFORM check_capability(p_token, 'companies.manage');
+
+  UPDATE public.companies
+  SET
+    company_name = COALESCE(p_company_name, company_name),
+    legacy_code = COALESCE(p_legacy_code, legacy_code),
+    logo_url = COALESCE(p_logo_url, logo_url),
+    is_visible = COALESCE(p_is_visible, is_visible),
+    bonus_enabled = COALESCE(p_bonus_enabled, bonus_enabled),
+    updated_at = now()
+  WHERE id = p_id;
+
+  RETURN jsonb_build_object('success', true);
+END;
+$$;
+
+COMMENT ON FUNCTION public.governed_update_company(uuid, uuid, varchar, varchar, text, boolean, boolean) IS
+  'تعديل بيانات شركة (مع الشعار والظهور وأهلية البونص تضاف إلى الهدايا والبونص)';
+
+-- ============================================================================
+-- GRANTS (see 20260708_governed_rpc_execute_grants.sql rationale)
+-- ============================================================================
+
+GRANT EXECUTE ON FUNCTION public.get_governed_bonus_products(uuid, uuid, uuid[]) TO authenticated, service_role;
+
+-- ============================================================================
+-- END OF PHASE 4 — BONUS CATALOG + ELIGIBILITY CONTROLS
+-- ============================================================================

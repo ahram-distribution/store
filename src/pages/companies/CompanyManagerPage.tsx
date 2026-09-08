@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useCapability } from '../../hooks/useCapability'
 import { fetchGovernedData, deleteCompany, toggleVisibility } from '../../hooks/useCompanyMutations'
+import { setCompanyBonusEnabled } from '../../services/bonus'
 import { usePersistentViewState } from '../../hooks/usePersistentViewState'
 import toast from 'react-hot-toast'
 
@@ -67,6 +68,24 @@ export function CompanyManagerPage() {
     await loadCompanies()
   }
 
+  const [bonusTogglingId, setBonusTogglingId] = useState<string | null>(null)
+
+  async function handleToggleBonus(c: any) {
+    if (!canManage) return
+    const next = !(c.bonus_enabled === true)
+    setBonusTogglingId(c.id)
+    try {
+      const result = await setCompanyBonusEnabled(c.id, next)
+      if (result.error) { toast.error(result.error); return }
+      toast.success(next ? 'تم تفعيل بونص الشركة — كل منتجات الشركة تدخل ضمن منتجات البونص والهدايا' : 'تم إيقاف بونص الشركة')
+      await loadCompanies()
+    } catch (err: any) {
+      toast.error(err.message || 'حدث خطأ أثناء تحديث بونص الشركة')
+    } finally {
+      setBonusTogglingId(null)
+    }
+  }
+
   async function handleDeleteCompany() {
     if (!deleteTarget || !canManage) return
     setDeleting(true)
@@ -95,6 +114,7 @@ export function CompanyManagerPage() {
 
   const visibleCount = companies.filter((c) => c.is_visible).length
   const hiddenCount = companies.filter((c) => c.is_visible === false).length
+  const bonusCount = companies.filter((c) => c.bonus_enabled === true).length
 
   return (
     <div className="min-h-screen bg-bg">
@@ -109,7 +129,7 @@ export function CompanyManagerPage() {
             </button>
             <div>
               <h1 className="text-xl font-extrabold text-text tracking-tight">إدارة الشركات</h1>
-              <p className="text-[11px] text-text-secondary mt-0.5">{companies.length} شركة &middot; {visibleCount} ظاهر &middot; {hiddenCount} مخفي</p>
+              <p className="text-[11px] text-text-secondary mt-0.5">{companies.length} شركة &middot; {visibleCount} ظاهر &middot; {hiddenCount} مخفي &middot; {bonusCount} بونص</p>
             </div>
           </div>
           {canManage && (
@@ -203,6 +223,39 @@ export function CompanyManagerPage() {
                   }`}>
                     {c.is_visible ? 'ظاهر للعملاء' : 'مخفي عن العملاء'}
                   </span>
+                </div>
+
+                {/* Section 2b: Bonus eligibility (تضاف إلى الهدايا والبونص) */}
+                <div className={`mx-3.5 mt-1.5 px-3 py-2 rounded-lg ${c.bonus_enabled ? 'bg-violet-50' : 'bg-surface'}`}>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-base shrink-0" title="تضاف إلى الهدايا والبونص">🎁</span>
+                      <span className={`text-[22px] font-bold truncate ${
+                        c.bonus_enabled ? 'text-violet-700' : 'text-text-secondary'
+                      }`}>
+                        {c.bonus_enabled ? 'بونص مفعل' : 'بونص غير مفعل'}
+                      </span>
+                    </div>
+                    {canManage && (
+                      <button
+                        onClick={() => handleToggleBonus(c)}
+                        disabled={bonusTogglingId === c.id}
+                        title="تضاف إلى الهدايا والبونص"
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all active:scale-[0.97] disabled:opacity-50 shrink-0 ${
+                          c.bonus_enabled
+                            ? 'bg-violet-600 text-white hover:bg-violet-700'
+                            : 'bg-white border border-border text-text-secondary hover:bg-surface'
+                        }`}
+                      >
+                        {bonusTogglingId === c.id ? 'جاري...' : c.bonus_enabled ? 'إيقاف' : 'تفعيل'}
+                      </button>
+                    )}
+                  </div>
+                  {c.bonus_enabled && (
+                    <div className="mt-1.5 text-[11px] text-violet-600 font-semibold leading-snug">
+                      كل منتجات الشركة تدخل ضمن منتجات البونص والهدايا
+                    </div>
+                  )}
                 </div>
 
                 {/* Section 3: Actions */}

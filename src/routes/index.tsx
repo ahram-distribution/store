@@ -4,7 +4,7 @@ import { NotFoundPage } from '../components/shared/NotFoundPage'
 import { useAuthStore } from '../store/auth'
 import { LoginPage, RegistrationPage } from '../pages/auth'
 import { ProtectedRoute } from '../components/auth/ProtectedRoute'
-import { CompaniesPage, StorefrontPage, CartPage, OrderReviewPage } from '../pages/storefront'
+import { CompaniesPage, StorefrontPage, CartPage, OrderReviewPage, BonusCatalogPage } from '../pages/storefront'
 import { CheckoutPage } from '../pages/checkout/CheckoutPage'
 import { OrderSuccessPage } from '../pages/checkout/OrderSuccessPage'
 import { OrdersPage, OrderDetailPage, OrderEditPage, OrderNewPage, ApprovalQueuePage } from '../pages/orders'
@@ -149,6 +149,7 @@ export function AppRoutes() {
 
       <Route path="/storefront" element={<ProtectedRoute><CompaniesPage /></ProtectedRoute>} />
       <Route path="/storefront/products" element={<ProtectedRoute><StorefrontPage /></ProtectedRoute>} />
+      <Route path="/storefront/bonus" element={<ProtectedRoute><BonusCatalogPage /></ProtectedRoute>} />
       <Route path="/cart" element={<ProtectedRoute><CartPage /></ProtectedRoute>} />
       <Route path="/order-review" element={<ProtectedRoute><OrderReviewPage /></ProtectedRoute>} />
       <Route path="/checkout" element={<ProtectedRoute><CheckoutPage /></ProtectedRoute>} />

@@ -17,6 +17,7 @@ export interface CartItem {
   companyName?: string
   geoAdjustPercent?: number
   baseUnitPrice?: number
+  isBonus?: boolean
 }
 
 export interface CartDealItem {
@@ -117,6 +118,9 @@ export interface ProductWithPrice {
   imageUrl?: string
   companyId: string
   companyName: string
+  companyLegacyCode?: string
+  bonusEnabled?: boolean
+  companyBonusEnabled?: boolean
   unitPrices: ProductUnitPrice[]
   availableUnitTypes: UnitType[]
   recentlyAvailableAt?: string
@@ -171,6 +175,50 @@ export interface CartTotals {
   dealTotal: number
   productSubtotal: number
   productBaseSubtotal: number
+  companyRule: CompanyRuleResult | null
+  meetsCompanyRules: boolean
+  bonusMode?: boolean
+  bonusCredit?: number
+  bonusApplied?: number
+  bonusUnused?: number
+  bonusOverflow?: number
+  bonusProductsTotal?: number
+  mainBaseTotal?: number
+  bonusSummary?: BonusSummary
+}
+
+/** Per-main-product entitlement: the money value its resolved combined % produces. */
+export interface BonusItemEntitlement {
+  productId: string
+  productName: string
+  baseValue: number
+  tierPercent: number
+  paymentPercent: number
+  shippingPercent: number
+  combinedPercent: number
+  credit: number
+}
+
+/** Bonus Credit = Σ per-main-product entitlements (D-O2), with per-group breakdown. */
+export interface BonusCreditResult {
+  mainBaseTotal: number
+  totalBonusCredit: number
+  tierCredit: number
+  paymentCredit: number
+  shippingCredit: number
+  items: BonusItemEntitlement[]
+}
+
+/** Complete bonus-mode accounting for an order (spec §13.3, §24.2, company rules). */
+export interface BonusSummary extends BonusCreditResult {
+  bonusProductsTotal: number
+  bonusApplied: number
+  bonusUnused: number
+  bonusOverflow: number
+  finalPayable: number
+  tierMinimum: number
+  meetsTierMinimum: boolean
+  remainingForMinimum: number
   companyRule: CompanyRuleResult | null
   meetsCompanyRules: boolean
 }

@@ -5,6 +5,7 @@ export function ShippingMethodSelector() {
   const shippingMethods = useCartStore((s) => s.shippingMethods)
   const selectedShippingMethodId = useCartStore((s) => s.selectedShippingMethodId)
   const selectShippingMethod = useCartStore((s) => s.selectShippingMethod)
+  const bonusMode = useCartStore((s) => s.bonusMode)
 
   const visibleMethods = shippingMethods.filter((m) => m.isActive && m.isVisible)
   const options: SelectableDiscountOption[] = visibleMethods.map((m) => ({
@@ -22,6 +23,7 @@ export function ShippingMethodSelector() {
       options={options}
       selectedId={selected ? selectedShippingMethodId : null}
       onSelect={selectShippingMethod}
+      bonusMode={bonusMode}
     />
   )
 }

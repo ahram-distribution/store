@@ -5,6 +5,7 @@ export function PaymentMethodSelector() {
   const paymentMethods = useCartStore((s) => s.paymentMethods)
   const selectedPaymentMethodId = useCartStore((s) => s.selectedPaymentMethodId)
   const selectPaymentMethod = useCartStore((s) => s.selectPaymentMethod)
+  const bonusMode = useCartStore((s) => s.bonusMode)
 
   const visibleMethods = paymentMethods.filter((m) => m.isActive && m.isVisible)
   const options: SelectableDiscountOption[] = visibleMethods.map((m) => ({
@@ -22,6 +23,7 @@ export function PaymentMethodSelector() {
       options={options}
       selectedId={selected ? selectedPaymentMethodId : null}
       onSelect={selectPaymentMethod}
+      bonusMode={bonusMode}
     />
   )
 }

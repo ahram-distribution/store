@@ -19,6 +19,7 @@ import { toProductWithPrice } from '../../utils/catalog'
 import { parseProductExcelFile, buildImportPreview, type ImportRow, type ImportPreview, type MissingProductRow } from '../../services/productExcelImport'
 import { exportProductStockTemplate } from '../../services/productExcelExport'
 import { discountOptionsService } from '../../services/discountOptions'
+import { setProductBonusEnabled } from '../../services/bonus'
 
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
@@ -312,6 +313,32 @@ export function ProductManagerPage() {
     } finally {
       togglingRef.current = null
       setTogglingId(null)
+    }
+  }, [])
+
+  // ── Quick Bonus eligibility toggle (يضاف إلى الهدايا والبونص) ──
+  const [bonusTogglingId, setBonusTogglingId] = useState<string | null>(null)
+  const bonusTogglingRef = useRef<string | null>(null)
+
+  const handleToggleBonus = useCallback(async (product: any) => {
+    if (bonusTogglingRef.current) return
+    const token = getToken()
+    if (!token) return
+    const next = !(product.bonus_enabled === true)
+    bonusTogglingRef.current = product.id
+    setBonusTogglingId(product.id)
+    try {
+      const res = await setProductBonusEnabled(product.id, next)
+      if (res.error) { toast.error(res.error); return }
+      await loadData()
+      const updatedRow = useCatalogStore.getState().products.find((p: any) => p.id === product.id)
+      if (updatedRow) useCartStore.getState().syncProduct(toProductWithPrice(updatedRow))
+      toast.success(next ? 'تم تفعيل البونص للمنتج' : 'تم إيقاف البونص للمنتج')
+    } catch (err: any) {
+      toast.error(err.message || 'حدث خطأ')
+    } finally {
+      bonusTogglingRef.current = null
+      setBonusTogglingId(null)
     }
   }, [])
 
@@ -1006,7 +1033,9 @@ export function ProductManagerPage() {
                 onDelete={handleDeletePreview}
                 onViewDetails={handleViewDetails}
                 onToggleVisibility={handleToggleVisibility}
+                onToggleBonus={handleToggleBonus}
                 toggling={togglingId === product.id}
+                bonusToggling={bonusTogglingId === product.id}
                 searchQuery={searchQuery}
                 canManage={canManage}
               />

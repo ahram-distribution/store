@@ -6,9 +6,10 @@ interface TierSelectorProps {
   selectedTierId: string | null
   onSelect: (tierId: string | null) => void
   cartTotal: number
+  bonusMode?: boolean
 }
 
-export function TierSelector({ tiers, selectedTierId, onSelect }: TierSelectorProps) {
+export function TierSelector({ tiers, selectedTierId, onSelect, bonusMode }: TierSelectorProps) {
   if (tiers.length === 0) return null
 
   const options: SelectableDiscountOption[] = tiers.map((tier) => ({
@@ -28,6 +29,7 @@ export function TierSelector({ tiers, selectedTierId, onSelect }: TierSelectorPr
       selectedId={selectedTierId}
       onSelect={onSelect}
       showMinimum
+      bonusMode={bonusMode}
     />
   )
 }

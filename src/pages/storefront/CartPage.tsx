@@ -12,6 +12,7 @@ import { SearchableSelect } from '../../components/shared/SearchableSelect'
 import { formatCurrencyShort, formatArabicAmountWithCurrency, formatTierName } from '../../utils/format'
 import { formatNumber } from '../../utils/numbers'
 import { UNIT_LABELS } from '../../types/order-display'
+import { BONUS_COPY } from '../../constants/bonusCopy'
 import { supabase } from '../../lib/supabase'
 import toast from 'react-hot-toast'
 import type { CartItem as CartItemType } from '../../types/storefront'
@@ -84,6 +85,13 @@ const isDirectCustomer = user?.identity_type === 'customer'
     geographicContext,
     geoResolveEpoch,
     ensureGeoItemAdjustments,
+    bonusMode,
+    bonusItems,
+    bonusOverflowApproved,
+    setBonusOverflowApproved,
+    refreshBonusMode,
+    updateBonusQuantity,
+    removeBonusItem,
   } = useCartStore()
 
   const selectedTier = getSelectedTier()
@@ -96,6 +104,12 @@ const isDirectCustomer = user?.identity_type === 'customer'
       ensureGeoItemAdjustments(products)
     }
   }, [products, geographicContext?.governorateId, geoResolveEpoch, ensureGeoItemAdjustments])
+
+  useEffect(() => {
+    if (hydrated) {
+      refreshBonusMode()
+    }
+  }, [hydrated, refreshBonusMode])
 
   useEffect(() => {
     let active = true
@@ -134,7 +148,7 @@ const isDirectCustomer = user?.identity_type === 'customer'
 
   if (!hydrated) return null
 
-  if (items.length === 0 && dealItems.length === 0 && flashOfferItems.length === 0) {
+  if (items.length === 0 && dealItems.length === 0 && flashOfferItems.length === 0 && bonusItems.length === 0) {
     return (
       <div className="space-y-4">
         <h1 className="text-lg font-bold text-text">سلة التسوق</h1>
@@ -144,7 +158,7 @@ const isDirectCustomer = user?.identity_type === 'customer'
   }
 
   const handleContinue = () => {
-    const blockedItem = items.find((item) => {
+    const blockedItem = [...items, ...bonusItems].find((item) => {
       const product = products.find((p) => p.id === item.productId)
       if (!product) return false
       if (!product.isActive || product.isOutOfStock) return true
@@ -169,7 +183,11 @@ const isDirectCustomer = user?.identity_type === 'customer'
       }
       return
     }
-    if (items.length === 0 && (dealItems.length > 0 || flashOfferItems.length > 0)) {
+    if (bonusMode && (totals.bonusOverflow ?? 0) > 0 && !bonusOverflowApproved) {
+      toast.error(BONUS_COPY.overflowRequired)
+      return
+    }
+    if (items.length === 0 && bonusItems.length === 0 && (dealItems.length > 0 || flashOfferItems.length > 0)) {
       navigate('/order-review')
       return
     }
@@ -185,7 +203,7 @@ const isDirectCustomer = user?.identity_type === 'customer'
           </button>
           <h1 className="text-lg font-bold text-text">سلة التسوق</h1>
         </div>
-        <span className="text-xs text-text-secondary">{items.length} منتج</span>
+        <span className="text-xs text-text-secondary">{items.length + bonusItems.length} منتج</span>
       </div>
 
       {/* Order Context Card */}
@@ -224,6 +242,7 @@ const isDirectCustomer = user?.identity_type === 'customer'
         selectedTierId={selectedTierId}
         onSelect={selectTier}
         cartTotal={totals.netTotal}
+        bonusMode={bonusMode}
       />
 
       {/* Payment + Shipping method selectors */}
@@ -236,7 +255,7 @@ const isDirectCustomer = user?.identity_type === 'customer'
           <div className="grid grid-cols-2 gap-x-4 gap-y-2">
             <div className="text-[11px] text-text-secondary">الشريحة الحالية</div>
             <div className="text-sm font-bold text-text text-left">{formatTierName(selectedTier.name)}</div>
-            <div className="text-[11px] text-text-secondary">الخصم</div>
+            <div className="text-[11px] text-text-secondary">{bonusMode ? 'نسبة البونص' : 'الخصم'}</div>
             <div className="text-sm font-bold text-success text-left">
               {selectedTier.discountPercent % 1 === 0 ? selectedTier.discountPercent : Number(selectedTier.discountPercent.toFixed(1))}%
             </div>
@@ -417,9 +436,201 @@ const isDirectCustomer = user?.identity_type === 'customer'
         )
       })}
 
+      {/* Bonus Items — separate confirmed "بونص شرائح" section (D-O8: base price only, never discounted) */}
+      {bonusMode && bonusItems.length > 0 && (
+        <div className="bg-violet-50 border border-violet-200 rounded-xl overflow-hidden">
+          <div className="px-4 py-2.5 bg-violet-500 text-white flex items-center justify-between">
+            <h3 className="text-sm font-bold">بونص شرائح</h3>
+            <span className="text-xs text-white/80">{bonusItems.length} منتج</span>
+          </div>
+          <div className="divide-y divide-violet-100">
+            {bonusItems.map((item) => (
+              <div key={`bonus-${item.productId}-${item.unitType}`} className="px-4 py-3">
+                <div className="flex gap-3">
+                  <div className="w-16 h-16 rounded-lg bg-white border border-border shrink-0 overflow-hidden">
+                    {item.imageUrl ? (
+                      <img src={item.imageUrl} alt={item.productName} className="w-full h-full object-contain" />
+                    ) : (
+                      <div className="w-full h-full bg-surface flex items-center justify-center">
+                        <span className="text-xs text-text-secondary">صورة</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex-1 min-w-0 space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-sm font-semibold text-text leading-tight truncate">{item.productName}</h4>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 shrink-0">
+                        بونص شرائح
+                      </span>
+                    </div>
+                    <div className="text-xs text-text-secondary">
+                      {UNIT_LABELS[item.unitType]} &middot; {formatCurrencyShort(item.unitPrice)} للوحدة
+                    </div>
+                    <div className="text-xs text-text-secondary">
+                      {formatNumber(item.pieceQuantity)} قطعة
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col items-end justify-between">
+                    <span className="text-sm font-bold text-text">{formatCurrencyShort(item.totalPrice)}</span>
+                    <div className="flex items-center gap-2 mt-1">
+                      <button
+                        onClick={() => updateBonusQuantity(item.productId, item.unitType, Math.max(0, item.unitQuantity - 1))}
+                        className="w-7 h-7 flex items-center justify-center rounded-lg bg-white border border-border text-text-secondary text-sm active:bg-surface transition-colors"
+                      >
+                        −
+                      </button>
+                      <span className="text-sm font-semibold text-text w-6 text-center">{item.unitQuantity}</span>
+                      <button
+                        onClick={() => updateBonusQuantity(item.productId, item.unitType, item.unitQuantity + 1)}
+                        className="w-7 h-7 flex items-center justify-center rounded-lg bg-white border border-border text-text-secondary text-sm active:bg-surface transition-colors"
+                      >
+                        +
+                      </button>
+                    </div>
+                    <button
+                      onClick={() => removeBonusItem(item.productId, item.unitType)}
+                      className="text-xs text-danger font-semibold mt-1"
+                    >
+                      حذف
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="px-4 py-2.5 border-t border-violet-200 text-violet-700 flex items-center justify-between">
+            <span className="text-xs font-semibold">إجمالي منتجات البونص</span>
+            <span className="text-sm font-bold">{formatCurrencyShort(totals.bonusProductsTotal ?? 0)}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Overflow approval — explicit consent required before the order may continue */}
+      {bonusMode && (totals.bonusOverflow ?? 0) > 0 && (
+        <div className={`rounded-xl border p-4 space-y-2.5 ${bonusOverflowApproved ? 'border-success/25 bg-success/5' : 'border-danger/25 bg-danger/5'}`}>
+          <div className={`flex items-center gap-2 text-sm font-bold ${bonusOverflowApproved ? 'text-success' : 'text-danger'}`}>
+            <span>⚠️</span>
+            {bonusOverflowApproved ? `${BONUS_COPY.overflowApprovedLabel} — ${BONUS_COPY.overflowTitle}` : BONUS_COPY.overflowTitle}
+          </div>
+          <div className="flex justify-between text-sm text-text">
+            <span>{BONUS_COPY.overflowCredit}: {formatCurrencyShort(totals.bonusCredit ?? 0)} جنيه</span>
+          </div>
+          <div className="flex justify-between text-sm text-text">
+            <span>{BONUS_COPY.overflowBonusTotal}: {formatCurrencyShort(totals.bonusProductsTotal ?? 0)} جنيه</span>
+          </div>
+          <p className={`text-xs font-semibold ${bonusOverflowApproved ? 'text-success' : 'text-text-secondary'}`}>
+            {bonusOverflowApproved
+              ? `✓ ${BONUS_COPY.overflowApprovedNote} ${formatCurrencyShort(totals.bonusOverflow ?? 0)} جنيه إلى إجمالي الفاتورة`
+              : `${BONUS_COPY.overflowWillAddPrefix} ${formatCurrencyShort(totals.bonusOverflow ?? 0)} ${BONUS_COPY.overflowWillAddSuffix}`}
+          </p>
+          <div className="flex gap-2 pt-1">
+            <button
+              onClick={() => setBonusOverflowApproved(true)}
+              disabled={bonusOverflowApproved}
+              className="flex-1 py-2.5 rounded-lg bg-success text-white text-xs font-bold hover:opacity-90 transition-opacity active:scale-[0.97] disabled:opacity-60"
+            >
+              {bonusOverflowApproved ? BONUS_COPY.overflowApprovedLabel : BONUS_COPY.overflowApprove}
+            </button>
+            {!bonusOverflowApproved && (
+              <>
+                <button
+                  onClick={() => navigate('/storefront/bonus')}
+                  className="flex-1 py-2.5 rounded-lg bg-white border border-border text-text-secondary text-xs font-bold hover:bg-surface transition-colors active:scale-[0.97]"
+                >
+                  {BONUS_COPY.overflowModify}
+                </button>
+                <button
+                  onClick={() => setBonusOverflowApproved(false)}
+                  className="flex-1 py-2.5 rounded-lg bg-white border border-danger/30 text-danger text-xs font-bold hover:bg-danger/5 transition-colors active:scale-[0.97]"
+                >
+                  {BONUS_COPY.overflowDecline}
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Bonus catalog entry */}
+      {bonusMode && (
+        <button
+          onClick={() => navigate('/storefront/bonus')}
+          className="w-full bg-violet-600 text-white text-sm py-3 rounded-lg font-bold hover:bg-violet-700 transition-colors active:scale-[0.98]"
+        >
+          🎁 {BONUS_COPY.getBonus}
+        </button>
+      )}
+
       {/* Grand Total */}
       <div className="bg-white rounded-xl border border-border p-4 space-y-2.5">
         <div className="text-xs font-bold text-text-secondary">ملخص الطلب</div>
+        {bonusMode ? (
+          <>
+            <div className="flex justify-between text-sm text-text">
+              <span>المنتجات الرئيسية</span>
+              <span className="font-medium">{formatCurrencyShort(totals.mainBaseTotal ?? 0)}</span>
+            </div>
+            {flashOfferItems.length > 0 && (
+              <div className="flex justify-between text-sm text-amber-600">
+                <span>عروض الساعة</span>
+                <span>{formatCurrencyShort(flashOfferItems.reduce((s, o) => s + o.totalPrice, 0))}</span>
+              </div>
+            )}
+            {totals.dealTotal > 0 && (
+              <div className="flex justify-between text-sm text-amber-600">
+                <span>العروض اليومية</span>
+                <span>{formatCurrencyShort(totals.dealTotal)}</span>
+              </div>
+            )}
+            <div className="flex justify-between text-sm text-text">
+              <span>الشريحة</span>
+              <span className="font-medium">{selectedTier ? formatTierName(selectedTier.name) : '—'}</span>
+            </div>
+            <div className="flex justify-between text-sm text-text">
+              <span>الدفع</span>
+              <span className="font-medium">{selectedPaymentMethod?.name ?? '—'}</span>
+            </div>
+            <div className="flex justify-between text-sm text-text">
+              <span>الشحن</span>
+              <span className="font-medium">{selectedShippingMethod?.name ?? '—'}</span>
+            </div>
+            <hr className="border-border" />
+            <div className="flex justify-between text-sm text-text">
+              <span>إجمالي رصيد البونص</span>
+              <span className="font-semibold text-primary">{formatCurrencyShort(totals.bonusCredit ?? 0)}</span>
+            </div>
+            {bonusItems.length > 0 && (
+              <div className="flex justify-between text-sm text-text">
+                <span>منتجات البونص</span>
+                <span className="font-medium">{formatCurrencyShort(totals.bonusProductsTotal ?? 0)}</span>
+              </div>
+            )}
+            <div className="flex justify-between text-sm text-success">
+              <span>المغطى من الرصيد</span>
+              <span className="font-semibold">{formatCurrencyShort(totals.bonusApplied ?? 0)}</span>
+            </div>
+            {(totals.bonusUnused ?? 0) > 0 && (
+              <div className="flex justify-between text-sm text-text-secondary">
+                <span>غير المستخدم</span>
+                <span>{formatCurrencyShort(totals.bonusUnused ?? 0)}</span>
+              </div>
+            )}
+            {(totals.bonusOverflow ?? 0) > 0 && (
+              <div className="flex justify-between text-sm text-danger">
+                <span>الزيادة عن الرصيد</span>
+                <span className="font-semibold">{formatCurrencyShort(totals.bonusOverflow ?? 0)}</span>
+              </div>
+            )}
+            <hr className="border-border" />
+            <div className="flex justify-between text-lg font-extrabold text-text">
+              <span>الإجمالي المستحق</span>
+              <span>{formatCurrencyShort(totals.netTotal)}</span>
+            </div>
+          </>
+        ) : (
+          <>
         <div className="flex justify-between text-sm text-text">
           <span>إجمالي المنتجات (الأساسي)</span>
           <span className="font-medium">{formatCurrencyShort(totals.productBaseSubtotal)}</span>
@@ -459,13 +670,16 @@ const isDirectCustomer = user?.identity_type === 'customer'
           <span>الإجمالي النهائي</span>
           <span>{formatCurrencyShort(totals.netTotal)}</span>
         </div>
+          </>
+        )}
       </div>
 
       {/* Actions */}
       <div className="space-y-2">
         <button
           onClick={handleContinue}
-          disabled={selectedTier !== null && (!totals.meetsTierMinimum || !totals.meetsCompanyRules) && items.length > 0}
+          disabled={(selectedTier !== null && (!totals.meetsTierMinimum || !totals.meetsCompanyRules) && (items.length > 0 || bonusItems.length > 0)) ||
+            (bonusMode && (totals.bonusOverflow ?? 0) > 0 && !bonusOverflowApproved && (items.length > 0 || bonusItems.length > 0))}
           className="w-full bg-primary text-white text-sm py-3 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed active:bg-primary-dark transition-colors"
         >
           متابعة الطلب

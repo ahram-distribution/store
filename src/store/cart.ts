@@ -1,12 +1,14 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { CartItem, CartDealItem, CartTotals, TierConfig, PaymentMethodOption, ShippingMethodOption, ProductWithPrice, UnitType, DailyDealRecord, FlashOfferRecord, TierExceptionLookup } from '../types/storefront'
-import { computeProductPrices, getFinalUnitPrice, getUnitBasePrice, computePieceQuantity, computeCartTotals } from '../engine/pricing'
+import { computeProductPrices, getFinalUnitPrice, getUnitBasePrice, computePieceQuantity, computeCartTotals, round2 } from '../engine/pricing'
+import { computeBonusModeTotals, computeBonusSummary } from '../engine/bonusPricing'
 import { resolveExceptionLookup, type DiscountPricingContext } from '../services/discountOptions'
 import { supabase } from '../lib/supabase'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import toast from 'react-hot-toast'
 import { currentGeoEpoch, getGeographicAdjustmentsForProducts, invalidateGeographicResolutions } from '../services/geographicPricing'
+import { readBonusMode, currentBonusModeEpoch } from '../services/bonusConfig'
 
 let geoRulesChannel: RealtimeChannel | null = null
 let _geoResolveVersion = 0
@@ -45,6 +47,13 @@ interface CartState {
   geoItemEpoch: number
   geoResolveEpoch: number
 
+  bonusMode: boolean
+  bonusEpoch: number
+  bonusItems: CartItem[]
+  bonusCredit: number
+  bonusOverflow: number
+  bonusOverflowApproved: boolean
+
   setTiers: (tiers: TierConfig[]) => void
   setPaymentMethods: (paymentMethods: PaymentMethodOption[]) => void
   setShippingMethods: (shippingMethods: ShippingMethodOption[]) => void
@@ -58,6 +67,11 @@ interface CartState {
   addItem: (product: ProductWithPrice, unitType: UnitType, unitQuantity: number) => void
   removeItem: (productId: string, unitType: UnitType) => void
   updateQuantity: (productId: string, unitType: UnitType, unitQuantity: number) => void
+  addBonusItem: (product: ProductWithPrice, unitType: UnitType, unitQuantity: number) => void
+  removeBonusItem: (productId: string, unitType: UnitType) => void
+  updateBonusQuantity: (productId: string, unitType: UnitType, unitQuantity: number) => void
+  clearBonusItems: () => void
+  setBonusOverflowApproved: (approved: boolean) => void
   addDeal: (deal: DailyDealRecord) => void
   removeDeal: (dealId: string) => void
   addFlashOffer: (offer: FlashOfferRecord) => void
@@ -72,9 +86,11 @@ interface CartState {
   getSelectedShippingMethod: () => ShippingMethodOption | null
   getEffectivePrice: (product: ProductWithPrice, unitType: UnitType) => number
   recalculateAll: () => void
+  recomputeBonus: () => void
   setSelectedCustomer: (customer: CartCustomer | null) => void
   setEditingOrder: (orderId: string | null) => void
   setOrderType: (orderType: string) => void
+  refreshBonusMode: () => Promise<void>
   restoreCart: (items: CartItem[], editingOrderId: string, restoreOrderType?: string, restoreTierId?: string | null, restorePaymentMethodId?: string | null, restoreShippingMethodId?: string | null) => void
   resolveGeographicPricing: (governorateId: string | null, companyId?: string, productId?: string) => Promise<void>
   resolveEmployeeGeographicContext: (employeeId: string) => Promise<void>
@@ -94,7 +110,7 @@ export const useCartStore = create(
        */
       const enforceCartInvariant = () => {
         const s = get()
-        const cartEmpty = s.items.length === 0 && s.dealItems.length === 0 && s.flashOfferItems.length === 0
+        const cartEmpty = s.items.length === 0 && s.dealItems.length === 0 && s.flashOfferItems.length === 0 && s.bonusItems.length === 0
         if (cartEmpty && (s.selectedCustomer || s.orderType || s.selectedTierId || s.selectedPaymentMethodId || s.selectedShippingMethodId)) {
           set({ selectedCustomer: null, orderType: '', selectedTierId: null, selectedPaymentMethodId: null, selectedShippingMethodId: null, editingOrderId: null })
         }
@@ -121,6 +137,34 @@ export const useCartStore = create(
         )
       }
 
+      /**
+       * Reprices ONE bonus line at its geo-adjusted BASE price (D-O8): the only
+       * price a Bonus/Gift product can ever carry. Tier/Payment/Shipping are
+       * computed only for geo-base resolution — never applied to the stored price.
+       */
+      const priceBonusAtBase = (
+        s: ReturnType<typeof get>,
+        item: CartItem,
+        tier: TierConfig | null,
+        payment: PaymentMethodOption | null,
+        shipping: ShippingMethodOption | null
+      ): CartItem => {
+        const product = s.products.find((p) => p.id === item.productId)
+        if (!product) return item
+        const geoAdj = getAdjForProduct(s, item.productId)
+        const prices = computeProductPrices(product, tier, buildLookup(s, product), geoAdj || undefined, payment, shipping)
+        const baseUnitPrice = getUnitBasePrice(prices, item.unitType)
+        const pieceQuantity = computePieceQuantity(item.unitQuantity, item.unitType, product.cartonQuantity)
+        return {
+          ...item,
+          baseUnitPrice: round2(baseUnitPrice),
+          geoAdjustPercent: geoAdj,
+          unitPrice: round2(baseUnitPrice),
+          totalPrice: round2(baseUnitPrice * item.unitQuantity),
+          pieceQuantity,
+        }
+      }
+
       return {
       items: [],
       dealItems: [],
@@ -140,6 +184,12 @@ export const useCartStore = create(
       geoItemAdjustments: {},
       geoItemEpoch: -1,
       geoResolveEpoch: 0,
+      bonusMode: false,
+      bonusEpoch: -1,
+      bonusItems: [],
+      bonusCredit: 0,
+      bonusOverflow: 0,
+      bonusOverflowApproved: false,
 
       setTiers: (tiers) => set({ tiers }),
 
@@ -150,6 +200,7 @@ export const useCartStore = create(
       setDiscountContext: (discountContext) => {
         set({ discountContext })
         get().recalculateAll()
+        get().recomputeBonus()
       },
 
       setProducts: (products) => set({ products }),
@@ -162,21 +213,25 @@ export const useCartStore = create(
           : [...state.products, product]
         set({ products })
         get().recalculateAll()
+        get().recomputeBonus()
       },
 
       selectTier: (tierId) => {
         set({ selectedTierId: tierId })
         get().recalculateAll()
+        get().recomputeBonus()
       },
 
       selectPaymentMethod: (paymentMethodId) => {
         set({ selectedPaymentMethodId: paymentMethodId })
         get().recalculateAll()
+        get().recomputeBonus()
       },
 
       selectShippingMethod: (shippingMethodId) => {
         set({ selectedShippingMethodId: shippingMethodId })
         get().recalculateAll()
+        get().recomputeBonus()
       },
 
       addItem: (product, unitType, unitQuantity) => {
@@ -199,6 +254,8 @@ export const useCartStore = create(
         const prices = computeProductPrices(product, tier, buildLookup(state, product), geoAdj || undefined, payment, shipping)
         const baseUnitPrice = getUnitBasePrice(prices, unitType)
         const finalUnitPrice = getFinalUnitPrice(prices, unitType)
+        const useBase = state.bonusMode
+        const unitPrice = useBase ? baseUnitPrice : finalUnitPrice
         const pieceQuantity = computePieceQuantity(unitQuantity, unitType, product.cartonQuantity)
 
         const existingIndex = state.items.findIndex(
@@ -214,8 +271,8 @@ export const useCartStore = create(
             unitQuantity: newQuantity,
             baseUnitPrice: Math.round(baseUnitPrice * 100) / 100,
             geoAdjustPercent: geoAdj,
-            unitPrice: Math.round(finalUnitPrice * 100) / 100,
-            totalPrice: Math.round(finalUnitPrice * newQuantity * 100) / 100,
+            unitPrice: Math.round(unitPrice * 100) / 100,
+            totalPrice: Math.round(unitPrice * newQuantity * 100) / 100,
             pieceQuantity: pieceQuantity + existing.pieceQuantity,
           }
           set({ items: newItems })
@@ -227,8 +284,8 @@ export const useCartStore = create(
             unitQuantity,
             pieceQuantity,
             baseUnitPrice: Math.round(baseUnitPrice * 100) / 100,
-            unitPrice: Math.round(finalUnitPrice * 100) / 100,
-            totalPrice: Math.round(finalUnitPrice * unitQuantity * 100) / 100,
+            unitPrice: Math.round(unitPrice * 100) / 100,
+            totalPrice: Math.round(unitPrice * unitQuantity * 100) / 100,
             imageUrl: product.imageUrl,
             companyId: product.companyId,
             companyName: product.companyName,
@@ -236,12 +293,14 @@ export const useCartStore = create(
           }
           set({ items: [...state.items, newItem] })
         }
+        get().recomputeBonus()
         toast.success('تمت الإضافة إلى السلة')
       },
 
       removeItem: (productId, unitType) => {
         set({ items: get().items.filter((i) => !(i.productId === productId && i.unitType === unitType)) })
         enforceCartInvariant()
+        get().recomputeBonus()
         toast.success('تمت الإزالة من السلة')
       },
 
@@ -261,6 +320,8 @@ export const useCartStore = create(
         const prices = computeProductPrices(product, tier, buildLookup(state, product), geoAdj || undefined, payment, shipping)
         const baseUnitPrice = getUnitBasePrice(prices, unitType)
         const finalUnitPrice = getFinalUnitPrice(prices, unitType)
+        const useBase = state.bonusMode
+        const unitPrice = useBase ? baseUnitPrice : finalUnitPrice
         const pieceQuantity = computePieceQuantity(unitQuantity, unitType, product.cartonQuantity)
 
         set({
@@ -272,12 +333,137 @@ export const useCartStore = create(
                   pieceQuantity,
                   baseUnitPrice: Math.round(baseUnitPrice * 100) / 100,
                   geoAdjustPercent: geoAdj,
-                  unitPrice: Math.round(finalUnitPrice * 100) / 100,
-                  totalPrice: Math.round(finalUnitPrice * unitQuantity * 100) / 100,
+                  unitPrice: Math.round(unitPrice * 100) / 100,
+                  totalPrice: Math.round(unitPrice * unitQuantity * 100) / 100,
                 }
               : item
           ),
         })
+        get().recomputeBonus()
+      },
+
+      addBonusItem: (product, unitType, unitQuantity) => {
+        const state = get()
+        if (!state.bonusMode) return
+        if (!product.isActive || product.isOutOfStock) {
+          toast.error('هذا المنتج غير متوفر حالياً')
+          return
+        }
+
+        const hasUnit = product.unitPrices.some((u) => u.unitType === unitType)
+        if (!hasUnit) {
+          toast.error('وحدة القياس المحددة غير متوفرة لهذا المنتج')
+          return
+        }
+
+        const tier = state.getSelectedTier()
+        const payment = state.getSelectedPaymentMethod()
+        const shipping = state.getSelectedShippingMethod()
+        const prices = computeProductPrices(product, tier, buildLookup(state, product), getAdjForProduct(state, product.id) || undefined, payment, shipping)
+        const baseUnitPrice = getUnitBasePrice(prices, unitType)
+        const geoAdj = getAdjForProduct(state, product.id)
+        const pieceQuantity = computePieceQuantity(unitQuantity, unitType, product.cartonQuantity)
+
+        const existingIndex = state.bonusItems.findIndex(
+          (i) => i.productId === product.id && i.unitType === unitType
+        )
+
+        if (existingIndex >= 0) {
+          const existing = state.bonusItems[existingIndex]
+          const newQuantity = existing.unitQuantity + unitQuantity
+          const newBonus = [...state.bonusItems]
+          newBonus[existingIndex] = {
+            ...existing,
+            unitQuantity: newQuantity,
+            baseUnitPrice: Math.round(baseUnitPrice * 100) / 100,
+            geoAdjustPercent: geoAdj,
+            unitPrice: Math.round(baseUnitPrice * 100) / 100,
+            totalPrice: Math.round(baseUnitPrice * newQuantity * 100) / 100,
+            pieceQuantity: pieceQuantity + existing.pieceQuantity,
+          }
+          set({ bonusItems: newBonus, bonusOverflowApproved: false })
+        } else {
+          const newItem: CartItem = {
+            productId: product.id,
+            productName: product.productName,
+            unitType,
+            unitQuantity,
+            pieceQuantity,
+            baseUnitPrice: Math.round(baseUnitPrice * 100) / 100,
+            unitPrice: Math.round(baseUnitPrice * 100) / 100,
+            totalPrice: Math.round(baseUnitPrice * unitQuantity * 100) / 100,
+            imageUrl: product.imageUrl,
+            companyId: product.companyId,
+            companyName: product.companyName,
+            geoAdjustPercent: geoAdj,
+            isBonus: true,
+          }
+          set({ bonusItems: [...state.bonusItems, newItem] })
+        }
+        get().recomputeBonus()
+        toast.success('تمت إضافة منتج البونص إلى السلة')
+      },
+
+      removeBonusItem: (productId, unitType) => {
+        const hadItem = get().bonusItems.some((i) => i.productId === productId && i.unitType === unitType)
+        set({
+          bonusItems: get().bonusItems.filter((i) => !(i.productId === productId && i.unitType === unitType)),
+          ...(hadItem && get().bonusOverflowApproved ? { bonusOverflowApproved: false } : {}),
+        })
+        get().recomputeBonus()
+      },
+
+      updateBonusQuantity: (productId, unitType, unitQuantity) => {
+        if (unitQuantity <= 0) {
+          get().removeBonusItem(productId, unitType)
+          return
+        }
+        const state = get()
+        const item = state.bonusItems.find((i) => i.productId === productId && i.unitType === unitType)
+        if (!item) return
+        const product = state.products.find((p) => p.id === productId)
+        if (!product) return
+
+        const tier = state.getSelectedTier()
+        const payment = state.getSelectedPaymentMethod()
+        const shipping = state.getSelectedShippingMethod()
+        const prices = computeProductPrices(product, tier, buildLookup(state, product), getAdjForProduct(state, product.id) || undefined, payment, shipping)
+        const baseUnitPrice = getUnitBasePrice(prices, unitType)
+        const geoAdj = getAdjForProduct(state, product.id)
+        const pieceQuantity = computePieceQuantity(unitQuantity, unitType, product.cartonQuantity)
+
+        set({
+          bonusItems: state.bonusItems.map((i) =>
+            i.productId === productId && i.unitType === unitType
+              ? {
+                  ...i,
+                  unitQuantity,
+                  pieceQuantity,
+                  baseUnitPrice: Math.round(baseUnitPrice * 100) / 100,
+                  geoAdjustPercent: geoAdj,
+                  unitPrice: Math.round(baseUnitPrice * 100) / 100,
+                  totalPrice: Math.round(baseUnitPrice * unitQuantity * 100) / 100,
+                }
+              : i
+          ),
+          bonusOverflowApproved: false,
+        })
+        get().recomputeBonus()
+      },
+
+      clearBonusItems: () => {
+        set({ bonusItems: [], bonusCredit: 0, bonusOverflow: 0, bonusOverflowApproved: false })
+      },
+
+      setBonusOverflowApproved: (approved) => {
+        const state = get()
+        if (!state.bonusMode) {
+          if (state.bonusOverflowApproved) set({ bonusOverflowApproved: false })
+          return
+        }
+        if (approved && (state.bonusOverflow ?? 0) <= 0) return
+        if (state.bonusOverflowApproved === approved) return
+        set({ bonusOverflowApproved: approved })
       },
 
       addDeal: (deal) => {
@@ -337,8 +523,9 @@ export const useCartStore = create(
        * Used for recovery and continuing the same order after accidental refresh.
        */
       clearCart: () => {
-        set({ items: [], dealItems: [], flashOfferItems: [] })
+        set({ items: [], dealItems: [], flashOfferItems: [], bonusItems: [] })
         enforceCartInvariant()
+        get().recomputeBonus()
       },
 
       /**
@@ -358,6 +545,10 @@ export const useCartStore = create(
           items: [],
           dealItems: [],
           flashOfferItems: [],
+          bonusItems: [],
+          bonusCredit: 0,
+          bonusOverflow: 0,
+          bonusOverflowApproved: false,
           selectedCustomer: null,
           orderType: '',
           selectedTierId: null,
@@ -382,6 +573,18 @@ export const useCartStore = create(
             const lookup = buildLookup(state, item)
             if (lookup !== undefined) exceptionsByProduct[item.productId] = lookup
           }
+        }
+        if (state.bonusMode) {
+          return computeBonusModeTotals(
+            [...state.items, ...state.bonusItems],
+            tier,
+            state.dealItems,
+            state.flashOfferItems,
+            undefined,
+            payment,
+            shipping,
+            exceptionsByProduct
+          )
         }
         return computeCartTotals(state.items, tier, state.dealItems, state.flashOfferItems, undefined, payment, shipping, exceptionsByProduct)
       },
@@ -411,7 +614,7 @@ export const useCartStore = create(
         const shipping = state.getSelectedShippingMethod()
         const geoAdj = getAdjForProduct(state, product.id)
         const prices = computeProductPrices(product, tier, buildLookup(state, product), geoAdj || undefined, payment, shipping)
-        return getFinalUnitPrice(prices, unitType)
+        return state.bonusMode ? getUnitBasePrice(prices, unitType) : getFinalUnitPrice(prices, unitType)
       },
 
       recalculateAll: () => {
@@ -419,6 +622,7 @@ export const useCartStore = create(
         const tier = state.getSelectedTier()
         const payment = state.getSelectedPaymentMethod()
         const shipping = state.getSelectedShippingMethod()
+        const useBase = state.bonusMode
         const newItems = state.items.map((item) => {
           const product = state.products.find((p) => p.id === item.productId)
           if (!product) return item
@@ -426,20 +630,76 @@ export const useCartStore = create(
           const prices = computeProductPrices(product, tier, buildLookup(state, product), geoAdj || undefined, payment, shipping)
           const baseUnitPrice = getUnitBasePrice(prices, item.unitType)
           const finalUnitPrice = getFinalUnitPrice(prices, item.unitType)
+          const unitPrice = useBase ? baseUnitPrice : finalUnitPrice
           const pieceQuantity = computePieceQuantity(item.unitQuantity, item.unitType, product.cartonQuantity)
           return {
             ...item,
             baseUnitPrice: Math.round(baseUnitPrice * 100) / 100,
             geoAdjustPercent: geoAdj,
-            unitPrice: Math.round(finalUnitPrice * 100) / 100,
-            totalPrice: Math.round(finalUnitPrice * item.unitQuantity * 100) / 100,
+            unitPrice: Math.round(unitPrice * 100) / 100,
+            totalPrice: Math.round(unitPrice * item.unitQuantity * 100) / 100,
             pieceQuantity,
           }
         })
-        set({ items: newItems })
+        const newBonusItems = state.bonusItems.map((item) => priceBonusAtBase(state, item, tier, payment, shipping))
+        set({ items: newItems, bonusItems: newBonusItems })
+        get().recomputeBonus()
       },
 
-      setSelectedCustomer: (customer) => set({ selectedCustomer: customer }),
+      recomputeBonus: () => {
+        const state = get()
+        if (!state.bonusMode) {
+          if (state.bonusCredit !== 0 || state.bonusOverflow !== 0) {
+            set({ bonusCredit: 0, bonusOverflow: 0 })
+          }
+          return
+        }
+        const tier = state.getSelectedTier()
+        const payment = state.getSelectedPaymentMethod()
+        const shipping = state.getSelectedShippingMethod()
+        const exceptionsByProduct: Record<string, TierExceptionLookup | null> = {}
+        if (state.discountContext) {
+          for (const item of state.items) {
+            const lookup = buildLookup(state, item)
+            if (lookup !== undefined) exceptionsByProduct[item.productId] = lookup
+          }
+        }
+        const summary = computeBonusSummary(
+          state.items,
+          state.bonusItems,
+          tier,
+          payment,
+          shipping,
+          undefined,
+          exceptionsByProduct
+        )
+        if (summary.bonusOverflow <= 0 && state.bonusOverflowApproved) {
+          set({ bonusCredit: summary.totalBonusCredit, bonusOverflow: summary.bonusOverflow, bonusOverflowApproved: false })
+        } else {
+          set({ bonusCredit: summary.totalBonusCredit, bonusOverflow: summary.bonusOverflow })
+        }
+      },
+
+      refreshBonusMode: async () => {
+        const enabled = await readBonusMode()
+        const state = get()
+        const epochNow = currentBonusModeEpoch()
+        const old = state.bonusMode
+        if (old === enabled && state.bonusEpoch === epochNow) return
+        set({ bonusMode: enabled, bonusEpoch: epochNow })
+        if (old !== enabled) {
+          if (!enabled) {
+            set({ bonusItems: [], bonusCredit: 0, bonusOverflow: 0, bonusOverflowApproved: false })
+          }
+          get().recalculateAll()
+          get().recomputeBonus()
+        }
+      },
+
+      setSelectedCustomer: (customer) => {
+        set({ selectedCustomer: customer })
+        get().recomputeBonus()
+      },
 
       setEditingOrder: (orderId) => set({ editingOrderId: orderId }),
 
@@ -623,7 +883,7 @@ export const useCartStore = create(
 
       restoreCart: (orderItems, editingOrderId, restoreOrderType, restoreTierId, restorePaymentMethodId, restoreShippingMethodId) => {
         const state = get()
-        const items: CartItem[] = orderItems.map((i: any) => {
+        const mapped: CartItem[] = orderItems.map((i: any) => {
           const product = state.products.find(p => p.id === i.product_id)
           return {
             productId: i.product_id,
@@ -636,18 +896,23 @@ export const useCartStore = create(
             totalPrice: i.total_price,
             imageUrl: i.image_url || undefined,
             note: i.note || undefined,
-            companyId: product?.companyId,
-            companyName: product?.companyName,
+            companyId: product?.companyId ?? i.company_id,
+            companyName: product?.companyName ?? i.company_name,
+            isBonus: i.is_bonus === true,
           }
         })
+        const items = mapped.filter((i) => !i.isBonus)
+        const bonusItems = state.bonusMode ? mapped.filter((i) => i.isBonus) : []
         set({
           items,
+          bonusItems,
           editingOrderId,
           orderType: restoreOrderType || '',
           selectedTierId: restoreTierId !== undefined ? restoreTierId : state.selectedTierId,
           selectedPaymentMethodId: restorePaymentMethodId !== undefined ? restorePaymentMethodId : state.selectedPaymentMethodId,
           selectedShippingMethodId: restoreShippingMethodId !== undefined ? restoreShippingMethodId : state.selectedShippingMethodId,
         })
+        get().recomputeBonus()
       },
 
       getDealItems: () => get().dealItems,

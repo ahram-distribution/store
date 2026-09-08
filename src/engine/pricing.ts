@@ -158,6 +158,63 @@ function round2(n: number): number {
   return Math.round(n * 100) / 100
 }
 
+/**
+ * Company diversification rules (minimum distinct companies + per-company % cap),
+ * evaluated over a given item set and a base subtotal. Exact same logic as the
+ * block historically inlined in computeCartTotals — extracted so the bonus engine
+ * can evaluate it against MAIN products only (spec §24.2: bonus items never count).
+ */
+export function computeCompanyRuleResult(
+  items: CartItem[],
+  tier: TierConfig | null,
+  baseSubtotal: number
+): { companyRule: CompanyRuleResult | null; meetsCompanyRules: boolean } {
+  const minCompanyCount = tier?.minimumCompanyCount ?? null
+  const maxCompanyPct = tier?.maxCompanyPurchasePercent ?? null
+  const hasCompanyRules = minCompanyCount !== null || maxCompanyPct !== null
+
+  if (!hasCompanyRules) return { companyRule: null, meetsCompanyRules: true }
+
+  const companyMap = new Map<string, { value: number; companyName: string }>()
+  for (const item of items) {
+    const cid = item.companyId || ''
+    const entry = companyMap.get(cid)
+    const itemBase =
+      typeof item.baseUnitPrice === 'number' && item.baseUnitPrice >= 0
+        ? item.baseUnitPrice * item.unitQuantity
+        : item.totalPrice
+    if (entry) {
+      entry.value += itemBase
+    } else {
+      companyMap.set(cid, { value: itemBase, companyName: item.companyName || '' })
+    }
+  }
+
+  const distinctCompanyCount = companyMap.size
+  const meetsMinimumCompanies = minCompanyCount === null || distinctCompanyCount >= minCompanyCount
+
+  const companies = Array.from(companyMap.entries()).map(([companyId, { value, companyName }]) => {
+    const percent = baseSubtotal > 0 ? (value / baseSubtotal) * 100 : 0
+    const exceedsCap = maxCompanyPct !== null && percent > maxCompanyPct + 0.0001
+    return { companyId, companyName, value: round2(value), percent: round2(percent), maxPercent: maxCompanyPct, exceedsCap }
+  })
+
+  const meetsCompanyCaps = maxCompanyPct === null || companies.every((c) => !c.exceedsCap)
+
+  const meetsCompanyRules = meetsMinimumCompanies && meetsCompanyCaps
+
+  const companyRule: CompanyRuleResult = {
+    minimumCompanyCount: minCompanyCount,
+    maxCompanyPurchasePercent: maxCompanyPct,
+    distinctCompanyCount,
+    meetsMinimumCompanies,
+    meetsCompanyCaps,
+    companies,
+  }
+
+  return { companyRule, meetsCompanyRules }
+}
+
 export function computeCartTotals(
   items: CartItem[],
   tier: TierConfig | null,
@@ -221,44 +278,7 @@ export function computeCartTotals(
   const remainingForMinimum = meetsTierMinimum ? 0 : Math.max(0, tierMinimum - productBaseSubtotal)
 
   // ── Company diversification rules ──────────────────────────────────────
-  const minCompanyCount = tier?.minimumCompanyCount ?? null
-  const maxCompanyPct = tier?.maxCompanyPurchasePercent ?? null
-  const hasCompanyRules = minCompanyCount !== null || maxCompanyPct !== null
-
-  let companyRule: CompanyRuleResult | null = null
-  let meetsCompanyRules = true
-
-  if (hasCompanyRules) {
-    const companyMap = new Map<string, { value: number; companyName: string }>()
-    for (const item of items) {
-      const cid = item.companyId || ''
-      const entry = companyMap.get(cid)
-      const itemBase =
-        typeof item.baseUnitPrice === 'number' && item.baseUnitPrice >= 0
-          ? item.baseUnitPrice * item.unitQuantity
-          : item.totalPrice
-      if (entry) {
-        entry.value += itemBase
-      } else {
-        companyMap.set(cid, { value: itemBase, companyName: item.companyName || '' })
-      }
-    }
-
-    const distinctCompanyCount = companyMap.size
-    const meetsMinimumCompanies = minCompanyCount === null || distinctCompanyCount >= minCompanyCount
-
-    const companies = Array.from(companyMap.entries()).map(([companyId, { value, companyName }]) => {
-      const percent = productBaseSubtotal > 0 ? (value / productBaseSubtotal) * 100 : 0
-      const exceedsCap = maxCompanyPct !== null && percent > maxCompanyPct + 0.0001
-      return { companyId, companyName, value: round2(value), percent: round2(percent), maxPercent: maxCompanyPct, exceedsCap }
-    })
-
-    const meetsCompanyCaps = maxCompanyPct === null || companies.every((c) => !c.exceedsCap)
-
-    meetsCompanyRules = meetsMinimumCompanies && meetsCompanyCaps
-
-    companyRule = { minimumCompanyCount: minCompanyCount, maxCompanyPurchasePercent: maxCompanyPct, distinctCompanyCount, meetsMinimumCompanies, meetsCompanyCaps, companies }
-  }
+  const { companyRule, meetsCompanyRules } = computeCompanyRuleResult(items, tier, productBaseSubtotal)
 
   return {
     subtotal,

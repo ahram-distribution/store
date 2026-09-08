@@ -18,6 +18,7 @@ interface DiscountOptionSelectorProps {
   showMinimum?: boolean
   baseAmount?: number
   hideTitle?: boolean
+  bonusMode?: boolean
 }
 
 function displayName(name: string): string {
@@ -38,6 +39,7 @@ export function DiscountOptionSelector({
   showMinimum,
   baseAmount,
   hideTitle,
+  bonusMode,
 }: DiscountOptionSelectorProps) {
   if (options.length === 0) return null
 
@@ -69,7 +71,7 @@ export function DiscountOptionSelector({
           </span>
           <span className="flex-1 min-w-0">
             <span className="block text-sm font-semibold text-text truncate">{noneLabel}</span>
-            <span className="block text-[11px] text-text-secondary mt-0.5">بدون خصم</span>
+            <span className="block text-[11px] text-text-secondary mt-0.5">{bonusMode ? 'بدون بونص' : 'بدون خصم'}</span>
           </span>
         </button>
 
@@ -102,17 +104,17 @@ export function DiscountOptionSelector({
                 <span className="flex items-center gap-2 mt-1 flex-wrap">
                   {option.discountPercent > 0 ? (
                     <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-success/10 text-success">
-                      خصم {percentText(option.discountPercent)}%
+                      {bonusMode ? `بونص ${percentText(option.discountPercent)}%` : `خصم ${percentText(option.discountPercent)}%`}
                     </span>
                   ) : (
-                    <span className="text-[11px] text-text-secondary">بدون خصم</span>
+                    <span className="text-[11px] text-text-secondary">{bonusMode ? 'بدون بونص' : 'بدون خصم'}</span>
                   )}
                   {showMinimum && option.minimumOrderAmount !== undefined && option.minimumOrderAmount > 0 && (
                     <span className="text-[11px] text-text-secondary">
                       الحد الأدنى: {formatArabicAmountWithCurrency(option.minimumOrderAmount)}
                     </span>
                   )}
-                  {baseAmount !== undefined && baseAmount > 0 && option.discountPercent > 0 && (
+                  {!bonusMode && baseAmount !== undefined && baseAmount > 0 && option.discountPercent > 0 && (
                     <span className="text-[11px] text-success/90">
                       ≈ {formatCurrencyShort(Math.round(actualValue(option.discountPercent) * 100) / 100)}
                     </span>

@@ -42,7 +42,7 @@ export function OrderReviewPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const orderType = useCartStore((s) => s.orderType)
-  const { items, dealItems, flashOfferItems, products, getSelectedTier, getSelectedPaymentMethod, getSelectedShippingMethod, getTotals, resetOrderContext, selectedCustomer, editingOrderId } = useCartStore()
+  const { items, dealItems, flashOfferItems, products, getSelectedTier, getSelectedPaymentMethod, getSelectedShippingMethod, getTotals, resetOrderContext, selectedCustomer, editingOrderId, bonusMode, bonusItems, bonusOverflowApproved, geographicContext } = useCartStore()
   const user = useAuthStore((s) => s.user)
   const [submitting, setSubmitting] = useState(false)
 
@@ -52,7 +52,7 @@ export function OrderReviewPage() {
   const totals = getTotals()
   const [availabilityByItem, setAvailabilityByItem] = useState<Record<string, AvailabilityResult>>({})
 
-  const cartEmpty = items.length === 0 && dealItems.length === 0 && flashOfferItems.length === 0
+  const cartEmpty = items.length === 0 && dealItems.length === 0 && flashOfferItems.length === 0 && bonusItems.length === 0
 
   useEffect(() => {
     if (cartEmpty) navigate('/cart')
@@ -98,7 +98,7 @@ export function OrderReviewPage() {
   }
 
   const handleSubmit = async () => {
-    const blockedItem = items.find((item) => {
+    const blockedItem = [...items, ...bonusItems].find((item) => {
       const product = products.find((p) => p.id === item.productId)
       return product && (!product.isActive || product.isOutOfStock)
     })
@@ -125,6 +125,12 @@ export function OrderReviewPage() {
       return
     }
 
+    if (bonusMode && (totals.bonusOverflow ?? 0) > 0 && !bonusOverflowApproved) {
+      toast.error('لم تتم الموافقة على الزيادة عن رصيد البونص. يرجى الموافقة عليها في سلة التسوق.')
+      navigate('/cart')
+      return
+    }
+
     const token = getToken()
     if (!token) {
       toast.error('يجب تسجيل الدخول أولاً')
@@ -145,13 +151,27 @@ export function OrderReviewPage() {
 
     let order: any = null
     try {
-      const orderItems = items.map((item) => ({
+      const orderItems = items.map((item) => {
+        const base = {
+          product_id: item.productId,
+          unit_type: item.unitType,
+          unit_quantity: item.unitQuantity,
+          piece_quantity: item.pieceQuantity,
+          unit_price: Math.round(item.unitPrice * 100) / 100,
+          total_price: Math.round(item.totalPrice * 100) / 100,
+        }
+        if (!bonusMode) return base
+        const baseUnitPrice = Math.round((item.baseUnitPrice >= 0 ? item.baseUnitPrice : item.unitPrice) * 100) / 100
+        return { ...base, base_unit_price: baseUnitPrice }
+      })
+
+      const bonusItemsPayload = bonusItems.map((item) => ({
         product_id: item.productId,
         unit_type: item.unitType,
         unit_quantity: item.unitQuantity,
         piece_quantity: item.pieceQuantity,
+        base_unit_price: Math.round((item.baseUnitPrice >= 0 ? item.baseUnitPrice : item.unitPrice) * 100) / 100,
         unit_price: Math.round(item.unitPrice * 100) / 100,
-        total_price: Math.round(item.totalPrice * 100) / 100,
       }))
 
       if (editingOrderId) {
@@ -204,6 +224,20 @@ export function OrderReviewPage() {
           p_order_type: orderType || 'cash',
           p_payment_method_option_id: selectedPaymentMethod?.id || null,
           p_shipping_method_option_id: selectedShippingMethod?.id || null,
+          ...(bonusMode
+            ? {
+                p_bonus_items: bonusItemsPayload,
+                p_bonus_mode_used: true,
+                p_bonus_credit: Math.round(totals.bonusCredit * 100) / 100,
+                p_bonus_products_total: Math.round(totals.bonusProductsTotal * 100) / 100,
+                p_bonus_applied: Math.round(totals.bonusApplied * 100) / 100,
+                p_bonus_unused: Math.round(totals.bonusUnused * 100) / 100,
+                p_bonus_overflow: Math.round(totals.bonusOverflow * 100) / 100,
+                p_main_base_total: Math.round(totals.mainBaseTotal * 100) / 100,
+                p_bonus_overflow_approved: bonusOverflowApproved,
+                p_bonus_governorate_id: geographicContext?.governorateId || null,
+              }
+            : {}),
         })
         if (createError) { toast.error('تعذر تجهيز الطلب للإرسال. يرجى المحاولة مرة أخرى.'); setSubmitting(false); return }
         if (!created) { toast.error('تعذر تجهيز الطلب للإرسال. يرجى المحاولة مرة أخرى.'); setSubmitting(false); return }
@@ -400,7 +434,137 @@ export function OrderReviewPage() {
         </div>
       )}
 
-      <div className="bg-white rounded-xl border border-border p-4 space-y-2">
+      {/* Block 2 — Entitlement (رصيد بونص الشرائح) breakdown */}
+      {bonusMode && (
+        <div className="bg-violet-50 border border-violet-200 rounded-xl overflow-hidden">
+          <div className="px-4 py-2.5 bg-violet-500 text-white flex items-center justify-between">
+            <h3 className="text-sm font-bold">رصيد بونص الشرائح</h3>
+            <span className="text-xs text-white/85">الخصم الفعلي</span>
+          </div>
+          <div className="divide-y divide-violet-100">
+            <div className="px-4 py-2.5 flex items-center justify-between text-sm">
+              <span className="text-text-secondary">الشريحة ({selectedTier ? formatTierName(selectedTier.name) : '—'})</span>
+              <span className="font-semibold text-violet-700">{formatCurrencyShort(totals.bonusSummary?.tierCredit ?? 0)}</span>
+            </div>
+            <div className="px-4 py-2.5 flex items-center justify-between text-sm">
+              <span className="text-text-secondary">طريقة الدفع ({selectedPaymentMethod?.name ?? '—'})</span>
+              <span className="font-semibold text-violet-700">{formatCurrencyShort(totals.bonusSummary?.paymentCredit ?? 0)}</span>
+            </div>
+            <div className="px-4 py-2.5 flex items-center justify-between text-sm">
+              <span className="text-text-secondary">طريقة الشحن ({selectedShippingMethod?.name ?? '—'})</span>
+              <span className="font-semibold text-violet-700">{formatCurrencyShort(totals.bonusSummary?.shippingCredit ?? 0)}</span>
+            </div>
+          </div>
+          <div className="px-4 py-2.5 border-t border-violet-200 text-violet-700 flex items-center justify-between">
+            <span className="text-xs font-semibold">إجمالي رصيد البونص</span>
+            <span className="text-sm font-bold">{formatCurrencyShort(totals.bonusCredit ?? 0)}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Block 3 — Bonus products (منتجات البونص) */}
+      {bonusMode && bonusItems.length > 0 && (
+        <div className="bg-violet-50 border border-violet-200 rounded-xl overflow-hidden">
+          <div className="px-4 py-2.5 bg-violet-500 text-white">
+            <h3 className="text-sm font-bold">بونص شرائح ({bonusItems.length})</h3>
+          </div>
+          <div className="divide-y divide-violet-100">
+            {bonusItems.map((item) => (
+              <div key={`bonus-${item.productId}-${item.unitType}`} className="px-4 py-3 flex items-center gap-3">
+                <div className="w-12 h-12 rounded-lg bg-white border border-violet-200 shrink-0 overflow-hidden">
+                  {item.imageUrl ? (
+                    <img src={item.imageUrl} alt={item.productName} className="w-full h-full object-contain" />
+                  ) : (
+                    <div className="w-full h-full bg-white flex items-center justify-center">
+                      <span className="text-sm">🎁</span>
+                    </div>
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h4 className="text-sm font-semibold text-text leading-tight truncate">{item.productName}</h4>
+                  <div className="text-xs text-text-secondary">
+                    {item.unitQuantity} {UNIT_LABELS[item.unitType]} &middot; {formatCurrencyShort(item.unitPrice)} للوحدة
+                  </div>
+                </div>
+                <span className="text-sm font-bold text-violet-700">{formatCurrencyShort(item.totalPrice)}</span>
+              </div>
+            ))}
+          </div>
+          <div className="px-4 py-2.5 border-t border-violet-200 text-violet-700 flex items-center justify-between">
+            <span className="text-xs font-semibold">إجمالي منتجات البونص</span>
+            <span className="text-sm font-bold">{formatCurrencyShort(totals.bonusProductsTotal ?? 0)}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Block 4 — Totals */}
+      <div className="bg-white rounded-xl border border-border p-4 space-y-2.5">
+        <div className="text-xs font-bold text-text-secondary">ملخص الطلب</div>
+        {bonusMode ? (
+          <>
+            <div className="flex justify-between text-sm text-text">
+              <span>المنتجات الرئيسية</span>
+              <span className="font-medium">{formatCurrencyShort(totals.mainBaseTotal ?? 0)}</span>
+            </div>
+            {flashOfferItems.length > 0 && (
+              <div className="flex justify-between text-sm text-amber-600">
+                <span>عروض الساعة</span>
+                <span>{formatCurrencyShort(flashOfferItems.reduce((s, o) => s + o.totalPrice, 0))}</span>
+              </div>
+            )}
+            {totals.dealTotal > 0 && (
+              <div className="flex justify-between text-sm text-amber-600">
+                <span>العروض اليومية</span>
+                <span>{formatCurrencyShort(totals.dealTotal)}</span>
+              </div>
+            )}
+            <div className="flex justify-between text-sm text-text">
+              <span>الشريحة</span>
+              <span className="font-medium">{selectedTier ? formatTierName(selectedTier.name) : '—'}</span>
+            </div>
+            <div className="flex justify-between text-sm text-text">
+              <span>الدفع</span>
+              <span className="font-medium">{selectedPaymentMethod?.name ?? '—'}</span>
+            </div>
+            <div className="flex justify-between text-sm text-text">
+              <span>الشحن</span>
+              <span className="font-medium">{selectedShippingMethod?.name ?? '—'}</span>
+            </div>
+            <hr className="border-border" />
+            <div className="flex justify-between text-sm text-text">
+              <span>إجمالي رصيد البونص</span>
+              <span className="font-semibold text-primary">{formatCurrencyShort(totals.bonusCredit ?? 0)}</span>
+            </div>
+            {bonusItems.length > 0 && (
+              <div className="flex justify-between text-sm text-text">
+                <span>منتجات البونص</span>
+                <span className="font-medium">{formatCurrencyShort(totals.bonusProductsTotal ?? 0)}</span>
+              </div>
+            )}
+            <div className="flex justify-between text-sm text-success">
+              <span>المغطى من الرصيد</span>
+              <span className="font-semibold">{formatCurrencyShort(totals.bonusApplied ?? 0)}</span>
+            </div>
+            {(totals.bonusUnused ?? 0) > 0 && (
+              <div className="flex justify-between text-sm text-text-secondary">
+                <span>غير المستخدم</span>
+                <span>{formatCurrencyShort(totals.bonusUnused ?? 0)}</span>
+              </div>
+            )}
+            {(totals.bonusOverflow ?? 0) > 0 && (
+              <div className="flex justify-between text-sm text-danger">
+                <span>الزيادة عن الرصيد</span>
+                <span className="font-semibold">{formatCurrencyShort(totals.bonusOverflow ?? 0)}</span>
+              </div>
+            )}
+            <hr className="border-border" />
+            <div className="flex justify-between text-lg font-extrabold text-text">
+              <span>الإجمالي المستحق</span>
+              <span>{formatCurrencyShort(totals.netTotal)}</span>
+            </div>
+          </>
+        ) : (
+          <>
         <div className="flex justify-between text-sm text-text-secondary">
           <span>إجمالي المنتجات (الأساسي)</span>
           <span>{formatCurrencyShort(totals.productBaseSubtotal)}</span>
@@ -440,6 +604,8 @@ export function OrderReviewPage() {
           <span>الإجمالي النهائي</span>
           <span>{formatCurrencyShort(totals.netTotal)}</span>
         </div>
+          </>
+        )}
       </div>
 
       <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
@@ -454,7 +620,7 @@ export function OrderReviewPage() {
 
       <button
         onClick={handleSubmit}
-        disabled={submitting || (selectedTier !== null && (!totals.meetsTierMinimum || !totals.meetsCompanyRules))}
+        disabled={submitting || (selectedTier !== null && (!totals.meetsTierMinimum || !totals.meetsCompanyRules)) || (bonusMode && (totals.bonusOverflow ?? 0) > 0 && !bonusOverflowApproved)}
         className="w-full bg-success text-white text-sm py-3 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed active:opacity-90 transition-colors"
       >
         {submitting ? 'جاري الإرسال...' : 'تأكيد وإرسال الطلب'}

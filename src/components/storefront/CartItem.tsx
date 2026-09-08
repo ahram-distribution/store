@@ -7,16 +7,26 @@ interface CartItemProps {
   item: CartItemType
   onUpdateQuantity: (productId: string, unitType: string, quantity: number) => void
   onRemove: (productId: string, unitType: string) => void
+  bonusMode?: boolean
 }
 
-export function CartItem({ item, onUpdateQuantity, onRemove }: CartItemProps) {
+export function CartItem({ item, onUpdateQuantity, onRemove, bonusMode }: CartItemProps) {
+  const showBasePrice = bonusMode || (typeof item.baseUnitPrice === 'number' && item.baseUnitPrice > item.unitPrice)
+
   return (
     <div className="bg-white rounded-lg border border-border p-3 flex items-center gap-3">
       <div className="flex-1 min-w-0">
-        <h4 className="text-sm font-medium text-text truncate">{item.productName}</h4>
+        <div className="flex items-center gap-2">
+          <h4 className="text-sm font-medium text-text truncate">{item.productName}</h4>
+          {item.isBonus && (
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 shrink-0">
+              بونص شرائح
+            </span>
+          )}
+        </div>
         <div className="text-xs text-text-secondary mt-0.5">
           {UNIT_LABELS[item.unitType] || item.unitType} &middot;
-          {typeof item.baseUnitPrice === 'number' && item.baseUnitPrice > item.unitPrice ? (
+          {showBasePrice && typeof item.baseUnitPrice === 'number' && item.baseUnitPrice > item.unitPrice ? (
             <>
               <span className="line-through">{formatCurrencyShort(item.baseUnitPrice)}</span>{' '}
               <span className="text-success font-semibold">{formatCurrencyShort(item.unitPrice)}</span> للوحدة
