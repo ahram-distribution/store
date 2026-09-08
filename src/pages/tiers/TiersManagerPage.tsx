@@ -163,6 +163,13 @@ export function TiersManagerPage() {
         map[col.key] = v ?? (col.inputType === 'boolean' ? false : '')
       }
     }
+    if (section === 'tiers') {
+      const rawMinCount = rowVal(row, 'minimum_company_count')
+      const rawMaxPct = rowVal(row, 'max_company_purchase_percent')
+      map._companyCountMode = rawMinCount != null ? 'specific' : 'unlimited'
+      map._minimumCompanyCount = rawMinCount != null ? String(rawMinCount) : ''
+      map._maxCompanyPurchasePercent = rawMaxPct != null ? String(rawMaxPct) : ''
+    }
     setForm(map)
   }
 
@@ -250,6 +257,41 @@ export function TiersManagerPage() {
 
       const { error } = await supabase.rpc(spec.updateRpc, payload)
       if (error) { toast.error(error.message); setSaving(false); return }
+
+      if (section === 'tiers' && selectedId) {
+        const mode = form._companyCountMode || 'unlimited'
+        const countRaw = form._minimumCompanyCount
+        const pctRaw = form._maxCompanyPurchasePercent
+        let companyErr: string | null = null
+
+        if (mode === 'unlimited') {
+          const cr = await supabase.rpc(spec.updateRpc, {
+            p_token: token, p_id: selectedId,
+            p_minimum_company_count: null, p_minimum_company_count_set: true,
+            p_max_company_purchase_percent: null, p_max_company_purchase_percent_set: true,
+          })
+          if (cr.error) companyErr = cr.error.message
+        } else {
+          const countVal = countRaw !== '' && countRaw != null ? Number(countRaw) : null
+          if (countVal == null || !Number.isInteger(countVal) || countVal < 1) {
+            toast.error('الحد الأدنى لعدد الشركات يجب أن يكون عدداً صحيحاً موجباً على الأقل 1')
+            setSaving(false); return
+          }
+          const pctVal = pctRaw !== '' && pctRaw != null ? Number(pctRaw) : null
+          if (pctVal != null && (pctVal <= 0 || pctVal > 100)) {
+            toast.error('الحد الأقصى لكل شركة يجب أن يكون أكبر من 0 وأقل من أو يساوي 100')
+            setSaving(false); return
+          }
+          const cr = await supabase.rpc(spec.updateRpc, {
+            p_token: token, p_id: selectedId,
+            p_minimum_company_count: countVal, p_minimum_company_count_set: true,
+            p_max_company_purchase_percent: pctVal, p_max_company_purchase_percent_set: true,
+          })
+          if (cr.error) companyErr = cr.error.message
+        }
+
+        if (companyErr) { toast.error(companyErr); setSaving(false); return }
+      }
 
       toast.success('تم حفظ التغييرات')
       await refreshRows()
@@ -555,6 +597,64 @@ export function TiersManagerPage() {
             onChange={handleChange}
             readonly={!canManage}
           />
+
+          {section === 'tiers' && (
+            <div className="bg-white rounded-xl border border-border p-3 space-y-3">
+              <div className="text-sm font-bold text-text">شروط تنوع الشركات</div>
+              <div className="text-[11px] text-text-secondary leading-relaxed">
+                تحكم في تنوع مصادر المشتريات ضمن هذه الشريحة. يمكن تحديد الحد الأدنى لعدد الشركات المختلفة التي يجب أن يشتري منها العميل، وأيضاً الحد الأقصى لنسبة مشتريات كل شركة من إجمالي الطلب المؤهل.
+              </div>
+              {canManage && (
+                <div className="space-y-3">
+                  <div className="flex gap-2">
+                    {(['unlimited', 'specific'] as const).map((mode) => (
+                      <button
+                        key={mode}
+                        type="button"
+                        onClick={() => handleChange('_companyCountMode', mode)}
+                        className={`flex-1 text-xs font-semibold py-2.5 rounded-lg border transition-colors ${
+                          (form._companyCountMode || 'unlimited') === mode
+                            ? 'bg-primary text-white border-primary'
+                            : 'bg-white text-text-secondary border-border'
+                        }`}
+                      >
+                        {mode === 'unlimited' ? 'غير محدود' : 'محدد'}
+                      </button>
+                    ))}
+                  </div>
+                  {(form._companyCountMode || 'unlimited') === 'specific' && (
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-text-secondary mb-1">الحد الأدنى لعدد الشركات</label>
+                        <input
+                          type="number"
+                          min={1}
+                          step={1}
+                          value={form._minimumCompanyCount ?? ''}
+                          onChange={(e) => handleChange('_minimumCompanyCount', e.target.value)}
+                          placeholder="مثال: 3"
+                          className="w-full rounded-lg border border-border px-3 py-2 text-xs text-text bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-text-secondary mb-1">الحد الأقصى لكل شركة (%)</label>
+                        <input
+                          type="number"
+                          min={0.01}
+                          max={100}
+                          step={0.01}
+                          value={form._maxCompanyPurchasePercent ?? ''}
+                          onChange={(e) => handleChange('_maxCompanyPurchasePercent', e.target.value)}
+                          placeholder="مثال: 50 (اختياري)"
+                          className="w-full rounded-lg border border-border px-3 py-2 text-xs text-text bg-white"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           {canManage && (
             <button onClick={handleSave} disabled={saving}

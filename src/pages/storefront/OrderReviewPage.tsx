@@ -12,6 +12,7 @@ import { checkCartAvailability, buildBusinessStatusCard, type AvailabilityResult
 import { formatMixedQuantity } from '../../utils/quantity-format'
 import { BusinessStatusCard } from '../../components/storefront/BusinessStatusCard'
 import type { CartItem as CartItemType, ProductWithPrice, UnitType } from '../../types/storefront'
+import { TierCompanyRulesNotice } from '../../components/storefront/TierCompanyRulesNotice'
 
 const COMPANY_COLORS = [
   { bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-800', header: 'bg-blue-500' },
@@ -109,6 +110,17 @@ export function OrderReviewPage() {
 
     if (selectedTier && !totals.meetsTierMinimum) {
       toast.error(`لم يتم الوصول إلى الحد الأدنى للشريحة (${formatArabicAmountWithCurrency(totals.tierMinimum)})`)
+      navigate('/cart')
+      return
+    }
+
+    if (selectedTier && !totals.meetsCompanyRules) {
+      if (totals.companyRule && !totals.companyRule.meetsMinimumCompanies) {
+        const needed = (totals.companyRule.minimumCompanyCount ?? 0) - totals.companyRule.distinctCompanyCount
+        toast.error(needed > 0 ? `تنويع الشركات غير كافٍ — أضف منتجات من ${needed} شركة أخرى` : 'تنويع الشركات غير محقق')
+      } else {
+        toast.error('تنويع الشركات غير محقق')
+      }
       navigate('/cart')
       return
     }
@@ -436,9 +448,13 @@ export function OrderReviewPage() {
         </p>
       </div>
 
+      {selectedTier && totals.companyRule && !totals.meetsCompanyRules && (
+        <TierCompanyRulesNotice companyRule={totals.companyRule} tier={selectedTier} />
+      )}
+
       <button
         onClick={handleSubmit}
-        disabled={submitting || (selectedTier !== null && !totals.meetsTierMinimum)}
+        disabled={submitting || (selectedTier !== null && (!totals.meetsTierMinimum || !totals.meetsCompanyRules))}
         className="w-full bg-success text-white text-sm py-3 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed active:opacity-90 transition-colors"
       >
         {submitting ? 'جاري الإرسال...' : 'تأكيد وإرسال الطلب'}

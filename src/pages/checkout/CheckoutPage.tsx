@@ -9,6 +9,7 @@ import { UNIT_LABELS } from '../../types/order-display'
 import { GuidedError } from '../../components/shared/GuidedError'
 import toast from 'react-hot-toast'
 import type { OrderRecord, OrderItemRecord, OrderStatus } from '../../types/storefront'
+import { TierCompanyRulesNotice } from '../../components/storefront/TierCompanyRulesNotice'
 
 export function CheckoutPage() {
   const navigate = useNavigate()
@@ -44,6 +45,16 @@ export function CheckoutPage() {
 
     if (selectedTier && !totals.meetsTierMinimum) {
       toast.error('لم يتم الوصول إلى الحد الأدنى للشريحة')
+      navigate('/cart')
+      return
+    }
+    if (selectedTier && !totals.meetsCompanyRules) {
+      if (totals.companyRule && !totals.companyRule.meetsMinimumCompanies) {
+        const needed = (totals.companyRule.minimumCompanyCount ?? 0) - totals.companyRule.distinctCompanyCount
+        toast.error(needed > 0 ? `تنويع الشركات غير كافٍ — أضف منتجات من ${needed} شركة أخرى` : 'تنويع الشركات غير محقق')
+      } else {
+        toast.error('تنويع الشركات غير محقق')
+      }
       navigate('/cart')
       return
     }
@@ -205,6 +216,10 @@ export function CheckoutPage() {
         />
       )}
 
+      {selectedTier && totals.companyRule && !totals.meetsCompanyRules && (
+        <TierCompanyRulesNotice companyRule={totals.companyRule} tier={selectedTier} />
+      )}
+
       <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
         <p className="text-xs text-amber-700">
           عند إرسال الطلب، يتم تجميد الأسعار النهائية لكل منتج. لن تتأثر أسعار هذا الطلب بأي تغييرات مستقبلية.
@@ -213,7 +228,7 @@ export function CheckoutPage() {
 
       <button
         onClick={handleSubmit}
-        disabled={submitting || !paymentMethod || (selectedTier !== null && !totals.meetsTierMinimum)}
+        disabled={submitting || !paymentMethod || (selectedTier !== null && (!totals.meetsTierMinimum || !totals.meetsCompanyRules))}
         className="w-full bg-success text-white text-sm py-3 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed active:opacity-90 transition-colors"
       >
         {submitting ? 'جاري الإرسال...' : 'تأكيد وإرسال الطلب'}

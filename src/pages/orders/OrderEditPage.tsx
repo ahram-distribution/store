@@ -11,6 +11,7 @@ import { flashOfferService } from '../../services/flashOffers'
 import { buildSearchIndex, searchProducts } from '../../utils/smartSearch'
 import type { ProductWithPrice, ProductUnitPrice, UnitType, DailyDealRecord, FlashOfferRecord, CartTotals, TierConfig } from '../../types/storefront'
 import toast from 'react-hot-toast'
+import { TierCompanyRulesNotice } from '../../components/storefront/TierCompanyRulesNotice'
 
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
@@ -21,6 +22,7 @@ interface CartItem {
   productName: string
   imageUrl: string | null
   companyName: string
+  companyId: string
   unitType: UnitType
   unitQuantity: number
   pieceQuantity: number
@@ -147,6 +149,8 @@ export function OrderEditPage() {
           description: t.description,
           discountPercent: Number(t.discount_percent || 0),
           minimumOrderAmount: Number(t.minimum_order_amount || 0),
+          minimumCompanyCount: t.minimum_company_count ?? null,
+          maxCompanyPurchasePercent: t.max_company_purchase_percent ?? null,
           iconUrl: t.icon_url,
           color: t.color,
           sortOrder: t.sort_order || 0,
@@ -167,7 +171,8 @@ export function OrderEditPage() {
         productId: item.product_id,
         productName: item.product_name || '',
         imageUrl: item.image_url || null,
-        companyName: item.company_name || '',
+        companyId: allProds.find((p) => p.id === item.product_id)?.companyId || '',
+        companyName: item.company_name || allProds.find((p) => p.id === item.product_id)?.companyName || '',
         unitType: item.unit_type as UnitType,
         unitQuantity: item.unit_quantity || 1,
         pieceQuantity: item.piece_quantity || 0,
@@ -232,6 +237,8 @@ export function OrderEditPage() {
       unitPrice: i.unitPrice,
       totalPrice: i.totalPrice,
       imageUrl: i.imageUrl || undefined,
+      companyId: i.companyId,
+      companyName: i.companyName,
     }))
     const mappedDeals = dealItems.map(d => ({
       dealId: d.dealId,
@@ -273,6 +280,7 @@ export function OrderEditPage() {
         productName: product.productName,
         imageUrl: product.imageUrl || null,
         companyName: product.companyName,
+        companyId: product.companyId || '',
         unitType,
         unitQuantity: quantity,
         pieceQuantity,
@@ -713,6 +721,10 @@ export function OrderEditPage() {
                 الحد الأدنى للشريحة: {formatCurrencyShort(totals.tierMinimum)}. المتبقي: {formatCurrencyShort(totals.remainingForMinimum)}
               </p>
             </div>
+          )}
+
+          {selectedTier && totals.companyRule && !totals.meetsCompanyRules && cartItems.length > 0 && (
+            <TierCompanyRulesNotice companyRule={totals.companyRule} tier={selectedTier} />
           )}
 
           {/* Order Type */}

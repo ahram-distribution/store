@@ -35,6 +35,8 @@ export interface TierConfig {
   description: string | null
   discountPercent: number
   minimumOrderAmount: number
+  minimumCompanyCount: number | null
+  maxCompanyPurchasePercent: number | null
   iconUrl: string | null
   color: string | null
   sortOrder: number
@@ -136,6 +138,24 @@ export interface ComputedPrices {
   finalCartonPrice: number
 }
 
+export interface CompanyRuleBreakdown {
+  companyId: string
+  companyName: string
+  value: number
+  percent: number
+  maxPercent: number | null
+  exceedsCap: boolean
+}
+
+export interface CompanyRuleResult {
+  minimumCompanyCount: number | null
+  maxCompanyPurchasePercent: number | null
+  distinctCompanyCount: number
+  meetsMinimumCompanies: boolean
+  meetsCompanyCaps: boolean
+  companies: CompanyRuleBreakdown[]
+}
+
 export interface CartTotals {
   subtotal: number
   totalDiscount: number
@@ -151,6 +171,8 @@ export interface CartTotals {
   dealTotal: number
   productSubtotal: number
   productBaseSubtotal: number
+  companyRule: CompanyRuleResult | null
+  meetsCompanyRules: boolean
 }
 
 export interface GuidedError {

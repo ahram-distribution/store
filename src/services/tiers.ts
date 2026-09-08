@@ -12,6 +12,8 @@ export function mapTierRecord(row: any): TierRecord {
     description: row.description || null,
     discountPercent: Number(row.discount_percent),
     minimumOrderAmount: Number(row.minimum_order_amount),
+    minimumCompanyCount: row.minimum_company_count != null ? Number(row.minimum_company_count) : null,
+    maxCompanyPurchasePercent: row.max_company_purchase_percent != null ? Number(row.max_company_purchase_percent) : null,
     iconUrl: row.icon_url || null,
     color: row.color || null,
     sortOrder: row.sort_order,
@@ -54,6 +56,8 @@ export const tierService = {
     iconUrl?: string
     sortOrder?: number
     isVisible?: boolean
+    minimumCompanyCount?: number | null
+    maxCompanyPurchasePercent?: number | null
   }): Promise<{ success: boolean; id?: string; error?: string }> {
     const token = getToken()
     if (!token) return { success: false, error: 'Not authenticated' }
@@ -67,6 +71,8 @@ export const tierService = {
       p_icon_url: params.iconUrl || null,
       p_sort_order: params.sortOrder || null,
       p_is_visible: params.isVisible ?? true,
+      p_minimum_company_count: params.minimumCompanyCount ?? null,
+      p_max_company_purchase_percent: params.maxCompanyPurchasePercent ?? null,
     })
     if (error) return { success: false, error: error.message }
     return data ?? { success: false, error: 'Unknown error' }
@@ -84,6 +90,10 @@ export const tierService = {
     isActive: boolean
     startsAt: string
     endsAt: string
+    minimumCompanyCount: number | null
+    minimumCompanyCountSet: boolean
+    maxCompanyPurchasePercent: number | null
+    maxCompanyPurchasePercentSet: boolean
   }>): Promise<{ success: boolean; error?: string }> {
     const token = getToken()
     if (!token) return { success: false, error: 'Not authenticated' }
@@ -101,6 +111,10 @@ export const tierService = {
       p_is_active: params.isActive ?? null,
       p_starts_at: params.startsAt ?? null,
       p_ends_at: params.endsAt ?? null,
+      p_minimum_company_count: params.minimumCompanyCount ?? null,
+      p_minimum_company_count_set: params.minimumCompanyCountSet ?? false,
+      p_max_company_purchase_percent: params.maxCompanyPurchasePercent ?? null,
+      p_max_company_purchase_percent_set: params.maxCompanyPurchasePercentSet ?? false,
     })
     if (error) return { success: false, error: error.message }
     return data ?? { success: false }

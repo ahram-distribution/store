@@ -6,6 +6,7 @@ import { TierSelector } from '../../components/storefront/TierSelector'
 import { PaymentMethodSelector } from '../../components/storefront/PaymentMethodSelector'
 import { ShippingMethodSelector } from '../../components/storefront/ShippingMethodSelector'
 import { TierMinimumNotice } from '../../components/storefront/TierMinimumNotice'
+import { TierCompanyRulesNotice } from '../../components/storefront/TierCompanyRulesNotice'
 import { EmptyCart } from '../../components/storefront/EmptyCart'
 import { SearchableSelect } from '../../components/shared/SearchableSelect'
 import { formatCurrencyShort, formatArabicAmountWithCurrency, formatTierName } from '../../utils/format'
@@ -159,6 +160,15 @@ const isDirectCustomer = user?.identity_type === 'customer'
       toast.error(`الحد الأدنى للشريحة ${formatArabicAmountWithCurrency(totals.tierMinimum)} — أضف منتجات بقيمة ${formatArabicAmountWithCurrency(totals.remainingForMinimum)}`)
       return
     }
+    if (selectedTier && !totals.meetsCompanyRules) {
+      if (totals.companyRule && !totals.companyRule.meetsMinimumCompanies) {
+        const needed = (totals.companyRule.minimumCompanyCount ?? 0) - totals.companyRule.distinctCompanyCount
+        toast.error(needed > 0 ? `تنوع الشركات غير كافٍ — أضف منتجات من ${needed} شركة أخرى` : 'تنوع الشركات غير محقق')
+      } else {
+        toast.error('لا بد من إعادة توزيع المشتريات بين الشركات بما لا يتجاوز الحد الأقصى لكل شركة')
+      }
+      return
+    }
     if (items.length === 0 && (dealItems.length > 0 || flashOfferItems.length > 0)) {
       navigate('/order-review')
       return
@@ -255,6 +265,10 @@ const isDirectCustomer = user?.identity_type === 'customer'
           met={false}
           discountPercent={selectedTier.discountPercent}
         />
+      )}
+
+      {selectedTier && totals.companyRule && !totals.meetsCompanyRules && (
+        <TierCompanyRulesNotice companyRule={totals.companyRule} tier={selectedTier} />
       )}
 
       {/* Flash Offer Items */}
@@ -451,7 +465,7 @@ const isDirectCustomer = user?.identity_type === 'customer'
       <div className="space-y-2">
         <button
           onClick={handleContinue}
-          disabled={selectedTier !== null && !totals.meetsTierMinimum && items.length > 0}
+          disabled={selectedTier !== null && (!totals.meetsTierMinimum || !totals.meetsCompanyRules) && items.length > 0}
           className="w-full bg-primary text-white text-sm py-3 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed active:bg-primary-dark transition-colors"
         >
           متابعة الطلب
