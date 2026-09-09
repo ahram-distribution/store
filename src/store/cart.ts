@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { CartItem, CartDealItem, CartTotals, TierConfig, PaymentMethodOption, ShippingMethodOption, ProductWithPrice, UnitType, DailyDealRecord, FlashOfferRecord, TierExceptionLookup } from '../types/storefront'
-import { computeProductPrices, getFinalUnitPrice, getUnitBasePrice, computePieceQuantity, computeCartTotals, round2 } from '../engine/pricing'
+import type { CartItem, CartDealItem, CartTotals, TierConfig, PaymentMethodOption, ShippingMethodOption, ProductWithPrice, UnitType, DailyDealRecord, FlashOfferRecord, TierExceptionLookup, CompanyAddGuardResult } from '../types/storefront'
+import { computeProductPrices, getFinalUnitPrice, getUnitBasePrice, computePieceQuantity, computeCartTotals, round2, evaluateCompanyMaxAdd } from '../engine/pricing'
 import { computeBonusModeTotals, computeBonusSummary } from '../engine/bonusPricing'
 import { resolveExceptionLookup, type DiscountPricingContext } from '../services/discountOptions'
 import { supabase } from '../lib/supabase'
@@ -137,6 +137,37 @@ export const useCartStore = create(
           product.id,
           product.companyId
         )
+      }
+
+      /**
+       * Governed company-maximum guard for an ADD / QUANTITY-INCREASE. Never
+       * blocks reductions or deletions (those only lower concentration). Evaluates
+       * the CANDIDATE (resulting) state against the SELECTED tier's SAVED config:
+       *
+       *   maxCompanyValue = tier.minimumOrderAmount × maxCompanyPurchasePercent / 100
+       *
+       * A company's MAIN value must never exceed that fixed limit — the cart
+       * subtotal plays no part. Bonus items are excluded. There is no
+       * construction exemption: the limit applies at all times.
+       */
+      const companyCapGuard = (
+        candidateItems: CartItem[],
+        target?: { productId: string; unitType: UnitType } | null,
+        currentItems?: CartItem[] | null
+      ): CompanyAddGuardResult => {
+        const s = get()
+        return evaluateCompanyMaxAdd(candidateItems, s.getSelectedTier(), target, currentItems)
+      }
+
+      /** Short governed-toast for a blocked add/quantity-increase (same message
+       *  shape for the Storefront add and the Cart "+"). */
+      const companyCapToast = (guard: CompanyAddGuardResult): string => {
+        const money = (v: number | undefined): string => `${Number((v ?? 0).toFixed(2)).toLocaleString('en-US')} ج.م`
+        const detail =
+          guard.maxCompanyValue != null && guard.currentCompanyValue != null && guard.room != null
+            ? ` الحد الأقصى لهذه الشركة ${money(guard.maxCompanyValue)} — المشتريات الحالية ${money(guard.currentCompanyValue)} — المتاح ${money(guard.room)}`
+            : ''
+        return `لا يمكن الإضافة: قيمة مشتريات هذه الشركة ستتجاوز الحد الأقصى المسموح به لهذه الشريحة (${guard.maxPercent}%).${detail}`
       }
 
       /**
@@ -277,6 +308,11 @@ export const useCartStore = create(
             totalPrice: Math.round(unitPrice * newQuantity * 100) / 100,
             pieceQuantity: pieceQuantity + existing.pieceQuantity,
           }
+          const guard = companyCapGuard(newItems, { productId: product.id, unitType }, state.items)
+          if (guard.blocked) {
+            toast.error(companyCapToast(guard))
+            return
+          }
           set({ items: newItems })
         } else {
           const newItem: CartItem = {
@@ -292,6 +328,11 @@ export const useCartStore = create(
             companyId: product.companyId,
             companyName: product.companyName,
             geoAdjustPercent: geoAdj,
+          }
+          const guard = companyCapGuard([...state.items, newItem], { productId: product.id, unitType }, state.items)
+          if (guard.blocked) {
+            toast.error(companyCapToast(guard))
+            return
           }
           set({ items: [...state.items, newItem] })
         }
@@ -325,6 +366,21 @@ export const useCartStore = create(
         const useBase = state.bonusMode
         const unitPrice = useBase ? baseUnitPrice : finalUnitPrice
         const pieceQuantity = computePieceQuantity(unitQuantity, unitType, product.cartonQuantity)
+
+        const existingLine = state.items.find((i) => i.productId === productId && i.unitType === unitType)
+        const isIncrease = !!existingLine && unitQuantity > existingLine.unitQuantity
+        if (isIncrease) {
+          const candidate = state.items.map((item) =>
+            item.productId === productId && item.unitType === unitType
+              ? { ...item, unitQuantity, pieceQuantity }
+              : item
+          )
+          const guard = companyCapGuard(candidate, { productId, unitType }, state.items)
+          if (guard.blocked) {
+            toast.error(companyCapToast(guard))
+            return
+          }
+        }
 
         set({
           items: state.items.map((item) =>

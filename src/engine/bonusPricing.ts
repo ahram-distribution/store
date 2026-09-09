@@ -165,7 +165,7 @@ export function computeBonusSummary(
   const meetsTierMinimum = credit.mainBaseTotal >= tierMinimum
   const remainingForMinimum = meetsTierMinimum ? 0 : round2(Math.max(0, tierMinimum - credit.mainBaseTotal))
 
-  const { companyRule, meetsCompanyRules } = computeCompanyRuleResult(mainItems, tier, credit.mainBaseTotal)
+  const { companyRule, meetsCompanyRules } = computeCompanyRuleResult(mainItems, tier)
 
   return {
     ...credit,

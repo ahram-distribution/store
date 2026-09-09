@@ -1,4 +1,5 @@
 import type { CompanyRuleResult, TierConfig } from '../../types/storefront'
+import { formatSmartMoney } from '../../utils/numbers'
 
 interface TierCompanyRulesNoticeProps {
   companyRule: CompanyRuleResult
@@ -14,8 +15,8 @@ export function TierCompanyRulesNotice({ companyRule, tier }: TierCompanyRulesNo
           <div className="text-sm font-bold text-success">شروط تنويع الشركات محققة</div>
           <div className="text-[11px] text-text-secondary">
             تم الشراء من {companyRule.distinctCompanyCount} شركة مختلفة
-            {tier.maxCompanyPurchasePercent != null && (
-              <> — لا تتجاوز أي شركة {tier.maxCompanyPurchasePercent}% من الطلب</>
+            {companyRule.maxCompanyValue != null && (
+              <> — لا تتجاوز أي شركة الحد الأقصى {formatSmartMoney(companyRule.maxCompanyValue)} ج.م ({companyRule.maxCompanyPurchasePercent}% من قيمة الشريحة)</>
             )}
           </div>
         </div>
@@ -48,7 +49,7 @@ export function TierCompanyRulesNotice({ companyRule, tier }: TierCompanyRulesNo
 
         {violations.length > 0 && violations.map((v) => (
           <div key={v.companyId}>
-            شركة <b>{v.companyName}</b> تمثل <b>{v.percent}%</b> من قيمة الطلب، بينما الحد الأقصى المسموح هو <b>{v.maxPercent}%</b>.
+            شركة <b>{v.companyName}</b> تجاوزت الحد الأقصى للشريحة: تمثل <b>{v.percent}%</b> من قيمة الشريحة، بينما الحد الأقصى المسموح هو <b>{v.maxPercent}%</b> ({formatSmartMoney(v.maxCompanyValue ?? 0)} ج.م لكل شركة).
             قلّل مشتريات هذه الشركة أو أضف مشتريات من شركات أخرى.
           </div>
         ))}

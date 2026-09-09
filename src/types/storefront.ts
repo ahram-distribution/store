@@ -146,18 +146,52 @@ export interface CompanyRuleBreakdown {
   companyId: string
   companyName: string
   value: number
+  /** Share of the SELECTED TIER value (never the cart subtotal). */
   percent: number
   maxPercent: number | null
+  /** tier.minimumOrderAmount × maxCompanyPurchasePercent / 100 (fixed limit). */
+  maxCompanyValue: number | null
   exceedsCap: boolean
 }
 
 export interface CompanyRuleResult {
   minimumCompanyCount: number | null
   maxCompanyPurchasePercent: number | null
+  /** The selected Tier's value that the per-company maximum is derived from. */
+  tierValue?: number
+  /** Fixed per-company limit = tierValue × maxCompanyPurchasePercent / 100. */
+  maxCompanyValue?: number
   distinctCompanyCount: number
   meetsMinimumCompanies: boolean
   meetsCompanyCaps: boolean
   companies: CompanyRuleBreakdown[]
+}
+
+/** Result of the governed company-maximum add guard (used by the Cart + button
+ *  and the governed store actions). Evaluated against MAIN products only.
+ *  The per-company limit is derived from the SELECTED TIER value, never from
+ *  the cart subtotal:  maxCompanyValue = tierValue × maxPercent / 100. */
+export interface CompanyAddGuardResult {
+  blocked: boolean
+  reason: 'company-max' | null
+  /** True when the selected Tier has no company cap (unlimited / no tier value /
+   *  0%) → nothing to guard. */
+  unlimited: boolean
+  /** The selected Tier's value the maximum was derived from. */
+  tierValue?: number
+  companyId?: string
+  companyName?: string
+  maxPercent?: number
+  /** Fixed per-company limit = tierValue × maxPercent / 100. */
+  maxCompanyValue?: number
+  /** The judged company's value in the CANDIDATE (resulting) state. */
+  companyValue?: number
+  /** The judged company's value BEFORE the operation (pre-candidate). */
+  currentCompanyValue?: number
+  /** Remaining allowance for the judged company = max(0, max − current). */
+  room?: number
+  /** Whole units this target line may hold (0 = even the current qty is over-cap). */
+  maxAllowedUnits?: number
 }
 
 export interface CartTotals {

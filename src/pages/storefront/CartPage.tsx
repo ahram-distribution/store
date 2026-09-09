@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom'
-import { useEffect, useState, useMemo, useCallback } from 'react'
+import { useEffect, useState, useMemo, useCallback, type ReactNode } from 'react'
 import { useCartStore } from '../../store/cart'
 import { useAuthStore } from '../../store/auth'
 import { EmptyCart } from '../../components/storefront/EmptyCart'
@@ -11,8 +11,9 @@ import { UNIT_LABELS } from '../../types/order-display'
 import { BONUS_COPY } from '../../constants/bonusCopy'
 import { supabase } from '../../lib/supabase'
 import toast from 'react-hot-toast'
-import type { CartItem as CartItemType } from '../../types/storefront'
+import type { CartItem as CartItemType, CompanyAddGuardResult } from '../../types/storefront'
 import { checkCartAvailability } from '../../utils/cart-availability'
+import { evaluateCompanyMaxAdd, companyDiversificationSentence } from '../../engine/pricing'
 
 /** Compact LTR money cell — thousands separators, no currency suffix, smart decimals. */
 function Money({ value, className = '' }: { value: number; className?: string }) {
@@ -39,6 +40,12 @@ export function CartPage() {
   const isDirectCustomer = user?.identity_type === 'customer'
   const [editingCustomer, setEditingCustomer] = useState(false)
   const [customers, setCustomers] = useState<any[]>([])
+  /** Governed inventory cap, cached per productId:unitType after the availability RPC. */
+  const [stockMax, setStockMax] = useState<Record<string, number | null>>({})
+  /** Inline (non-toast) block notes shown under the +/- stepper, keyed per line. */
+  const [inlineBlocks, setInlineBlocks] = useState<Record<string, ReactNode>>({})
+  /** Lines currently awaiting the governed availability RPC (disable re-tap). */
+  const [pendingKeys, setPendingKeys] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     const s = useCartStore as unknown as { persist: { hasHydrated: () => boolean; onFinishHydration: (fn: () => void) => () => void } }
@@ -114,6 +121,23 @@ export function CartPage() {
       ensureGeoItemAdjustments(products)
     }
   }, [products, geographicContext?.governorateId, geoResolveEpoch, ensureGeoItemAdjustments])
+
+  // Derived addability recomputes from the cart/totals on every render, so once
+  // quantity, tier, or benefit inputs change, stale per-line block notes (stock
+  // errors, availability RPC rejects) are dropped and re-derived. Decrementing a
+  // previously-blocked line therefore re-enables its + automatically.
+  useEffect(() => {
+    setInlineBlocks({})
+  }, [
+    items,
+    bonusItems,
+    selectedTierId,
+    selectedPaymentMethodId,
+    selectedShippingMethodId,
+    selectedCustomer?.id,
+    bonusMode,
+    geoResolveEpoch,
+  ])
 
   useEffect(() => {
     if (hydrated) {
@@ -230,55 +254,178 @@ export function CartPage() {
   const benefitFor = (item: CartItemType): number | null => (bonusMode ? bonusCreditFor(item) : discountFor(item))
   const benefitWord = bonusMode ? 'بونص' : 'خصم'
 
-  /** Apply quantity change through the governed cart action IMMEDIATELY, then run
-   *  the availability RPC as a best-effort advisory; revert + compact notice if blocked. */
+  /** Company-cap state for a MAIN line AFTER a hypothetical +1 (matches the store
+   *  guard exactly — evaluateCompanyMaxAdd derives the fixed per-company limit
+   *  from the SELECTED tier value: tierValue × maxPercent / 100. The cart
+   *  subtotal plays no part; currentItems = pre-increment state for display). */
+  const companyGuardFor = (item: CartItemType) => {
+    const candidate = items.map((i) =>
+      i.productId === item.productId && i.unitType === item.unitType
+        ? { ...i, unitQuantity: i.unitQuantity + 1 }
+        : i
+    )
+    return evaluateCompanyMaxAdd(candidate, selectedTier, {
+      productId: item.productId,
+      unitType: item.unitType,
+    }, items)
+  }
+
+  const companyBlockNote = (guard: CompanyAddGuardResult) => {
+    return (
+      <span>
+        لا يمكن زيادة الكمية: قيمة مشتريات هذه الشركة ستتجاوز الحد الأقصى المسموح به لهذه الشريحة (
+        {guard.maxPercent}%).
+        <span className="mt-0.5 block text-text-secondary">
+          الحد الأقصى لهذه الشركة {formatSmartMoney(guard.maxCompanyValue ?? 0)} ج.م · المشتريات الحالية{' '}
+          {formatSmartMoney(guard.currentCompanyValue ?? 0)} ج.م
+          {guard.room != null ? ` · المتاح ${formatSmartMoney(guard.room)} ج.م` : ''}
+        </span>
+      </span>
+    )
+  }
+
+  const stockBlockNote = (max: number, unit: string) => (
+    <span>
+      لا يمكن زيادة الكمية: الكمية المتاحة بالمخزون تم الوصول إليها. (الحد الأقصى {max} {unit})
+    </span>
+  )
+
+  /** Governed per-line addability for the + button (company cap, inventory cap,
+   *  product availability, inflight-request). Company cap is always re-derived;
+   *  inventory/product rejects are cached only until cart inputs change. */
+  const plusStateFor = (item: CartItemType, isBonus: boolean): { disabled: boolean; note: ReactNode | null } => {
+    const key = `${item.productId}:${item.unitType}`
+    if (pendingKeys.has(key)) return { disabled: true, note: null }
+    const existing = inlineBlocks[key]
+    if (existing) return { disabled: true, note: existing }
+    const product = products.find((p) => p.id === item.productId)
+    if (product && (!product.isActive || product.isOutOfStock)) {
+      return { disabled: true, note: 'لا يمكن زيادة الكمية: هذا الصنف غير متوفر حالياً.' }
+    }
+    if (!isBonus) {
+      const guard = companyGuardFor(item)
+      if (guard.blocked) return { disabled: true, note: companyBlockNote(guard) }
+    }
+    const mx = stockMax[key]
+    if (mx != null && item.unitQuantity + 1 > mx) {
+      return { disabled: true, note: stockBlockNote(mx, UNIT_LABELS[item.unitType] || 'قطعة') }
+    }
+    return { disabled: false, note: null }
+  }
+
+  /** Governed increment: hard COMPANY pre-check first, then a best-effort
+   *  availability RPC BEFORE applying (never an optimistic invalid quantity);
+   *  the stock cap is cached per line so subsequent taps are synchronous. The
+   *  store re-runs the company guard synchronously on apply as the final gate. */
   const attemptIncrement = async (item: CartItemType, isBonus: boolean) => {
+    const key = `${item.productId}:${item.unitType}`
     const next = item.unitQuantity + 1
     const apply = (qty: number) =>
       isBonus ? updateBonusQuantity(item.productId, item.unitType, qty) : updateQuantity(item.productId, item.unitType, qty)
-    apply(next)
+    const clearBlock = () =>
+      setInlineBlocks((prev) => {
+        if (!prev[key]) return prev
+        const { [key]: _drop, ...rest } = prev
+        return rest
+      })
+
+    if (!isBonus) {
+      const guard = companyGuardFor(item)
+      if (guard.blocked) {
+        setInlineBlocks((prev) => ({ ...prev, [key]: companyBlockNote(guard) }))
+        return
+      }
+    }
+
+    const product = products.find((p) => p.id === item.productId)
+    if (product && (!product.isActive || product.isOutOfStock)) {
+      setInlineBlocks((prev) => ({ ...prev, [key]: 'لا يمكن زيادة الكمية: هذا الصنف غير متوفر حالياً.' }))
+      return
+    }
+
+    const mx = stockMax[key]
+    if (mx != null && next > mx) {
+      setInlineBlocks((prev) => ({ ...prev, [key]: stockBlockNote(mx, UNIT_LABELS[item.unitType] || 'قطعة') }))
+      return
+    }
+
+    setPendingKeys((prev) => new Set(prev).add(key))
     try {
       const result = await checkCartAvailability(item.productId, next, item.unitType)
-      const blocked =
-        !result.available || (result.max_allowed_units != null && next > result.max_allowed_units)
+      const blocked = !result.available || (result.max_allowed_units != null && next > result.max_allowed_units)
       if (blocked) {
-        apply(item.unitQuantity)
-        if (!result.available) {
-          toast.error(result.error || 'الكمية المتاحة غير كافية لهذا الصنف')
+        if (result.max_allowed_units != null) {
+          setStockMax((prev) => ({ ...prev, [key]: result.max_allowed_units }))
+          setInlineBlocks((prev) => ({
+            ...prev,
+            [key]: stockBlockNote(result.max_allowed_units, UNIT_LABELS[result.unit_type] || 'قطعة'),
+          }))
         } else {
-          toast.error(`الحد الأقصى ${result.max_allowed_units} ${UNIT_LABELS[result.unit_type] || 'قطعة'}`)
+          setInlineBlocks((prev) => ({ ...prev, [key]: result.error || 'الكمية المتاحة غير كافية لهذا الصنف' }))
         }
+        return
       }
+      if (result.max_allowed_units != null) {
+        setStockMax((prev) => ({ ...prev, [key]: result.max_allowed_units }))
+      }
+      clearBlock()
+      apply(next)
     } catch {
-      // Advisory RPC unavailable — governed increment already applied.
+      // Advisory RPC unavailable — fall back to a governed increment (the store's
+      // company guard still validates the change synchronously).
+      clearBlock()
+      apply(next)
+    } finally {
+      setPendingKeys((prev) => {
+        const n = new Set(prev)
+        n.delete(key)
+        return n
+      })
     }
   }
 
-  const qtyControls = (item: CartItemType, isBonus: boolean) => (
-    <div className="flex items-center gap-1.5">
-      <button
-        type="button"
-        onClick={() => {
-          const next = item.unitQuantity - 1
-          if (isBonus) updateBonusQuantity(item.productId, item.unitType, next)
-          else updateQuantity(item.productId, item.unitType, next)
-        }}
-        aria-label="تقليل الكمية"
-        className="w-10 h-10 flex items-center justify-center rounded-lg bg-white border border-border text-text-secondary text-xl leading-none select-none active:bg-surface transition-colors"
-      >
-        −
-      </button>
-      <span className="text-sm font-semibold text-text w-8 text-center tabular-nums">{item.unitQuantity}</span>
-      <button
-        type="button"
-        onClick={() => attemptIncrement(item, isBonus)}
-        aria-label="زيادة الكمية"
-        className="w-10 h-10 flex items-center justify-center rounded-lg bg-white border border-border text-text-secondary text-xl leading-none select-none active:bg-surface transition-colors"
-      >
-        +
-      </button>
-    </div>
-  )
+  const qtyControls = (item: CartItemType, isBonus: boolean) => {
+    const plus = plusStateFor(item, isBonus)
+    const minusDisabled = item.unitQuantity <= 1
+    return (
+      <div className="flex flex-col items-center gap-1">
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => {
+              const next = item.unitQuantity - 1
+              if (isBonus) updateBonusQuantity(item.productId, item.unitType, next)
+              else updateQuantity(item.productId, item.unitType, next)
+            }}
+            disabled={minusDisabled}
+            aria-label="تقليل الكمية"
+            className={`w-10 h-10 flex items-center justify-center rounded-lg bg-white border border-border text-text-secondary text-xl leading-none select-none transition-colors ${
+              minusDisabled ? 'opacity-40 cursor-not-allowed' : 'active:bg-surface'
+            }`}
+          >
+            −
+          </button>
+          <span className="text-sm font-semibold text-text w-8 text-center tabular-nums">{item.unitQuantity}</span>
+          <button
+            type="button"
+            onClick={() => attemptIncrement(item, isBonus)}
+            disabled={plus.disabled}
+            aria-label="زيادة الكمية"
+            className={`w-10 h-10 flex items-center justify-center rounded-lg bg-white border border-border text-text-secondary text-xl leading-none select-none transition-colors ${
+              plus.disabled ? 'opacity-40 cursor-not-allowed' : 'active:bg-surface'
+            }`}
+          >
+            +
+          </button>
+        </div>
+        {plus.note && (
+          <p className="text-[10px] text-danger leading-snug text-center max-w-[240px] md:max-w-none">
+            {plus.note}
+          </p>
+        )}
+      </div>
+    )
+  }
 
   const unitPriceBlock = (item: CartItemType, isBonus: boolean) =>
     isBonus ? (
@@ -606,11 +753,27 @@ export function CartPage() {
               الحد الأدنى للشريحة {formatArabicAmountWithCurrency(totals.tierMinimum)} — المتبقي {formatArabicAmountWithCurrency(totals.remainingForMinimum)}
             </p>
           )}
+          {selectedTier &&
+            totals.companyRule?.maxCompanyPurchasePercent != null &&
+            totals.companyRule?.minimumCompanyCount != null &&
+            totals.companyRule?.maxCompanyValue != null && (
+              <p className="text-[11px] text-text-secondary mt-1.5">
+                {companyDiversificationSentence(
+                  totals.companyRule.minimumCompanyCount,
+                  totals.companyRule.maxCompanyPurchasePercent
+                )}
+              </p>
+            )}
           {selectedTier && totals.companyRule && !totals.meetsCompanyRules && (
             <p className="text-[11px] text-danger mt-1.5">
               {totals.companyRule && !totals.companyRule.meetsMinimumCompanies
                 ? `تنوع الشركات غير كافٍ — أضف منتجات من ${(totals.companyRule.minimumCompanyCount ?? 0) - totals.companyRule.distinctCompanyCount} شركة أخرى`
-                : 'أعد توزيع المشتريات بين الشركات بما لا يتجاوز الحد الأقصى لكل شركة'}
+                : (() => {
+                    const offenders = (totals.companyRule?.companies ?? []).filter((c) => c.exceedsCap)
+                    return offenders.length > 0
+                      ? `أعد توزيع المشتريات — ${offenders.map((c) => c.companyName).join('، ')} ${offenders.length === 1 ? 'تجاوزت' : 'تجاوزوا'} الحد الأقصى ${formatSmartMoney(offenders[0]?.maxCompanyValue ?? 0)} ج.م لكل شركة`
+                      : 'أعد توزيع المشتريات بين الشركات بما لا يتجاوز الحد الأقصى لكل شركة'
+                  })()}
             </p>
           )}
         </div>

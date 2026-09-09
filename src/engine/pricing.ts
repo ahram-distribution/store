@@ -11,6 +11,7 @@ import type {
   TierExceptionLookup,
   DiscountOverridePair,
   CompanyRuleResult,
+  CompanyAddGuardResult,
 } from '../types/storefront'
 
 export function computePieceQuantity(unitQuantity: number, unitType: UnitType, cartonQuantity: number): number {
@@ -159,21 +160,37 @@ function round2(n: number): number {
 }
 
 /**
- * Company diversification rules (minimum distinct companies + per-company % cap),
- * evaluated over a given item set and a base subtotal. Exact same logic as the
- * block historically inlined in computeCartTotals — extracted so the bonus engine
- * can evaluate it against MAIN products only (spec §24.2: bonus items never count).
+ * Company diversification rules (minimum distinct companies + per-company maximum)
+ * evaluated over a given item set. Exact same logic as the block historically
+ * inlined in computeCartTotals — extracted so the bonus engine can evaluate it
+ * against MAIN products only (spec §24.2: bonus items never count).
+ *
+ * AUTHORITATIVE BASIS (2026 correction): the per-company maximum is derived from
+ * the SELECTED TIER's own value, never from the current cart subtotal:
+ *
+ *   maxCompanyValue = tier.minimumOrderAmount × maxCompanyPurchasePercent / 100
+ *
+ *   e.g. 2,000,000 × 25% = 500,000 EGP — fixed regardless of the cart subtotal.
+ *
+ * A company's MAIN purchase value must never exceed maxCompanyValue. Bonus
+ * products are excluded. The minimum-company-count rule (A) is independent of
+ * the per-company maximum (B) and only gates final eligibility.
  */
 export function computeCompanyRuleResult(
   items: CartItem[],
-  tier: TierConfig | null,
-  baseSubtotal: number
+  tier: TierConfig | null
 ): { companyRule: CompanyRuleResult | null; meetsCompanyRules: boolean } {
   const minCompanyCount = tier?.minimumCompanyCount ?? null
   const maxCompanyPct = tier?.maxCompanyPurchasePercent ?? null
   const hasCompanyRules = minCompanyCount !== null || maxCompanyPct !== null
 
   if (!hasCompanyRules) return { companyRule: null, meetsCompanyRules: true }
+
+  const tierValue = tier?.minimumOrderAmount ?? 0
+  const maxCompanyValue =
+    tierValue > 0 && maxCompanyPct !== null && maxCompanyPct > 0
+      ? round2((tierValue * maxCompanyPct) / 100)
+      : null
 
   const companyMap = new Map<string, { value: number; companyName: string }>()
   for (const item of items) {
@@ -194,18 +211,29 @@ export function computeCompanyRuleResult(
   const meetsMinimumCompanies = minCompanyCount === null || distinctCompanyCount >= minCompanyCount
 
   const companies = Array.from(companyMap.entries()).map(([companyId, { value, companyName }]) => {
-    const percent = baseSubtotal > 0 ? (value / baseSubtotal) * 100 : 0
-    const exceedsCap = maxCompanyPct !== null && percent > maxCompanyPct + 0.0001
-    return { companyId, companyName, value: round2(value), percent: round2(percent), maxPercent: maxCompanyPct, exceedsCap }
+    // % is the company's share of the SELECTED TIER value (never the cart subtotal).
+    const percent = tierValue > 0 ? (value / tierValue) * 100 : 0
+    const exceedsCap = maxCompanyValue !== null && round2(value) > maxCompanyValue + 0.0001
+    return {
+      companyId,
+      companyName,
+      value: round2(value),
+      percent: round2(percent),
+      maxPercent: maxCompanyPct,
+      maxCompanyValue,
+      exceedsCap,
+    }
   })
 
-  const meetsCompanyCaps = maxCompanyPct === null || companies.every((c) => !c.exceedsCap)
+  const meetsCompanyCaps = maxCompanyValue === null || companies.every((c) => !c.exceedsCap)
 
   const meetsCompanyRules = meetsMinimumCompanies && meetsCompanyCaps
 
   const companyRule: CompanyRuleResult = {
     minimumCompanyCount: minCompanyCount,
     maxCompanyPurchasePercent: maxCompanyPct,
+    tierValue: tierValue > 0 ? tierValue : undefined,
+    maxCompanyValue: maxCompanyValue ?? undefined,
     distinctCompanyCount,
     meetsMinimumCompanies,
     meetsCompanyCaps,
@@ -213,6 +241,176 @@ export function computeCompanyRuleResult(
   }
 
   return { companyRule, meetsCompanyRules }
+}
+
+/**
+ * MAIN-only base subtotal. Informational only — since the 2026 correction the
+ * company cap is derived from the SELECTED TIER value, NOT from this subtotal.
+ * Bonus items are never counted toward company concentration.
+ */
+export function computeMainCompanyBaseSubtotal(items: CartItem[]): number {
+  let sum = 0
+  for (const item of items) {
+    if (item.isBonus) continue
+    sum +=
+      typeof item.baseUnitPrice === 'number' && item.baseUnitPrice >= 0
+        ? item.baseUnitPrice * item.unitQuantity
+        : item.totalPrice
+  }
+  return sum
+}
+
+export interface CompanyAddTarget {
+  productId: string
+  unitType: UnitType
+}
+
+/**
+ * Dynamic user-facing condition for a LIMITED-tier diversification config.
+ * Kept as a single governed helper so the Cart sentence always mirrors the
+ * SAVED minimum_company_count / max_company_purchase_percent values.
+ */
+export function companyDiversificationSentence(minimumCompanyCount: number, maxCompanyPurchasePercent: number): string {
+  return `يجب أن تتنوع الفاتورة بين ${minimumCompanyCount} شركات على الأقل وأن لا تتجاوز قيمة المشتريات من كل شركة ${maxCompanyPurchasePercent}% بحد أقصى.`
+}
+
+/**
+ * Governed "can I add / increase this line?" guard for the SELECTED tier's
+ * per-company maximum — the AUDITED values are read from the saved TierConfig
+ * (no hardcoding anywhere). AUTHORITATIVE MATH:
+ *
+ *   maxCompanyValue = tier.minimumOrderAmount × maxCompanyPurchasePercent / 100
+ *
+ * A company's candidate MAIN value must never exceed maxCompanyValue. The
+ * current cart subtotal plays NO part — the limit is fixed by the tier value
+ * (e.g. 2,000,000 × 25% = 500,000 EGP regardless of subtotal).
+ *
+ * Rules:
+ * - Bonus products never enter the company value (numerator).
+ * - The maximum company value applies ALWAYS — there is no construction
+ *   exemption; the minimum-company-count rule is independent and only gates
+ *   final eligibility (checkout), never relaxes this cap.
+ * - Only the TARGET company is judged (other companies are independent), which
+ *   lets an operator rebalance an over-concentrated cart from other companies.
+ * - Reductions/deletions always pass (they only lower concentration).
+ *
+ * `currentItems` (pre-operation) is optional and used only to report the
+ * pre-operation company value + remaining allowance for the UI ("المتاح").
+ */
+export function evaluateCompanyMaxAdd(
+  candidateItems: CartItem[],
+  tier: TierConfig | null,
+  target?: CompanyAddTarget | null,
+  currentItems?: CartItem[] | null
+): CompanyAddGuardResult {
+  const maxPct = tier?.maxCompanyPurchasePercent ?? null
+  if (!tier || maxPct === null || maxPct <= 0) {
+    return { blocked: false, reason: null, unlimited: true }
+  }
+  const tierValue = tier?.minimumOrderAmount ?? 0
+  if (tierValue <= 0) {
+    // No monetary tier value → no cap basis to derive a limit from.
+    return { blocked: false, reason: null, unlimited: true }
+  }
+  const maxCompanyValue = round2((tierValue * maxPct) / 100)
+
+  const main = candidateItems.filter((i) => !i.isBonus)
+
+  const targetLine = target
+    ? main.find((i) => i.productId === target.productId && i.unitType === target.unitType)
+    : undefined
+
+  const map = new Map<string, { value: number; name: string }>()
+  for (const item of main) {
+    const cid = item.companyId || ''
+    const v =
+      typeof item.baseUnitPrice === 'number' && item.baseUnitPrice >= 0
+        ? item.baseUnitPrice * item.unitQuantity
+        : item.totalPrice
+    const entry = map.get(cid)
+    if (entry) entry.value += v
+    else map.set(cid, { value: v, name: item.companyName || '' })
+  }
+
+  // An add/increment only changes the target company; judge that company's final
+  // value. When no target is supplied, judge every company (full-state check).
+  const companyIdsToJudge = targetLine ? [targetLine.companyId || ''] : [...map.keys()]
+  let offender: { id: string; name: string; value: number } | null = null
+  for (const cid of companyIdsToJudge) {
+    const entry = map.get(cid)
+    if (!entry) continue
+    // Money is 2-decimal; epsilon 1e-6 absorbs float noise while a real 0.01
+    // overage is still rejected. Exact-at-the-maximum is allowed.
+    if (round2(entry.value) > maxCompanyValue + 1e-6) {
+      offender = { id: cid, name: entry.name, value: round2(entry.value) }
+      break
+    }
+  }
+
+  let maxAllowedUnits: number | undefined
+  let currentCompanyValue: number | undefined
+  let room: number | undefined
+  if (targetLine) {
+    const lineUnitBase =
+      typeof targetLine.baseUnitPrice === 'number' && targetLine.baseUnitPrice >= 0
+        ? targetLine.baseUnitPrice
+        : targetLine.totalPrice / Math.max(1, targetLine.unitQuantity)
+    const companyId = targetLine.companyId || ''
+    let othersValue = 0
+    for (const li of main) {
+      if ((li.companyId || '') !== companyId) continue
+      if (li.productId === target.productId && li.unitType === target.unitType) continue
+      othersValue +=
+        typeof li.baseUnitPrice === 'number' && li.baseUnitPrice >= 0
+          ? li.baseUnitPrice * li.unitQuantity
+          : li.totalPrice
+    }
+    maxAllowedUnits = lineUnitBase > 0
+      ? Math.max(0, Math.floor((maxCompanyValue - othersValue) / lineUnitBase))
+      : targetLine.unitQuantity
+
+    // Pre-operation ("المشتريات الحالية") company value + remaining allowance.
+    let curValue = 0
+    for (const li of currentItems ?? candidateItems) {
+      if (li.isBonus) continue
+      if ((li.companyId || '') !== companyId) continue
+      curValue +=
+        typeof li.baseUnitPrice === 'number' && li.baseUnitPrice >= 0
+          ? li.baseUnitPrice * li.unitQuantity
+          : li.totalPrice
+    }
+    currentCompanyValue = round2(curValue)
+    room = Math.max(0, maxCompanyValue - currentCompanyValue)
+  }
+
+  if (!offender) {
+    return {
+      blocked: false,
+      reason: null,
+      unlimited: false,
+      tierValue,
+      maxPercent: maxPct,
+      maxCompanyValue,
+      currentCompanyValue,
+      room,
+      maxAllowedUnits,
+    }
+  }
+
+  return {
+    blocked: true,
+    reason: 'company-max',
+    unlimited: false,
+    tierValue,
+    companyId: offender.id,
+    companyName: offender.name,
+    maxPercent: maxPct,
+    maxCompanyValue,
+    companyValue: offender.value,
+    currentCompanyValue,
+    room,
+    maxAllowedUnits,
+  }
 }
 
 export function computeCartTotals(
@@ -278,7 +476,8 @@ export function computeCartTotals(
   const remainingForMinimum = meetsTierMinimum ? 0 : Math.max(0, tierMinimum - productBaseSubtotal)
 
   // ── Company diversification rules ──────────────────────────────────────
-  const { companyRule, meetsCompanyRules } = computeCompanyRuleResult(items, tier, productBaseSubtotal)
+  // Max company value is derived from the SELECTED TIER value (never subtotal).
+  const { companyRule, meetsCompanyRules } = computeCompanyRuleResult(items, tier)
 
   return {
     subtotal,
