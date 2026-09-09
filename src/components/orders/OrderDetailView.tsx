@@ -326,7 +326,7 @@ export function OrderDetailView({ data, actions, onBack, editMode, editItems, on
         discountFactor={discountFactor}
       />
       {editMode && editActions && (
-        <div className="sticky bottom-0 z-10 bg-white border-t border-[#E5E7EB] shadow-[0_-4px_12px_rgba(0,0,0,0.08)] px-4 py-3 -mx-4 lg:-mx-6">
+        <div className="bg-white rounded-lg border border-[#E5E7EB] shadow-sm p-4">
           {editActions}
         </div>
       )}
