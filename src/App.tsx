@@ -7,6 +7,8 @@ import { DesktopAppLayout } from './layouts/DesktopAppLayout'
 import { useAuthStore } from './store/auth'
 import { useNotificationStore } from './store/notifications'
 import { useEntityViewsStore } from './store/entityViews'
+import { useCartStore } from './store/cart'
+import { invalidateBonusModeCache } from './services/bonusConfig'
 import { notificationInboxService } from './services/notifications'
 import { SplashScreen } from './components/splash/SplashScreen'
 import { NotificationToast } from './components/notifications/NotificationToast'
@@ -49,6 +51,11 @@ export function App() {
       notificationService.register().then(() => notificationService.addListeners())
       lifeSignalService.handleAppOpen()
 
+      // Global Benefit Mode: keep the whole app in sync with the governed mode.
+      // Subscribe to live changes (broadcast + audit inserts) and re-read on start.
+      useCartStore.getState().subscribeToBonusMode()
+      useCartStore.getState().refreshBonusMode()
+
       // Notification system: fetch initial unread + subscribe to realtime
       const { user } = useAuthStore.getState()
       if (user?.identity_type === 'employee') {
@@ -82,10 +89,20 @@ export function App() {
     const handleVisibility = () => {
       if (document.visibilityState === 'visible') {
         lifeSignalService.handleAppResume()
+        invalidateBonusModeCache()
+        useCartStore.getState().refreshBonusMode()
       }
     }
+    const handleFocus = () => {
+      invalidateBonusModeCache()
+      useCartStore.getState().refreshBonusMode()
+    }
     document.addEventListener('visibilitychange', handleVisibility)
-    return () => document.removeEventListener('visibilitychange', handleVisibility)
+    window.addEventListener('focus', handleFocus)
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility)
+      window.removeEventListener('focus', handleFocus)
+    }
   }, [])
 
   if (!splashDone) {

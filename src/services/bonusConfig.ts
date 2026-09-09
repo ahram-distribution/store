@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase'
+import type { RealtimeChannel } from '@supabase/supabase-js'
 
 /**
  * Bonus Mode global configuration client (Phase 3).
@@ -51,4 +52,57 @@ export async function readBonusMode(): Promise<boolean> {
 
   inflight = { key, promise }
   return promise
+}
+
+let liveChannel: RealtimeChannel | null = null
+
+/**
+ * Live global-mode watch (Global Benefit Mode).
+ *
+ * Two signals converge on the same callback:
+ * 1. Broadcast `bonus_mode_changed` (announced by the admin after a successful
+ *    governed_set_bonus_mode RPC) — immediate, works regardless of DB grants.
+ * 2. postgres_changes INSERT on public.bonus_mode_audit (the append-only audit
+ *    row written by the mode-change RPC) — same mechanism as geo rules.
+ *
+ * The callback should invalidateBonusModeCache() then re-read so the cart store
+ * flips bonusMode instantly without reload or polling (spec §24).
+ */
+export function subscribeToBonusModeChanges(onChange: () => void): () => void {
+  if (liveChannel) {
+    void supabase.removeChannel(liveChannel)
+    liveChannel = null
+  }
+  const channel = supabase.channel('bonus-mode-live')
+  channel
+    .on('broadcast', { event: 'bonus_mode_changed' }, () => onChange())
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'bonus_mode_audit' }, () => onChange())
+    .subscribe()
+  liveChannel = channel
+  return () => {
+    if (liveChannel === channel) {
+      void supabase.removeChannel(channel)
+      liveChannel = null
+    }
+  }
+}
+
+/**
+ * Announces a successful governed mode change to every connected client
+ * (including the admin's own session) so storefront/cart views flip immediately.
+ */
+export function announceBonusModeChanged(): void {
+  const channel = supabase.channel('bonus-mode-live')
+  channel.subscribe((status) => {
+    if (status === 'SUBSCRIBED') {
+      void channel.send({
+        type: 'broadcast',
+        event: 'bonus_mode_changed',
+        payload: { at: Date.now() },
+      })
+      setTimeout(() => {
+        void supabase.removeChannel(channel)
+      }, 1000)
+    }
+  })
 }

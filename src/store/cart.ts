@@ -8,9 +8,10 @@ import { supabase } from '../lib/supabase'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import toast from 'react-hot-toast'
 import { currentGeoEpoch, getGeographicAdjustmentsForProducts, invalidateGeographicResolutions } from '../services/geographicPricing'
-import { readBonusMode, currentBonusModeEpoch } from '../services/bonusConfig'
+import { readBonusMode, currentBonusModeEpoch, invalidateBonusModeCache, subscribeToBonusModeChanges } from '../services/bonusConfig'
 
 let geoRulesChannel: RealtimeChannel | null = null
+let bonusModeUnsubscribe: (() => void) | null = null
 let _geoResolveVersion = 0
 
 interface CartCustomer {
@@ -91,6 +92,7 @@ interface CartState {
   setEditingOrder: (orderId: string | null) => void
   setOrderType: (orderType: string) => void
   refreshBonusMode: () => Promise<void>
+  subscribeToBonusMode: () => void
   restoreCart: (items: CartItem[], editingOrderId: string, restoreOrderType?: string, restoreTierId?: string | null, restorePaymentMethodId?: string | null, restoreShippingMethodId?: string | null) => void
   resolveGeographicPricing: (governorateId: string | null, companyId?: string, productId?: string) => Promise<void>
   resolveEmployeeGeographicContext: (employeeId: string) => Promise<void>
@@ -694,6 +696,14 @@ export const useCartStore = create(
           get().recalculateAll()
           get().recomputeBonus()
         }
+      },
+
+      subscribeToBonusMode: () => {
+        if (bonusModeUnsubscribe) return
+        bonusModeUnsubscribe = subscribeToBonusModeChanges(() => {
+          invalidateBonusModeCache()
+          get().refreshBonusMode()
+        })
       },
 
       setSelectedCustomer: (customer) => {

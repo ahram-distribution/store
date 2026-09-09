@@ -69,6 +69,15 @@ export function formatDecimal(value: number, fractionDigits = 2): string {
   })
 }
 
+/** Compact money formatter with NO currency symbol: whole values render as
+ * grouped integers (5,250); fractional values render with exactly two decimal
+ * places (350.50). Uses English digits and the European thousands separator. */
+export function formatSmartMoney(value: number): string {
+  if (!Number.isFinite(value)) return '0'
+  const hasFraction = Math.abs(value - Math.round(value)) >= 1e-9
+  return hasFraction ? formatDecimal(value, 2) : formatInteger(value)
+}
+
 /** Percentage formatter; always renders English digits plus the % sign. */
 export function formatPercent(value: number, fractionDigits = 0): string {
   return `${formatNumber(value, {

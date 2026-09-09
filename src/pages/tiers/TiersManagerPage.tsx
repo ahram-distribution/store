@@ -4,6 +4,8 @@ import { supabase } from '../../lib/supabase'
 import { useCapability } from '../../hooks/useCapability'
 import { DynamicSchemaEditor, TIER_COLUMNS, PAYMENT_METHOD_COLUMNS, SHIPPING_METHOD_COLUMNS, type ColumnDef } from '../../utils/schemaEditor'
 import { discountOptionsService } from '../../services/discountOptions'
+import { invalidateBonusModeCache, announceBonusModeChanged } from '../../services/bonusConfig'
+import { useCartStore } from '../../store/cart'
 import { formatCurrencyShort } from '../../utils/format'
 import toast from 'react-hot-toast'
 
@@ -223,6 +225,12 @@ export function TiersManagerPage() {
         toast('الوضع مطابق فعلاً — لا تغيير مسجل')
       } else {
         toast.success(bonusTarget ? 'تم التفعيل: بونص شرائح' : 'تم الإغلاق: خصم مباشر على المنتجات')
+        // Global Benefit Mode: invalidate the client cache so this session (and the
+        // cart store) re-reads the fresh governed mode, then announce to every
+        // connected storefront so all views switch immediately without reload.
+        invalidateBonusModeCache()
+        await useCartStore.getState().refreshBonusMode()
+        announceBonusModeChanged()
       }
       setBonusReason('')
       await loadBonusConfig()

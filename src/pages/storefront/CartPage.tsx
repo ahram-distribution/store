@@ -2,51 +2,43 @@ import { useNavigate } from 'react-router-dom'
 import { useEffect, useState, useMemo, useCallback } from 'react'
 import { useCartStore } from '../../store/cart'
 import { useAuthStore } from '../../store/auth'
-import { TierSelector } from '../../components/storefront/TierSelector'
-import { PaymentMethodSelector } from '../../components/storefront/PaymentMethodSelector'
-import { ShippingMethodSelector } from '../../components/storefront/ShippingMethodSelector'
-import { TierMinimumNotice } from '../../components/storefront/TierMinimumNotice'
-import { TierCompanyRulesNotice } from '../../components/storefront/TierCompanyRulesNotice'
 import { EmptyCart } from '../../components/storefront/EmptyCart'
 import { SearchableSelect } from '../../components/shared/SearchableSelect'
-import { formatCurrencyShort, formatArabicAmountWithCurrency, formatTierName } from '../../utils/format'
-import { formatNumber } from '../../utils/numbers'
+import { CartSummaryBar } from '../../components/storefront/CartSummaryBar'
+import { formatArabicAmountWithCurrency, formatTierName } from '../../utils/format'
+import { formatSmartMoney } from '../../utils/numbers'
 import { UNIT_LABELS } from '../../types/order-display'
 import { BONUS_COPY } from '../../constants/bonusCopy'
 import { supabase } from '../../lib/supabase'
 import toast from 'react-hot-toast'
 import type { CartItem as CartItemType } from '../../types/storefront'
-import { checkCartAvailability, buildBusinessStatusCard, type AvailabilityResult } from '../../utils/cart-availability'
-import { BusinessStatusCard } from '../../components/storefront/BusinessStatusCard'
+import { checkCartAvailability } from '../../utils/cart-availability'
 
-const COMPANY_COLORS = [
-  { bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-800', header: 'bg-blue-500' },
-  { bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-800', header: 'bg-emerald-500' },
-  { bg: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-800', header: 'bg-amber-500' },
-  { bg: 'bg-rose-50', border: 'border-rose-200', text: 'text-rose-800', header: 'bg-rose-500' },
-  { bg: 'bg-violet-50', border: 'border-violet-200', text: 'text-violet-800', header: 'bg-violet-500' },
-  { bg: 'bg-cyan-50', border: 'border-cyan-200', text: 'text-cyan-800', header: 'bg-cyan-500' },
-  { bg: 'bg-orange-50', border: 'border-orange-200', text: 'text-orange-800', header: 'bg-orange-500' },
-  { bg: 'bg-pink-50', border: 'border-pink-200', text: 'text-pink-800', header: 'bg-pink-500' },
-]
+/** Compact LTR money cell — thousands separators, no currency suffix, smart decimals. */
+function Money({ value, className = '' }: { value: number; className?: string }) {
+  return (
+    <span dir="ltr" className={`tabular-nums ${className}`}>
+      {formatSmartMoney(Number(value) || 0)}
+    </span>
+  )
+}
 
-function hashId(id: string): number {
-  let h = 0
-  for (let i = 0; i < id.length; i++) {
-    h = ((h << 5) - h) + id.charCodeAt(i)
-    h |= 0
-  }
-  return Math.abs(h)
+const percentText = (pct: number) => {
+  const p = Number(pct)
+  return p % 1 === 0 ? String(p) : Number(Number(p).toFixed(1)).toString()
+}
+
+function SectionTitle({ children }: { children: string }) {
+  return <div className="text-xs font-bold text-text-secondary mb-1.5">{children}</div>
 }
 
 export function CartPage() {
   const navigate = useNavigate()
   const [hydrated, setHydrated] = useState(false)
   const { token: authToken, user } = useAuthStore()
-const isDirectCustomer = user?.identity_type === 'customer'
+  const isDirectCustomer = user?.identity_type === 'customer'
   const [editingCustomer, setEditingCustomer] = useState(false)
   const [customers, setCustomers] = useState<any[]>([])
-  const [availabilityByItem, setAvailabilityByItem] = useState<Record<string, AvailabilityResult>>({})
 
   useEffect(() => {
     const s = useCartStore as unknown as { persist: { hasHydrated: () => boolean; onFinishHydration: (fn: () => void) => () => void } }
@@ -61,7 +53,19 @@ const isDirectCustomer = user?.identity_type === 'customer'
   const fetchCustomers = useCallback(async () => {
     if (!authToken || customers.length > 0) return
     const { data } = await supabase.rpc('get_governed_customers', { p_token: authToken })
-    if (Array.isArray(data)) setCustomers(data)
+    if (!Array.isArray(data)) return
+    setCustomers(data)
+    // Backfill the persisted selected customer's real address (registered_address /
+    // location_address from the governed RPC) — fixes customers selected before the
+    // address field was populated.
+    const selected = useCartStore.getState().selectedCustomer
+    if (selected && !selected.address) {
+      const match = (data as any[]).find((c: any) => c.id === selected.id)
+      const addr = String(match?.registered_address || match?.location_address || '') || undefined
+      if (addr) {
+        useCartStore.getState().setSelectedCustomer({ ...selected, address: addr })
+      }
+    }
   }, [authToken, customers.length])
 
   const {
@@ -72,6 +76,12 @@ const isDirectCustomer = user?.identity_type === 'customer'
     tiers,
     selectedTierId,
     selectTier,
+    paymentMethods,
+    selectedPaymentMethodId,
+    selectPaymentMethod,
+    shippingMethods,
+    selectedShippingMethodId,
+    selectShippingMethod,
     updateQuantity,
     removeItem,
     removeDeal,
@@ -89,9 +99,9 @@ const isDirectCustomer = user?.identity_type === 'customer'
     bonusItems,
     bonusOverflowApproved,
     setBonusOverflowApproved,
+    removeBonusItem,
     refreshBonusMode,
     updateBonusQuantity,
-    removeBonusItem,
   } = useCartStore()
 
   const selectedTier = getSelectedTier()
@@ -108,25 +118,9 @@ const isDirectCustomer = user?.identity_type === 'customer'
   useEffect(() => {
     if (hydrated) {
       refreshBonusMode()
+      fetchCustomers()
     }
-}, [hydrated, refreshBonusMode])
-
-  useEffect(() => {
-    let active = true
-    Promise.all([
-      ...items.map(async (item) => [
-        `${item.productId}:${item.unitType}`,
-        await checkCartAvailability(item.productId, item.unitQuantity, item.unitType),
-      ] as const),
-      ...bonusItems.map(async (item) => [
-        `bonus:${item.productId}:${item.unitType}`,
-        await checkCartAvailability(item.productId, item.unitQuantity, item.unitType),
-      ] as const),
-    ]).then((results) => {
-      if (active) setAvailabilityByItem(Object.fromEntries(results))
-    })
-    return () => { active = false }
-  }, [items, bonusItems])
+  }, [hydrated, refreshBonusMode, fetchCustomers])
 
   const productCompanyMap = useMemo(() => {
     const map = new Map<string, { id: string; name: string }>()
@@ -135,22 +129,6 @@ const isDirectCustomer = user?.identity_type === 'customer'
     }
     return map
   }, [products])
-
-  const groups = useMemo(() => {
-    const grouped = new Map<string, { companyName: string; items: CartItemType[]; subtotal: number }>()
-    for (const item of items) {
-      const company = productCompanyMap.get(item.productId)
-      const companyId = company?.id || item.companyId || 'unknown'
-      const companyName = company?.name || item.companyName || 'غير معروف'
-      if (!grouped.has(companyId)) {
-        grouped.set(companyId, { companyName, items: [], subtotal: 0 })
-      }
-      const g = grouped.get(companyId)!
-      g.items.push(item)
-      g.subtotal += item.totalPrice
-    }
-    return Array.from(grouped.entries()).map(([id, g]) => ({ id, ...g }))
-  }, [items, productCompanyMap])
 
   if (!hydrated) return null
 
@@ -200,118 +178,460 @@ const isDirectCustomer = user?.identity_type === 'customer'
     navigate('/order-review')
   }
 
+  /** Cancel overflow: reset approval and return the Bonus selection to a valid,
+   *  non-overflow state using ONLY the existing governed store actions. */
+  const handleBonusCancel = () => {
+    setBonusOverflowApproved(false)
+    let guard = 0
+    while ((useCartStore.getState().bonusOverflow ?? 0) > 0 && guard < 200) {
+      const state = useCartStore.getState()
+      const all = [...state.bonusItems]
+      if (all.length === 0) break
+      const biggest = all.reduce((a, b) => (b.totalPrice > a.totalPrice ? b : a))
+      removeBonusItem(biggest.productId, biggest.unitType)
+      guard++
+    }
+    toast.success('تم إلغاء تجاوز البونص — أُزيلت المنتجات الزائدة عن الرصيد.')
+  }
+
+  const companyNameFor = (item: CartItemType) => {
+    const company = productCompanyMap.get(item.productId)
+    return company?.name || item.companyName || 'غير معروف'
+  }
+
+  const codeFor = (item: CartItemType) => {
+    const product = products.find((p) => p.id === item.productId)
+    return product?.legacyCode
+  }
+
+  const hasDiscount = (item: CartItemType) =>
+    typeof item.baseUnitPrice === 'number' && item.baseUnitPrice >= 0 && Math.abs(item.baseUnitPrice - item.unitPrice) > 0.005
+
+  const lineBaseValue = (item: CartItemType) =>
+    Math.round((typeof item.baseUnitPrice === 'number' && item.baseUnitPrice >= 0 ? item.baseUnitPrice : item.unitPrice) * item.unitQuantity * 100) / 100
+
+  /** Per-main-product-line governed Bonus credit (from totals.bonusSummary.items). */
+  const bonusCreditFor = (item: CartItemType): number | null => {
+    if (!bonusMode || item.isBonus) return null
+    const lineBase = lineBaseValue(item)
+    const ent = (totals.bonusSummary?.items ?? []).find(
+      (e) => e.productId === item.productId && Math.abs(e.baseValue - lineBase) < 0.011
+    )
+    if (!ent || ent.credit <= 0) return null
+    return ent.credit
+  }
+
+  /** Per-main-product-line actual monetary discount (Direct Discount mode only). */
+  const discountFor = (item: CartItemType): number | null => {
+    if (bonusMode || item.isBonus || !hasDiscount(item)) return null
+    return Math.round((item.baseUnitPrice - item.unitPrice) * item.unitQuantity * 100) / 100
+  }
+
+  const benefitFor = (item: CartItemType): number | null => (bonusMode ? bonusCreditFor(item) : discountFor(item))
+  const benefitWord = bonusMode ? 'بونص' : 'خصم'
+
+  /** Apply quantity change through the governed cart action IMMEDIATELY, then run
+   *  the availability RPC as a best-effort advisory; revert + compact notice if blocked. */
+  const attemptIncrement = async (item: CartItemType, isBonus: boolean) => {
+    const next = item.unitQuantity + 1
+    const apply = (qty: number) =>
+      isBonus ? updateBonusQuantity(item.productId, item.unitType, qty) : updateQuantity(item.productId, item.unitType, qty)
+    apply(next)
+    try {
+      const result = await checkCartAvailability(item.productId, next, item.unitType)
+      const blocked =
+        !result.available || (result.max_allowed_units != null && next > result.max_allowed_units)
+      if (blocked) {
+        apply(item.unitQuantity)
+        if (!result.available) {
+          toast.error(result.error || 'الكمية المتاحة غير كافية لهذا الصنف')
+        } else {
+          toast.error(`الحد الأقصى ${result.max_allowed_units} ${UNIT_LABELS[result.unit_type] || 'قطعة'}`)
+        }
+      }
+    } catch {
+      // Advisory RPC unavailable — governed increment already applied.
+    }
+  }
+
+  const qtyControls = (item: CartItemType, isBonus: boolean) => (
+    <div className="flex items-center gap-1.5">
+      <button
+        type="button"
+        onClick={() => {
+          const next = item.unitQuantity - 1
+          if (isBonus) updateBonusQuantity(item.productId, item.unitType, next)
+          else updateQuantity(item.productId, item.unitType, next)
+        }}
+        aria-label="تقليل الكمية"
+        className="w-10 h-10 flex items-center justify-center rounded-lg bg-white border border-border text-text-secondary text-xl leading-none select-none active:bg-surface transition-colors"
+      >
+        −
+      </button>
+      <span className="text-sm font-semibold text-text w-8 text-center tabular-nums">{item.unitQuantity}</span>
+      <button
+        type="button"
+        onClick={() => attemptIncrement(item, isBonus)}
+        aria-label="زيادة الكمية"
+        className="w-10 h-10 flex items-center justify-center rounded-lg bg-white border border-border text-text-secondary text-xl leading-none select-none active:bg-surface transition-colors"
+      >
+        +
+      </button>
+    </div>
+  )
+
+  const unitPriceBlock = (item: CartItemType, isBonus: boolean) =>
+    isBonus ? (
+      <div className="text-xs space-y-0.5">
+        <div className="text-text-secondary">سعر الوحدة</div>
+        <div className="font-bold text-text">
+          <Money value={item.unitPrice} />{' '}
+        </div>
+        <div className="text-[10px] text-text-secondary">سعر البونص (أساسي)</div>
+      </div>
+    ) : hasDiscount(item) ? (
+      <div className="text-xs space-y-0.5">
+        <div className="text-text-secondary">سعر الوحدة قبل الخصم</div>
+        <div className="line-through text-text-secondary">
+          <Money value={item.baseUnitPrice} />
+        </div>
+        <div className="text-text-secondary">سعر الوحدة بعد الخصم</div>
+        <div className="font-bold text-primary">
+          <Money value={item.unitPrice} />
+        </div>
+      </div>
+    ) : (
+      <div className="text-xs space-y-0.5">
+        <div className="text-text-secondary">سعر الوحدة</div>
+        <div className="font-bold text-text">
+          <Money value={item.unitPrice} />
+        </div>
+      </div>
+    )
+
+  /** MOBILE — structured product block (primary layout). */
+  const mobileRow = (item: CartItemType, isBonus: boolean, keyPrefix: string) => {
+    const benefit = benefitFor(item)
+    return (
+      <div key={`${keyPrefix}${item.productId}-${item.unitType}`} className="px-3 py-2.5 space-y-1.5">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <div className="text-sm font-semibold text-text leading-tight break-words">{item.productName}</div>
+            <div className="text-[11px] text-text-secondary mt-0.5 break-words">
+              الكود: {codeFor(item) || '—'} · الشركة: {companyNameFor(item)}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => (isBonus ? removeBonusItem(item.productId, item.unitType) : removeItem(item.productId, item.unitType))}
+            className="text-[11px] text-danger font-semibold shrink-0"
+          >
+            حذف
+          </button>
+        </div>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span className="text-xs text-text">
+            <span className="text-text-secondary">الكمية:</span>{' '}
+            <b className="tabular-nums text-sm">{item.unitQuantity}</b> {UNIT_LABELS[item.unitType]}
+          </span>
+          {qtyControls(item, isBonus)}
+        </div>
+        {unitPriceBlock(item, isBonus)}
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-text-secondary">إجمالي الصنف</span>
+          <b className="text-sm font-bold text-text" dir="ltr">
+            <Money value={item.totalPrice} />
+          </b>
+        </div>
+        {benefit !== null && (
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-text-secondary">{benefitWord} الناتج عن هذا الصنف</span>
+            <b className="text-xs font-bold text-success" dir="ltr">
+              <Money value={benefit} />
+            </b>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  /** DESKTOP / TABLET — aligned product table row (md+ only). */
+  const desktopRow = (item: CartItemType, isBonus: boolean, idx: number) => {
+    const benefit = benefitFor(item)
+    return (
+      <div
+        key={`${isBonus ? 'bonus-' : ''}${item.productId}-${item.unitType}`}
+        className="px-4 py-2.5 hidden md:grid grid-cols-[2.5rem_minmax(0,1fr)_7rem_9rem_7rem_7rem_9rem] gap-x-3 items-center"
+      >
+        <span className="text-[11px] text-text-secondary tabular-nums">{idx + 1}</span>
+        <div className="min-w-0">
+          <div className="text-sm font-semibold text-text break-words">{item.productName}</div>
+          <div className="text-[11px] text-text-secondary">
+            الكود: {codeFor(item) || '—'} · الشركة: {companyNameFor(item)}
+          </div>
+        </div>
+        <div className="flex text-xs text-text items-center gap-1">
+          <b className="tabular-nums">{item.unitQuantity}</b> {UNIT_LABELS[item.unitType]}
+        </div>
+        <div>{unitPriceBlock(item, isBonus)}</div>
+        <div className="text-sm font-bold text-text">
+          <Money value={item.totalPrice} />
+        </div>
+        <div className="text-xs font-bold text-success">
+          {benefit !== null ? (
+            <>
+              {benefitWord} <Money value={benefit} />
+            </>
+          ) : (
+            <span className="text-text-secondary font-normal">—</span>
+          )}
+        </div>
+        <div className="flex items-center gap-3">
+          {qtyControls(item, isBonus)}
+          <button
+            type="button"
+            onClick={() => (isBonus ? removeBonusItem(item.productId, item.unitType) : removeItem(item.productId, item.unitType))}
+            className="text-[11px] text-danger font-semibold"
+          >
+            حذف
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  /** Desktop table header (md+ only). */
+  const tableHead = (benefitTitle: string) => (
+    <div className="hidden md:grid grid-cols-[2.5rem_minmax(0,1fr)_7rem_9rem_7rem_7rem_9rem] gap-x-3 items-center px-4 py-2 text-[11px] font-bold text-text-secondary bg-surface/70 border-b border-border">
+      <span>#</span>
+      <span>الصنف</span>
+      <span>الكمية</span>
+      <span>سعر الوحدة</span>
+      <span>إجمالي الصنف</span>
+      <span>{benefitTitle}</span>
+      <span>إجراءات</span>
+    </div>
+  )
+
+  const renderBenefitSelect = (
+    label: string,
+    currentId: string | null,
+    rawOptions: { id: string; name: string; discountPercent: number }[],
+    onSelect: (id: string | null) => void,
+    noneLabel: string
+  ) => {
+    const inList = rawOptions.some((o) => o.id === currentId)
+    return (
+      <label className="block">
+        <span className="text-[11px] font-semibold text-text-secondary block mb-1">{label}</span>
+        <select
+          value={inList ? currentId ?? '' : ''}
+          onChange={(e) => onSelect(e.target.value === '' ? null : e.target.value)}
+          className="w-full h-10 border border-border rounded-lg px-2.5 text-sm bg-white text-text outline-none focus:border-primary transition-colors"
+        >
+          <option value="">{noneLabel}</option>
+          {rawOptions.map((o) => (
+            <option key={o.id} value={o.id}>
+              {formatTierName(o.name)}
+              {Number(o.discountPercent) > 0 ? ` — ${bonusMode ? 'بونص' : 'خصم'} ${percentText(o.discountPercent)}%` : ''}
+            </option>
+          ))}
+        </select>
+      </label>
+    )
+  }
+
+  const visiblePaymentMethods = paymentMethods.filter((m) => m.isActive && m.isVisible)
+  const visibleShippingMethods = shippingMethods.filter((m) => m.isActive && m.isVisible)
+
+  const bonusCredit = totals.bonusCredit ?? 0
+  const bonusProductsTotal = totals.bonusProductsTotal ?? 0
+  const bonusApplied = totals.bonusApplied ?? 0
+  const bonusUnused = totals.bonusUnused ?? 0
+  const bonusOverflow = totals.bonusOverflow ?? 0
+
+  const totalCount = items.length + bonusItems.length
+  const mainProductsTotal = bonusMode ? totals.productBaseSubtotal : totals.productSubtotal
+  const hasBenefitSelectors = tiers.length > 0 || visiblePaymentMethods.length > 0 || visibleShippingMethods.length > 0
+
+  const selectedPctLines = [
+    ...(selectedTier && selectedTier.discountPercent > 0
+      ? [`${benefitWord} الشريحة ${percentText(selectedTier.discountPercent)}%`]
+      : []),
+    ...(selectedPaymentMethod && selectedPaymentMethod.discountPercent > 0
+      ? [`${benefitWord} الدفع ${percentText(selectedPaymentMethod.discountPercent)}%`]
+      : []),
+    ...(selectedShippingMethod && selectedShippingMethod.discountPercent > 0
+      ? [`${benefitWord} الشحن ${percentText(selectedShippingMethod.discountPercent)}%`]
+      : []),
+  ]
+  const combinedPct = selectedPctLines.length > 0
+    ? [
+        ...(selectedTier && selectedTier.discountPercent > 0 ? [Number(selectedTier.discountPercent)] : []),
+        ...(selectedPaymentMethod && selectedPaymentMethod.discountPercent > 0 ? [Number(selectedPaymentMethod.discountPercent)] : []),
+        ...(selectedShippingMethod && selectedShippingMethod.discountPercent > 0 ? [Number(selectedShippingMethod.discountPercent)] : []),
+      ].reduce((a, b) => a + b, 0)
+    : 0
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-3 pb-16">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate('/storefront')} className="text-text-secondary text-lg">
+          <button type="button" onClick={() => navigate('/storefront')} aria-label="رجوع" className="text-text-secondary text-lg">
             &larr;
           </button>
           <h1 className="text-lg font-bold text-text">سلة التسوق</h1>
         </div>
-        <span className="text-xs text-text-secondary">{items.length + bonusItems.length} منتج</span>
+        <span className="text-xs text-text-secondary">{totalCount} منتج</span>
       </div>
 
-      {/* Order Context Card */}
-      {items.length > 0 && (
-        <div className="bg-white rounded-xl border border-border p-3 space-y-2">
-          <div className="flex items-center justify-between">
-            <div className="flex-1 min-w-0">
-              <div className="text-xs text-text-secondary">العميل</div>
-              {editingCustomer ? (
-                <SearchableSelect
-                  items={customers.map((c: any) => ({ id: c.id, name: c.company_name || '' }))}
-                  value={selectedCustomer?.id || ''}
-                  onChange={(id) => {
-                    const c = customers.find((c: any) => c.id === id)
-                    if (c) {
-                      setSelectedCustomer({ id: c.id, name: c.company_name || '', phone: c.phone || '', code: c.code || '' })
-                    }
-                    setEditingCustomer(false)
-                  }}
-                  placeholder="اختر العميل"
-                />
-              ) : (
-                <div className="text-sm font-semibold text-text truncate">{selectedCustomer?.name || 'غير محدد'}</div>
-              )}
-            </div>
-            {!editingCustomer && !isDirectCustomer && (
-              <button onClick={() => { setEditingCustomer(true); fetchCustomers() }} className="text-xs text-primary font-semibold shrink-0 ml-3">تغيير</button>
-            )}
-          </div>
-        </div>
-      )}
+      {/* 1. Blue compact cart summary bar */}
+      <CartSummaryBar />
 
-      {/* Tier Selector */}
-      <TierSelector
-        tiers={tiers}
-        selectedTierId={selectedTierId}
-        onSelect={selectTier}
-        cartTotal={totals.netTotal}
-        bonusMode={bonusMode}
-      />
-
-      {/* Payment + Shipping method selectors */}
-      <PaymentMethodSelector />
-      <ShippingMethodSelector />
-
-      {/* Compact tier summary */}
+      {/* 2. Tier status — directly under the summary bar */}
       {selectedTier && (
-        <div className="rounded-xl border border-primary/20 bg-primary/[0.03] p-3">
-          <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-            <div className="text-[11px] text-text-secondary">الشريحة الحالية</div>
-            <div className="text-sm font-bold text-text text-left">{formatTierName(selectedTier.name)}</div>
-            <div className="text-[11px] text-text-secondary">{bonusMode ? 'نسبة البونص' : 'الخصم'}</div>
-            <div className="text-sm font-bold text-success text-left">
-              {selectedTier.discountPercent % 1 === 0 ? selectedTier.discountPercent : Number(selectedTier.discountPercent.toFixed(1))}%
-            </div>
-            <div className="text-[11px] text-text-secondary">الحد الأدنى</div>
-            <div className="text-sm font-semibold text-text text-left">
-              {formatArabicAmountWithCurrency(totals.tierMinimum)}
-            </div>
-            <div className="text-[11px] text-text-secondary">المتبقي</div>
+        <div
+          className={`rounded-lg border text-xs ${
+            totals.meetsTierMinimum ? 'border-success/30 bg-success/5' : 'border-warning/30 bg-warning/5'
+          }`}
+        >
+          <div className="px-3 py-2 font-semibold flex items-center justify-between gap-2">
+            <span className={totals.meetsTierMinimum ? 'text-success' : 'text-warning'}>
+              حالة الشريحة: {formatTierName(selectedTier.name)}
+            </span>
             {totals.meetsTierMinimum ? (
-              <div className="text-sm font-bold text-success text-left">✓ تم تحقيق الشريحة</div>
+              <span className="text-success">تم تحقيق الشريحة ✓</span>
             ) : (
-              <div className="text-sm font-bold text-warning text-left">
-                {formatArabicAmountWithCurrency(totals.remainingForMinimum)}
-              </div>
+              <span className="text-warning">
+                متبقي <span dir="ltr" className="tabular-nums font-bold">{formatSmartMoney(totals.remainingForMinimum)}</span>{' '}
+                لتحقيق الشريحة
+              </span>
             )}
+          </div>
+          {/* Total discount value + percentage breakdown */}
+          <div className="px-3 pb-2 pt-1.5 border-t border-border space-y-1">
+            <div className="flex justify-between items-center">
+              <span className="text-text-secondary font-medium">{bonusMode ? 'إجمالي قيمة البونص' : 'إجمالي قيمة الخصم'}</span>
+              <span className={`font-bold ${bonusMode ? 'text-violet-700' : 'text-success'}`} dir="ltr">
+                {bonusMode ? <Money value={bonusCredit} /> : <>−<Money value={totals.totalDiscount} /></>}
+              </span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-text-secondary font-medium">نسبة الخصم</span>
+              <span className="font-bold text-text" dir="rtl">
+                {percentText(combinedPct)}%
+              </span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-text-secondary font-medium">الخصومات</span>
+              <span className="font-semibold text-text" dir="rtl">
+                {selectedPctLines.length > 0 ? selectedPctLines.join(' + ') : '—'}
+              </span>
+            </div>
           </div>
         </div>
       )}
 
-      {selectedTier && !totals.meetsTierMinimum && (
-        <TierMinimumNotice
-          remainingForMinimum={totals.remainingForMinimum}
-          tierMinimum={totals.tierMinimum}
-          tierName={selectedTier.name}
-          currentAmount={totals.productBaseSubtotal}
-          met={false}
-          discountPercent={selectedTier.discountPercent}
-        />
-      )}
-
-      {selectedTier && totals.companyRule && !totals.meetsCompanyRules && (
-        <TierCompanyRulesNotice companyRule={totals.companyRule} tier={selectedTier} />
-      )}
-
-      {/* Flash Offer Items */}
-      {flashOfferItems.length > 0 && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl overflow-hidden">
-          <div className="px-4 py-2.5 bg-amber-500 text-white">
-            <h3 className="text-sm font-bold">عروض الساعة</h3>
+      {/* 3. Customer information */}
+      {items.length > 0 && (
+        <div className="bg-primary/[0.03] rounded-xl border border-primary/15 p-3 space-y-1.5">
+          <div className="flex items-center justify-between">
+            <div className="text-xs font-bold text-primary">بيانات العميل</div>
+            {!editingCustomer && !isDirectCustomer && (
+              <button type="button" onClick={() => { setEditingCustomer(true); fetchCustomers() }} className="text-xs font-semibold text-primary">
+                تغيير العميل
+              </button>
+            )}
           </div>
+          {editingCustomer ? (
+            <SearchableSelect
+              items={customers.map((c: any) => ({ id: c.id, name: c.company_name || '' }))}
+              value={selectedCustomer?.id || ''}
+              onChange={(id) => {
+                const c = customers.find((c: any) => c.id === id)
+                if (c) {
+                  setSelectedCustomer({
+                    id: c.id,
+                    name: c.company_name || '',
+                    phone: c.phone || '',
+                    code: c.code || '',
+                    address: String(c.registered_address || c.location_address || '') || undefined,
+                  })
+                }
+                setEditingCustomer(false)
+              }}
+              placeholder="اختر العميل"
+            />
+          ) : (
+            <div className="space-y-1">
+              <div className="text-base font-bold text-text break-words">{selectedCustomer?.name || 'غير محدد'}</div>
+              <div className="flex items-start gap-1.5 text-xs text-text-secondary">
+                <span className="font-semibold shrink-0">الاسم:</span>
+                <span className="break-words">{selectedCustomer?.name || 'غير محدد'}</span>
+              </div>
+              <div className="flex items-start gap-1.5 text-xs text-text-secondary">
+                <span className="font-semibold shrink-0">الهاتف:</span>
+                <span dir="ltr" className="break-all">{selectedCustomer?.phone || 'غير مسجل'}</span>
+              </div>
+              <div className="flex items-start gap-1.5 text-xs text-text-secondary">
+                <span className="font-semibold shrink-0">العنوان:</span>
+                <span className="break-words">{selectedCustomer?.address || 'لا يوجد عنوان مسجل'}</span>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 4. Benefit selectors */}
+      {hasBenefitSelectors && (
+        <div className="bg-amber-50/40 rounded-xl border border-amber-200/70 p-3">
+          <SectionTitle>الخصومات والمزايا</SectionTitle>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+            {tiers.length > 0 &&
+              renderBenefitSelect(
+                'شريحتك',
+                selectedTierId,
+                tiers.map((t) => ({ id: t.id, name: t.name, discountPercent: t.discountPercent })),
+                selectTier,
+                'السعر الأساسي'
+              )}
+            {visiblePaymentMethods.length > 0 &&
+              renderBenefitSelect('طريقة الدفع', selectedPaymentMethodId, visiblePaymentMethods, selectPaymentMethod, 'نقدي / بدون طريقة')}
+            {visibleShippingMethods.length > 0 &&
+              renderBenefitSelect('طريقة الشحن', selectedShippingMethodId, visibleShippingMethods, selectShippingMethod, 'بدون طريقة شحن')}
+          </div>
+          {selectedTier && !totals.meetsTierMinimum && (
+            <p className="text-[11px] text-warning mt-1.5">
+              الحد الأدنى للشريحة {formatArabicAmountWithCurrency(totals.tierMinimum)} — المتبقي {formatArabicAmountWithCurrency(totals.remainingForMinimum)}
+            </p>
+          )}
+          {selectedTier && totals.companyRule && !totals.meetsCompanyRules && (
+            <p className="text-[11px] text-danger mt-1.5">
+              {totals.companyRule && !totals.companyRule.meetsMinimumCompanies
+                ? `تنوع الشركات غير كافٍ — أضف منتجات من ${(totals.companyRule.minimumCompanyCount ?? 0) - totals.companyRule.distinctCompanyCount} شركة أخرى`
+                : 'أعد توزيع المشتريات بين الشركات بما لا يتجاوز الحد الأقصى لكل شركة'}
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Flash offers + daily deals — compact */}
+      {flashOfferItems.length > 0 && (
+        <div className="bg-white rounded-xl border border-amber-300 overflow-hidden">
+          <div className="px-3 py-2 bg-amber-500 text-white text-xs font-bold">عروض الساعة</div>
           <div className="divide-y divide-amber-100">
             {flashOfferItems.map((offer) => (
-              <div key={offer.dealId} className="flex items-center justify-between px-4 py-3">
-                <div className="flex-1 min-w-0">
-                  <span className="text-sm font-semibold text-text block truncate">{offer.dealTitle}</span>
-                  <span className="text-xs text-text-secondary">الكمية: {offer.quantity}</span>
+              <div key={offer.dealId} className="px-3 py-2 flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold text-text truncate">{offer.dealTitle}</div>
+                  <div className="text-[11px] text-text-secondary">الكمية: {offer.quantity}</div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-sm font-bold text-danger">{formatCurrencyShort(offer.totalPrice)}</span>
-                  <button onClick={() => removeFlashOffer(offer.dealId)} className="text-xs text-danger font-semibold">
+                <div className="flex items-center gap-3 shrink-0">
+                  <span className="text-sm font-bold text-danger" dir="ltr">
+                    <Money value={offer.totalPrice} />
+                  </span>
+                  <button type="button" onClick={() => removeFlashOffer(offer.dealId)} className="text-xs text-danger font-semibold">
                     حذف
                   </button>
                 </div>
@@ -320,23 +640,21 @@ const isDirectCustomer = user?.identity_type === 'customer'
           </div>
         </div>
       )}
-
-      {/* Deal Items */}
       {dealItems.length > 0 && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl overflow-hidden">
-          <div className="px-4 py-2.5 bg-amber-500 text-white">
-            <h3 className="text-sm font-bold">العروض اليومية</h3>
-          </div>
+        <div className="bg-white rounded-xl border border-amber-300 overflow-hidden">
+          <div className="px-3 py-2 bg-amber-500 text-white text-xs font-bold">العروض اليومية</div>
           <div className="divide-y divide-amber-100">
             {dealItems.map((deal) => (
-              <div key={deal.dealId} className="flex items-center justify-between px-4 py-3">
-                <div className="flex-1 min-w-0">
-                  <span className="text-sm font-semibold text-text block truncate">{deal.dealTitle}</span>
-                  <span className="text-xs text-text-secondary">الكمية: {deal.quantity}</span>
+              <div key={deal.dealId} className="px-3 py-2 flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold text-text truncate">{deal.dealTitle}</div>
+                  <div className="text-[11px] text-text-secondary">الكمية: {deal.quantity}</div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-sm font-bold text-danger">{formatCurrencyShort(deal.totalPrice)}</span>
-                  <button onClick={() => removeDeal(deal.dealId)} className="text-xs text-danger font-semibold">
+                <div className="flex items-center gap-3 shrink-0">
+                  <span className="text-sm font-bold text-danger" dir="ltr">
+                    <Money value={deal.totalPrice} />
+                  </span>
+                  <button type="button" onClick={() => removeDeal(deal.dealId)} className="text-xs text-danger font-semibold">
                     حذف
                   </button>
                 </div>
@@ -346,365 +664,302 @@ const isDirectCustomer = user?.identity_type === 'customer'
         </div>
       )}
 
-      {/* Company-grouped Cart Items */}
-      {groups.map((group) => {
-        const colorIdx = hashId(group.id) % COMPANY_COLORS.length
-        const colors = COMPANY_COLORS[colorIdx]
-        return (
-          <div key={group.id} className={`${colors.bg} border ${colors.border} rounded-xl overflow-hidden`}>
-            {/* Company Header */}
-            <div className={`${colors.header} px-4 py-3 flex items-center justify-between`}>
-              <h2 className="text-sm font-bold text-white">{group.companyName}</h2>
-              <span className="text-xs text-white/80">{group.items.length} منتج</span>
-            </div>
-
-            {/* Product Items */}
-            <div className="divide-y divide-white/60">
-              {group.items.map((item) => {
-                const product = products.find((p) => p.id === item.productId)
-                return (
-                  <div key={`${item.productId}-${item.unitType}`} className="px-4 py-3">
-                    <div className="flex gap-3">
-                      {/* Product Image */}
-                      <div className="w-16 h-16 rounded-lg bg-white border border-border shrink-0 overflow-hidden">
-                        {item.imageUrl ? (
-                          <img src={item.imageUrl} alt={item.productName} className="w-full h-full object-contain" />
-                        ) : (
-                          <div className="w-full h-full bg-surface flex items-center justify-center">
-                            <span className="text-xs text-text-secondary">صورة</span>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Info + Controls */}
-                      <div className="flex-1 min-w-0 space-y-1.5">
-                        <h4 className="text-sm font-semibold text-text leading-tight truncate">{item.productName}</h4>
-                        <div className="text-xs text-text-secondary">
-                          {UNIT_LABELS[item.unitType]} &middot; {formatCurrencyShort(item.unitPrice)} للوحدة
-                        </div>
-                        <div className="text-xs text-text-secondary">
-                          {formatNumber(item.pieceQuantity)} قطعة
-                        </div>
-                        {availabilityByItem[`${item.productId}:${item.unitType}`] && (
-                          <BusinessStatusCard
-                            data={buildBusinessStatusCard(availabilityByItem[`${item.productId}:${item.unitType}`])}
-                            className="mt-2"
-                          />
-                        )}
-                      </div>
-
-                      {/* Total + Controls Column */}
-                      <div className="flex flex-col items-end justify-between">
-                        <span className="text-sm font-bold text-text">{formatCurrencyShort(item.totalPrice)}</span>
-                        <div className="flex items-center gap-2 mt-1">
-                          <button
-                            onClick={() => updateQuantity(item.productId, item.unitType, Math.max(0, item.unitQuantity - 1))}
-                            className="w-7 h-7 flex items-center justify-center rounded-lg bg-white border border-border text-text-secondary text-sm active:bg-surface transition-colors"
-                          >
-                            −
-                          </button>
-                          <span className="text-sm font-semibold text-text w-6 text-center">{item.unitQuantity}</span>
-                          <button
-                            onClick={async () => {
-                              const finalQty = item.unitQuantity + 1
-                              const key = `${item.productId}:${item.unitType}`
-                              const result = await checkCartAvailability(item.productId, finalQty, item.unitType)
-                              if (!result.available) {
-                                setAvailabilityByItem((prev) => ({ ...prev, [key]: result }))
-                                return
-                              }
-                              updateQuantity(item.productId, item.unitType, finalQty)
-                            }}
-                            className="w-7 h-7 flex items-center justify-center rounded-lg bg-white border border-border text-text-secondary text-sm active:bg-surface transition-colors"
-                          >
-                            +
-                          </button>
-                        </div>
-                        <button
-                          onClick={() => removeItem(item.productId, item.unitType)}
-                          className="text-xs text-danger font-semibold mt-1"
-                        >
-                          حذف
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-
-            {/* Company Subtotal */}
-            <div className={`px-4 py-2.5 border-t ${colors.border} ${colors.text} flex items-center justify-between`}>
-              <span className="text-xs font-semibold">إجمالي {group.companyName}</span>
-              <span className="text-sm font-bold">{formatCurrencyShort(group.subtotal)}</span>
+      {/* 5. MAIN PRODUCTS — BLUE group identity */}
+      {items.length > 0 && (
+        <div className="rounded-xl border border-blue-200 overflow-hidden">
+          <div className="px-3 py-2 bg-primary text-white flex items-center justify-between">
+            <h2 className="text-sm font-bold">المنتجات الرئيسية</h2>
+            <span className="text-[11px] text-white/80">{items.length} صنف</span>
+          </div>
+          {/* Desktop table (md+) */}
+          <div className="hidden md:block bg-white">
+            {tableHead(benefitWord)}
+            <div className="divide-y divide-blue-100">
+              {items.map((item, i) => desktopRow(item, false, i))}
             </div>
           </div>
-        )
-      })}
-
-      {/* Bonus Items — separate confirmed "بونص شرائح" section (D-O8: base price only, never discounted) */}
-      {bonusMode && bonusItems.length > 0 && (
-        <div className="bg-violet-50 border border-violet-200 rounded-xl overflow-hidden">
-          <div className="px-4 py-2.5 bg-violet-500 text-white flex items-center justify-between">
-            <h3 className="text-sm font-bold">بونص شرائح</h3>
-            <span className="text-xs text-white/80">{bonusItems.length} منتج</span>
+          {/* Mobile structured blocks */}
+          <div className="md:hidden bg-white divide-y divide-blue-100">
+            {items.map((item) => mobileRow(item, false, ''))}
           </div>
-          <div className="divide-y divide-violet-100">
-            {bonusItems.map((item) => (
-              <div key={`bonus-${item.productId}-${item.unitType}`} className="px-4 py-3">
-                <div className="flex gap-3">
-                  <div className="w-16 h-16 rounded-lg bg-white border border-border shrink-0 overflow-hidden">
-                    {item.imageUrl ? (
-                      <img src={item.imageUrl} alt={item.productName} className="w-full h-full object-contain" />
-                    ) : (
-                      <div className="w-full h-full bg-surface flex items-center justify-center">
-                        <span className="text-xs text-text-secondary">صورة</span>
-                      </div>
-                    )}
-                  </div>
+          {/* Total main products */}
+          <div className="px-3 py-2 bg-blue-50/70 border-t border-blue-100 space-y-1">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-semibold text-text">إجمالي المنتجات الرئيسية</span>
+              <span className="text-lg font-extrabold text-primary" dir="ltr">
+                <Money value={mainProductsTotal} />
+              </span>
+            </div>
+            {bonusMode && (
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-text-secondary">إجمالي البونص</span>
+                <span className="text-sm font-bold text-violet-700" dir="ltr">
+                  <Money value={bonusCredit} />
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
-                  <div className="flex-1 min-w-0 space-y-1.5">
-                    <div className="flex items-center gap-2">
-                      <h4 className="text-sm font-semibold text-text leading-tight truncate">{item.productName}</h4>
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 shrink-0">
-                        بونص شرائح
-                      </span>
-                    </div>
-                    <div className="text-xs text-text-secondary">
-                      {UNIT_LABELS[item.unitType]} &middot; {formatCurrencyShort(item.unitPrice)} للوحدة
-                    </div>
-                    <div className="text-xs text-text-secondary">
-                      {formatNumber(item.pieceQuantity)} قطعة
-                    </div>
-                    {availabilityByItem[`bonus:${item.productId}:${item.unitType}`] && (
-                      <BusinessStatusCard
-                        data={buildBusinessStatusCard(availabilityByItem[`bonus:${item.productId}:${item.unitType}`])}
-                        className="mt-2"
-                      />
-                    )}
-                  </div>
+      {/* Savings explanation — Direct Discount mode only */}
+      {!bonusMode && items.length > 0 && (
+        <div className="bg-white rounded-xl border border-border p-3 space-y-1.5 text-sm">
+          <SectionTitle>التوفير</SectionTitle>
+          <div className="flex justify-between items-center text-text">
+            <span className="text-text-secondary">إجمالي المنتجات قبل الخصم</span>
+            <span className="text-text-secondary" dir="ltr">
+              <Money value={totals.productBaseSubtotal} />
+            </span>
+          </div>
+          <div className="flex justify-between items-center">
+            <span className="text-text-secondary">إجمالي الخصم</span>
+            <span className="font-bold text-success" dir="ltr">
+              −<Money value={totals.totalDiscount} />
+            </span>
+          </div>
+          <div className="flex justify-between items-center border-t border-border pt-1.5">
+            <span className="font-semibold">الإجمالي بعد الخصم</span>
+            <span className="font-bold text-primary text-base" dir="ltr">
+              <Money value={totals.productSubtotal} />
+            </span>
+          </div>
+        </div>
+      )}
 
-                  <div className="flex flex-col items-end justify-between">
-                    <span className="text-sm font-bold text-text">{formatCurrencyShort(item.totalPrice)}</span>
-                    <div className="flex items-center gap-2 mt-1">
-                      <button
-                        onClick={() => updateBonusQuantity(item.productId, item.unitType, Math.max(0, item.unitQuantity - 1))}
-                        className="w-7 h-7 flex items-center justify-center rounded-lg bg-white border border-border text-text-secondary text-sm active:bg-surface transition-colors"
-                      >
-                        −
-                      </button>
-                      <span className="text-sm font-semibold text-text w-6 text-center">{item.unitQuantity}</span>
-                      <button
-                        onClick={async () => {
-                          const finalQty = item.unitQuantity + 1
-                          const key = `bonus:${item.productId}:${item.unitType}`
-                          const result = await checkCartAvailability(item.productId, finalQty, item.unitType)
-                          setAvailabilityByItem((prev) => ({ ...prev, [key]: result }))
-                          if (!result.available) return
-                          updateBonusQuantity(item.productId, item.unitType, finalQty)
-                        }}
-                        className="w-7 h-7 flex items-center justify-center rounded-lg bg-white border border-border text-text-secondary text-sm active:bg-surface transition-colors"
-                      >
-                        +
-                      </button>
-                    </div>
-                    <button
-                      onClick={() => removeBonusItem(item.productId, item.unitType)}
-                      className="text-xs text-danger font-semibold mt-1"
-                    >
-                      حذف
-                    </button>
-                  </div>
+      {/* 6. BONUS SECTION — PURPLE group identity */}
+      {bonusMode && (bonusItems.length > 0 || bonusCredit > 0) && (
+        <div className="rounded-xl border border-violet-300 overflow-hidden">
+          {/* Customer-facing benefit banner */}
+          <div className="px-3 py-3 bg-violet-600 text-white">
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="text-sm font-bold">🎁 منتجات البونص</h2>
+              <button
+                type="button"
+                onClick={() => navigate('/storefront/bonus')}
+                className="text-[11px] font-bold bg-white text-violet-700 rounded-lg px-2.5 py-1.5 transition-colors active:bg-violet-100 shrink-0"
+              >
+                الحصول على منتجات البونص
+              </button>
+            </div>
+            <div className="mt-2 flex items-baseline justify-between">
+              <span className="text-[11px] text-white/80">إجمالي البونص</span>
+              <span className="text-2xl font-extrabold" dir="ltr">
+                <Money value={bonusCredit} />
+              </span>
+            </div>
+            <p className="text-[11px] mt-1.5 leading-relaxed text-white/95">
+              لقد حصلت على بونص بقيمة <b className="tabular-nums">{formatSmartMoney(bonusCredit)}</b>
+              <br />
+              يمكنك الحصول على منتجات بهذه القيمة مجانًا من متجر البونص
+            </p>
+          </div>
+
+          {bonusItems.length > 0 ? (
+            <>
+              {/* Desktop table (md+) */}
+              <div className="hidden md:block bg-white">
+                {tableHead('إجمالي الصنف')}
+                <div className="divide-y divide-violet-100">
+                  {bonusItems.map((item, i) => desktopRow(item, true, i))}
                 </div>
               </div>
-            ))}
+              {/* Mobile structured blocks */}
+              <div className="md:hidden bg-white divide-y divide-violet-100">
+                {bonusItems.map((item) => mobileRow(item, true, 'bonus-'))}
+              </div>
+              {/* Total bonus products */}
+              <div className="px-3 py-2 bg-violet-50/70 border-t border-violet-200 flex items-center justify-between">
+                <span className="text-sm font-semibold text-text">إجمالي منتجات البونص</span>
+                <span className="text-lg font-extrabold text-violet-700" dir="ltr">
+                  <Money value={bonusProductsTotal} />
+                </span>
+              </div>
+            </>
+          ) : (
+            <div className="px-3 py-3 text-xs text-violet-700">أضف منتجات البونص لاستخدام رصيدك.</div>
+          )}
+
+          {/* Secondary bonus balance */}
+          <div className="px-3 py-2 border-t border-violet-200 space-y-1 text-xs bg-violet-50/40">
+            <div className="flex justify-between">
+              <span className="text-text-secondary">رصيد البونص</span>
+              <span dir="ltr">
+                <Money value={bonusCredit} />
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-text-secondary">قيمة منتجات البونص</span>
+              <span dir="ltr">
+                <Money value={bonusProductsTotal} />
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-text-secondary">المستخدم من البونص</span>
+              <span dir="ltr">
+                <Money value={bonusApplied} />
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-text-secondary">المتبقي من البونص</span>
+              <span dir="ltr">
+                <Money value={bonusUnused} />
+              </span>
+            </div>
+            {bonusOverflow > 0 && (
+              <div className="flex justify-between">
+                <span className="text-text-secondary">الزيادة المطلوب دفعها</span>
+                <span className="font-bold text-warning" dir="ltr">
+                  <Money value={bonusOverflow} />
+                </span>
+              </div>
+            )}
           </div>
-          <div className="px-4 py-2.5 border-t border-violet-200 text-violet-700 flex items-center justify-between">
-            <span className="text-xs font-semibold">إجمالي منتجات البونص</span>
-            <span className="text-sm font-bold">{formatCurrencyShort(totals.bonusProductsTotal ?? 0)}</span>
-          </div>
+
+          {/* Overflow approval */}
+          {bonusOverflow > 0 && (
+            <div className="px-3 py-2.5 border-t border-violet-200 bg-warning/5 space-y-2">
+              <div className="text-xs font-bold text-warning">⚠️ {BONUS_COPY.overflowTitle}</div>
+              <p className="text-[11px] text-text-secondary leading-relaxed">
+                {bonusOverflowApproved ? (
+                  <>
+                    {BONUS_COPY.overflowApprovedNote} <Money value={bonusOverflow} /> جنيه إلى إجمالي الفاتورة
+                  </>
+                ) : (
+                  `${BONUS_COPY.overflowWillAddPrefix} ${formatSmartMoney(bonusOverflow)} ${BONUS_COPY.overflowWillAddSuffix}`
+                )}
+              </p>
+              {bonusOverflowApproved ? (
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-bold text-success">{BONUS_COPY.overflowApprovedLabel} — {formatSmartMoney(bonusOverflow)} ج.م</span>
+                  <button type="button" onClick={handleBonusCancel} className="text-xs font-semibold text-danger">
+                    {BONUS_COPY.overflowDecline}
+                  </button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setBonusOverflowApproved(true)}
+                    className="py-2.5 rounded-lg bg-success text-white text-xs font-bold hover:opacity-90 transition-opacity active:scale-[0.98]"
+                  >
+                    {BONUS_COPY.overflowApprove}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleBonusCancel}
+                    className="py-2.5 rounded-lg bg-white border border-border text-text-secondary text-xs font-bold hover:bg-surface transition-colors active:scale-[0.98]"
+                  >
+                    {BONUS_COPY.overflowDecline}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
-      {/* Overflow approval — explicit consent required before the order may continue */}
-      {bonusMode && (totals.bonusOverflow ?? 0) > 0 && (
-        <div className={`rounded-xl border p-4 space-y-2.5 ${bonusOverflowApproved ? 'border-success/25 bg-success/5' : 'border-danger/25 bg-danger/5'}`}>
-          <div className={`flex items-center gap-2 text-sm font-bold ${bonusOverflowApproved ? 'text-success' : 'text-danger'}`}>
-            <span>⚠️</span>
-            {bonusOverflowApproved ? `${BONUS_COPY.overflowApprovedLabel} — ${BONUS_COPY.overflowTitle}` : BONUS_COPY.overflowTitle}
-          </div>
-          <div className="flex justify-between text-sm text-text">
-            <span>{BONUS_COPY.overflowCredit}: {formatCurrencyShort(totals.bonusCredit ?? 0)} جنيه</span>
-          </div>
-          <div className="flex justify-between text-sm text-text">
-            <span>{BONUS_COPY.overflowBonusTotal}: {formatCurrencyShort(totals.bonusProductsTotal ?? 0)} جنيه</span>
-          </div>
-          <p className={`text-xs font-semibold ${bonusOverflowApproved ? 'text-success' : 'text-text-secondary'}`}>
-            {bonusOverflowApproved
-              ? `✓ ${BONUS_COPY.overflowApprovedNote} ${formatCurrencyShort(totals.bonusOverflow ?? 0)} جنيه إلى إجمالي الفاتورة`
-              : `${BONUS_COPY.overflowWillAddPrefix} ${formatCurrencyShort(totals.bonusOverflow ?? 0)} ${BONUS_COPY.overflowWillAddSuffix}`}
-          </p>
-          <div className="flex gap-2 pt-1">
-            <button
-              onClick={() => setBonusOverflowApproved(true)}
-              disabled={bonusOverflowApproved}
-              className="flex-1 py-2.5 rounded-lg bg-success text-white text-xs font-bold hover:opacity-90 transition-opacity active:scale-[0.97] disabled:opacity-60"
-            >
-              {bonusOverflowApproved ? BONUS_COPY.overflowApprovedLabel : BONUS_COPY.overflowApprove}
-            </button>
-            {!bonusOverflowApproved && (
-              <>
-                <button
-                  onClick={() => navigate('/storefront/bonus')}
-                  className="flex-1 py-2.5 rounded-lg bg-white border border-border text-text-secondary text-xs font-bold hover:bg-surface transition-colors active:scale-[0.97]"
-                >
-                  {BONUS_COPY.overflowModify}
-                </button>
-                <button
-                  onClick={() => setBonusOverflowApproved(false)}
-                  className="flex-1 py-2.5 rounded-lg bg-white border border-danger/30 text-danger text-xs font-bold hover:bg-danger/5 transition-colors active:scale-[0.97]"
-                >
-                  {BONUS_COPY.overflowDecline}
-                </button>
-              </>
-            )}
-          </div>
+      {/* 7. FINAL ORDER SUMMARY — orange/neutral identity */}
+      <div className="rounded-xl border border-amber-300 overflow-hidden">
+        <div className="px-3 py-2 bg-amber-50 border-b border-amber-200">
+          <h2 className="text-xs font-bold text-amber-800">ملخص الطلب</h2>
         </div>
-      )}
+        <div className="p-3 space-y-1.5 text-sm bg-white">
+          {bonusMode ? (
+            <>
+              <div className="flex justify-between items-center text-text">
+                <span className="text-text-secondary">إجمالي المنتجات الرئيسية</span>
+                <span dir="ltr">
+                  <Money value={totals.productBaseSubtotal} />
+                </span>
+              </div>
+              <div className="flex justify-between items-center text-text">
+                <span className="text-text-secondary">إجمالي البونص</span>
+                <span className="font-semibold text-violet-700" dir="ltr">
+                  <Money value={bonusCredit} />
+                </span>
+              </div>
+              <div className="flex justify-between items-center text-text">
+                <span className="text-text-secondary">قيمة منتجات البونص</span>
+                <span dir="ltr">
+                  <Money value={bonusProductsTotal} />
+                </span>
+              </div>
+              <div className="flex justify-between items-center text-text">
+                <span className="text-text-secondary">المستخدم من البونص</span>
+                <span dir="ltr">
+                  <Money value={bonusApplied} />
+                </span>
+              </div>
+              <div className="flex justify-between items-center text-text">
+                <span className="text-text-secondary">المتبقي من البونص</span>
+                <span dir="ltr">
+                  <Money value={bonusUnused} />
+                </span>
+              </div>
+              {bonusOverflow > 0 && bonusOverflowApproved && (
+                <div className="flex justify-between items-center text-text">
+                  <span className="text-text-secondary">الزيادة المطلوب دفعها</span>
+                  <span className="font-bold text-warning" dir="ltr">
+                    <Money value={bonusOverflow} />
+                  </span>
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              <div className="flex justify-between items-center text-text">
+                <span className="text-text-secondary">إجمالي المنتجات قبل الخصم</span>
+                <span dir="ltr">
+                  <Money value={totals.productBaseSubtotal} />
+                </span>
+              </div>
+              <div className="flex justify-between items-center text-text">
+                <span className="text-text-secondary">إجمالي الخصم</span>
+                <span className="font-bold text-success" dir="ltr">
+                  −<Money value={totals.totalDiscount} />
+                </span>
+              </div>
+              <div className="flex justify-between items-center text-text">
+                <span className="text-text-secondary">الإجمالي بعد الخصم</span>
+                <span className="font-semibold" dir="ltr">
+                  <Money value={totals.productSubtotal} />
+                </span>
+              </div>
+            </>
+          )}
+          {totals.dealTotal > 0 && (
+            <div className="flex justify-between items-center text-text">
+              <span className="text-text-secondary">العروض اليومية والساعة</span>
+              <span className="font-semibold" dir="ltr">
+                <Money value={totals.dealTotal} />
+              </span>
+            </div>
+          )}
 
-      {/* Bonus catalog entry */}
-      {bonusMode && (
-        <button
-          onClick={() => navigate('/storefront/bonus')}
-          className="w-full bg-violet-600 text-white text-sm py-3 rounded-lg font-bold hover:bg-violet-700 transition-colors active:scale-[0.98]"
-        >
-          🎁 {BONUS_COPY.getBonus}
-        </button>
-      )}
-
-      {/* Grand Total */}
-      <div className="bg-white rounded-xl border border-border p-4 space-y-2.5">
-        <div className="text-xs font-bold text-text-secondary">ملخص الطلب</div>
-        {bonusMode ? (
-          <>
-            <div className="flex justify-between text-sm text-text">
-              <span>المنتجات الرئيسية</span>
-              <span className="font-medium">{formatCurrencyShort(totals.mainBaseTotal ?? 0)}</span>
-            </div>
-            {flashOfferItems.length > 0 && (
-              <div className="flex justify-between text-sm text-amber-600">
-                <span>عروض الساعة</span>
-                <span>{formatCurrencyShort(flashOfferItems.reduce((s, o) => s + o.totalPrice, 0))}</span>
-              </div>
-            )}
-            {totals.dealTotal > 0 && (
-              <div className="flex justify-between text-sm text-amber-600">
-                <span>العروض اليومية</span>
-                <span>{formatCurrencyShort(totals.dealTotal)}</span>
-              </div>
-            )}
-            <div className="flex justify-between text-sm text-text">
-              <span>الشريحة</span>
-              <span className="font-medium">{selectedTier ? formatTierName(selectedTier.name) : '—'}</span>
-            </div>
-            <div className="flex justify-between text-sm text-text">
-              <span>الدفع</span>
-              <span className="font-medium">{selectedPaymentMethod?.name ?? '—'}</span>
-            </div>
-            <div className="flex justify-between text-sm text-text">
-              <span>الشحن</span>
-              <span className="font-medium">{selectedShippingMethod?.name ?? '—'}</span>
-            </div>
-            <hr className="border-border" />
-            <div className="flex justify-between text-sm text-text">
-              <span>إجمالي رصيد البونص</span>
-              <span className="font-semibold text-primary">{formatCurrencyShort(totals.bonusCredit ?? 0)}</span>
-            </div>
-            {bonusItems.length > 0 && (
-              <div className="flex justify-between text-sm text-text">
-                <span>منتجات البونص</span>
-                <span className="font-medium">{formatCurrencyShort(totals.bonusProductsTotal ?? 0)}</span>
-              </div>
-            )}
-            <div className="flex justify-between text-sm text-success">
-              <span>المغطى من الرصيد</span>
-              <span className="font-semibold">{formatCurrencyShort(totals.bonusApplied ?? 0)}</span>
-            </div>
-            {(totals.bonusUnused ?? 0) > 0 && (
-              <div className="flex justify-between text-sm text-text-secondary">
-                <span>غير المستخدم</span>
-                <span>{formatCurrencyShort(totals.bonusUnused ?? 0)}</span>
-              </div>
-            )}
-            {(totals.bonusOverflow ?? 0) > 0 && (
-              <div className="flex justify-between text-sm text-danger">
-                <span>الزيادة عن الرصيد</span>
-                <span className="font-semibold">{formatCurrencyShort(totals.bonusOverflow ?? 0)}</span>
-              </div>
-            )}
-            <hr className="border-border" />
-            <div className="flex justify-between text-lg font-extrabold text-text">
-              <span>الإجمالي المستحق</span>
-              <span>{formatCurrencyShort(totals.netTotal)}</span>
-            </div>
-          </>
-        ) : (
-          <>
-        <div className="flex justify-between text-sm text-text">
-          <span>إجمالي المنتجات (الأساسي)</span>
-          <span className="font-medium">{formatCurrencyShort(totals.productBaseSubtotal)}</span>
+          <hr className="border-border" />
+          <div className="flex justify-between items-baseline pt-1">
+            <span className="text-sm font-bold text-text">الإجمالي المستحق</span>
+            <span className="text-xl font-extrabold text-primary" dir="ltr">
+              <Money value={totals.netTotal} />
+            </span>
+          </div>
         </div>
-        {flashOfferItems.length > 0 && (
-          <div className="flex justify-between text-sm text-amber-600">
-            <span>عروض الساعة</span>
-            <span>{formatCurrencyShort(flashOfferItems.reduce((s, o) => s + o.totalPrice, 0))}</span>
-          </div>
-        )}
-        {totals.dealTotal > 0 && (
-          <div className="flex justify-between text-sm text-amber-600">
-            <span>العروض اليومية</span>
-            <span>{formatCurrencyShort(totals.dealTotal)}</span>
-          </div>
-        )}
-        {totals.tierDiscount > 0 && (
-          <div className="flex justify-between text-sm text-success">
-            <span>خصم الشريحة ({selectedTier ? formatTierName(selectedTier.name) : ''})</span>
-            <span className="font-semibold">-{formatCurrencyShort(totals.tierDiscount)}</span>
-          </div>
-        )}
-        {totals.paymentDiscount > 0 && (
-          <div className="flex justify-between text-sm text-success">
-            <span>خصم طريقة الدفع ({selectedPaymentMethod?.name ?? ''})</span>
-            <span className="font-semibold">-{formatCurrencyShort(totals.paymentDiscount)}</span>
-          </div>
-        )}
-        {totals.shippingDiscount > 0 && (
-          <div className="flex justify-between text-sm text-success">
-            <span>خصم طريقة الشحن ({selectedShippingMethod?.name ?? ''})</span>
-            <span className="font-semibold">-{formatCurrencyShort(totals.shippingDiscount)}</span>
-          </div>
-        )}
-        <hr className="border-border" />
-        <div className="flex justify-between text-lg font-extrabold text-text">
-          <span>الإجمالي النهائي</span>
-          <span>{formatCurrencyShort(totals.netTotal)}</span>
-        </div>
-          </>
-        )}
       </div>
 
       {/* Actions */}
       <div className="space-y-2">
         <button
+          type="button"
           onClick={handleContinue}
           disabled={(selectedTier !== null && (!totals.meetsTierMinimum || !totals.meetsCompanyRules) && (items.length > 0 || bonusItems.length > 0)) ||
-            (bonusMode && (totals.bonusOverflow ?? 0) > 0 && !bonusOverflowApproved && (items.length > 0 || bonusItems.length > 0))}
+            (bonusMode && bonusOverflow > 0 && !bonusOverflowApproved && (items.length > 0 || bonusItems.length > 0))}
           className="w-full bg-primary text-white text-sm py-3 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed active:bg-primary-dark transition-colors"
         >
           متابعة الطلب
         </button>
-
         <button
+          type="button"
           onClick={() => navigate('/storefront')}
           className="w-full bg-white text-primary text-sm py-3 rounded-lg border border-primary active:bg-surface transition-colors"
         >

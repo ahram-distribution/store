@@ -8,6 +8,7 @@ import { StorefrontFooter } from '../../components/storefront/CompanyInfoSection
 import { StorefrontHero } from '../../components/storefront/StorefrontHero'
 import { BusinessShortcuts } from '../../components/storefront/BusinessShortcuts'
 import { SearchHighlight } from '../../components/shared/SearchHighlight'
+import { CartSummaryBar } from '../../components/storefront/CartSummaryBar'
 import { formatNumber } from '../../utils/numbers'
 import { useGeographicVisibility } from '../../hooks/useGeographicVisibility'
 import { applyGeographicAdjustment } from '../../engine/pricing'
@@ -168,6 +169,10 @@ export function CompaniesPage() {
 
       <div className="space-y-4" style={{ marginTop: 12 }}>
         <BusinessShortcuts />
+
+        {/* Cart Summary Bar — shared component (same as Products screen),
+            placed directly above the Global Search while the market is browsed. */}
+        <CartSummaryBar />
 
         {/* Global Search */}
         <div className="relative">

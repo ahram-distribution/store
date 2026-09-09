@@ -28,6 +28,7 @@ interface ProductCardProps {
   onUnitChange?: (unit: UnitType) => void
   quantity?: number
   onQuantityChange?: (qty: number) => void
+  bonusMode?: boolean
 }
 
 export function ProductCard({
@@ -35,6 +36,7 @@ export function ProductCard({
   onImageClick, expanded, onClose,
   selectedUnit: controlledUnit, onUnitChange,
   quantity: controlledQty, onQuantityChange,
+  bonusMode = false,
 }: ProductCardProps) {
   const sellingUnits = product.availableUnitTypes
   const defaultUnit = UNIT_PRIORITY.find((u) => sellingUnits.includes(u)) ?? sellingUnits[0] ?? 'piece'
@@ -179,10 +181,11 @@ export function ProductCard({
             const available = sellingUnits.includes(up.unitType)
             const basePrice = prices[up.unitType === 'piece' ? 'piecePrice' : up.unitType === 'dozen' ? 'dozenPrice' : 'cartonPrice']
             const finalPrice = prices[up.unitType === 'piece' ? 'finalPiecePrice' : up.unitType === 'dozen' ? 'finalDozenPrice' : 'finalCartonPrice']
-            const hasDiscount = prices.totalDiscountPercent > 0
+            const hasDiscount = !bonusMode && prices.totalDiscountPercent > 0
+            const hasBonus = bonusMode && prices.totalDiscountPercent > 0
             return (
               <div key={up.unitType} className="flex items-center justify-between">
-                <span className={available ? 'text-success' : 'text-danger/60'}>
+                <span className={available ? 'text-text' : 'text-danger/60'}>
                   {UNIT_LABELS[up.unitType]}
                   {!available && <span className="text-[9px] mr-1 opacity-70">غير متوفر</span>}
                 </span>
@@ -192,8 +195,13 @@ export function ProductCard({
                       {formatPrice(basePrice)}
                     </span>
                   )}
-                  <span className={`flex items-center gap-1 ${available ? 'text-success font-extrabold' : 'text-danger/60 font-normal text-[10px]'} ${expanded ? 'text-lg' : 'text-sm'}`}>
-                    {formatPrice(finalPrice)}
+                  <span className={`flex items-center gap-1 ${available ? 'text-primary font-extrabold' : 'text-danger/60 font-normal text-[10px]'} ${expanded ? 'text-xl' : 'text-[16px]'}`}>
+                    {formatPrice(bonusMode ? basePrice : finalPrice)}
+                    {hasBonus && (
+                      <span className="text-[10px] text-[#7C3AED] bg-[#7C3AED]/10 px-1 py-0.5 rounded-md font-bold">
+                        بونص {Number(prices.totalDiscountPercent.toFixed(1))}%
+                      </span>
+                    )}
                     {hasDiscount && (
                       <span className="text-[10px] text-success bg-success/10 px-1 py-0.5 rounded-md font-bold">
                         -{Number(prices.totalDiscountPercent.toFixed(1))}%

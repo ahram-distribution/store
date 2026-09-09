@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Gift, Loader2, Minus, Plus } from 'lucide-react'
+import { Check, Gift, Loader2, Minus, Plus } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useAuthStore } from '../../store/auth'
 import { useCartStore } from '../../store/cart'
@@ -31,6 +31,8 @@ export function BonusCatalogPage() {
   const bonusCredit = useCartStore((s) => s.bonusCredit)
   const geographicContext = useCartStore((s) => s.geographicContext)
   const addBonusItem = useCartStore((s) => s.addBonusItem)
+  const updateBonusQuantity = useCartStore((s) => s.updateBonusQuantity)
+  const removeBonusItem = useCartStore((s) => s.removeBonusItem)
 
   const [products, setProducts] = useState<ProductWithPrice[]>([])
   const [geoPct, setGeoPct] = useState<Record<string, number>>({})
@@ -38,12 +40,16 @@ export function BonusCatalogPage() {
   const [error, setError] = useState<string | null>(null)
   const [quantities, setQuantities] = useState<Record<string, number>>({})
   const [units, setUnits] = useState<Record<string, UnitType>>({})
+  const [activeUnits, setActiveUnits] = useState<Record<string, UnitType[]>>({})
   const [availability, setAvailability] = useState<Record<string, AvailabilityResult>>({})
   const checkTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const governorateId = geographicContext?.governorateId ?? null
 
   const availKey = (p: ProductWithPrice, unit: UnitType): string => `${p.id}:${unit}`
+
+  /** Amount WITHOUT the " ج.م" suffix (already implied by the screen). */
+  const fmtAmount = (n: number): string => formatCurrencyShort(n).replace(' ج.م', '').trim()
 
   useEffect(() => {
     let active = true
@@ -53,6 +59,16 @@ export function BonusCatalogPage() {
       if (!active) return
       if (error) { setError(error); setLoading(false); return }
       const mapped = (rows as any[]).map((r: any) => toProductWithPrice(r))
+      // Units available for sale are defined by the admin in Products Management
+      // (product_units.is_active). Read that flag DIRECTLY from the raw rows so the
+      // Bonus Store always honors it — even for upper-management accounts, where
+      // resolveConfiguredUnitTypes returns ALL configured units for editing.
+      const activeMap: Record<string, UnitType[]> = {}
+      for (const r of rows as any[]) {
+        const arr: any[] = Array.isArray(r.product_units) ? r.product_units : []
+        activeMap[r.id] = arr.filter((u: any) => u.is_active !== false).map((u: any) => u.unit_type) as UnitType[]
+      }
+      setActiveUnits(activeMap)
       const pct: Record<string, number> = {}
       for (const r of rows as any[]) {
         const n = Number(r.geo_adjustment_percent ?? 0)
@@ -106,11 +122,22 @@ export function BonusCatalogPage() {
 
   const bonusItemCount = bonusItems.reduce((s, i) => s + i.unitQuantity, 0)
 
+  /** Selling units for a Bonus product. Source of truth = the units the admin
+   *  enabled for the item in Products Management (product_units.is_active),
+   *  read directly from the catalog rows. Available in the BONUS store ONLY —
+   *  the normal Storefront keeps its existing behavior. */
+  const sellingUnitsOf = (p: ProductWithPrice): UnitType[] => {
+    const strict = (activeUnits[p.id] ?? []).filter((u) => p.unitPrices.some((x) => x.unitType === u))
+    if (strict.length > 0) return strict
+    return (p.availableUnitTypes ?? []).filter((u) => p.unitPrices.some((x) => x.unitType === u))
+  }
+
   const unitOf = (p: ProductWithPrice): UnitType => {
+    const selling = sellingUnitsOf(p)
+    if (selling.length === 0) return p.unitPrices[0]?.unitType ?? 'piece'
     const saved = units[p.id]
-    if (saved && p.unitPrices.some((u) => u.unitType === saved)) return saved
-    const first = UNIT_PRIORITY.find((u) => p.unitPrices.some((x) => x.unitType === u))
-    return first ?? p.unitPrices[0]?.unitType ?? 'piece'
+    if (saved && selling.includes(saved)) return saved
+    return UNIT_PRIORITY.find((u) => selling.includes(u)) ?? selling[0]
   }
 
   const unitPriceOf = (p: ProductWithPrice): number => {
@@ -137,6 +164,38 @@ export function BonusCatalogPage() {
       return
     }
     addBonusItem(p, unit, qty)
+  }
+
+  /** Shared stepper: once a product is in the Bonus Cart the ± buttons drive the
+   *  GOVERNED Bonus Cart state directly (updateBonusQuantity/removeBonusItem),
+   *  so credit/remaining/overflow recompute immediately — no duplicate local cart. */
+  const handleStep = async (p: ProductWithPrice, delta: number) => {
+    const unit = unitOf(p)
+    const inCart = inCartQty(p)
+    const base = inCart > 0 ? inCart : (quantities[p.id] ?? 1)
+    const proposed = base + delta
+    if (proposed <= 0) {
+      if (inCart > 0) {
+        updateBonusQuantity(p.id, unit, 0)
+      } else {
+        setQuantities((prev) => ({ ...prev, [p.id]: 1 }))
+      }
+      return
+    }
+    if (!p.isActive || p.isOutOfStock) return
+    const result = await checkCartAvailability(p.id, proposed, unit)
+    setAvailability((prev) => ({ ...prev, [availKey(p, unit)]: result }))
+    const { allowed, boundedQty } = bonusAddDecision(proposed, result)
+    if (allowed) {
+      if (inCart > 0) {
+        updateBonusQuantity(p.id, unit, proposed)
+      } else {
+        setQuantities((prev) => ({ ...prev, [p.id]: proposed }))
+      }
+    } else {
+      if (inCart <= 0) setQuantities((prev) => ({ ...prev, [p.id]: Math.max(1, boundedQty) }))
+      toast.error('الحد الأقصى المتاح من هذا الصنف تم الوصول إليه.')
+    }
   }
 
   return (
@@ -181,7 +240,7 @@ export function BonusCatalogPage() {
             <Gift className="w-4 h-4 text-violet-600" />
             <span className="text-xs font-semibold text-violet-700">رصيد البونص المتاح</span>
           </div>
-          <span className="text-sm font-extrabold text-violet-700">{formatCurrencyShort(bonusCredit)} جنيه</span>
+          <span className="text-sm font-extrabold text-violet-700">{fmtAmount(bonusCredit)}</span>
         </div>
       )}
 
@@ -212,7 +271,9 @@ export function BonusCatalogPage() {
             const disabled = !p.isActive || p.isOutOfStock
             const inCart = inCartQty(p)
             return (
-              <div key={p.id} className="bg-white rounded-xl border border-border overflow-hidden transition-all hover:shadow-sm flex flex-col">
+              <div key={p.id} className={`bg-white rounded-xl border overflow-hidden transition-all hover:shadow-sm flex flex-col ${
+                inCart > 0 ? 'border-violet-500/40 bg-violet-50/40' : 'border-border'
+              }`}>
                 {/* Image */}
                 <div className="relative h-28 bg-surface overflow-hidden">
                   {p.imageUrl ? (
@@ -240,23 +301,24 @@ export function BonusCatalogPage() {
                   {/* Price (geo-adjusted BASE only) */}
                   <div className="flex items-center gap-1 text-[13px] text-text-secondary">
                     <span>السعر الأصلي:</span>
-                    <span className="font-extrabold text-text">{formatCurrencyShort(unitPriceOf(p))} جنيه</span>
+                    <span className="font-extrabold text-text text-[14.3px]">{fmtAmount(unitPriceOf(p))}</span>
                     <span className="text-[11px]">للـ {UNIT_LABELS[unit]}</span>
                   </div>
 
-                  {/* Unit selector */}
+                  {/* Unit selector — the SAME selling units as the normal Storefront */}
                   <div className="flex items-center gap-1 flex-wrap">
-                    {p.unitPrices.map((u) => (
+                    <span className="text-[10px] text-text-secondary font-semibold">الوحدة:</span>
+                    {sellingUnitsOf(p).map((ut) => (
                       <button
-                        key={u.unitType}
-                        onClick={() => setUnits((prev) => ({ ...prev, [p.id]: u.unitType }))}
+                        key={ut}
+                        onClick={() => setUnits((prev) => ({ ...prev, [p.id]: ut }))}
                         className={`px-2 py-0.5 rounded-md text-[10px] font-bold border transition-colors ${
-                          unit === u.unitType
+                          unit === ut
                             ? 'bg-violet-600 text-white border-violet-600'
                             : 'bg-white text-text-secondary border-border hover:bg-violet-50'
                         }`}
                       >
-                        {UNIT_LABELS[u.unitType]}
+                        {UNIT_LABELS[ut]}
                       </button>
                     ))}
                   </div>
@@ -264,54 +326,62 @@ export function BonusCatalogPage() {
 
                 {/* Quantity + Add */}
                 <div className="p-3 pt-0 space-y-2">
-                  <div className="flex items-center justify-center gap-2">
+                  <div className="flex items-center justify-between gap-1">
                     <button
-                      onClick={() => setQuantities((prev) => ({ ...prev, [p.id]: Math.max(1, (prev[p.id] ?? 1) - 1) }))}
+                      onClick={() => handleStep(p, -1)}
                       disabled={disabled}
-                      className="w-7 h-7 flex items-center justify-center rounded-lg bg-white border border-border text-text-secondary text-sm disabled:opacity-40"
+                      className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-border text-text-secondary text-sm disabled:opacity-40 shrink-0"
+                      aria-label="تقليل الكمية"
                     >
                       <Minus className="w-3.5 h-3.5" />
                     </button>
-                    <span className="text-sm font-semibold text-text w-8 text-center">{quantities[p.id] ?? 1}</span>
+                    <div className="flex-1 min-w-0 text-center text-sm font-semibold text-text truncate">
+                      {inCart > 0 ? inCart : (quantities[p.id] ?? 1)}
+                      <span className="text-[10px] text-text-secondary mr-1">{UNIT_LABELS[unit]}</span>
+                    </div>
                     <button
-                      onClick={async () => {
-                        const prevQty = quantities[p.id] ?? 1
-                        const proposed = prevQty + 1
-                        const result = await checkCartAvailability(p.id, proposed, unit)
-                        setAvailability((prev) => ({ ...prev, [availKey(p, unit)]: result }))
-                        const { allowed, boundedQty } = bonusAddDecision(proposed, result)
-                        if (allowed) {
-                          setQuantities((prev) => ({ ...prev, [p.id]: proposed }))
-                        } else {
-                          setQuantities((prev) => ({ ...prev, [p.id]: Math.max(1, boundedQty) }))
-                          toast.error('الحد الأقصى المتاح من هذا الصنف تم الوصول إليه.')
-                        }
-                      }}
+                      onClick={() => handleStep(p, 1)}
                       disabled={disabled}
-                      className="w-7 h-7 flex items-center justify-center rounded-lg bg-white border border-border text-text-secondary text-sm disabled:opacity-40"
+                      className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-border text-text-secondary text-sm disabled:opacity-40 shrink-0"
+                      aria-label="زيادة الكمية"
                     >
                       <Plus className="w-3.5 h-3.5" />
                     </button>
                   </div>
-                  <button
-                    onClick={() => handleAdd(p)}
-                    disabled={disabled}
-                    className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg bg-violet-600 text-white text-xs font-bold hover:bg-violet-700 transition-colors active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    <Gift className="w-3.5 h-3.5" />
-                    {BONUS_COPY.addToBonusCart}
-                  </button>
+
+                  {inCart > 0 ? (
+                    <div className="space-y-1">
+                      <div className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg bg-violet-600 text-white text-xs font-bold">
+                        <Check className="w-3.5 h-3.5" />
+                        تمت الإضافة للسلة
+                      </div>
+                      <p className="text-center text-[10px] font-semibold text-violet-600">
+                        الكمية: {inCart} {UNIT_LABELS[unit]}
+                      </p>
+                      <button
+                        onClick={() => removeBonusItem(p.id, unit)}
+                        className="w-full text-center text-[10px] text-text-secondary hover:text-danger underline"
+                      >
+                        إزالة من السلة
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => handleAdd(p)}
+                      disabled={disabled}
+                      className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg bg-violet-600 text-white text-xs font-bold hover:bg-violet-700 transition-colors active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      <Gift className="w-3.5 h-3.5" />
+                      {BONUS_COPY.addToBonusCart}
+                    </button>
+                  )}
+
                   {(() => {
                     const av = availability[availKey(p, unit)]
                     const status = bonusAvailabilityStatus(av)
                     if (!av || !status || status === 'green' || !p.isActive || p.isOutOfStock) return null
                     return <BusinessStatusCard data={buildBusinessStatusCard(av)} compact />
                   })()}
-                  {inCart > 0 && (
-                    <p className="text-center text-[10px] font-semibold text-violet-600">
-                      في سلة البونص: {inCart} {UNIT_LABELS[unit]}
-                    </p>
-                  )}
                 </div>
               </div>
             )

@@ -6,11 +6,10 @@ import { useCartStore } from '../../store/cart'
 import { useCompaniesStore, type CompanyItem } from '../../store/companies'
 import { ProductCard } from '../../components/storefront/ProductCard'
 import { StorefrontBanner, StorefrontFooter } from '../../components/storefront/CompanyInfoSection'
+import { CartSummaryBar } from '../../components/storefront/CartSummaryBar'
 import { computeProductPrices } from '../../engine/pricing'
 import { discountOptionsService, buildDiscountPricingContext, resolveExceptionLookup } from '../../services/discountOptions'
 import { DiscountOptionSelector, type SelectableDiscountOption } from '../../components/storefront/DiscountOptionSelector'
-import { formatCurrencyShort } from '../../utils/format'
-import { formatNumber } from '../../utils/numbers'
 import { buildSearchIndex, searchProducts, type ProductSearchIndex } from '../../utils/smartSearch'
 import type { ProductWithPrice, ProductUnitPrice, TierConfig, UnitType } from '../../types/storefront'
 import { DYNAMIC_COLLECTIONS, loadCollection, type CollectionStrategy } from '../../config/dynamicCollections'
@@ -53,7 +52,6 @@ export function StorefrontPage() {
     getSelectedTier,
     getSelectedPaymentMethod,
     getSelectedShippingMethod,
-    getTotals,
     selectedCustomer,
     editingOrderId,
     orderType,
@@ -68,6 +66,7 @@ export function StorefrontPage() {
     geoResolveEpoch,
     ensureGeoItemAdjustments,
     refreshBonusMode,
+    bonusMode,
   } = useCartStore()
 
   const [searchQuery, setSearchQuery] = useState(searchParams.get('q') || '')
@@ -347,7 +346,6 @@ export function StorefrontPage() {
   const selectedTier = getSelectedTier()
   const selectedPaymentMethod = getSelectedPaymentMethod()
   const selectedShippingMethod = getSelectedShippingMethod()
-  const totals = getTotals()
   const cartItemCount = items.length
 
   const resolveLookupFor = useCallback((product: { id: string; companyId?: string }) => {
@@ -797,6 +795,10 @@ export function StorefrontPage() {
         </div>
       </div>
 
+      {/* Cart Summary Bar — shared component (also used on Storefront Home),
+          placed directly above the Search bar. */}
+      <CartSummaryBar />
+
       {/* Search */}
       <div className="relative">
         <input
@@ -834,6 +836,7 @@ export function StorefrontPage() {
                 cartItemKeys={cartItemKeys}
                 searchQuery={searchQuery}
                 onImageClick={() => handleImageClick(product)}
+                bonusMode={bonusMode}
               />
             </div>
           ))}
@@ -871,26 +874,9 @@ export function StorefrontPage() {
               onUnitChange={setExpandedUnit}
               quantity={expandedQty}
               onQuantityChange={setExpandedQty}
+              bonusMode={bonusMode}
             />
           </div>
-        </div>
-      )}
-
-      {/* Sticky Cart Bar */}
-      {cartItemCount > 0 && (
-        <div className="sticky bottom-0 bg-white border-t border-border p-3 -mx-4 -mb-24 mt-4">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs text-text-secondary">
-              {cartItemCount} منتج &middot; {formatNumber(items.reduce((s, i) => s + i.pieceQuantity, 0))} قطعة
-            </span>
-            <span className="text-sm font-bold text-text">{formatCurrencyShort(totals.netTotal)}</span>
-          </div>
-          <button
-            onClick={() => navigate('/cart')}
-            className="w-full bg-primary text-white text-sm py-2.5 rounded-lg active:bg-primary-dark transition-colors"
-          >
-            عرض السلة
-          </button>
         </div>
       )}
     </div>
