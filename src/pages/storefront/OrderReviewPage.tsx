@@ -50,6 +50,13 @@ export function OrderReviewPage() {
   const selectedPaymentMethod = getSelectedPaymentMethod()
   const selectedShippingMethod = getSelectedShippingMethod()
   const totals = getTotals()
+  const benefitWord = bonusMode ? 'بونص' : 'خصم'
+  const formatPct = (n: number) => (Number.isInteger(n) ? String(n) : String(Number(n.toFixed(1))))
+  // Effective benefit rates come from the shared resolution (totals.benefitRates).
+  // Shown only when all products resolve uniformly; otherwise "حسب المنتج".
+  const br = totals.benefitRates
+  const pctLabel = (n: number) =>
+    br && !br.uniform ? `${benefitWord} حسب المنتج` : `${benefitWord} ${formatPct(n)}%`
   const [availabilityByItem, setAvailabilityByItem] = useState<Record<string, AvailabilityResult>>({})
 
   const cartEmpty = items.length === 0 && dealItems.length === 0 && flashOfferItems.length === 0 && bonusItems.length === 0
@@ -319,7 +326,7 @@ export function OrderReviewPage() {
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
           <div className="text-xs text-blue-800">
             <span className="font-semibold">الشريحة: {formatTierName(selectedTier.name)}</span>
-            {' | '}خصم {selectedTier.discountPercent}%
+            {' | '}{pctLabel(br ? br.tierPct : Number(selectedTier.discountPercent))}
             {' | '}الحد الأدنى: {formatArabicAmountWithCurrency(selectedTier.minimumOrderAmount)}
           </div>
         </div>
@@ -329,7 +336,7 @@ export function OrderReviewPage() {
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
           <div className="text-xs text-blue-800">
             <span className="font-semibold">طريقة الدفع: {selectedPaymentMethod.name}</span>
-            {' | '}خصم {selectedPaymentMethod.discountPercent}%
+            {' | '}{pctLabel(br ? br.payPct : Number(selectedPaymentMethod.discountPercent))}
           </div>
         </div>
       )}
@@ -338,7 +345,7 @@ export function OrderReviewPage() {
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
           <div className="text-xs text-blue-800">
             <span className="font-semibold">طريقة الشحن: {selectedShippingMethod.name}</span>
-            {' | '}خصم {selectedShippingMethod.discountPercent}%
+            {' | '}{pctLabel(br ? br.shipPct : Number(selectedShippingMethod.discountPercent))}
           </div>
         </div>
       )}

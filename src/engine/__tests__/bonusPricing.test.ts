@@ -362,6 +362,31 @@ describe('I. Company diversification rules — MAIN only', () => {
     assert.equal(s.companyRule!.distinctCompanyCount, 1)
     assert.equal(s.companyRule!.maxCompanyPurchasePercent, 50)
   })
+
+  it('Bonus credit ceiling still binds a Bonus line from a company already at the MAIN cap', () => {
+    // Company A MAIN = 500,000 on a 2M tier × 25% (= exactly at the MAIN cap).
+    // Bonus lines from the SAME company are exempt from diversification, but the
+    // Bonus Credit/entitlement limits are untouched: applied = min(credit, bonus
+    // products) and everything beyond credit becomes payable overflow.
+    const mainItems = [makeItem({ companyId: 'c1', companyName: 'Co A', baseUnitPrice: 500000, unitPrice: 500000, totalPrice: 500000 })]
+    const bonus = [
+      makeItem({ productId: 'x', companyId: 'c1', companyName: 'Co A', isBonus: true, baseUnitPrice: 10000, unitPrice: 10000, totalPrice: 10000 }),
+      makeItem({ productId: 'y', companyId: 'c1', companyName: 'Co A', isBonus: true, baseUnitPrice: 10000, unitPrice: 10000, totalPrice: 10000 }),
+    ]
+    const tier = makeTier({ discountPercent: 0, minimumOrderAmount: 2_000_000, minimumCompanyCount: 4, maxCompanyPurchasePercent: 25 })
+    const s = computeBonusSummary(mainItems, bonus, tier, null, null)
+    // Diversification eligibility is computed on MAIN products only.
+    assert.equal(s.companyRule!.companies.length, 1)
+    assert.equal(s.companyRule!.companies[0].value, 500000)
+    assert.equal(s.companyRule!.meetsCompanyCaps, true, 'MAIN exactly at the cap is allowed')
+    assert.equal(s.meetsCompanyRules, false, 'minimum-company-count still fails on the single MAIN company')
+    // Bonus entitlement (credit) limits remain fully active.
+    assert.equal(s.totalBonusCredit, 0, '0% combined discount → no credit')
+    assert.equal(s.bonusProductsTotal, 20000)
+    assert.equal(s.bonusApplied, 0)
+    assert.equal(s.bonusOverflow, 20000, 'bonus beyond credit remains payable overflow — a real limit')
+    assert.equal(s.finalPayable, 520000)
+  })
 })
 
 // ──────────────────────────────────────────────────────────────────────────────

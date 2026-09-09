@@ -601,24 +601,39 @@ export function CartPage() {
   const mainProductsTotal = bonusMode ? totals.productBaseSubtotal : totals.productSubtotal
   const hasBenefitSelectors = tiers.length > 0 || visiblePaymentMethods.length > 0 || visibleShippingMethods.length > 0
 
-  const selectedPctLines = [
-    ...(selectedTier && selectedTier.discountPercent > 0
-      ? [`${benefitWord} الشريحة ${percentText(selectedTier.discountPercent)}%`]
-      : []),
-    ...(selectedPaymentMethod && selectedPaymentMethod.discountPercent > 0
-      ? [`${benefitWord} الدفع ${percentText(selectedPaymentMethod.discountPercent)}%`]
-      : []),
-    ...(selectedShippingMethod && selectedShippingMethod.discountPercent > 0
-      ? [`${benefitWord} الشحن ${percentText(selectedShippingMethod.discountPercent)}%`]
-      : []),
-  ]
-  const combinedPct = selectedPctLines.length > 0
+  // Effective benefit rates come from the shared resolution (totals.benefitRates),
+  // never from raw option defaults. A single order-wide % is shown ONLY when every
+  // product resolves to the same effective rates (uniform); heterogeneous carts get
+  // a money-derived realized % instead.
+  const br = totals.benefitRates
+  const selectedPctLines = !br
     ? [
-        ...(selectedTier && selectedTier.discountPercent > 0 ? [Number(selectedTier.discountPercent)] : []),
-        ...(selectedPaymentMethod && selectedPaymentMethod.discountPercent > 0 ? [Number(selectedPaymentMethod.discountPercent)] : []),
-        ...(selectedShippingMethod && selectedShippingMethod.discountPercent > 0 ? [Number(selectedShippingMethod.discountPercent)] : []),
-      ].reduce((a, b) => a + b, 0)
-    : 0
+        ...(selectedTier && Number(selectedTier.discountPercent) > 0
+          ? [`${benefitWord} الشريحة ${percentText(Number(selectedTier.discountPercent))}%`]
+          : []),
+        ...(selectedPaymentMethod && Number(selectedPaymentMethod.discountPercent) > 0
+          ? [`${benefitWord} الدفع ${percentText(Number(selectedPaymentMethod.discountPercent))}%`]
+          : []),
+        ...(selectedShippingMethod && Number(selectedShippingMethod.discountPercent) > 0
+          ? [`${benefitWord} الشحن ${percentText(Number(selectedShippingMethod.discountPercent))}%`]
+          : []),
+      ]
+    : br.uniform
+      ? [
+          ...(br.tierPct > 0 ? [`${benefitWord} الشريحة ${percentText(br.tierPct)}%`] : []),
+          ...(br.payPct > 0 ? [`${benefitWord} الدفع ${percentText(br.payPct)}%`] : []),
+          ...(br.shipPct > 0 ? [`${benefitWord} الشحن ${percentText(br.shipPct)}%`] : []),
+        ]
+      : [`${benefitWord} حسب المنتج`]
+  const combinedPct = br && br.uniform
+    ? br.sumPct
+    : bonusMode
+      ? (totals.bonusProductsTotal ?? 0) > 0
+        ? ((totals.bonusApplied ?? 0) / (totals.bonusProductsTotal ?? 1)) * 100
+        : 0
+      : totals.productBaseSubtotal > 0
+        ? (totals.totalDiscount / totals.productBaseSubtotal) * 100
+        : 0
 
   return (
     <div className="space-y-3 pb-16">

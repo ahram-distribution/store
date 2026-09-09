@@ -8,6 +8,7 @@ import type {
   CartItem,
   CartDealItem,
   CartTotals,
+  OrderBenefitRates,
   TierExceptionLookup,
   DiscountOverridePair,
   CompanyRuleResult,
@@ -95,6 +96,40 @@ export function computeExceptionAwareTierPrice(
   return basePrice * (1 - discountPercent / 100)
 }
 
+/**
+ * Effective per-group rates for a set of per-product exception lookups.
+ * `uniform: true` only when EVERY lookup resolves to the same Tier/Payment/
+ * Shipping group — the single case where one order-wide percentage is honest.
+ * An empty lookup list (no products) resolves the option defaults.
+ */
+export function computeOrderBenefitRates(
+  lookups: Array<TierExceptionLookup | null | undefined>,
+  tier: TierConfig | null,
+  paymentOption?: PaymentMethodOption | null,
+  shippingOption?: ShippingMethodOption | null
+): OrderBenefitRates {
+  const rates = lookups.map((lk) => ({
+    tier: computeEffectiveDiscountPercent(tier, lk),
+    pay: computeEffectivePaymentDiscountPercent(paymentOption, lk),
+    ship: computeEffectiveShippingDiscountPercent(shippingOption, lk),
+  }))
+  if (rates.length === 0) {
+    const t = computeEffectiveDiscountPercent(tier, null)
+    const p = computeEffectivePaymentDiscountPercent(paymentOption, null)
+    const s = computeEffectiveShippingDiscountPercent(shippingOption, null)
+    return { uniform: true, tierPct: t, payPct: p, shipPct: s, sumPct: t + p + s }
+  }
+  const first = rates[0]
+  const uniform = rates.every((r) => r.tier === first.tier && r.pay === first.pay && r.ship === first.ship)
+  return {
+    uniform,
+    tierPct: first.tier,
+    payPct: first.pay,
+    shipPct: first.ship,
+    sumPct: uniform ? first.tier + first.pay + first.ship : 0,
+  }
+}
+
 export function computeProductPrices(
   product: ProductWithPrice,
   tier: TierConfig | null,
@@ -162,8 +197,16 @@ function round2(n: number): number {
 /**
  * Company diversification rules (minimum distinct companies + per-company maximum)
  * evaluated over a given item set. Exact same logic as the block historically
- * inlined in computeCartTotals — extracted so the bonus engine can evaluate it
- * against MAIN products only (spec §24.2: bonus items never count).
+ * inlined in computeCartTotals — extracted so the bonus engine can evaluate it.
+ *
+ * SINGLE BUSINESS RULE: company diversification applies to MAIN products only.
+ * Bonus products (is_bonus = true) are a COMPLETE EXCEPTION from the ENTIRE
+ * diversification rule — they never enter a company's value, never count toward
+ * the distinct-company count, cannot trip the per-company cap, and cannot
+ * satisfy the minimum-company-count requirement. This filter is enforced HERE
+ * (the governed function) so every caller — Storefront/Cart totals, the bonus
+ * engine, checkout eligibility — shares the same definition regardless of
+ * whether it hands over main-only items or a flat mixed list of the full order.
  *
  * AUTHORITATIVE BASIS (2026 correction): the per-company maximum is derived from
  * the SELECTED TIER's own value, never from the current cart subtotal:
@@ -172,9 +215,9 @@ function round2(n: number): number {
  *
  *   e.g. 2,000,000 × 25% = 500,000 EGP — fixed regardless of the cart subtotal.
  *
- * A company's MAIN purchase value must never exceed maxCompanyValue. Bonus
- * products are excluded. The minimum-company-count rule (A) is independent of
- * the per-company maximum (B) and only gates final eligibility.
+ * A company's MAIN purchase value must never exceed maxCompanyValue. The
+ * minimum-company-count rule (A) is independent of the per-company maximum (B)
+ * and only gates final eligibility.
  */
 export function computeCompanyRuleResult(
   items: CartItem[],
@@ -194,6 +237,10 @@ export function computeCompanyRuleResult(
 
   const companyMap = new Map<string, { value: number; companyName: string }>()
   for (const item of items) {
+    // BONUS EXCEPTION: Bonus Store lines never participate in diversification.
+    // They are excluded here — not from a denominator alone, but from the whole
+    // rule (company value × distinct count × caps × minimum eligibility).
+    if (item.isBonus) continue
     const cid = item.companyId || ''
     const entry = companyMap.get(cid)
     const itemBase =
@@ -285,8 +332,14 @@ export function companyDiversificationSentence(minimumCompanyCount: number, maxC
  * current cart subtotal plays NO part — the limit is fixed by the tier value
  * (e.g. 2,000,000 × 25% = 500,000 EGP regardless of subtotal).
  *
+ * BONUS EXCEPTION: company diversification applies to MAIN products only. Bonus
+ * lines never enter the company value (numerator or denominator), can never
+ * trip the cap, and — when a Bonus line is the TARGET of the operation — the
+ * guard bypasses diversification entirely (blocked:false, bonusBypass:true) so
+ * a Bonus add/increment is governed only by Bonus-specific rules (Bonus Credit,
+ * inventory, entitlement), which are validated outside this function.
+ *
  * Rules:
- * - Bonus products never enter the company value (numerator).
  * - The maximum company value applies ALWAYS — there is no construction
  *   exemption; the minimum-company-count rule is independent and only gates
  *   final eligibility (checkout), never relaxes this cap.
@@ -303,6 +356,18 @@ export function evaluateCompanyMaxAdd(
   target?: CompanyAddTarget | null,
   currentItems?: CartItem[] | null
 ): CompanyAddGuardResult {
+  // BONUS EXCEPTION: the target is resolved from the FULL candidate set. Bonus
+  // Store lines are exempt from the entire diversification rule, so an add or
+  // increment of a Bonus line can never be blocked by company diversification.
+  if (target) {
+    const fullTarget = candidateItems.find(
+      (i) => i.productId === target.productId && i.unitType === target.unitType
+    )
+    if (fullTarget?.isBonus) {
+      return { blocked: false, reason: null, unlimited: true, bonusBypass: true }
+    }
+  }
+
   const maxPct = tier?.maxCompanyPurchasePercent ?? null
   if (!tier || maxPct === null || maxPct <= 0) {
     return { blocked: false, reason: null, unlimited: true }
@@ -441,10 +506,12 @@ export function computeCartTotals(
   let tierDiscount = 0
   let paymentDiscount = 0
   let shippingDiscount = 0
+  const itemLookups: Array<TierExceptionLookup | null | undefined> = []
 
   for (const item of items) {
     productSubtotal += item.totalPrice
     const lookup = lookupForItem(item)
+    itemLookups.push(lookup ?? exceptionLookup)
     const itemTotalPct = computeTotalDiscountPercent(tier, paymentOption, shippingOption, lookup ?? exceptionLookup)
     const itemCapPct = Math.min(itemTotalPct, 99.99)
     const baseTotal =
@@ -494,6 +561,7 @@ export function computeCartTotals(
     dealTotal: dealTotal + flashOfferTotal,
     productSubtotal: round2(productSubtotal),
     productBaseSubtotal: round2(productBaseSubtotal),
+    benefitRates: computeOrderBenefitRates(itemLookups, tier, paymentOption, shippingOption),
     companyRule,
     meetsCompanyRules,
   }

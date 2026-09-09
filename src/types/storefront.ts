@@ -175,8 +175,13 @@ export interface CompanyAddGuardResult {
   blocked: boolean
   reason: 'company-max' | null
   /** True when the selected Tier has no company cap (unlimited / no tier value /
-   *  0%) → nothing to guard. */
+   *  0%) → nothing to guard. Also true when the target is a Bonus line, which is
+   *  a complete exception from the diversification rule (see bonusBypass). */
   unlimited: boolean
+  /** True when the target line is a BONUS product (is_bonus = true): company
+   *  diversification is bypassed entirely — the operation is governed only by
+   *  Bonus-specific rules (Bonus Credit, inventory, entitlement). */
+  bonusBypass?: boolean
   /** The selected Tier's value the maximum was derived from. */
   tierValue?: number
   companyId?: string
@@ -192,6 +197,21 @@ export interface CompanyAddGuardResult {
   room?: number
   /** Whole units this target line may hold (0 = even the current qty is over-cap). */
   maxAllowedUnits?: number
+}
+
+/**
+ * Resolved per-benefit-group rates for the order's MAIN products plus a
+ * uniformity flag. `uniform: true` means every main product resolves to the
+ * SAME effective Tier/Payment/Shipping group — only then is a single order-wide
+ * percentage honest. Heterogeneous carts must never show one global rate.
+ */
+export interface OrderBenefitRates {
+  uniform: boolean
+  tierPct: number
+  payPct: number
+  shipPct: number
+  /** Meaningful only when `uniform` is true (else 0). */
+  sumPct: number
 }
 
 export interface CartTotals {
@@ -211,6 +231,8 @@ export interface CartTotals {
   productBaseSubtotal: number
   companyRule: CompanyRuleResult | null
   meetsCompanyRules: boolean
+  /** Effective per-group rates after manual-exception resolution (one source of truth). */
+  benefitRates?: OrderBenefitRates
   bonusMode?: boolean
   bonusCredit?: number
   bonusApplied?: number

@@ -131,7 +131,11 @@ export function CheckoutPage() {
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
           <div className="text-xs text-blue-800">
             <span className="font-semibold">الشريحة: {formatTierName(selectedTier.name)}</span>
-            {' | '}خصم {selectedTier.discountPercent}% | الحد الأدنى: {formatArabicAmountWithCurrency(selectedTier.minimumOrderAmount)}
+            {' | '}
+            {totals.benefitRates?.uniform
+              ? `خصم ${totals.benefitRates.tierPct}%`
+              : 'خصم حسب المنتج'}
+            {' | '}الحد الأدنى: {formatArabicAmountWithCurrency(selectedTier.minimumOrderAmount)}
           </div>
         </div>
       )}

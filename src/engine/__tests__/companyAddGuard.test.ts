@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { computeCompanyRuleResult, companyDiversificationSentence, computeMainCompanyBaseSubtotal, evaluateCompanyMaxAdd } from '../pricing.ts'
+import { computeCompanyRuleResult, companyDiversificationSentence, computeMainCompanyBaseSubtotal, evaluateCompanyMaxAdd, computeCartTotals } from '../pricing.ts'
 import type { CartItem, TierConfig } from '../../types/storefront.ts'
 
 function makeItem(overrides: Partial<CartItem> & { companyId: string; companyName: string }): CartItem {
@@ -294,10 +294,152 @@ describe('checkout computeCompanyRuleResult — same tier-value basis', () => {
     const withBonus = [
       makeItem({ companyId: 'ca', companyName: 'A', baseUnitPrice: 200, unitQuantity: 1, totalPrice: 200 }),
       makeItem({ companyId: 'cb', companyName: 'B', baseUnitPrice: 200, unitQuantity: 1, totalPrice: 200 }),
-      makeItem({ companyId: 'cb', companyName: 'B', baseUnitPrice: 5_000_000, unitQuantity: 1, totalPrice: 5_000_000, isBonus: true }),
+      makeItem({ productId: 'bg', companyId: 'c9', companyName: 'BonusCo', baseUnitPrice: 5_000_000, unitQuantity: 1, totalPrice: 5_000_000, isBonus: true }),
     ]
     const r = computeCompanyRuleResult(withBonus, tier)
-    assert.equal(r.companyRule!.distinctCompanyCount, 2, 'bonus company B does not add a third distinct company')
+    assert.equal(r.companyRule!.distinctCompanyCount, 2, 'bonus company c9 does not add a third distinct company')
+    assert.equal(r.companyRule!.meetsCompanyCaps, true, 'a 5M bonus line never trips the per-company cap')
+  })
+})
+
+describe('BONUS STORE EXCEPTION — company diversification applies to MAIN products only', () => {
+  const tier425 = makeTier({ minimumOrderAmount: 2_000_000, minimumCompanyCount: 4, maxCompanyPurchasePercent: 25 })
+  const TARGET_BONUS = { productId: 'bg', unitType: 'piece' as const }
+
+  it('(2) MAIN 500,000.01 is still BLOCKED for MAIN products', () => {
+    const items = [makeItem({ productId: 'pa', companyId: 'ca', companyName: 'A', baseUnitPrice: 500_000.01, unitQuantity: 1, totalPrice: 500_000.01 })]
+    const g = evaluateCompanyMaxAdd(items, tier425, TARGET_A, items)
+    assert.equal(g.blocked, true)
+    assert.equal(g.reason, 'company-max')
+  })
+
+  it('(3) BONUS product from the SAME company can be added when MAIN is already at 500,000', () => {
+    const items = [
+      makeItem({ productId: 'pa', companyId: 'ca', companyName: 'A', baseUnitPrice: 500_000, unitQuantity: 1, totalPrice: 500_000 }),
+      makeItem({ productId: 'bg', companyId: 'ca', companyName: 'A', baseUnitPrice: 50_000, unitQuantity: 1, totalPrice: 50_000, isBonus: true }),
+    ]
+    const g = evaluateCompanyMaxAdd(items, tier425, TARGET_BONUS, items)
+    assert.equal(g.blocked, false, 'bonus add must not be blocked by the company cap')
+    assert.equal(g.bonusBypass, true)
+  })
+
+  it('(3/13) BONUS add passes even when a MAIN company is OVER the cap — MAIN add stays blocked', () => {
+    const items = [
+      makeItem({ productId: 'pa', companyId: 'ca', companyName: 'A', baseUnitPrice: 520_000, unitQuantity: 1, totalPrice: 520_000 }),
+      makeItem({ productId: 'bg', companyId: 'ca', companyName: 'A', baseUnitPrice: 50_000, unitQuantity: 1, totalPrice: 50_000, isBonus: true }),
+    ]
+    assert.equal(evaluateCompanyMaxAdd(items, tier425, TARGET_BONUS, items).blocked, false, 'bonus + bypasses diversification')
+    const mainG = evaluateCompanyMaxAdd(items, tier425, TARGET_A, items)
+    assert.equal(mainG.blocked, true, 'main + remains blocked by the MAIN cap')
+    assert.equal(mainG.reason, 'company-max')
+  })
+
+  it('(4) BONUS value never adds to the company diversification value', () => {
+    const items = [
+      makeItem({ productId: 'pa', companyId: 'ca', companyName: 'A', baseUnitPrice: 500_000, unitQuantity: 1, totalPrice: 500_000 }),
+      makeItem({ productId: 'bg', companyId: 'ca', companyName: 'A', baseUnitPrice: 1_000_000, unitQuantity: 1, totalPrice: 1_000_000, isBonus: true }),
+    ]
+    const g = evaluateCompanyMaxAdd(items, tier425, TARGET_A, items)
+    assert.equal(g.blocked, false, '1,500,000 combined must NOT trip the cap — only the 500,000 MAIN value counts')
+    assert.equal(g.currentCompanyValue, 500_000, 'company value is MAIN only')
+  })
+
+  it('(5) BONUS company does not increase the distinct qualifying company count', () => {
+    const items = [
+      makeItem({ productId: 'pa', companyId: 'ca', companyName: 'A', baseUnitPrice: 100, unitQuantity: 1, totalPrice: 100 }),
+      makeItem({ productId: 'bg', companyId: 'c9', companyName: 'BonusCo', baseUnitPrice: 1_000_000, unitQuantity: 1, totalPrice: 1_000_000, isBonus: true }),
+    ]
+    const r = computeCompanyRuleResult(items, tier425)
+    assert.equal(r.companyRule!.distinctCompanyCount, 1, 'bonus company c9 is not counted')
+    assert.equal(r.companyRule!.companies.length, 1)
+  })
+
+  it('(6) 3 MAIN companies + any number of BONUS companies still FAIL the minimum of 4 MAIN companies', () => {
+    const items = [
+      makeItem({ companyId: 'ca', companyName: 'A', baseUnitPrice: 100, unitQuantity: 1, totalPrice: 100 }),
+      makeItem({ companyId: 'cb', companyName: 'B', baseUnitPrice: 100, unitQuantity: 1, totalPrice: 100 }),
+      makeItem({ companyId: 'cc', companyName: 'C', baseUnitPrice: 100, unitQuantity: 1, totalPrice: 100 }),
+      makeItem({ productId: 'bg1', companyId: 'c1', companyName: 'B1', baseUnitPrice: 100, unitQuantity: 1, totalPrice: 100, isBonus: true }),
+      makeItem({ productId: 'bg2', companyId: 'c2', companyName: 'B2', baseUnitPrice: 100, unitQuantity: 1, totalPrice: 100, isBonus: true }),
+      makeItem({ productId: 'bg3', companyId: 'c3', companyName: 'B3', baseUnitPrice: 100, unitQuantity: 1, totalPrice: 100, isBonus: true }),
+      makeItem({ productId: 'bg4', companyId: 'c4', companyName: 'B4', baseUnitPrice: 100, unitQuantity: 1, totalPrice: 100, isBonus: true }),
+      makeItem({ productId: 'bg5', companyId: 'c5', companyName: 'B5', baseUnitPrice: 100, unitQuantity: 1, totalPrice: 100, isBonus: true }),
+    ]
+    const r = computeCompanyRuleResult(items, tier425)
+    assert.equal(r.companyRule!.distinctCompanyCount, 3, 'five bonus companies must not look like 8 companies')
+    assert.equal(r.companyRule!.meetsMinimumCompanies, false)
+    assert.equal(r.meetsCompanyRules, false)
+  })
+
+  it('(7) 4 MAIN companies satisfy the minimum regardless of BONUS companies', () => {
+    const items = [
+      makeItem({ companyId: 'ca', companyName: 'A', baseUnitPrice: 100, unitQuantity: 1, totalPrice: 100 }),
+      makeItem({ companyId: 'cb', companyName: 'B', baseUnitPrice: 100, unitQuantity: 1, totalPrice: 100 }),
+      makeItem({ companyId: 'cc', companyName: 'C', baseUnitPrice: 100, unitQuantity: 1, totalPrice: 100 }),
+      makeItem({ companyId: 'cd', companyName: 'D', baseUnitPrice: 100, unitQuantity: 1, totalPrice: 100 }),
+      makeItem({ productId: 'bg', companyId: 'c9', companyName: 'BonusCo', baseUnitPrice: 900_000, unitQuantity: 1, totalPrice: 900_000, isBonus: true }),
+    ]
+    const r = computeCompanyRuleResult(items, tier425)
+    assert.equal(r.companyRule!.distinctCompanyCount, 4)
+    assert.equal(r.companyRule!.meetsMinimumCompanies, true)
+  })
+
+  it('(8) BONUS products cannot satisfy the minimum-company requirement (bonus-only order)', () => {
+    const bonusOnly = [
+      makeItem({ productId: 'bg1', companyId: 'c1', companyName: 'B1', baseUnitPrice: 100, unitQuantity: 1, totalPrice: 100, isBonus: true }),
+      makeItem({ productId: 'bg2', companyId: 'c2', companyName: 'B2', baseUnitPrice: 100, unitQuantity: 1, totalPrice: 100, isBonus: true }),
+      makeItem({ productId: 'bg3', companyId: 'c3', companyName: 'B3', baseUnitPrice: 100, unitQuantity: 1, totalPrice: 100, isBonus: true }),
+      makeItem({ productId: 'bg4', companyId: 'c4', companyName: 'B4', baseUnitPrice: 100, unitQuantity: 1, totalPrice: 100, isBonus: true }),
+    ]
+    const r = computeCompanyRuleResult(bonusOnly, tier425)
+    assert.equal(r.companyRule!.distinctCompanyCount, 0)
+    assert.equal(r.companyRule!.meetsMinimumCompanies, false)
+    assert.equal(r.meetsCompanyRules, false)
+  })
+
+  it('(9/10) Bonus + bypasses ONLY company diversification — Bonus entitlement/inventory remain the enforcing gates', () => {
+    // The diversification guard returns a clean bonusBypass (blocked:false, no
+    // company-cap info) so nothing in the company system can reject a Bonus
+    // line; the unchanged Bonus-specific gates (Bonus Credit ceiling + product
+    // availability in the store/UI) remain in force outside this function.
+    const items = [
+      makeItem({ productId: 'pa', companyId: 'ca', companyName: 'A', baseUnitPrice: 520_000, unitQuantity: 1, totalPrice: 520_000 }),
+      makeItem({ productId: 'bg', companyId: 'ca', companyName: 'A', baseUnitPrice: 200_000, unitQuantity: 2, totalPrice: 400_000, isBonus: true }),
+    ]
+    const g = evaluateCompanyMaxAdd(items, tier425, TARGET_BONUS, items)
+    assert.equal(g.blocked, false)
+    assert.equal(g.bonusBypass, true)
+    assert.equal(g.maxCompanyValue, undefined, 'no company-cap info leaks into a bonus decision')
+    assert.equal(g.companyValue, undefined)
+    assert.equal(g.currentCompanyValue, undefined)
+  })
+
+  it('(11) Storefront Bonus add (BonusCatalogPage → addBonusItem) is never blocked by diversification', () => {
+    // Engine-side equivalence proof: a candidate = existing (over-concentrated)
+    // MAIN cart + one new BONUS line is never blocked when the target is the
+    // bonus line. The real storefront path addBonusItem performs NO companyCapGuard
+    // call at all (see src/store/cart.ts) and keeps Bonus inventory/entitlement checks.
+    const main = [makeItem({ productId: 'pa', companyId: 'ca', companyName: 'A', baseUnitPrice: 600_000, unitQuantity: 1, totalPrice: 600_000 })]
+    const candidate = [...main, makeItem({ productId: 'bg', companyId: 'cz', companyName: 'Z', baseUnitPrice: 10, unitQuantity: 1, totalPrice: 10, isBonus: true })]
+    const g = evaluateCompanyMaxAdd(candidate, tier425, { productId: 'bg', unitType: 'piece' }, main)
+    assert.equal(g.blocked, false)
+    assert.equal(g.bonusBypass, true)
+  })
+
+  it('(14) Direct Discount mode remains completely unaffected (computeCartTotals)', () => {
+    const directTier = makeTier({ minimumOrderAmount: 2_000_000, minimumCompanyCount: 4, maxCompanyPurchasePercent: 25 })
+    const passing = [
+      makeItem({ companyId: 'ca', companyName: 'A', baseUnitPrice: 400_000, unitQuantity: 1, totalPrice: 400_000 }),
+      makeItem({ companyId: 'cb', companyName: 'B', baseUnitPrice: 400_000, unitQuantity: 1, totalPrice: 400_000 }),
+      makeItem({ companyId: 'cc', companyName: 'C', baseUnitPrice: 400_000, unitQuantity: 1, totalPrice: 400_000 }),
+      makeItem({ companyId: 'cd', companyName: 'D', baseUnitPrice: 400_000, unitQuantity: 1, totalPrice: 400_000 }),
+    ]
+    const t = computeCartTotals(passing, directTier)
+    assert.equal(t.meetsCompanyRules, true, '4 MAIN companies of 400K still pass both rules')
+    const over = [makeItem({ companyId: 'ca', companyName: 'A', baseUnitPrice: 600_000, unitQuantity: 1, totalPrice: 600_000 })]
+    const t2 = computeCartTotals(over, directTier)
+    assert.equal(t2.meetsCompanyRules, false, 'single MAIN company over the cap still fails in Direct Discount mode')
+    assert.equal(t2.companyRule!.meetsCompanyCaps, false)
   })
 })
 

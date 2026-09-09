@@ -2,6 +2,7 @@ import type {
   CartItem,
   CartDealItem,
   CartTotals,
+  OrderBenefitRates,
   TierConfig,
   PaymentMethodOption,
   ShippingMethodOption,
@@ -215,6 +216,29 @@ export function computeBonusModeTotals(
     (dealItems ?? []).reduce((sum, d) => sum + d.totalPrice, 0) +
     (flashOfferItems ?? []).reduce((sum, d) => sum + d.totalPrice, 0)
 
+  // Effective per-group rates from the per-item entitlements (one source of truth
+  // with computeItemBonusEntitlement). Uniform only when all main items agree.
+  const benefitRates: OrderBenefitRates = (() => {
+    const ents = summary.items
+    if (ents.length === 0) {
+      const t = computeEffectiveDiscountPercent(tier, null)
+      const p = computeEffectivePaymentDiscountPercent(paymentOption, null)
+      const s = computeEffectiveShippingDiscountPercent(shippingOption, null)
+      return { uniform: true, tierPct: t, payPct: p, shipPct: s, sumPct: t + p + s }
+    }
+    const f = ents[0]
+    const uniform = ents.every(
+      (e) => e.tierPercent === f.tierPercent && e.paymentPercent === f.paymentPercent && e.shippingPercent === f.shippingPercent
+    )
+    return {
+      uniform,
+      tierPct: f.tierPercent,
+      payPct: f.paymentPercent,
+      shipPct: f.shippingPercent,
+      sumPct: uniform ? f.combinedPercent : 0,
+    }
+  })()
+
   return {
     subtotal: round2(summary.mainBaseTotal + summary.bonusProductsTotal + dealTotal),
     totalDiscount: 0,
@@ -230,6 +254,7 @@ export function computeBonusModeTotals(
     dealTotal,
     productSubtotal: round2(summary.mainBaseTotal + summary.bonusProductsTotal),
     productBaseSubtotal: summary.mainBaseTotal,
+    benefitRates,
     companyRule: summary.companyRule,
     meetsCompanyRules: summary.meetsCompanyRules,
     bonusMode: true,
