@@ -71,7 +71,7 @@ BEGIN
       'bonus_enabled', p.bonus_enabled,
       'company_bonus_enabled', comp.bonus_enabled,
       'geo_adjustment_percent', CASE WHEN p_governorate_id IS NULL THEN NULL::numeric
-        ELSE g.a.adjustment_percent END,
+        ELSE g.adjustment_percent END,
       'product_units', COALESCE(
         (SELECT jsonb_agg(
           jsonb_build_object('id', pu.id, 'unit_type', pu.unit_type, 'is_active', pu.is_active)
@@ -87,7 +87,11 @@ BEGIN
   LEFT JOIN LATERAL public.get_effective_geographic_adjustment(p_governorate_id, p.company_id, p.id) g ON true
   WHERE p.is_active = true
     AND p.is_visible = true
-    AND (p.bonus_enabled OR comp.bonus_enabled)
+    AND (
+      p.bonus_enabled
+      OR comp.bonus_enabled
+      OR comp.legacy_code = '7000'
+    )
     AND (p_company_ids IS NULL OR p.company_id = ANY(p_company_ids));
 
   RETURN COALESCE(v_result, '[]'::jsonb);
@@ -250,7 +254,14 @@ COMMENT ON FUNCTION public.get_governed_companies IS
 -- ----------------------------------------------------------------------------
 -- 4. governed_update_product — superset: p_bonus_enabled (products.manage).
 --    Trailing nullable parameter; COALESCE keeps NULL = no change.
+--    NOTE: must DROP any earlier non-bonus overload first so PostgREST has
+--    exactly ONE canonical signature (otherwise PGRST203 named-argument
+--    ambiguity). See 20270802/20270808 for the same root cause.
 -- ----------------------------------------------------------------------------
+
+DROP FUNCTION IF EXISTS public.governed_update_product(
+  uuid, uuid, varchar, text, varchar, text
+);
 
 CREATE OR REPLACE FUNCTION public.governed_update_product(
   p_token uuid,
@@ -292,9 +303,21 @@ COMMENT ON FUNCTION public.governed_update_product(uuid, uuid, varchar, text, va
   'تعديل بيانات منتج (مع الصورة وأهلية البونص يضاف إلى الهدايا والبونص)';
 
 -- ----------------------------------------------------------------------------
--- 5. governed_update_company — superset: p_bonus_enabled (companies.manage).
---    When true, ALL products of the company become Bonus-eligible.
+-- 5. governed_update_company — superset: p_bonus_enabled + p_display_order.
+--    (companies.manage). When bonus_enabled=true, ALL products of the company
+--    become Bonus-eligible.
+--    NOTE: DROP the earlier non-bonus (p_display_order integer) overload AND
+--    the previously-introduced bonus-but-no-order overload so PostgREST has
+--    exactly ONE canonical signature (no PGRST203 ambiguity). The canonical
+--    function merges the original reorder behaviour with the Bonus flag.
 -- ----------------------------------------------------------------------------
+
+DROP FUNCTION IF EXISTS public.governed_update_company(
+  uuid, uuid, varchar, varchar, text, boolean, integer
+);
+DROP FUNCTION IF EXISTS public.governed_update_company(
+  uuid, uuid, varchar, varchar, text, boolean, boolean
+);
 
 CREATE OR REPLACE FUNCTION public.governed_update_company(
   p_token uuid,
@@ -303,6 +326,7 @@ CREATE OR REPLACE FUNCTION public.governed_update_company(
   p_legacy_code varchar DEFAULT NULL,
   p_logo_url text DEFAULT NULL,
   p_is_visible boolean DEFAULT NULL,
+  p_display_order integer DEFAULT NULL,
   p_bonus_enabled boolean DEFAULT NULL
 )
 RETURNS jsonb
@@ -312,6 +336,9 @@ SET search_path = public, extensions
 AS $$
 DECLARE
   v_session app.sessions;
+  v_old_position int;
+  v_new_position int;
+  v_total int;
 BEGIN
   SELECT * INTO v_session FROM app.sessions WHERE token = p_token AND expires_at > now();
   IF NOT FOUND THEN RETURN jsonb_build_object('error', 'INVALID_SESSION'); END IF;
@@ -328,12 +355,35 @@ BEGIN
     updated_at = now()
   WHERE id = p_id;
 
+  -- Reorder if position changed
+  IF p_display_order IS NOT NULL THEN
+    SELECT display_order INTO v_old_position FROM companies WHERE id = p_id;
+    SELECT COUNT(*) INTO v_total FROM companies;
+
+    -- Clamp new position: must be between 1 and total
+    v_new_position := GREATEST(1, LEAST(p_display_order, v_total));
+
+    IF v_old_position IS NOT NULL AND v_old_position <> v_new_position THEN
+      IF v_old_position < v_new_position THEN
+        -- Moving DOWN: shift companies between old+1..new UP (decrement)
+        UPDATE companies SET display_order = display_order - 1
+        WHERE display_order > v_old_position AND display_order <= v_new_position;
+      ELSE
+        -- Moving UP: shift companies between new..old-1 DOWN (increment)
+        UPDATE companies SET display_order = display_order + 1
+        WHERE display_order >= v_new_position AND display_order < v_old_position;
+      END IF;
+
+      UPDATE companies SET display_order = v_new_position WHERE id = p_id;
+    END IF;
+  END IF;
+
   RETURN jsonb_build_object('success', true);
 END;
 $$;
 
-COMMENT ON FUNCTION public.governed_update_company(uuid, uuid, varchar, varchar, text, boolean, boolean) IS
-  'تعديل بيانات شركة (مع الشعار والظهور وأهلية البونص تضاف إلى الهدايا والبونص)';
+COMMENT ON FUNCTION public.governed_update_company(uuid, uuid, varchar, varchar, text, boolean, integer, boolean) IS
+  'تعديل بيانات شركة (الشعار، الظهور، الترتيب، وأهلية البونص تضاف إلى الهدايا والبونص)';
 
 -- ============================================================================
 -- GRANTS (see 20260708_governed_rpc_execute_grants.sql rationale)

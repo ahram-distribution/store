@@ -46,15 +46,20 @@
 -- PART B. TOGGLE FIX (root cause + deterministic solution):
 --     The frontend toggles call named params {p_token, p_id, p_bonus_enabled} on
 --     governed_update_company / governed_update_product. The reported 404 can
---     only happen when the target database lacks the 7-arg superset (migration
---     20271111 not applied) or the authenticated role lacks EXECUTE on it —
---     PostgREST reports the exact same "Could not find the function ... in the
---     schema cache" 404 for a missing exhaustive grant. This migration therefore
---     RE-DECLARES both supersets verbatim (idempotent CREATE OR REPLACE) AND
---     issues EXPLICIT GRANT EXECUTE to authenticated + service_role, so the path
---     works regardless of default-privilege timing. The 6-arg legacy overloads
---     are untouched (no ambiguity: PostgREST fingerprints by the provided named
---     parameters; the legacy product-edit call sends only the 6 base names).
+--     only happen when the target database lacks the bonus-capable superset
+--     (migration 20271111 not applied) or the authenticated role lacks EXECUTE
+--     on it — PostgREST reports the exact same "Could not find the function ...
+--     in the schema cache" 404 for a missing exhaustive grant.
+--     REGRESSION FIX: an earlier assumption that "the 6-arg overloads can stay,
+--     PostgREST fingerprints by the provided named parameters" proved WRONG —
+--     PostgREST raised PGRST203 "Could not choose the best candidate function"
+--     because BOTH overloads could satisfy the same named-argument request.
+--     This migration therefore DROPs every non-canonical overload and re-declares
+--     exactly ONE canonical signature for each RPC:
+--       * governed_update_product  (7-arg: ..., p_bonus_enabled)
+--       * governed_update_company  (8-arg: ..., p_display_order, p_bonus_enabled)
+--     and issues EXPLICIT GRANT EXECUTE to authenticated + service_role, so the
+--     path works deterministically.
 -- ============================================================================
 
 -- ============================================================================
@@ -66,7 +71,13 @@
 --     Trailing nullable parameter; COALESCE keeps NULL = no change. Persists
 --     products.bonus_enabled. Product-level eligibility stays independent of the
 --     company-level flag. NEVER touches company_id (no reassignment to 7000).
+--     MUST DROP the earlier 6-arg overload so PostgREST has exactly ONE canonical
+--     signature (otherwise PGRST203 named-argument ambiguity).
 -- ----------------------------------------------------------------------------
+
+DROP FUNCTION IF EXISTS public.governed_update_product(
+  uuid, uuid, varchar, text, varchar, text
+);
 
 CREATE OR REPLACE FUNCTION public.governed_update_product(
   p_token uuid,
@@ -116,11 +127,23 @@ COMMENT ON FUNCTION public.governed_update_product(uuid, uuid, varchar, text, va
   'تعديل بيانات منتج (مع الصورة وأهلية البونص: يضاف إلى الهدايا والبونص) — لا يغيّر الشركة التابعة أبداً';
 
 -- ----------------------------------------------------------------------------
--- B2. governed_update_company — superset: p_bonus_enabled (companies.manage).
---     When true, ALL products of the company become Bonus-eligible through the
---     single eligibility predicate (products.bonus_enabled OR companies.bonus_enabled).
+-- B2. governed_update_company — superset: p_bonus_enabled + p_display_order.
+--     (companies.manage). When bonus_enabled=true, ALL products of the company
+--     become Bonus-eligible through the single eligibility predicate
+--     (products.bonus_enabled OR companies.bonus_enabled OR legacy 7000).
 --     Products are NEVER reassigned into company 7000.
+--     MUST DROP the earlier non-bonus (p_display_order integer) overload AND the
+--     bonus-but-no-order 7-arg overload so PostgREST has exactly ONE canonical
+--     8-arg signature (no PGRST203 ambiguity). The canonical function preserves
+--     the original display-order/reorder behaviour alongside the Bonus flag.
 -- ----------------------------------------------------------------------------
+
+DROP FUNCTION IF EXISTS public.governed_update_company(
+  uuid, uuid, varchar, varchar, text, boolean, integer
+);
+DROP FUNCTION IF EXISTS public.governed_update_company(
+  uuid, uuid, varchar, varchar, text, boolean, boolean
+);
 
 CREATE OR REPLACE FUNCTION public.governed_update_company(
   p_token uuid,
@@ -129,6 +152,7 @@ CREATE OR REPLACE FUNCTION public.governed_update_company(
   p_legacy_code varchar DEFAULT NULL,
   p_logo_url text DEFAULT NULL,
   p_is_visible boolean DEFAULT NULL,
+  p_display_order integer DEFAULT NULL,
   p_bonus_enabled boolean DEFAULT NULL
 )
 RETURNS jsonb
@@ -139,6 +163,9 @@ AS $$
 DECLARE
   v_session app.sessions;
   v_bonus boolean;
+  v_old_position int;
+  v_new_position int;
+  v_total int;
 BEGIN
   SELECT * INTO v_session FROM app.sessions WHERE token = p_token AND expires_at > now();
   IF NOT FOUND THEN RETURN jsonb_build_object('error', 'INVALID_SESSION'); END IF;
@@ -157,6 +184,29 @@ BEGIN
 
   IF NOT FOUND THEN RETURN jsonb_build_object('error', 'NOT_FOUND'); END IF;
 
+  -- Reorder if position changed
+  IF p_display_order IS NOT NULL THEN
+    SELECT display_order INTO v_old_position FROM companies WHERE id = p_id;
+    SELECT COUNT(*) INTO v_total FROM companies;
+
+    -- Clamp new position: must be between 1 and total
+    v_new_position := GREATEST(1, LEAST(p_display_order, v_total));
+
+    IF v_old_position IS NOT NULL AND v_old_position <> v_new_position THEN
+      IF v_old_position < v_new_position THEN
+        -- Moving DOWN: shift companies between old+1..new UP (decrement)
+        UPDATE companies SET display_order = display_order - 1
+        WHERE display_order > v_old_position AND display_order <= v_new_position;
+      ELSE
+        -- Moving UP: shift companies between new..old-1 DOWN (increment)
+        UPDATE companies SET display_order = display_order + 1
+        WHERE display_order >= v_new_position AND display_order < v_old_position;
+      END IF;
+
+      UPDATE companies SET display_order = v_new_position WHERE id = p_id;
+    END IF;
+  END IF;
+
   IF p_bonus_enabled IS NOT NULL THEN
     SELECT bonus_enabled INTO v_bonus FROM public.companies WHERE id = p_id;
     RETURN jsonb_build_object('success', true, 'bonus_enabled', v_bonus);
@@ -166,11 +216,11 @@ BEGIN
 END;
 $$;
 
-COMMENT ON FUNCTION public.governed_update_company(uuid, uuid, varchar, varchar, text, boolean, boolean) IS
-  'تعديل بيانات شركة (مع الشعار والظهور وأهلية البونص: تضاف إلى الهدايا والبونص) — تفعيلها يجعل كل منتجات الشركة مؤهلة للبونص دون نقل أي منتج إلى شركة 7000';
+COMMENT ON FUNCTION public.governed_update_company(uuid, uuid, varchar, varchar, text, boolean, integer, boolean) IS
+  'تعديل بيانات شركة (الشعار، الظهور، الترتيب، وأهلية البونص) — تفعيلها يجعل كل منتجات الشركة مؤهلة للبونص دون نقل أي منتج إلى شركة 7000';
 
 GRANT EXECUTE ON FUNCTION public.governed_update_product(uuid, uuid, varchar, text, varchar, text, boolean) TO authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.governed_update_company(uuid, uuid, varchar, varchar, text, boolean, boolean) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.governed_update_company(uuid, uuid, varchar, varchar, text, boolean, integer, boolean) TO authenticated, service_role;
 
 -- ============================================================================
 -- PART A — ORDER-CREATION SERVER-SIDE BONUS PERSISTENCE
