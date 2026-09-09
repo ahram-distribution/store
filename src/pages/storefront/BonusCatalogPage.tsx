@@ -1,11 +1,16 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Gift, Loader2, Minus, Plus } from 'lucide-react'
+import toast from 'react-hot-toast'
 import { useAuthStore } from '../../store/auth'
 import { useCartStore } from '../../store/cart'
 import { fetchBonusCatalogRows } from '../../services/bonus'
 import { toProductWithPrice } from '../../utils/catalog'
 import { computeBonusCatalogBasePrices } from '../../engine/bonusEligibility'
+import { bonusAddDecision, bonusAvailabilityStatus } from '../../engine/bonusInventory'
+import { checkCartAvailability, buildBusinessStatusCard } from '../../utils/cart-availability'
+import type { AvailabilityResult } from '../../utils/cart-availability'
+import { BusinessStatusCard } from '../../components/storefront/BusinessStatusCard'
 import { BONUS_COPY } from '../../constants/bonusCopy'
 import { formatCurrencyShort } from '../../utils/format'
 import { UNIT_LABELS } from '../../types/order-display'
@@ -33,8 +38,12 @@ export function BonusCatalogPage() {
   const [error, setError] = useState<string | null>(null)
   const [quantities, setQuantities] = useState<Record<string, number>>({})
   const [units, setUnits] = useState<Record<string, UnitType>>({})
+  const [availability, setAvailability] = useState<Record<string, AvailabilityResult>>({})
+  const checkTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const governorateId = geographicContext?.governorateId ?? null
+
+  const availKey = (p: ProductWithPrice, unit: UnitType): string => `${p.id}:${unit}`
 
   useEffect(() => {
     let active = true
@@ -61,6 +70,26 @@ export function BonusCatalogPage() {
     })()
     return () => { active = false }
   }, [token, governorateId])
+
+  // Bonus inventory compliance: live availability in the SAME selling unit, using
+  // the existing governed_check_product_availability_v2 engine (no Bonus bypass).
+  useEffect(() => {
+    if (loading) return
+    if (checkTimer.current) clearTimeout(checkTimer.current)
+    checkTimer.current = setTimeout(() => {
+      for (const p of products) {
+        const qty = quantities[p.id] ?? 1
+        const unit = unitOf(p)
+        if (!p.isActive || p.isOutOfStock || qty <= 0) continue
+        checkCartAvailability(p.id, qty, unit).then((result) => {
+          setAvailability((prev) => ({ ...prev, [availKey(p, unit)]: result }))
+        })
+      }
+    }, 400)
+    return () => {
+      if (checkTimer.current) clearTimeout(checkTimer.current)
+    }
+  }, [products, quantities, units, loading])
 
   const priceMap = useMemo(() => {
     const list = computeBonusCatalogBasePrices(
@@ -96,10 +125,18 @@ export function BonusCatalogPage() {
     return bonusItems.filter((i) => i.productId === p.id && i.unitType === unit).reduce((s, i) => s + i.unitQuantity, 0)
   }
 
-  const handleAdd = (p: ProductWithPrice) => {
+  const handleAdd = async (p: ProductWithPrice) => {
     const qty = quantities[p.id] ?? 1
     if (qty <= 0 || !p.isActive || p.isOutOfStock) return
-    addBonusItem(p, unitOf(p), qty)
+    const unit = unitOf(p)
+    const result = await checkCartAvailability(p.id, qty, unit)
+    setAvailability((prev) => ({ ...prev, [availKey(p, unit)]: result }))
+    const { allowed } = bonusAddDecision(qty, result)
+    if (!allowed) {
+      toast.error('الكمية المطلوبة تتجاوز المتاح من هذا الصنف — لا يمكن إضافتها لبونص الشرائح.')
+      return
+    }
+    addBonusItem(p, unit, qty)
   }
 
   return (
@@ -237,7 +274,19 @@ export function BonusCatalogPage() {
                     </button>
                     <span className="text-sm font-semibold text-text w-8 text-center">{quantities[p.id] ?? 1}</span>
                     <button
-                      onClick={() => setQuantities((prev) => ({ ...prev, [p.id]: (prev[p.id] ?? 1) + 1 }))}
+                      onClick={async () => {
+                        const prevQty = quantities[p.id] ?? 1
+                        const proposed = prevQty + 1
+                        const result = await checkCartAvailability(p.id, proposed, unit)
+                        setAvailability((prev) => ({ ...prev, [availKey(p, unit)]: result }))
+                        const { allowed, boundedQty } = bonusAddDecision(proposed, result)
+                        if (allowed) {
+                          setQuantities((prev) => ({ ...prev, [p.id]: proposed }))
+                        } else {
+                          setQuantities((prev) => ({ ...prev, [p.id]: Math.max(1, boundedQty) }))
+                          toast.error('الحد الأقصى المتاح من هذا الصنف تم الوصول إليه.')
+                        }
+                      }}
                       disabled={disabled}
                       className="w-7 h-7 flex items-center justify-center rounded-lg bg-white border border-border text-text-secondary text-sm disabled:opacity-40"
                     >
@@ -252,6 +301,12 @@ export function BonusCatalogPage() {
                     <Gift className="w-3.5 h-3.5" />
                     {BONUS_COPY.addToBonusCart}
                   </button>
+                  {(() => {
+                    const av = availability[availKey(p, unit)]
+                    const status = bonusAvailabilityStatus(av)
+                    if (!av || !status || status === 'green' || !p.isActive || p.isOutOfStock) return null
+                    return <BusinessStatusCard data={buildBusinessStatusCard(av)} compact />
+                  })()}
                   {inCart > 0 && (
                     <p className="text-center text-[10px] font-semibold text-violet-600">
                       في سلة البونص: {inCart} {UNIT_LABELS[unit]}

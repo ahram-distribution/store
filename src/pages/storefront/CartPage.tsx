@@ -109,18 +109,24 @@ const isDirectCustomer = user?.identity_type === 'customer'
     if (hydrated) {
       refreshBonusMode()
     }
-  }, [hydrated, refreshBonusMode])
+}, [hydrated, refreshBonusMode])
 
   useEffect(() => {
     let active = true
-    Promise.all(items.map(async (item) => [
-      `${item.productId}:${item.unitType}`,
-      await checkCartAvailability(item.productId, item.unitQuantity, item.unitType),
-    ] as const)).then((results) => {
+    Promise.all([
+      ...items.map(async (item) => [
+        `${item.productId}:${item.unitType}`,
+        await checkCartAvailability(item.productId, item.unitQuantity, item.unitType),
+      ] as const),
+      ...bonusItems.map(async (item) => [
+        `bonus:${item.productId}:${item.unitType}`,
+        await checkCartAvailability(item.productId, item.unitQuantity, item.unitType),
+      ] as const),
+    ]).then((results) => {
       if (active) setAvailabilityByItem(Object.fromEntries(results))
     })
     return () => { active = false }
-  }, [items])
+  }, [items, bonusItems])
 
   const productCompanyMap = useMemo(() => {
     const map = new Map<string, { id: string; name: string }>()
@@ -470,6 +476,12 @@ const isDirectCustomer = user?.identity_type === 'customer'
                     <div className="text-xs text-text-secondary">
                       {formatNumber(item.pieceQuantity)} قطعة
                     </div>
+                    {availabilityByItem[`bonus:${item.productId}:${item.unitType}`] && (
+                      <BusinessStatusCard
+                        data={buildBusinessStatusCard(availabilityByItem[`bonus:${item.productId}:${item.unitType}`])}
+                        className="mt-2"
+                      />
+                    )}
                   </div>
 
                   <div className="flex flex-col items-end justify-between">
@@ -483,7 +495,14 @@ const isDirectCustomer = user?.identity_type === 'customer'
                       </button>
                       <span className="text-sm font-semibold text-text w-6 text-center">{item.unitQuantity}</span>
                       <button
-                        onClick={() => updateBonusQuantity(item.productId, item.unitType, item.unitQuantity + 1)}
+                        onClick={async () => {
+                          const finalQty = item.unitQuantity + 1
+                          const key = `bonus:${item.productId}:${item.unitType}`
+                          const result = await checkCartAvailability(item.productId, finalQty, item.unitType)
+                          setAvailabilityByItem((prev) => ({ ...prev, [key]: result }))
+                          if (!result.available) return
+                          updateBonusQuantity(item.productId, item.unitType, finalQty)
+                        }}
                         className="w-7 h-7 flex items-center justify-center rounded-lg bg-white border border-border text-text-secondary text-sm active:bg-surface transition-colors"
                       >
                         +

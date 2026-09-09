@@ -60,14 +60,20 @@ export function OrderReviewPage() {
 
   useEffect(() => {
     let active = true
-    Promise.all(items.map(async (item) => [
-      `${item.productId}:${item.unitType}`,
-      await checkCartAvailability(item.productId, item.unitQuantity, item.unitType),
-    ] as const)).then((results) => {
+    Promise.all([
+      ...items.map(async (item) => [
+        `${item.productId}:${item.unitType}`,
+        await checkCartAvailability(item.productId, item.unitQuantity, item.unitType),
+      ] as const),
+      ...bonusItems.map(async (item) => [
+        `bonus:${item.productId}:${item.unitType}`,
+        await checkCartAvailability(item.productId, item.unitQuantity, item.unitType),
+      ] as const),
+    ]).then((results) => {
       if (active) setAvailabilityByItem(Object.fromEntries(results))
     })
     return () => { active = false }
-  }, [items])
+  }, [items, bonusItems])
 
   const productCompanyMap = useMemo(() => {
     const map = new Map<string, { id: string; name: string }>()
@@ -485,6 +491,12 @@ export function OrderReviewPage() {
                   <div className="text-xs text-text-secondary">
                     {item.unitQuantity} {UNIT_LABELS[item.unitType]} &middot; {formatCurrencyShort(item.unitPrice)} للوحدة
                   </div>
+                  {availabilityByItem[`bonus:${item.productId}:${item.unitType}`] && (
+                    <BusinessStatusCard
+                      data={buildBusinessStatusCard(availabilityByItem[`bonus:${item.productId}:${item.unitType}`])}
+                      className="mt-2"
+                    />
+                  )}
                 </div>
                 <span className="text-sm font-bold text-violet-700">{formatCurrencyShort(item.totalPrice)}</span>
               </div>
