@@ -15,13 +15,20 @@ import { BONUS_COPY } from '../../constants/bonusCopy'
 import { formatCurrencyShort } from '../../utils/format'
 import { UNIT_LABELS } from '../../types/order-display'
 import type { ProductWithPrice, UnitType } from '../../types/storefront'
+import { supabase } from '../../lib/supabase'
 
 const UNIT_PRIORITY: UnitType[] = ['carton', 'dozen', 'piece']
 
 /**
- * Bonus / Gifts catalog (Phase 4). Shows ONLY active + visible + Bonus-eligible
- * products at their geo-adjusted BASE price (never discounted). Adding a product
- * uses the existing addBonusItem store action (base-only, assertBonusBasePrice).
+ * Bonus / Gifts catalog (Phase 4). Two-level browsing:
+ *   Level 1 — Bonus Companies: company cards (logo + name + available count) for
+ *             every company that has currently available Bonus products.
+ *   Level 2 — Company Bonus Products: that company's Bonus products only, with a
+ *             sticky status bar (live Bonus Credit + Bonus selection value) and
+ *             controls back to the companies level and back to the cart.
+ * Shows ONLY active + visible + Bonus-eligible products at their geo-adjusted
+ * BASE price (never discounted). Adding a product uses the existing
+ * addBonusItem store action (base-only, assertBonusBasePrice).
  */
 export function BonusCatalogPage() {
   const navigate = useNavigate()
@@ -30,6 +37,7 @@ export function BonusCatalogPage() {
   const bonusItems = useCartStore((s) => s.bonusItems)
   const bonusCredit = useCartStore((s) => s.bonusCredit)
   const geographicContext = useCartStore((s) => s.geographicContext)
+  const getTotals = useCartStore((s) => s.getTotals)
   const addBonusItem = useCartStore((s) => s.addBonusItem)
   const updateBonusQuantity = useCartStore((s) => s.updateBonusQuantity)
   const removeBonusItem = useCartStore((s) => s.removeBonusItem)
@@ -42,6 +50,10 @@ export function BonusCatalogPage() {
   const [units, setUnits] = useState<Record<string, UnitType>>({})
   const [activeUnits, setActiveUnits] = useState<Record<string, UnitType[]>>({})
   const [availability, setAvailability] = useState<Record<string, AvailabilityResult>>({})
+  /** Level-1 selection: the company whose Bonus products are being browsed. */
+  const [selectedCompany, setSelectedCompany] = useState<string | null>(null)
+  /** Company logo URLs by company id (from companies.logo_url, read-only). */
+  const [companyLogos, setCompanyLogos] = useState<Record<string, string | null>>({})
   const checkTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const governorateId = geographicContext?.governorateId ?? null
@@ -87,6 +99,28 @@ export function BonusCatalogPage() {
     return () => { active = false }
   }, [token, governorateId])
 
+  // Company logos for the Level-1 cards: read-only lookup of companies.logo_url
+  // for the companies that actually have Bonus products (same pattern used by the
+  // main storefront CompaniesPage). Purely presentational — no business logic.
+  useEffect(() => {
+    let active = true
+    const ids = Array.from(new Set(products.map((p) => p.companyId).filter((id): id is string => Boolean(id))))
+    if (ids.length === 0) return
+    supabase
+      .from('companies')
+      .select('id, logo_url')
+      .in('id', ids)
+      .then(({ data }) => {
+        if (!active) return
+        const logos: Record<string, string | null> = {}
+        for (const c of data ?? []) logos[c.id] = c.logo_url || null
+        setCompanyLogos(logos)
+      })
+      .catch(() => { /* logos are optional — cards fall back to the initial */}
+      )
+    return () => { active = false }
+  }, [products])
+
   // Bonus inventory compliance: live availability in the SAME selling unit, using
   // the existing governed_check_product_availability_v2 engine (no Bonus bypass).
   useEffect(() => {
@@ -121,6 +155,41 @@ export function BonusCatalogPage() {
   }, [products, geoPct])
 
   const bonusItemCount = bonusItems.reduce((s, i) => s + i.unitQuantity, 0)
+  /** Live current Bonus selection value — same source the Cart uses. */
+  const selectionTotal = getTotals().bonusProductsTotal ?? 0
+
+  /** Level-1 companies (only companies that have available Bonus products).
+   *  First-appearance order of the existing catalog query is preserved. */
+  const companies = useMemo(() => {
+    const order: string[] = []
+    const byId = new Map<string, { id: string; name: string; count: number }>()
+    for (const p of products) {
+      const id = p.companyId
+      const name = String(p.companyName ?? '').trim()
+      const display = name.length > 0 ? name : 'شركة غير محددة'
+      const key = id || display
+      if (!byId.has(key)) {
+        byId.set(key, { id: key, name: display, count: 0 })
+        order.push(key)
+      }
+      byId.get(key)!.count += 1
+    }
+    return order.map((key) => byId.get(key)!)
+  }, [products])
+
+  /** Level-2 products: the selected company's Bonus products only. */
+  const selectedProducts = useMemo(() => {
+    if (!selectedCompany) return []
+    return products.filter((p) => (p.companyId || String(p.companyName ?? '').trim() || 'شركة غير محددة') === selectedCompany)
+  }, [products, selectedCompany])
+
+  const selectedCompanyName = selectedCompany ? (companies.find((c) => c.id === selectedCompany)?.name ?? null) : null
+
+  // Opening a company starts at the top of its products.
+  const openCompany = (id: string) => {
+    setSelectedCompany(id)
+    window.scrollTo({ top: 0 })
+  }
 
   /** Selling units for a Bonus product. Source of truth = the units the admin
    *  enabled for the item in Products Management (product_units.is_active),
@@ -198,6 +267,128 @@ export function BonusCatalogPage() {
     }
   }
 
+  /** Shared bonus product card — unchanged business behavior, rendered at Level 2. */
+  const renderCard = (p: ProductWithPrice) => {
+    const unit = unitOf(p)
+    const disabled = !p.isActive || p.isOutOfStock
+    const inCart = inCartQty(p)
+    return (
+      <div key={p.id} className={`bg-white rounded-xl border overflow-hidden transition-all hover:shadow-sm flex flex-col ${
+        inCart > 0 ? 'border-violet-500/40 bg-violet-50/40' : 'border-border'
+      }`}>
+        {/* Image */}
+        <div className="relative h-28 bg-surface overflow-hidden">
+          {p.imageUrl ? (
+            <img src={p.imageUrl} alt={p.productName} className="w-full h-full object-contain p-2" loading="lazy" />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center">
+              <Gift className="w-8 h-8 text-violet-300" />
+            </div>
+          )}
+          <div className="absolute top-2 right-2 bg-violet-600 text-white text-[10px] px-2 py-0.5 rounded-full font-semibold">
+            {BONUS_COPY.catalogBadge}
+          </div>
+          {disabled && (
+            <div className="absolute bottom-2 right-2 bg-warning/90 text-white text-[10px] px-2 py-0.5 rounded-full font-semibold">
+              نفذت الكمية
+            </div>
+          )}
+        </div>
+
+        {/* Body */}
+        <div className="p-3 flex-1 space-y-1.5">
+          <h3 className="text-[13px] font-extrabold text-text leading-tight line-clamp-2 min-h-[2.2em]">{p.productName}</h3>
+          <p className="text-[11px] text-text-secondary truncate">{p.companyName}</p>
+
+          {/* Price (geo-adjusted BASE only) */}
+          <div className="flex items-center gap-1 text-[13px] text-text-secondary">
+            <span>السعر الأصلي:</span>
+            <span className="font-extrabold text-text text-[14.3px]">{fmtAmount(unitPriceOf(p))}</span>
+            <span className="text-[11px]">للـ {UNIT_LABELS[unit]}</span>
+          </div>
+
+          {/* Unit selector — the SAME selling units as the normal Storefront */}
+          <div className="flex items-center gap-1 flex-wrap">
+            <span className="text-[10px] text-text-secondary font-semibold">الوحدة:</span>
+            {sellingUnitsOf(p).map((ut) => (
+              <button
+                key={ut}
+                onClick={() => setUnits((prev) => ({ ...prev, [p.id]: ut }))}
+                className={`px-2 py-0.5 rounded-md text-[10px] font-bold border transition-colors ${
+                  unit === ut
+                    ? 'bg-violet-600 text-white border-violet-600'
+                    : 'bg-white text-text-secondary border-border hover:bg-violet-50'
+                }`}
+              >
+                {UNIT_LABELS[ut]}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Quantity + Add */}
+        <div className="p-3 pt-0 space-y-2">
+          <div className="flex items-center justify-between gap-1">
+            <button
+              onClick={() => handleStep(p, -1)}
+              disabled={disabled}
+              className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-border text-text-secondary text-sm disabled:opacity-40 shrink-0"
+              aria-label="تقليل الكمية"
+            >
+              <Minus className="w-3.5 h-3.5" />
+            </button>
+            <div className="flex-1 min-w-0 text-center text-sm font-semibold text-text truncate">
+              {inCart > 0 ? inCart : (quantities[p.id] ?? 1)}
+              <span className="text-[10px] text-text-secondary mr-1">{UNIT_LABELS[unit]}</span>
+            </div>
+            <button
+              onClick={() => handleStep(p, 1)}
+              disabled={disabled}
+              className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-border text-text-secondary text-sm disabled:opacity-40 shrink-0"
+              aria-label="زيادة الكمية"
+            >
+              <Plus className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          {inCart > 0 ? (
+            <div className="space-y-1">
+              <div className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg bg-violet-600 text-white text-xs font-bold">
+                <Check className="w-3.5 h-3.5" />
+                تمت الإضافة للسلة
+              </div>
+              <p className="text-center text-[10px] font-semibold text-violet-600">
+                الكمية: {inCart} {UNIT_LABELS[unit]}
+              </p>
+              <button
+                onClick={() => removeBonusItem(p.id, unit)}
+                className="w-full text-center text-[10px] text-text-secondary hover:text-danger underline"
+              >
+                إزالة من السلة
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => handleAdd(p)}
+              disabled={disabled}
+              className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg bg-violet-600 text-white text-xs font-bold hover:bg-violet-700 transition-colors active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <Gift className="w-3.5 h-3.5" />
+              {BONUS_COPY.addToBonusCart}
+            </button>
+          )}
+
+          {(() => {
+            const av = availability[availKey(p, unit)]
+            const status = bonusAvailabilityStatus(av)
+            if (!av || !status || status === 'green' || !p.isActive || p.isOutOfStock) return null
+            return <BusinessStatusCard data={buildBusinessStatusCard(av)} compact />
+          })()}
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-4">
       {/* Header */}
@@ -206,7 +397,9 @@ export function BonusCatalogPage() {
           <button onClick={() => navigate('/cart')} className="text-text-secondary text-lg">
             &larr;
           </button>
-          <h1 className="text-lg font-bold text-text">{BONUS_COPY.catalogTitle}</h1>
+          <h1 className="text-lg font-bold text-text">
+            {selectedCompanyName ? selectedCompanyName : 'متجر منتجات البونص'}
+          </h1>
         </div>
         <button
           onClick={() => navigate('/cart')}
@@ -234,7 +427,7 @@ export function BonusCatalogPage() {
         </div>
       )}
 
-      {bonusMode && (
+      {bonusMode && !selectedCompany && (
         <div className="bg-violet-50 border border-violet-200 rounded-xl p-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Gift className="w-4 h-4 text-violet-600" />
@@ -263,130 +456,105 @@ export function BonusCatalogPage() {
         </div>
       )}
 
-      {/* Catalog grid */}
-      {!loading && !error && products.length > 0 && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 items-stretch">
-          {products.map((p) => {
-            const unit = unitOf(p)
-            const disabled = !p.isActive || p.isOutOfStock
-            const inCart = inCartQty(p)
-            return (
-              <div key={p.id} className={`bg-white rounded-xl border overflow-hidden transition-all hover:shadow-sm flex flex-col ${
-                inCart > 0 ? 'border-violet-500/40 bg-violet-50/40' : 'border-border'
-              }`}>
-                {/* Image */}
-                <div className="relative h-28 bg-surface overflow-hidden">
-                  {p.imageUrl ? (
-                    <img src={p.imageUrl} alt={p.productName} className="w-full h-full object-contain p-2" loading="lazy" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center">
-                      <Gift className="w-8 h-8 text-violet-300" />
-                    </div>
-                  )}
-                  <div className="absolute top-2 right-2 bg-violet-600 text-white text-[10px] px-2 py-0.5 rounded-full font-semibold">
-                    {BONUS_COPY.catalogBadge}
+      {!loading && !error && products.length > 0 && bonusMode && !selectedCompany && (
+        <>
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <h2 className="text-lg font-bold text-text">اختر شركة البونص</h2>
+            </div>
+            <p className="text-xs text-text-secondary">
+              اختر الشركة للاطلاع على منتجات البونص المتاحة لها
+            </p>
+          </div>
+          {/* Level 1 — company cards (same visual family as #/storefront company selection) */}
+          <div className="grid grid-cols-3 md:grid-cols-5 gap-3">
+            {companies.map((company) => {
+              const logoUrl = companyLogos[company.id] ?? null
+              return (
+                <button
+                  key={company.id}
+                  type="button"
+                  onClick={() => openCompany(company.id)}
+                  className="bg-white border border-border rounded-2xl overflow-hidden active:scale-[0.97] active:border-violet-300 transition-all"
+                >
+                  <div className="w-full aspect-square bg-surface flex items-center justify-center overflow-hidden">
+                    {logoUrl ? (
+                      <img
+                        src={logoUrl}
+                        alt={company.name}
+                        loading="lazy"
+                        decoding="async"
+                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+                        className="w-full h-full object-contain p-2"
+                      />
+                    ) : (
+                      <span className="text-3xl font-extrabold text-text-secondary">
+                        {company.name.charAt(0)}
+                      </span>
+                    )}
                   </div>
-                  {disabled && (
-                    <div className="absolute bottom-2 right-2 bg-warning/90 text-white text-[10px] px-2 py-0.5 rounded-full font-semibold">
-                      نفذت الكمية
+                  <div className="px-2 py-2 text-center">
+                    <div className="text-[13px] font-bold text-text leading-snug truncate">{company.name}</div>
+                    <div className="text-[10px] font-semibold text-violet-600 mt-0.5">
+                      {company.count} {company.count === 1 ? 'منتج' : 'منتجات'}
                     </div>
-                  )}
-                </div>
-
-                {/* Body */}
-                <div className="p-3 flex-1 space-y-1.5">
-                  <h3 className="text-[13px] font-extrabold text-text leading-tight line-clamp-2 min-h-[2.2em]">{p.productName}</h3>
-                  <p className="text-[11px] text-text-secondary truncate">{p.companyName}</p>
-
-                  {/* Price (geo-adjusted BASE only) */}
-                  <div className="flex items-center gap-1 text-[13px] text-text-secondary">
-                    <span>السعر الأصلي:</span>
-                    <span className="font-extrabold text-text text-[14.3px]">{fmtAmount(unitPriceOf(p))}</span>
-                    <span className="text-[11px]">للـ {UNIT_LABELS[unit]}</span>
                   </div>
+                </button>
+              )
+            })}
+          </div>
+          <div className="text-center text-xs text-text-secondary">
+            {bonusCredit > 0 ? (
+              <>لديك رصيد بونص بقيمة <b className="text-violet-700">{fmtAmount(bonusCredit)}</b> — اختر المنتجات التي تغطيه</>
+            ) : (
+              'اختر الشركة ثم منتجات البونص المتاحة لها'
+            )}
+          </div>
+        </>
+      )}
 
-                  {/* Unit selector — the SAME selling units as the normal Storefront */}
-                  <div className="flex items-center gap-1 flex-wrap">
-                    <span className="text-[10px] text-text-secondary font-semibold">الوحدة:</span>
-                    {sellingUnitsOf(p).map((ut) => (
-                      <button
-                        key={ut}
-                        onClick={() => setUnits((prev) => ({ ...prev, [p.id]: ut }))}
-                        className={`px-2 py-0.5 rounded-md text-[10px] font-bold border transition-colors ${
-                          unit === ut
-                            ? 'bg-violet-600 text-white border-violet-600'
-                            : 'bg-white text-text-secondary border-border hover:bg-violet-50'
-                        }`}
-                      >
-                        {UNIT_LABELS[ut]}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Quantity + Add */}
-                <div className="p-3 pt-0 space-y-2">
-                  <div className="flex items-center justify-between gap-1">
-                    <button
-                      onClick={() => handleStep(p, -1)}
-                      disabled={disabled}
-                      className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-border text-text-secondary text-sm disabled:opacity-40 shrink-0"
-                      aria-label="تقليل الكمية"
-                    >
-                      <Minus className="w-3.5 h-3.5" />
-                    </button>
-                    <div className="flex-1 min-w-0 text-center text-sm font-semibold text-text truncate">
-                      {inCart > 0 ? inCart : (quantities[p.id] ?? 1)}
-                      <span className="text-[10px] text-text-secondary mr-1">{UNIT_LABELS[unit]}</span>
-                    </div>
-                    <button
-                      onClick={() => handleStep(p, 1)}
-                      disabled={disabled}
-                      className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-border text-text-secondary text-sm disabled:opacity-40 shrink-0"
-                      aria-label="زيادة الكمية"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-
-                  {inCart > 0 ? (
-                    <div className="space-y-1">
-                      <div className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg bg-violet-600 text-white text-xs font-bold">
-                        <Check className="w-3.5 h-3.5" />
-                        تمت الإضافة للسلة
-                      </div>
-                      <p className="text-center text-[10px] font-semibold text-violet-600">
-                        الكمية: {inCart} {UNIT_LABELS[unit]}
-                      </p>
-                      <button
-                        onClick={() => removeBonusItem(p.id, unit)}
-                        className="w-full text-center text-[10px] text-text-secondary hover:text-danger underline"
-                      >
-                        إزالة من السلة
-                      </button>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={() => handleAdd(p)}
-                      disabled={disabled}
-                      className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg bg-violet-600 text-white text-xs font-bold hover:bg-violet-700 transition-colors active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed"
-                    >
-                      <Gift className="w-3.5 h-3.5" />
-                      {BONUS_COPY.addToBonusCart}
-                    </button>
-                  )}
-
-                  {(() => {
-                    const av = availability[availKey(p, unit)]
-                    const status = bonusAvailabilityStatus(av)
-                    if (!av || !status || status === 'green' || !p.isActive || p.isOutOfStock) return null
-                    return <BusinessStatusCard data={buildBusinessStatusCard(av)} compact />
-                  })()}
-                </div>
+      {!loading && !error && products.length > 0 && bonusMode && selectedCompany && (
+        <>
+          {/* Level 2 — sticky status bar (stays visible while browsing) */}
+          <div className="sticky top-14 z-40 bg-white/95 backdrop-blur rounded-xl border border-violet-200 shadow-sm px-3 py-2 space-y-2">
+            <div className="flex items-stretch gap-1 text-center">
+              <div className="flex-1 min-w-0">
+                <div className="text-[10px] text-text-secondary">رصيد البونص</div>
+                <div className="text-xs sm:text-sm font-bold text-violet-700 truncate" dir="ltr">{fmtAmount(bonusCredit)}</div>
               </div>
-            )
-          })}
-        </div>
+              <div className="flex-1 min-w-0 border-s border-violet-200">
+                <div className="text-[10px] text-text-secondary">إجمالي مشتريات البونص</div>
+                <div className="text-xs sm:text-sm font-bold text-text truncate" dir="ltr">{fmtAmount(selectionTotal)}</div>
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setSelectedCompany(null)}
+                className="flex-1 bg-violet-50 border border-violet-300 text-violet-700 text-xs font-bold rounded-lg py-2 active:bg-violet-100 transition-colors"
+              >
+                رجوع لشركات البونص
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate('/cart')}
+                className="flex-1 bg-primary text-white text-xs font-bold rounded-lg py-2 active:opacity-90 transition-opacity"
+              >
+                العودة لإتمام الطلب
+              </button>
+            </div>
+          </div>
+
+          {/* Level 2 — selected company's Bonus products only */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 items-stretch">
+            {selectedProducts.map((p) => renderCard(p))}
+          </div>
+          {selectedProducts.length === 0 && (
+            <div className="text-center py-12 bg-white rounded-xl border border-border">
+              <p className="text-sm text-text-secondary font-semibold">لا توجد منتجات بونص متاحة لهذه الشركة</p>
+            </div>
+          )}
+        </>
       )}
     </div>
   )

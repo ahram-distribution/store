@@ -184,6 +184,22 @@ export function CartPage() {
       return
     }
 
+    // Targeted Cart eligibility rule (Bonus Tiers mode): the customer must finish
+    // achieving the selected tier AND purchase bonus products worth >= the earned
+    // Bonus Credit. Reuses only existing Cart state (totals/engine results).
+    if (bonusMode) {
+      const tierAchieved = !!selectedTier && !!totals.meetsTierMinimum && !!totals.meetsCompanyRules
+      const bonusUsageComplete = (totals.bonusProductsTotal ?? 0) >= (totals.bonusCredit ?? 0)
+      if (!tierAchieved && !bonusUsageComplete) {
+        toast.error('لا يمكن متابعة الطلب. يجب تحقيق الشريحة والشراء بكامل رصيد البونص أولاً.')
+        return
+      }
+      if (!bonusUsageComplete) {
+        toast.error('لا يمكن متابعة الطلب. يجب الشراء بكامل رصيد البونص أولاً.')
+        return
+      }
+    }
+
     if (selectedTier && !totals.meetsTierMinimum) {
       toast.error(`الحد الأدنى للشريحة ${formatArabicAmountWithCurrency(totals.tierMinimum)} — أضف منتجات بقيمة ${formatArabicAmountWithCurrency(totals.remainingForMinimum)}`)
       return
@@ -640,6 +656,16 @@ export function CartPage() {
   // a money-derived realized % instead.
   const br = totals.benefitRates
 
+  // Bonus Tiers eligibility for "متابعة الطلب" (presentation + click validation):
+  // enabled ONLY when the selected tier is achieved AND selected Bonus Store value
+  // covers the earned Bonus Credit. All values come from the existing Cart totals.
+  const tierAchievedForContinue = selectedTier !== null && !!totals.meetsTierMinimum && !!totals.meetsCompanyRules
+  const bonusUsageCompleteForContinue = bonusProductsTotal >= bonusCredit
+  const continueBlocked =
+    (selectedTier !== null && (!totals.meetsTierMinimum || !totals.meetsCompanyRules) && (items.length > 0 || bonusItems.length > 0)) ||
+    (bonusMode && bonusOverflow > 0 && !bonusOverflowApproved && (items.length > 0 || bonusItems.length > 0)) ||
+    (bonusMode && bonusCredit > 0 && bonusProductsTotal < bonusCredit && (items.length > 0 || bonusItems.length > 0))
+
   return (
     <div className="space-y-3 pb-16">
       {/* Header */}
@@ -910,7 +936,7 @@ export function CartPage() {
                 onClick={() => navigate('/storefront/bonus')}
                 className="text-[11px] font-bold bg-white text-violet-700 rounded-lg px-2.5 py-1.5 transition-colors active:bg-violet-100 shrink-0"
               >
-                الحصول على منتجات البونص
+                🎁 متجر منتجات البونص
               </button>
             </div>
             <div className="mt-2 flex items-baseline justify-between">
@@ -1120,12 +1146,48 @@ export function CartPage() {
 
       {/* Actions */}
       <div className="space-y-2">
+        {bonusMode && (
+          <div className="rounded-lg border border-border bg-surface/60 px-3 py-2 space-y-1 text-xs">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-text font-medium">تحقيق الشريحة</span>
+              {selectedTier && totals.meetsTierMinimum && totals.meetsCompanyRules ? (
+                <span className="text-success font-bold">
+                  <span aria-hidden="true">✓</span> مكتمل
+                </span>
+              ) : (
+                <span className="text-text-secondary font-bold">
+                  <span aria-hidden="true">○</span> غير مكتمل
+                </span>
+              )}
+            </div>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-text font-medium">الشراء بكامل رصيد البونص</span>
+              {bonusProductsTotal >= bonusCredit ? (
+                <span className="text-success font-bold">
+                  <span aria-hidden="true">✓</span> مكتمل
+                </span>
+              ) : (
+                <span className="text-text-secondary font-bold">
+                  <span aria-hidden="true">○</span> غير مكتمل
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+        {bonusMode && (
+          <button
+            type="button"
+            onClick={() => navigate('/storefront/bonus')}
+            className="w-full flex items-center justify-center gap-1.5 text-xs font-semibold text-violet-700 border border-violet-300 bg-white rounded-lg py-2 transition-colors active:bg-violet-50"
+          >
+            <span aria-hidden="true">🎁</span> متجر منتجات البونص
+          </button>
+        )}
         <button
           type="button"
           onClick={handleContinue}
-          disabled={(selectedTier !== null && (!totals.meetsTierMinimum || !totals.meetsCompanyRules) && (items.length > 0 || bonusItems.length > 0)) ||
-            (bonusMode && bonusOverflow > 0 && !bonusOverflowApproved && (items.length > 0 || bonusItems.length > 0))}
-          className="w-full bg-primary text-white text-sm py-3 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed active:bg-primary-dark transition-colors"
+          aria-disabled={continueBlocked}
+          className={`w-full bg-primary text-white text-sm py-3 rounded-lg transition-colors ${continueBlocked ? 'opacity-40 cursor-not-allowed' : 'active:bg-primary-dark'}`}
         >
           متابعة الطلب
         </button>
