@@ -14,6 +14,7 @@ import toast from 'react-hot-toast'
 import type { CartItem as CartItemType, CompanyAddGuardResult } from '../../types/storefront'
 import { checkCartAvailability } from '../../utils/cart-availability'
 import { evaluateCompanyMaxAdd, companyDiversificationSentence } from '../../engine/pricing'
+import { resolveLinePrice } from '../../utils/cart-line-price-display'
 
 /** Compact LTR money cell — thousands separators, no currency suffix, smart decimals. */
 function Money({ value, className = '' }: { value: number; className?: string }) {
@@ -432,34 +433,29 @@ export function CartPage() {
     )
   }
 
-  const unitPriceBlock = (item: CartItemType, isBonus: boolean) =>
-    isBonus ? (
+  const unitPriceBlock = (item: CartItemType, isBonus: boolean) => {
+    const rp = resolveLinePrice(item, totals)
+    const showSale = rp.percent > 0
+    return (
       <div className="text-xs space-y-0.5">
         <div className="text-text-secondary">سعر الوحدة</div>
-        <div className="font-bold text-text">
-          <Money value={item.unitPrice} />{' '}
-        </div>
-        <div className="text-[10px] text-text-secondary">سعر البونص (أساسي)</div>
-      </div>
-    ) : hasDiscount(item) ? (
-      <div className="text-xs space-y-0.5">
-        <div className="text-text-secondary">سعر الوحدة قبل الخصم</div>
-        <div className="line-through text-text-secondary">
-          <Money value={item.baseUnitPrice} />
-        </div>
-        <div className="text-text-secondary">سعر الوحدة بعد الخصم</div>
+        {showSale && (
+          <div className="flex items-center gap-1.5">
+            <div className="line-through text-text-secondary">
+              <Money value={rp.originalUnit} />
+            </div>
+            <span className="text-[10px] text-success bg-success/10 px-1 py-0.5 rounded-md font-bold">
+              خصم {percentText(rp.percent)}%
+            </span>
+          </div>
+        )}
         <div className="font-bold text-primary">
-          <Money value={item.unitPrice} />
+          <Money value={rp.netUnit} />
         </div>
-      </div>
-    ) : (
-      <div className="text-xs space-y-0.5">
-        <div className="text-text-secondary">سعر الوحدة</div>
-        <div className="font-bold text-text">
-          <Money value={item.unitPrice} />
-        </div>
+        {isBonus && <div className="text-[10px] text-text-secondary">سعر البونص (أساسي)</div>}
       </div>
     )
+  }
 
   /** MOBILE — structured product block (primary layout). */
   const mobileRow = (item: CartItemType, isBonus: boolean, keyPrefix: string) => {
@@ -491,9 +487,25 @@ export function CartPage() {
         {unitPriceBlock(item, isBonus)}
         <div className="flex items-center justify-between">
           <span className="text-xs text-text-secondary">إجمالي الصنف</span>
-          <b className="text-sm font-bold text-text" dir="ltr">
-            <Money value={item.totalPrice} />
-          </b>
+          <span className="flex flex-col items-end gap-0.5">
+            {(() => {
+              const rp = resolveLinePrice(item, totals)
+              return rp.percent > 0 ? (
+                <>
+                  <span dir="ltr" className="text-xs text-text-secondary line-through">
+                    <Money value={rp.originalLine} />
+                  </span>
+                  <b className="text-sm font-bold text-primary" dir="ltr">
+                    <Money value={rp.netLine} />
+                  </b>
+                </>
+              ) : (
+                <b className="text-sm font-bold text-text" dir="ltr">
+                  <Money value={rp.netLine} />
+                </b>
+              )
+            })()}
+          </span>
         </div>
         {benefit !== null && (
           <div className="flex items-center justify-between">
@@ -526,8 +538,24 @@ export function CartPage() {
           <b className="tabular-nums">{item.unitQuantity}</b> {UNIT_LABELS[item.unitType]}
         </div>
         <div>{unitPriceBlock(item, isBonus)}</div>
-        <div className="text-sm font-bold text-text">
-          <Money value={item.totalPrice} />
+        <div className="flex flex-col items-start gap-0.5">
+          {(() => {
+            const rp = resolveLinePrice(item, totals)
+            return rp.percent > 0 ? (
+              <>
+                <span className="text-xs text-text-secondary line-through">
+                  <Money value={rp.originalLine} />
+                </span>
+                <span className="text-sm font-bold text-primary">
+                  <Money value={rp.netLine} />
+                </span>
+              </>
+            ) : (
+              <span className="text-sm font-bold text-text">
+                <Money value={rp.netLine} />
+              </span>
+            )
+          })()}
         </div>
         <div className="text-xs font-bold text-success">
           {benefit !== null ? (

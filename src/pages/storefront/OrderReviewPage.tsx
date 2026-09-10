@@ -13,6 +13,7 @@ import { formatMixedQuantity } from '../../utils/quantity-format'
 import { BusinessStatusCard } from '../../components/storefront/BusinessStatusCard'
 import type { CartItem as CartItemType, ProductWithPrice, UnitType } from '../../types/storefront'
 import { TierCompanyRulesNotice } from '../../components/storefront/TierCompanyRulesNotice'
+import { resolveLinePrice, percentText } from '../../utils/cart-line-price-display'
 
 const COMPANY_COLORS = [
   { bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-800', header: 'bg-blue-500' },
@@ -36,6 +37,17 @@ function hashId(id: string): number {
 
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
+}
+
+function resolveCreateOrderError(message?: string): string {
+  const m = message || ''
+  if (m.includes('BONUS_OVERFLOW_NOT_APPROVED')) {
+    return 'لم تتم الموافقة على الزيادة عن رصيد البونص. يرجى الموافقة عليها في سلة التسوق.'
+  }
+  if (m.includes('ORDER_CONTAINS_OUT_OF_STOCK_PRODUCTS')) {
+    return 'الطلب يحتوي على منتجات نفذت الكمية. يرجى العودة إلى السلة وإزالتها.'
+  }
+  return 'تعذر تجهيز الطلب للإرسال. يرجى المحاولة مرة أخرى.'
 }
 
 export function OrderReviewPage() {
@@ -143,7 +155,9 @@ export function OrderReviewPage() {
       return
     }
 
-    if (bonusMode && (totals.bonusOverflow ?? 0) > 0 && !bonusOverflowApproved) {
+    const live = useCartStore.getState()
+    const liveTotals = live.getTotals()
+    if (live.bonusMode && (liveTotals.bonusOverflow ?? 0) > 0 && !live.bonusOverflowApproved) {
       toast.error('لم تتم الموافقة على الزيادة عن رصيد البونص. يرجى الموافقة عليها في سلة التسوق.')
       navigate('/cart')
       return
@@ -252,15 +266,15 @@ export function OrderReviewPage() {
                 p_bonus_unused: Math.round(totals.bonusUnused * 100) / 100,
                 p_bonus_overflow: Math.round(totals.bonusOverflow * 100) / 100,
                 p_main_base_total: Math.round(totals.mainBaseTotal * 100) / 100,
-                p_bonus_overflow_approved: bonusOverflowApproved,
+                p_bonus_overflow_approved: useCartStore.getState().bonusOverflowApproved,
                 p_bonus_governorate_id: geographicContext?.governorateId || null,
               }
             : {}),
         })
-        if (createError) { toast.error('تعذر تجهيز الطلب للإرسال. يرجى المحاولة مرة أخرى.'); setSubmitting(false); return }
-        if (!created) { toast.error('تعذر تجهيز الطلب للإرسال. يرجى المحاولة مرة أخرى.'); setSubmitting(false); return }
+        if (createError) { toast.error(resolveCreateOrderError(createError.message)); setSubmitting(false); return }
+        if (!created) { toast.error(resolveCreateOrderError(undefined)); setSubmitting(false); return }
         if (created && typeof created === 'object' && 'error' in created && created.error) {
-          toast.error('تعذر تجهيز الطلب للإرسال. يرجى مراجعة الطلب ثم المحاولة.'); setSubmitting(false); return
+          toast.error(resolveCreateOrderError(created.error)); setSubmitting(false); return
         }
         order = created
         lifeSignalService.notifyBusiness('order_created')
@@ -383,8 +397,27 @@ export function OrderReviewPage() {
                       <div className="text-xs text-text-secondary">
                         <span>{item.unitQuantity} {UNIT_LABELS[item.unitType]}</span>
                         <span className="mx-1">&middot;</span>
-                        <span>{formatCurrencyShort(item.unitPrice)} للوحدة</span>
+                        <span>سعر الوحدة</span>
                       </div>
+                      {(() => {
+                        const rp = resolveLinePrice(item, totals)
+                        return (
+                          <div className="flex items-center gap-1.5 text-xs">
+                            {rp.percent > 0 && (
+                              <>
+                                <span className="text-text-secondary line-through">{formatCurrencyShort(rp.originalUnit)}</span>
+                                <span className="font-bold text-text">{formatCurrencyShort(rp.netUnit)}</span>
+                                <span className="text-[10px] text-success bg-success/10 px-1 py-0.5 rounded-md font-bold">
+                                  خصم {percentText(rp.percent)}%
+                                </span>
+                              </>
+                            )}
+                            {rp.percent <= 0 && (
+                              <span className="font-bold text-text">{formatCurrencyShort(rp.netUnit)}</span>
+                            )}
+                          </div>
+                        )
+                      })()}
                       <div className="text-xs text-text-secondary">
                         {formatMixedQuantity(
                           item.pieceQuantity,
@@ -399,9 +432,19 @@ export function OrderReviewPage() {
                         />
                       )}
                     </div>
-                    <div className="flex items-center">
-                      <span className="text-sm font-bold text-text">{formatCurrencyShort(item.totalPrice)}</span>
-                    </div>
+                    <div className="flex flex-col items-end gap-0.5">
+                        {(() => {
+                          const rp = resolveLinePrice(item, totals)
+                          return rp.percent > 0 ? (
+                            <>
+                              <span className="text-sm text-text-secondary line-through">{formatCurrencyShort(rp.originalLine)}</span>
+                              <span className="text-sm font-bold text-primary">{formatCurrencyShort(rp.netLine)}</span>
+                            </>
+                          ) : (
+                            <span className="text-sm font-bold text-text">{formatCurrencyShort(rp.netLine)}</span>
+                          )
+                        })()}
+                      </div>
                   </div>
                 </div>
               ))}
