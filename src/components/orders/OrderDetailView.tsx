@@ -16,6 +16,7 @@ import { renderDeliveryPermitHtml, printInvoice, downloadInvoicePdf } from './or
 import { printPreparationPermit, downloadPreparationPermitPdf } from './order-prep-printing'
 import { buildTimelineEvents } from './order-detail.utils'
 import { copyToClipboard } from '../../utils/safeClipboard'
+import { buildOrderFinancialPresentation } from '../../utils/order-benefit-presentation'
 import { OrderOwnershipInfo } from './OrderOwnershipInfo'
 import type { UnifiedOrder, UnifiedOrderItem, InventorySnapshotItem, OrderEventLogItem } from '../../types/unified-order'
 import type { BusinessStatusCardData } from '../../utils/cart-availability'
@@ -53,6 +54,7 @@ export function OrderDetailView({ data, actions, onBack, editMode, editItems, on
     return base > 0 && Math.abs(base - unit) > 0.009
   }), [items])
   const discountFactor = useMemo(() => (hasNetItems ? 1 : grandTotal > 0 ? netTotal / grandTotal : 1), [hasNetItems, grandTotal, netTotal])
+  const orderFinancial = useMemo(() => buildOrderFinancialPresentation(order, items), [order, items])
   const timelineEvents = useMemo(() => buildTimelineEvents(data), [data])
 
   const collectedAmount = useMemo(() => {
@@ -164,19 +166,24 @@ export function OrderDetailView({ data, actions, onBack, editMode, editItems, on
             </div>
             {discountAmount > 0 && (
               <div className="text-[11px] text-[#059669] font-medium">
-                (الخصم −{formatCurrencyShort(discountAmount)})
+                ({orderFinancial.mode === 'bonus' ? 'بونص' : 'الخصم'} −{formatCurrencyShort(discountAmount)})
               </div>
             )}
           </div>
         </div>
       </div>
 
-      {/* ── 2.1 DISCOUNT GROUPS (tier / payment / shipping snapshots) ── */}
-      {(order.snapshot_tier_name || order.snapshot_payment_name || order.snapshot_shipping_name) && (
+      {/* ── 2.1 DISCOUNT / BENEFIT GROUPS (tier / payment / shipping snapshots) ── */}
+      {orderFinancial.mode !== 'none' && (order.snapshot_tier_name || order.snapshot_payment_name || order.snapshot_shipping_name || discountAmount > 0) && (
         <div className="bg-white rounded-lg border border-[#E5E7EB] shadow-sm p-4 space-y-1.5 text-[13px]">
           <div className="flex items-center justify-between mb-0.5">
-            <p className="text-[12px] font-bold text-[#111827]">الخصومات المطبقة على الطلب</p>
-            {order.effective_discount_percent != null && order.effective_discount_percent > 0 && (
+            <p className="text-[12px] font-bold text-[#111827]">{orderFinancial.mode === 'bonus' ? 'المنفعة المطبقة على الطلب' : 'الخصومات المطبقة على الطلب'}</p>
+            {orderFinancial.mode === 'bonus' && orderFinancial.benefitInfoLabel && (
+              <span className="text-[11px] bg-[#ECFDF5] text-[#059669] px-2 py-0.5 rounded-full font-bold">
+                {orderFinancial.benefitInfoLabel}
+              </span>
+            )}
+            {orderFinancial.mode !== 'bonus' && order.effective_discount_percent != null && order.effective_discount_percent > 0 && (
               <span className="text-[11px] bg-[#ECFDF5] text-[#059669] px-2 py-0.5 rounded-full font-bold">
                 إجمالي الخصم {order.effective_discount_percent}%
               </span>
@@ -217,7 +224,7 @@ export function OrderDetailView({ data, actions, onBack, editMode, editItems, on
           )}
           {discountAmount > 0 && (
             <div className="flex items-center justify-between border-t border-[#E5E7EB] pt-1.5 mt-1.5">
-              <span className="text-[#6B7280]">الخصم (مبلغ)</span>
+              <span className="text-[#6B7280]">{orderFinancial.mode === 'bonus' ? 'قيمة البونص (مبلغ)' : 'الخصم (مبلغ)'}</span>
               <span className="font-bold text-[#059669]">−{formatCurrencyShort(discountAmount)}</span>
             </div>
           )}
@@ -324,6 +331,7 @@ export function OrderDetailView({ data, actions, onBack, editMode, editItems, on
         shortageProductIds={shortageProductIds || undefined}
         businessStatusByItem={businessStatusByItem || undefined}
         discountFactor={discountFactor}
+        presentation={orderFinancial}
       />
       {editMode && editActions && (
         <div className="bg-white rounded-lg border border-[#E5E7EB] shadow-sm p-4">

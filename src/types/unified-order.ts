@@ -100,6 +100,13 @@ export interface UnifiedOrderHeader {
   order_creator_type: string | null
   current_owner_name: string
   reference_number: string | null
+  bonus_mode_used: boolean | null
+  main_base_total: number | null
+  bonus_credit: number | null
+  bonus_products_total: number | null
+  bonus_applied: number | null
+  bonus_unused: number | null
+  bonus_overflow: number | null
 }
 
 export interface UnifiedCustomerSummary {
@@ -141,6 +148,8 @@ export interface UnifiedOrderItem {
   base_unit_price: number | null
   total_price: number
   _original_net_unit?: number
+  is_bonus?: boolean
+  bonus_applied_amount?: number | null
 }
 
 export interface UnifiedStatusHistoryEntry {

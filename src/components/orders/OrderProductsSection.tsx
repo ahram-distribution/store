@@ -1,8 +1,10 @@
 import { Fragment, useMemo, useState } from 'react'
 import { formatNumber, toEnglishDigits } from '../../utils/numbers'
+import { formatCurrencyShort } from '../../utils/format'
 import { UNIT_LABELS } from '../../types/order-display'
 import type { UnifiedOrderItem } from '../../types/unified-order'
 import type { BusinessStatusCardData } from '../../utils/cart-availability'
+import { mainLineCredit, type OrderFinancialPresentation, type BonusGroupResult } from '../../utils/order-benefit-presentation'
 
 function formatValue(amount: number): string {
   const formatted = formatNumber(amount, { minFractionDigits: 2, maxFractionDigits: 2 })
@@ -53,9 +55,179 @@ interface OrderProductsSectionProps {
   shortageProductIds?: Set<string>
   businessStatusByItem?: Record<string, BusinessStatusCardData>
   discountFactor?: number
+  presentation?: OrderFinancialPresentation
 }
 
-export function OrderProductsSection({ items, mode = 'view', onQuantityChange, onRemoveItem, onPriceChange, onUnitChange, unitOptions, onDeleteSelected, onAddProduct, shortageProductIds, businessStatusByItem, discountFactor }: OrderProductsSectionProps) {
+function BonusTable({ groups, creditPct, bonusStyle }: { groups: BonusGroupResult[]; creditPct: number | null; bonusStyle: boolean }) {
+  const colCount = creditPct != null ? 7 : 6
+  return (
+    <table className="w-full text-[12px] border-separate border-spacing-0">
+      <thead>
+        <tr className="text-[#475569]">
+          <th className="px-3 py-2.5 text-right font-bold text-[11px] uppercase tracking-wide border-b-2 border-[#D9E2EC] bg-[#F1F5F9]">كود الصنف</th>
+          <th className="px-3 py-2.5 text-right font-bold text-[11px] uppercase tracking-wide border-b-2 border-[#D9E2EC] bg-[#F1F5F9]">اسم الصنف</th>
+          <th className="px-3 py-2.5 text-center font-bold text-[11px] uppercase tracking-wide border-b-2 border-[#D9E2EC] bg-[#F1F5F9]">الكمية</th>
+          <th className="px-3 py-2.5 text-center font-bold text-[11px] uppercase tracking-wide border-b-2 border-[#D9E2EC] bg-[#F1F5F9]">الوحدة</th>
+          <th className="px-3 py-2.5 text-left font-bold text-[11px] uppercase tracking-wide border-b-2 border-[#D9E2EC] bg-[#F1F5F9]">سعر الوحدة الأساسي</th>
+          <th className="px-3 py-2.5 text-left font-bold text-[11px] uppercase tracking-wide border-b-2 border-[#D9E2EC] bg-[#F1F5F9]">الإجمالي</th>
+          {creditPct != null && <th className="px-3 py-2.5 text-left font-bold text-[11px] uppercase tracking-wide border-b-2 border-[#D9E2EC] bg-[#F1F5F9]">قيمة البونص</th>}
+        </tr>
+      </thead>
+      <tbody>
+        {groups.map((group) => (
+          <Fragment key={group.company}>
+            <tr className={bonusStyle ? 'bg-[#FFFBEB]' : 'bg-[#F0FDF4]'}>
+              <td colSpan={colCount} className="px-3 py-2 text-[15px] font-extrabold text-[#B45309] border-t border-l border-[#EEF1F4]" style={bonusStyle ? { borderTopColor: '#FDE68A', color: '#B45309' } : undefined}>
+                <div className="flex items-center justify-between">
+                  <span>شركة {group.company}&nbsp;&nbsp;-&nbsp;&nbsp;إجمالي الأصناف {formatNumber(group.items.length)}&nbsp;&nbsp;-&nbsp;&nbsp;إجمالي القطع {formatNumber(group.totalPieces)}&nbsp;&nbsp;-&nbsp;&nbsp;إجمالي المبلغ {formatValue(group.subtotal)}</span>
+                </div>
+              </td>
+            </tr>
+            {group.items.map((item, idx) => {
+              const qty = Number(item.unit_quantity || 1)
+              const base = Number(item.base_unit_price || item.unit_price || 0)
+              const isDozen = item.unit_type === 'dozen'
+              const displayQty = isDozen ? qty * 12 : qty
+              const displayUnitType = isDozen ? 'piece' : item.unit_type
+              const displayPrice = isDozen ? base / 12 : base
+              const unitLabel = displayUnitType === 'piece' ? UNIT_LABELS.piece : UNIT_LABELS[item.unit_type] || item.unit_type
+              const lineTotal = qty * base
+              const credit = mainLineCredit(item, creditPct)
+              return (
+                <tr key={item.id || idx} className="hover:bg-[#F9FAFB] transition-colors">
+                  <td className="px-3 py-3 border-t border-t-[#F1F3F5] border-l border-l-[#EEF1F4]">
+                    <span className="inline-block text-[12px] font-bold font-mono text-blue-700 bg-blue-100 border border-blue-300 px-2.5 py-1 rounded-full" dir="ltr">{item.legacy_code || '—'}</span>
+                  </td>
+                  <td className="px-3 py-3 border-t border-t-[#F1F3F5] border-l border-l-[#EEF1F4]">
+                    <p className="font-semibold text-[#111827]">{item.product_name || 'غير متوفر'}</p>
+                  </td>
+                  <td className="px-3 py-3 text-center border-t border-t-[#F1F3F5] border-l border-l-[#EEF1F4]">
+                    <span className={"inline-flex items-center justify-center rounded-full border px-3 py-1 " + (displayUnitType === 'carton' ? 'bg-[#FFFBEB] border-[#F5D58A]' : 'bg-[#EFF6FF] border-[#BFDBFE]')}>
+                      <span className={"text-[12px] font-bold " + (displayUnitType === 'carton' ? 'text-[#A16207]' : 'text-[#1D4ED8]')}>{displayQty}</span>
+                    </span>
+                  </td>
+                  <td className="px-3 py-3 text-center border-t border-t-[#F1F3F5] border-l border-l-[#EEF1F4]">
+                    <span className={"inline-flex items-center justify-center rounded-full border px-3 py-1 " + (displayUnitType === 'carton' ? 'bg-[#FFFBEB] border-[#F5D58A]' : 'bg-[#EFF6FF] border-[#BFDBFE]')}>
+                      <span className={"text-[12px] font-semibold " + (displayUnitType === 'carton' ? 'text-[#8A5A14]' : 'text-[#315A8A]')}>{unitLabel}</span>
+                    </span>
+                  </td>
+                  <td className="px-3 py-3 text-left border-t border-t-[#F1F3F5] border-l border-l-[#EEF1F4]">
+                    <span className="text-[13px] font-semibold text-[#334155]" dir="ltr">{formatValue(displayPrice)}</span>
+                  </td>
+                  <td className="px-3 py-3 text-left text-[13px] font-bold text-[#111827] border-t border-t-[#F1F3F5] border-l border-l-[#EEF1F4]">{formatValue(lineTotal)}</td>
+                  {creditPct != null && (
+                    <td className="px-3 py-3 text-left text-[13px] font-bold text-[#059669] border-t border-t-[#F1F3F5] border-l border-l-[#EEF1F4]">
+                      {credit != null ? formatValue(credit) : '—'}
+                    </td>
+                  )}
+                </tr>
+              )
+            })}
+          </Fragment>
+        ))}
+      </tbody>
+    </table>
+  )
+}
+
+function SummaryAmount({ amount, symbol, tone }: { amount: number; symbol?: string; tone: 'default' | 'result' | 'credit' | 'final' }) {
+  const cls = tone === 'final'
+    ? 'text-[22px] font-extrabold text-[#059669]'
+    : tone === 'credit'
+      ? 'font-bold text-[#059669]'
+      : tone === 'result'
+        ? 'font-bold text-[#111827] text-[15px]'
+        : 'font-semibold text-[#111827]'
+  return (
+    <span className={`inline-flex items-center gap-1 whitespace-nowrap shrink-0 ${cls}`} dir="ltr">
+      {symbol && <span className="text-[11px] font-bold text-[#94A3B8]">{symbol}</span>}
+      {formatCurrencyShort(amount)}
+    </span>
+  )
+}
+
+/**
+ * FINAL CALCULATION SUMMARY — always rendered AFTER every product group
+ * (MAIN company groups + Bonus products) and immediately before the final
+ * order totals. Never attaches a percentage to the monetary credit.
+ */
+function CalculationSummary({ presentation, mode }: { presentation: OrderFinancialPresentation; mode: 'view' }) {
+  if (presentation.mode === 'none') return null
+
+  return (
+    <div className="bg-[#F8FAFC] border-t border-[#E5E7EB] px-5 py-4">
+      <p className="text-[12px] font-bold text-[#111827] mb-3">حساب قيمة الطلب النهائية</p>
+      <div className="max-w-xl mx-auto space-y-2.5">
+        {presentation.mode === 'bonus' ? (
+          <>
+            <div className="flex items-center justify-between text-[13px]">
+              <span className="min-w-0 flex-1 pr-3 leading-snug text-[#6B7280]">إجمالي الطلب بالسعر الأساسي</span>
+              <SummaryAmount amount={presentation.mainBaseTotal} symbol="+" tone="default" />
+            </div>
+            <div className="flex items-center justify-between text-[13px]">
+              <span className="min-w-0 flex-1 pr-3 leading-snug text-[#6B7280]">إجمالي قيمة منتجات البونص</span>
+              <SummaryAmount amount={presentation.bonusProductsTotal} symbol="+" tone="default" />
+            </div>
+            <div className="flex items-center justify-between border-t border-[#E5E7EB] pt-2.5">
+              <span className="min-w-0 flex-1 pr-3 leading-snug text-[13px] font-bold text-[#111827]">المطلوب قبل حساب البونص</span>
+              <SummaryAmount amount={presentation.beforeBonusTotal} tone="result" symbol="=" />
+            </div>
+            <div className="flex items-center justify-between text-[13px] pt-1">
+              <span className="min-w-0 flex-1 pr-3 leading-snug text-[#6B7280]">إجمالي البونص المستحق</span>
+              <SummaryAmount amount={presentation.bonusCredit} tone="credit" symbol="−" />
+            </div>
+            <div className="flex items-center justify-between border-t border-[#D1D5DB] pt-2.5">
+              <span className="min-w-0 flex-1 pr-3 leading-snug text-[13px] font-bold text-[#111827]">المطلوب النهائي بعد خصم البونص</span>
+              <SummaryAmount amount={presentation.finalTotal} tone="final" symbol="=" />
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="flex items-center justify-between text-[13px]">
+              <span className="min-w-0 flex-1 pr-3 leading-snug text-[#6B7280]">إجمالي الطلب بالسعر الأساسي</span>
+              <SummaryAmount amount={presentation.directBaseTotal} symbol="+" tone="default" />
+            </div>
+            <div className="flex items-center justify-between text-[13px]">
+              <span className="min-w-0 flex-1 pr-3 leading-snug text-[#6B7280]">إجمالي الخصم</span>
+              <SummaryAmount amount={presentation.directDiscountAmount} tone="credit" symbol="−" />
+            </div>
+            <div className="flex items-center justify-between border-t border-[#D1D5DB] pt-2.5">
+              <span className="min-w-0 flex-1 pr-3 leading-snug text-[13px] font-bold text-[#111827]">المطلوب النهائي بعد الخصم</span>
+              <SummaryAmount amount={presentation.finalTotal} tone="final" symbol="=" />
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function FinalTotalsCard({ itemCount, totalQty, totalPieces, finalDisplay }: { itemCount: number; totalQty: number; totalPieces: number; finalDisplay: string }) {
+  return (
+    <div className="bg-white rounded-lg border border-[#E5E7EB] shadow-sm p-5 mt-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div>
+          <p className="text-[11px] text-[#9CA3AF] font-medium">عدد الأصناف</p>
+          <p className="text-[13px] font-bold text-[#111827] mt-0.5">{formatNumber(itemCount)}</p>
+        </div>
+        <div>
+          <p className="text-[11px] text-[#9CA3AF] font-medium">إجمالي الوحدات</p>
+          <p className="text-[13px] font-bold text-[#111827] mt-0.5">{formatNumber(totalQty)}</p>
+        </div>
+        <div>
+          <p className="text-[11px] text-[#9CA3AF] font-medium">إجمالي القطع</p>
+          <p className="text-[13px] font-bold text-[#111827] mt-0.5">{formatNumber(totalPieces)}</p>
+        </div>
+        <div className="text-left">
+          <p className="text-[11px] text-[#9CA3AF] font-medium">الإجمالي النهائي</p>
+          <p className="text-[21px] font-bold text-[#059669] mt-0.5">{finalDisplay}</p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export function OrderProductsSection({ items, mode = 'view', onQuantityChange, onRemoveItem, onPriceChange, onUnitChange, unitOptions, onDeleteSelected, onAddProduct, shortageProductIds, businessStatusByItem, discountFactor, presentation }: OrderProductsSectionProps) {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const toggleSelected = (key: string) => {
     setSelected(prev => {
@@ -99,8 +271,51 @@ export function OrderProductsSection({ items, mode = 'view', onQuantityChange, o
   }, [items])
 
   const isEdit = mode === 'edit'
-  const netFactor = !isEdit && discountFactor && discountFactor > 0 && discountFactor < 1 ? discountFactor : 1
+  const isBonusView = presentation?.mode === 'bonus' && !isEdit
+  const netFactor = !isEdit && !isBonusView && discountFactor && discountFactor > 0 && discountFactor < 1 ? discountFactor : 1
   const net = (amount: number) => Math.round(amount * netFactor * 100) / 100
+
+  const sortedMainGroups = presentation && presentation.mode === 'bonus' ? presentation.mainGroups.map(g => ({
+    ...g,
+    items: [...g.items].sort((a, b) => compareArabic(a.product_name || '', b.product_name || '')),
+  })).sort((a, b) => compareArabic(a.company, b.company)) : []
+
+  const showPersistedTotal = !isEdit && presentation && presentation.mode !== 'none'
+  const totalsFinal = showPersistedTotal
+    ? formatCurrencyShort(presentation.finalTotal)
+    : formatValue(net(grandTotal))
+
+  if (isBonusView && presentation) {
+    const p = presentation
+    const mainCount = p.mainGroups.reduce((s, g) => s + g.items.length, 0)
+    const bonusCount = p.bonusGroup ? p.bonusGroup.items.length : 0
+    return (
+      <div>
+        <div className="bg-white rounded-lg border border-[#E5E7EB] shadow-sm overflow-hidden">
+          <div className="px-5 py-3 border-b border-[#E5E7EB] bg-[#F9FAFB] flex flex-wrap items-center justify-between gap-2">
+            <h3 className="text-[14px] font-bold text-[#111827]">المنتجات</h3>
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className="text-[11px] text-[#6B7280]">{mainCount} صنف رئيسي{p.bonusGroup ? ` • ${bonusCount} صنف بونص` : ''}</span>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <BonusTable groups={sortedMainGroups} creditPct={p.perLineCreditPct} bonusStyle={false} />
+          </div>
+
+          {p.bonusGroup && (
+            <div className="overflow-x-auto">
+              <BonusTable groups={[p.bonusGroup]} creditPct={null} bonusStyle={true} />
+            </div>
+          )}
+
+          <CalculationSummary presentation={p} mode="view" />
+        </div>
+
+        <FinalTotalsCard itemCount={mainCount + bonusCount} totalQty={totalQty} totalPieces={totalPieces} finalDisplay={totalsFinal} />
+      </div>
+    )
+  }
 
   return (
     <div>
@@ -262,6 +477,9 @@ export function OrderProductsSection({ items, mode = 'view', onQuantityChange, o
             </tbody>
           </table>
         </div>
+        {!isEdit && presentation && presentation.mode === 'direct' && (
+          <CalculationSummary presentation={presentation} mode="view" />
+        )}
         {isEdit && onAddProduct && (
           <div className="px-5 py-3 border-t border-[#E5E7EB] bg-[#F9FAFB]">
             <button
@@ -273,26 +491,7 @@ export function OrderProductsSection({ items, mode = 'view', onQuantityChange, o
           </div>
         )}
       </div>
-      <div className="bg-white rounded-lg border border-[#E5E7EB] shadow-sm p-5 mt-3">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div>
-            <p className="text-[11px] text-[#9CA3AF] font-medium">عدد الأصناف</p>
-            <p className="text-[13px] font-bold text-[#111827] mt-0.5">{items.length}</p>
-          </div>
-          <div>
-            <p className="text-[11px] text-[#9CA3AF] font-medium">إجمالي الوحدات</p>
-            <p className="text-[13px] font-bold text-[#111827] mt-0.5">{formatNumber(totalQty)}</p>
-          </div>
-          <div>
-            <p className="text-[11px] text-[#9CA3AF] font-medium">إجمالي القطع</p>
-            <p className="text-[13px] font-bold text-[#111827] mt-0.5">{formatNumber(totalPieces)}</p>
-          </div>
-          <div className="text-left">
-            <p className="text-[11px] text-[#9CA3AF] font-medium">الإجمالي النهائي</p>
-            <p className="text-[21px] font-bold text-[#059669] mt-0.5">{formatValue(net(grandTotal))}</p>
-          </div>
-        </div>
-      </div>
+      <FinalTotalsCard itemCount={items.length} totalQty={totalQty} totalPieces={totalPieces} finalDisplay={totalsFinal} />
     </div>
   )
 }

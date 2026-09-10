@@ -8,10 +8,10 @@ import { ProductCard } from '../../components/storefront/ProductCard'
 import { StorefrontBanner, StorefrontFooter } from '../../components/storefront/CompanyInfoSection'
 import { CartSummaryBar } from '../../components/storefront/CartSummaryBar'
 import { computeProductPrices } from '../../engine/pricing'
-import { discountOptionsService, buildDiscountPricingContext, resolveExceptionLookup } from '../../services/discountOptions'
+import { discountOptionsService, resolveExceptionLookup } from '../../services/discountOptions'
 import { DiscountOptionSelector, type SelectableDiscountOption } from '../../components/storefront/DiscountOptionSelector'
 import { buildSearchIndex, searchProducts, type ProductSearchIndex } from '../../utils/smartSearch'
-import type { ProductWithPrice, ProductUnitPrice, TierConfig, UnitType } from '../../types/storefront'
+import type { ProductWithPrice, ProductUnitPrice, UnitType } from '../../types/storefront'
 import { DYNAMIC_COLLECTIONS, loadCollection, type CollectionStrategy } from '../../config/dynamicCollections'
 import { resolveConfiguredUnitTypes } from '../../utils/catalog'
 import { useGeographicVisibility } from '../../hooks/useGeographicVisibility'
@@ -36,10 +36,6 @@ export function StorefrontPage() {
     paymentMethods,
     shippingMethods,
     setProducts,
-    setTiers,
-    setPaymentMethods,
-    setShippingMethods,
-    setDiscountContext,
     discountContext,
     selectedTierId,
     selectTier,
@@ -66,6 +62,8 @@ export function StorefrontPage() {
     geoResolveEpoch,
     ensureGeoItemAdjustments,
     refreshBonusMode,
+    refreshDiscountOptions,
+    subscribeToDiscountOptions,
     bonusMode,
   } = useCartStore()
 
@@ -168,31 +166,9 @@ export function StorefrontPage() {
 
   const fetchDiscountOptions = useCallback(async () => {
     if (!authToken) return
-    try {
-      const bundle = await discountOptionsService.getAll()
-      const now = new Date()
-      const mappedTiers: TierConfig[] = bundle.tiers
-        .filter((t) =>
-          t.isActive &&
-          t.isVisible &&
-          (!t.startsAt || new Date(t.startsAt) <= now) &&
-          (!t.endsAt || new Date(t.endsAt) >= now)
-        )
-        .sort((a, b) => (b.minimumOrderAmount ?? 0) - (a.minimumOrderAmount ?? 0))
-      const mappedPayments = bundle.paymentMethods
-        .filter((m) => m.isActive && m.isVisible)
-        .sort((a, b) => a.sortOrder - b.sortOrder)
-      const mappedShipping = bundle.shippingMethods
-        .filter((m) => m.isActive && m.isVisible)
-        .sort((a, b) => a.sortOrder - b.sortOrder)
-      setTiers(mappedTiers)
-      setPaymentMethods(mappedPayments)
-      setShippingMethods(mappedShipping)
-      setDiscountContext(buildDiscountPricingContext(bundle))
-    } catch {
-      // fall back to nothing; selectors render accordingly
-    }
-  }, [authToken, setTiers, setPaymentMethods, setShippingMethods, setDiscountContext])
+    await refreshDiscountOptions()
+    subscribeToDiscountOptions()
+  }, [authToken, refreshDiscountOptions, subscribeToDiscountOptions])
 
   const fetchCustomers = useCallback(async () => {
     if (!authToken || user?.identity_type !== 'employee') return

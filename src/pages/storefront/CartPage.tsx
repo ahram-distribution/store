@@ -57,6 +57,11 @@ export function CartPage() {
     }
   }, [])
 
+  useEffect(() => {
+    useCartStore.getState().refreshDiscountOptions()
+    useCartStore.getState().subscribeToDiscountOptions()
+  }, [])
+
   const fetchCustomers = useCallback(async () => {
     if (!authToken || customers.length > 0) return
     const { data } = await supabase.rpc('get_governed_customers', { p_token: authToken })
@@ -606,34 +611,6 @@ export function CartPage() {
   // product resolves to the same effective rates (uniform); heterogeneous carts get
   // a money-derived realized % instead.
   const br = totals.benefitRates
-  const selectedPctLines = !br
-    ? [
-        ...(selectedTier && Number(selectedTier.discountPercent) > 0
-          ? [`${benefitWord} الشريحة ${percentText(Number(selectedTier.discountPercent))}%`]
-          : []),
-        ...(selectedPaymentMethod && Number(selectedPaymentMethod.discountPercent) > 0
-          ? [`${benefitWord} الدفع ${percentText(Number(selectedPaymentMethod.discountPercent))}%`]
-          : []),
-        ...(selectedShippingMethod && Number(selectedShippingMethod.discountPercent) > 0
-          ? [`${benefitWord} الشحن ${percentText(Number(selectedShippingMethod.discountPercent))}%`]
-          : []),
-      ]
-    : br.uniform
-      ? [
-          ...(br.tierPct > 0 ? [`${benefitWord} الشريحة ${percentText(br.tierPct)}%`] : []),
-          ...(br.payPct > 0 ? [`${benefitWord} الدفع ${percentText(br.payPct)}%`] : []),
-          ...(br.shipPct > 0 ? [`${benefitWord} الشحن ${percentText(br.shipPct)}%`] : []),
-        ]
-      : [`${benefitWord} حسب المنتج`]
-  const combinedPct = br && br.uniform
-    ? br.sumPct
-    : bonusMode
-      ? (totals.bonusProductsTotal ?? 0) > 0
-        ? ((totals.bonusApplied ?? 0) / (totals.bonusProductsTotal ?? 1)) * 100
-        : 0
-      : totals.productBaseSubtotal > 0
-        ? (totals.totalDiscount / totals.productBaseSubtotal) * 100
-        : 0
 
   return (
     <div className="space-y-3 pb-16">
@@ -679,19 +656,7 @@ export function CartPage() {
                 {bonusMode ? <Money value={bonusCredit} /> : <>−<Money value={totals.totalDiscount} /></>}
               </span>
             </div>
-            <div className="flex justify-between items-center">
-              <span className="text-text-secondary font-medium">نسبة الخصم</span>
-              <span className="font-bold text-text" dir="rtl">
-                {percentText(combinedPct)}%
-              </span>
             </div>
-            <div className="flex justify-between items-center">
-              <span className="text-text-secondary font-medium">الخصومات</span>
-              <span className="font-semibold text-text" dir="rtl">
-                {selectedPctLines.length > 0 ? selectedPctLines.join(' + ') : '—'}
-              </span>
-            </div>
-          </div>
         </div>
       )}
 

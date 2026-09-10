@@ -62,6 +62,11 @@ export function OrderReviewPage() {
   const cartEmpty = items.length === 0 && dealItems.length === 0 && flashOfferItems.length === 0 && bonusItems.length === 0
 
   useEffect(() => {
+    useCartStore.getState().refreshDiscountOptions()
+    useCartStore.getState().subscribeToDiscountOptions()
+  }, [])
+
+  useEffect(() => {
     if (cartEmpty) navigate('/cart')
   }, [cartEmpty, navigate])
 

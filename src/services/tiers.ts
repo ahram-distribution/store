@@ -160,9 +160,13 @@ export const tierService = {
       const tier = (tiers ?? []).find((t: any) => t.id === tierId)
       if (tier) {
         result.tierDefault = Number(tier.discount_percent)
-        const prodExc = (tier.product_exceptions ?? []).find(
-          (e: any) => (e.product_id === productId || e.applies_to_all_tiers === true)
-        )
+        // Scoped to THIS product only (no cross-product leak from another
+        // product's all-tiers exception). get_governed_tiers already restricts
+        // rows to this tier's exceptions + all-tiers rows; among those, prefer
+        // the all-tiers row — mirroring _get_effective_tier_discount's
+        // ORDER BY applies_to_all_tiers DESC NULLS LAST LIMIT 1.
+        const perProduct = (tier.product_exceptions ?? []).filter((e: any) => e.product_id === productId)
+        const prodExc = perProduct.find((e: any) => e.applies_to_all_tiers === true) ?? perProduct[0]
         result.productException = prodExc ? Number(prodExc.discount_percent) : null
         const compExc = (tier.company_exceptions ?? []).find((e: any) => e.company_id === companyId)
         result.companyException = compExc ? Number(compExc.discount_percent) : null

@@ -3,7 +3,7 @@ import { persist } from 'zustand/middleware'
 import type { CartItem, CartDealItem, CartTotals, TierConfig, PaymentMethodOption, ShippingMethodOption, ProductWithPrice, UnitType, DailyDealRecord, FlashOfferRecord, TierExceptionLookup, CompanyAddGuardResult } from '../types/storefront'
 import { computeProductPrices, getFinalUnitPrice, getUnitBasePrice, computePieceQuantity, computeCartTotals, round2, evaluateCompanyMaxAdd } from '../engine/pricing'
 import { computeBonusModeTotals, computeBonusSummary } from '../engine/bonusPricing'
-import { resolveExceptionLookup, type DiscountPricingContext } from '../services/discountOptions'
+import { resolveExceptionLookup, discountOptionsService, buildDiscountPricingContext, type DiscountPricingContext } from '../services/discountOptions'
 import { supabase } from '../lib/supabase'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import toast from 'react-hot-toast'
@@ -13,6 +13,9 @@ import { readBonusMode, currentBonusModeEpoch, invalidateBonusModeCache, subscri
 let geoRulesChannel: RealtimeChannel | null = null
 let bonusModeUnsubscribe: (() => void) | null = null
 let _geoResolveVersion = 0
+let discountOptionsChannel: RealtimeChannel | null = null
+let _discountRefreshVersion = 0
+let _discountRefreshTimer: ReturnType<typeof setTimeout> | null = null
 
 interface CartCustomer {
   id: string
@@ -93,6 +96,8 @@ interface CartState {
   setOrderType: (orderType: string) => void
   refreshBonusMode: () => Promise<void>
   subscribeToBonusMode: () => void
+  refreshDiscountOptions: () => Promise<void>
+  subscribeToDiscountOptions: () => void
   restoreCart: (items: CartItem[], editingOrderId: string, restoreOrderType?: string, restoreTierId?: string | null, restorePaymentMethodId?: string | null, restoreShippingMethodId?: string | null) => void
   resolveGeographicPricing: (governorateId: string | null, companyId?: string, productId?: string) => Promise<void>
   resolveEmployeeGeographicContext: (employeeId: string) => Promise<void>
@@ -126,15 +131,17 @@ export const useCartStore = create(
 
       const buildLookup = (
         s: ReturnType<typeof get>,
-        product: { id: string; companyId?: string } | null | undefined
+        product: { id?: string; productId?: string; companyId?: string } | null | undefined
       ): TierExceptionLookup | null | undefined => {
         if (!s.discountContext || !product) return undefined
+        const pid = product.productId ?? product.id
+        if (pid == null) return undefined
         return resolveExceptionLookup(
           s.discountContext,
           s.getSelectedTier(),
           s.getSelectedPaymentMethod(),
           s.getSelectedShippingMethod(),
-          product.id,
+          pid,
           product.companyId
         )
       }
@@ -760,6 +767,66 @@ export const useCartStore = create(
           invalidateBonusModeCache()
           get().refreshBonusMode()
         })
+      },
+
+      refreshDiscountOptions: async () => {
+        const myVersion = ++_discountRefreshVersion
+        try {
+          const bundle = await discountOptionsService.getAll()
+          if (_discountRefreshVersion !== myVersion) return
+          const now = new Date()
+          const mappedTiers = bundle.tiers
+            .filter((t) =>
+              t.isActive &&
+              t.isVisible &&
+              (!t.startsAt || new Date(t.startsAt) <= now) &&
+              (!t.endsAt || new Date(t.endsAt) >= now)
+            )
+            .sort((a, b) => (b.minimumOrderAmount ?? 0) - (a.minimumOrderAmount ?? 0))
+          const mappedPayments = bundle.paymentMethods
+            .filter((m) => m.isActive && m.isVisible)
+            .sort((a, b) => a.sortOrder - b.sortOrder)
+          const mappedShipping = bundle.shippingMethods
+            .filter((m) => m.isActive && m.isVisible)
+            .sort((a, b) => a.sortOrder - b.sortOrder)
+          const context = buildDiscountPricingContext(bundle)
+          const s = get()
+          const unchanged =
+            s.discountContext !== null &&
+            JSON.stringify(context) === JSON.stringify(s.discountContext) &&
+            JSON.stringify(mappedTiers) === JSON.stringify(s.tiers) &&
+            JSON.stringify(mappedPayments) === JSON.stringify(s.paymentMethods) &&
+            JSON.stringify(mappedShipping) === JSON.stringify(s.shippingMethods)
+          if (unchanged) return
+          set({ tiers: mappedTiers, paymentMethods: mappedPayments, shippingMethods: mappedShipping, discountContext: context })
+          get().recalculateAll()
+          get().recomputeBonus()
+        } catch {
+          // keep the current context; selectors degrade gracefully
+        }
+      },
+
+      subscribeToDiscountOptions: () => {
+        if (discountOptionsChannel) return
+        const scheduleRefresh = () => {
+          if (_discountRefreshTimer) clearTimeout(_discountRefreshTimer)
+          _discountRefreshTimer = setTimeout(() => {
+            _discountRefreshTimer = null
+            get().refreshDiscountOptions()
+          }, 200)
+        }
+        discountOptionsChannel = supabase
+          .channel('discount-options-live')
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'tiers' }, scheduleRefresh)
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'tier_product_exceptions' }, scheduleRefresh)
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'tier_company_exceptions' }, scheduleRefresh)
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'payment_method_options' }, scheduleRefresh)
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'product_payment_method_exceptions' }, scheduleRefresh)
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'company_payment_method_exceptions' }, scheduleRefresh)
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'shipping_method_options' }, scheduleRefresh)
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'product_shipping_method_exceptions' }, scheduleRefresh)
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'company_shipping_method_exceptions' }, scheduleRefresh)
+          .subscribe()
       },
 
       setSelectedCustomer: (customer) => {
