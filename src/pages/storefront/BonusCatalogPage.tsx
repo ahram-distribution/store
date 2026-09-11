@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { ChangeEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Check, Gift, Loader2, Minus, Plus } from 'lucide-react'
 import toast from 'react-hot-toast'
@@ -19,6 +20,316 @@ import { supabase } from '../../lib/supabase'
 
 const UNIT_PRIORITY: UnitType[] = ['carton', 'dozen', 'piece']
 
+/** Base value of a Bonus cart line + selection-total derivation, mirroring the
+ *  engine so the live status bar never needs the full bonus-totals recompute. */
+const bonusItemBaseValue = (item: { baseUnitPrice?: number; totalPrice: number; unitQuantity: number }): number => {
+  if (typeof item.baseUnitPrice === 'number' && item.baseUnitPrice >= 0) {
+    return Math.round(item.baseUnitPrice * item.unitQuantity * 100) / 100
+  }
+  return Math.round(item.totalPrice * 100) / 100
+}
+
+const round2 = (n: number): number => Math.round(n * 100) / 100
+
+/** Isolated, memoized card in the proven Normal Storefront pattern: in-cart state
+ *  is passed DOWN as a prop (like ProductCard's cartItemKeys) instead of each card
+ *  subscribing to the store, and the availability check runs only on user-driven
+ *  unit/quantity changes with the same 400ms debounce as ProductCard — never on
+ *  mount. Changing one Bonus product never forces the sibling cards to re-render. */
+const BonusProductCard = memo(function BonusProductCard({
+  product,
+  activeUnits,
+  unitPrices,
+  stepperValue,
+  inCartQtyByUnit,
+  onAdd,
+  onStep,
+  onRemove,
+}: {
+  product: ProductWithPrice
+  activeUnits: UnitType[]
+  unitPrices: ProductWithPrice['unitPrices']
+  stepperValue: number
+  inCartQtyByUnit?: Record<UnitType, number>
+  onAdd: (p: ProductWithPrice, unit: UnitType, qty: number) => Promise<void>
+  onStep: (p: ProductWithPrice, unit: UnitType, qty: number) => Promise<void>
+  onRemove: (p: ProductWithPrice, unit: UnitType) => void
+}) {
+  const [unit, setUnit] = useState<UnitType | null>(null)
+  const [availabilityResult, setAvailabilityResult] = useState<AvailabilityResult | null>(null)
+  const [qtyText, setQtyText] = useState('1')
+  const checkTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const commitTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const qtyInputFocused = useRef(false)
+
+  const availableUnits = useMemo(() => {
+    const strict = activeUnits.filter((u) => unitPrices.some((x) => x.unitType === u))
+    if (strict.length > 0) return strict
+    return (product.availableUnitTypes ?? []).filter((u) => unitPrices.some((x) => x.unitType === u))
+  }, [activeUnits, unitPrices, product.availableUnitTypes])
+
+  const selectedUnit = useMemo<UnitType>(() => {
+    if (availableUnits.length === 0) return unitPrices[0]?.unitType ?? 'piece'
+    if (unit && availableUnits.includes(unit)) return unit
+    return UNIT_PRIORITY.find((u) => availableUnits.includes(u)) ?? availableUnits[0]
+  }, [unit, availableUnits, unitPrices])
+
+  const unitPrice = useMemo(() => {
+    const found = unitPrices.find((u) => u.unitType === selectedUnit)
+    return round2(found ? found.price : 0)
+  }, [unitPrices, selectedUnit])
+
+  // Availability check is LAZY, exactly like the normal Storefront ProductCard:
+  // no catalog-wide prefetch on load and NO mount-time read. It runs with a
+  // 400ms debounce only when the user interacts with THIS card's unit/stepper/
+  // add/remove controls. The governing add/step handlers enforce availability
+  // themselves via checkCartAvailability + bonusAddDecision.
+  const inCart = inCartQtyByUnit?.[selectedUnit] ?? 0
+  const effectiveQty = inCart > 0 ? inCart : stepperValue
+  const scheduleAvailabilityCheck = (qty?: number) => {
+    if (checkTimer.current) clearTimeout(checkTimer.current)
+    checkTimer.current = setTimeout(() => {
+      if (product.isActive && !product.isOutOfStock) {
+        checkCartAvailability(product.id, Math.max(1, qty ?? effectiveQty), selectedUnit).then((result) => {
+          setAvailabilityResult(result)
+        })
+      }
+    }, 400)
+  }
+  useEffect(() => () => {
+    if (checkTimer.current) clearTimeout(checkTimer.current)
+    if (commitTimer.current) clearTimeout(commitTimer.current)
+  }, [])
+
+  const disabled = !product.isActive || product.isOutOfStock
+  const added = inCart > 0
+  const displayQty = added ? inCart : stepperValue
+
+  // Manual quantity entry: the quantity is a text field the user can type into
+  // directly. It commits through the SAME governed onStep path (checkCartAvailability +
+  // bonusAddDecision) the +/− steppers use, debounced 500ms so typing never fires
+  // one availability RPC per keystroke. External displayQty changes (from steppers,
+  // add, or cart restore) are mirrored while the field is not being edited.
+  useEffect(() => {
+    if (!qtyInputFocused.current) setQtyText(String(displayQty))
+  }, [displayQty])
+
+  const parseQtyText = (raw: string): number => {
+    const t = raw.trim()
+    if (t === '') return displayQty
+    const n = Math.floor(Number(t))
+    return Number.isFinite(n) ? Math.max(0, n) : displayQty
+  }
+
+  const commitQty = (qty: number) => {
+    if (commitTimer.current) clearTimeout(commitTimer.current)
+    setQtyText(String(qty))
+    onStep(product, selectedUnit, qty)
+    scheduleAvailabilityCheck(qty)
+  }
+
+  const handleQtyInput = (e: ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value
+    setQtyText(raw)
+    const n = Math.floor(Number(raw))
+    if (raw.trim() !== '' && Number.isFinite(n) && n >= 0) {
+      if (commitTimer.current) clearTimeout(commitTimer.current)
+      commitTimer.current = setTimeout(() => commitQty(n), 500)
+    }
+  }
+
+  const handleQtyBlur = () => {
+    qtyInputFocused.current = false
+    const qty = parseQtyText(qtyText)
+    setQtyText(String(qty))
+    if (qty !== displayQty) commitQty(qty)
+  }
+
+  return (
+    <div className={`bg-white rounded-xl border overflow-hidden transition-all hover:shadow-sm flex flex-col ${
+      added ? 'border-violet-500/40 bg-violet-50/40' : 'border-border'
+    }`}>
+      {/* Image */}
+      <div className="relative h-28 bg-surface overflow-hidden">
+        {product.imageUrl ? (
+          <img src={product.imageUrl} alt={product.productName} className="w-full h-full object-contain p-2" loading="lazy" />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center">
+            <Gift className="w-8 h-8 text-violet-300" />
+          </div>
+        )}
+        <div className="absolute top-2 right-2 bg-violet-600 text-white text-[10px] px-2 py-0.5 rounded-full font-semibold">
+          {BONUS_COPY.catalogBadge}
+        </div>
+        {disabled && (
+          <div className="absolute bottom-2 right-2 bg-warning/90 text-white text-[10px] px-2 py-0.5 rounded-full font-semibold">
+            نفذت الكمية
+          </div>
+        )}
+      </div>
+
+      {/* Body */}
+      <div className="p-3 flex-1 space-y-1.5">
+        <h3 className="text-[13px] font-extrabold text-text leading-tight line-clamp-2 min-h-[2.2em]">{product.productName}</h3>
+        <p className="text-[11px] text-text-secondary truncate">{product.companyName}</p>
+
+        {/* Price (geo-adjusted BASE only) */}
+        <div className="flex items-center gap-1 text-[13px] text-text-secondary">
+          <span>السعر الأصلي:</span>
+          <span className="font-extrabold text-text text-[14.3px]">{formatCurrencyShort(unitPrice).replace(' ج.م', '').trim()}</span>
+          <span className="text-[11px]">للـ {UNIT_LABELS[selectedUnit]}</span>
+        </div>
+
+        {/* Unit selector — card-local state, sibling cards stay untouched */}
+        <div className="flex items-center gap-1 flex-wrap">
+          <span className="text-[10px] text-text-secondary font-semibold">الوحدة:</span>
+          {availableUnits.map((ut) => (
+            <button
+              key={ut}
+              onClick={() => { setUnit(ut); scheduleAvailabilityCheck() }}
+              className={`px-2 py-0.5 rounded-md text-[10px] font-bold border transition-colors ${
+                selectedUnit === ut
+                  ? 'bg-violet-600 text-white border-violet-600'
+                  : 'bg-white text-text-secondary border-border hover:bg-violet-50'
+              }`}
+            >
+              {UNIT_LABELS[ut]}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Quantity + Add */}
+      <div className="p-3 pt-0 space-y-2">
+        <div className="flex items-center justify-between gap-1">
+          <button
+            onClick={() => { if (commitTimer.current) clearTimeout(commitTimer.current); onStep(product, selectedUnit, displayQty - 1); scheduleAvailabilityCheck(displayQty - 1) }}
+            disabled={disabled}
+            className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-border text-text-secondary text-sm disabled:opacity-40 shrink-0"
+            aria-label="تقليل الكمية"
+          >
+            <Minus className="w-3.5 h-3.5" />
+          </button>
+          <input
+            type="number"
+            inputMode="numeric"
+            min={0}
+            step={1}
+            value={qtyText}
+            disabled={disabled}
+            onFocus={() => { qtyInputFocused.current = true }}
+            onChange={handleQtyInput}
+            onBlur={handleQtyBlur}
+            onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur() }}
+            className="flex-1 min-w-0 text-center text-sm font-semibold text-text bg-transparent outline-none disabled:opacity-40 [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+            aria-label="الكمية المطلوبة"
+          />
+          <span className="text-[10px] text-text-secondary mr-1 shrink-0">{UNIT_LABELS[selectedUnit]}</span>
+          <button
+            onClick={() => { if (commitTimer.current) clearTimeout(commitTimer.current); onStep(product, selectedUnit, displayQty + 1); scheduleAvailabilityCheck(displayQty + 1) }}
+            disabled={disabled}
+            className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-border text-text-secondary text-sm disabled:opacity-40 shrink-0"
+            aria-label="زيادة الكمية"
+          >
+            <Plus className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        {added ? (
+          <div className="space-y-1">
+            <div className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg bg-violet-600 text-white text-xs font-bold">
+              <Check className="w-3.5 h-3.5" />
+              تمت الإضافة للسلة
+            </div>
+            <p className="text-center text-[10px] font-semibold text-violet-600">
+              الكمية: {inCart} {UNIT_LABELS[selectedUnit]}
+            </p>
+            <button
+              onClick={() => { onRemove(product, selectedUnit); scheduleAvailabilityCheck(1) }}
+              className="w-full text-center text-[10px] text-text-secondary hover:text-danger underline"
+            >
+              إزالة من السلة
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => { onAdd(product, selectedUnit, stepperValue); scheduleAvailabilityCheck(stepperValue) }}
+            disabled={disabled}
+            className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg bg-violet-600 text-white text-xs font-bold hover:bg-violet-700 transition-colors active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            <Gift className="w-3.5 h-3.5" />
+            {BONUS_COPY.addToBonusCart}
+          </button>
+        )}
+
+        {(() => {
+          const status = bonusAvailabilityStatus(availabilityResult)
+          if (!availabilityResult || !status || status === 'green' || !product.isActive || product.isOutOfStock) return null
+          return <BusinessStatusCard data={buildBusinessStatusCard(availabilityResult)} compact />
+        })()}
+      </div>
+    </div>
+  )
+})
+
+/** Header basket badge — isolated subscription so Bonus catalog cards never
+ *  re-render when an item is added/removed/stepped in the Bonus Cart. */
+const BonusCartBadge = () => {
+  const count = useCartStore((s) => s.bonusItems.reduce((sum, i) => sum + i.unitQuantity, 0))
+  if (count <= 0) return null
+  return (
+    <span className="absolute -top-1.5 -right-1.5 bg-violet-600 text-white text-[10px] w-5 h-5 rounded-full flex items-center justify-center">
+      {count}
+    </span>
+  )
+}
+
+/** Sticky Bonus status bar. Subscribes ONLY to bonusCredit + bonusItems and
+ *  derives the selection total from the items array (sum of base values —
+ *  numerically identical to the engine's bonusProductsTotal) instead of
+ *  running the full bonus-totals engine inside the render path. */
+const BonusStatusBar = ({
+  onBackToCompanies,
+  onGoToCart,
+}: {
+  onBackToCompanies: () => void
+  onGoToCart: () => void
+}) => {
+  const bonusCredit = useCartStore((s) => s.bonusCredit)
+  const bonusItems = useCartStore((s) => s.bonusItems)
+  const selectionTotal = useMemo(() => round2(bonusItems.reduce((sum, item) => sum + bonusItemBaseValue(item), 0)), [bonusItems])
+  return (
+    <div className="sticky top-14 z-40 bg-white/95 backdrop-blur rounded-xl border border-violet-200 shadow-sm px-3 py-2 space-y-2">
+      <div className="flex items-stretch gap-1 text-center">
+        <div className="flex-1 min-w-0">
+          <div className="text-[10px] text-text-secondary">رصيد البونص</div>
+          <div className="text-xs sm:text-sm font-bold text-violet-700 truncate" dir="ltr">{formatCurrencyShort(bonusCredit).replace(' ج.م', '').trim()}</div>
+        </div>
+        <div className="flex-1 min-w-0 border-s border-violet-200">
+          <div className="text-[10px] text-text-secondary">إجمالي مشتريات البونص</div>
+          <div className="text-xs sm:text-sm font-bold text-text truncate" dir="ltr">{formatCurrencyShort(selectionTotal).replace(' ج.م', '').trim()}</div>
+        </div>
+      </div>
+      <div className="flex items-center gap-1.5">
+        <button
+          type="button"
+          onClick={onBackToCompanies}
+          className="flex-1 bg-violet-50 border border-violet-300 text-violet-700 text-xs font-bold rounded-lg py-2 active:bg-violet-100 transition-colors"
+        >
+          رجوع لشركات البونص
+        </button>
+        <button
+          type="button"
+          onClick={onGoToCart}
+          className="flex-1 bg-primary text-white text-xs font-bold rounded-lg py-2 active:opacity-90 transition-opacity"
+        >
+          العودة لإتمام الطلب
+        </button>
+      </div>
+    </div>
+  )
+}
+
 /**
  * Bonus / Gifts catalog (Phase 4). Two-level browsing:
  *   Level 1 — Bonus Companies: company cards (logo + name + available count) for
@@ -34,10 +345,9 @@ export function BonusCatalogPage() {
   const navigate = useNavigate()
   const { token } = useAuthStore()
   const bonusMode = useCartStore((s) => s.bonusMode)
-  const bonusItems = useCartStore((s) => s.bonusItems)
   const bonusCredit = useCartStore((s) => s.bonusCredit)
+  const bonusItems = useCartStore((s) => s.bonusItems)
   const geographicContext = useCartStore((s) => s.geographicContext)
-  const getTotals = useCartStore((s) => s.getTotals)
   const addBonusItem = useCartStore((s) => s.addBonusItem)
   const updateBonusQuantity = useCartStore((s) => s.updateBonusQuantity)
   const removeBonusItem = useCartStore((s) => s.removeBonusItem)
@@ -47,20 +357,13 @@ export function BonusCatalogPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [quantities, setQuantities] = useState<Record<string, number>>({})
-  const [units, setUnits] = useState<Record<string, UnitType>>({})
   const [activeUnits, setActiveUnits] = useState<Record<string, UnitType[]>>({})
-  const [availability, setAvailability] = useState<Record<string, AvailabilityResult>>({})
-  /** Level-1 selection: the company whose Bonus products are being browsed. */
   const [selectedCompany, setSelectedCompany] = useState<string | null>(null)
-  /** Company logo URLs by company id (from companies.logo_url, read-only). */
   const [companyLogos, setCompanyLogos] = useState<Record<string, string | null>>({})
-  const checkTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const quantitiesRef = useRef<Record<string, number>>(quantities)
 
   const governorateId = geographicContext?.governorateId ?? null
 
-  const availKey = (p: ProductWithPrice, unit: UnitType): string => `${p.id}:${unit}`
-
-  /** Amount WITHOUT the " ج.م" suffix (already implied by the screen). */
   const fmtAmount = (n: number): string => formatCurrencyShort(n).replace(' ج.م', '').trim()
 
   useEffect(() => {
@@ -91,8 +394,11 @@ export function BonusCatalogPage() {
       setLoading(false)
       setQuantities((prev) => Object.fromEntries(mapped.map((p) => [p.id, prev[p.id] ?? 1])))
       if (mapped.length > 0) {
+        // Same store pattern as the normal Storefront: the catalog is merged into
+        // the cart store ONCE (a single notify + single recalculation) instead of
+        // one per-product syncProduct merge followed by a full recompute each.
         const store = useCartStore.getState()
-        mapped.forEach((p) => store.syncProduct(p))
+        store.mergeProducts(mapped)
         store.ensureGeoItemAdjustments(mapped)
       }
     })()
@@ -121,26 +427,6 @@ export function BonusCatalogPage() {
     return () => { active = false }
   }, [products])
 
-  // Bonus inventory compliance: live availability in the SAME selling unit, using
-  // the existing governed_check_product_availability_v2 engine (no Bonus bypass).
-  useEffect(() => {
-    if (loading) return
-    if (checkTimer.current) clearTimeout(checkTimer.current)
-    checkTimer.current = setTimeout(() => {
-      for (const p of products) {
-        const qty = quantities[p.id] ?? 1
-        const unit = unitOf(p)
-        if (!p.isActive || p.isOutOfStock || qty <= 0) continue
-        checkCartAvailability(p.id, qty, unit).then((result) => {
-          setAvailability((prev) => ({ ...prev, [availKey(p, unit)]: result }))
-        })
-      }
-    }, 400)
-    return () => {
-      if (checkTimer.current) clearTimeout(checkTimer.current)
-    }
-  }, [products, quantities, units, loading])
-
   const priceMap = useMemo(() => {
     const list = computeBonusCatalogBasePrices(
       products.map((p) => ({
@@ -154,9 +440,19 @@ export function BonusCatalogPage() {
     return new Map(list.map((e) => [e.productId, e]))
   }, [products, geoPct])
 
-  const bonusItemCount = bonusItems.reduce((s, i) => s + i.unitQuantity, 0)
-  /** Live current Bonus selection value — same source the Cart uses. */
-  const selectionTotal = getTotals().bonusProductsTotal ?? 0
+  /** Selling units per product, derived ONCE for the whole page and reused by
+   *  every card instead of being recomputed inside each card render. */
+  const activeUnitsByProduct = useMemo(() => {
+    const result: Record<string, UnitType[]> = {}
+    for (const p of products) {
+      let unitsList = (activeUnits[p.id] ?? []).filter((u) => p.unitPrices.some((x) => x.unitType === u))
+      if (unitsList.length === 0) {
+        unitsList = (p.availableUnitTypes ?? []).filter((u) => p.unitPrices.some((x) => x.unitType === u))
+      }
+      result[p.id] = unitsList
+    }
+    return result
+  }, [products, activeUnits])
 
   /** Level-1 companies (only companies that have available Bonus products).
    *  First-appearance order of the existing catalog query is preserved. */
@@ -185,209 +481,80 @@ export function BonusCatalogPage() {
 
   const selectedCompanyName = selectedCompany ? (companies.find((c) => c.id === selectedCompany)?.name ?? null) : null
 
+  /** In-cart Bonus quantities by product+unit, derived ONCE from the single
+   *  bonusItems subscription (the only catalog-coupling subscription). Cards not
+   *  in the Bonus Cart receive a stable `undefined` prop, so the memoized cards
+   *  never re-render on cart changes — only the affected card does. */
+  const bonusQtyByProduct = useMemo(() => {
+    const map: Record<string, Record<UnitType, number>> = {}
+    for (const item of bonusItems) {
+      const entry: Record<UnitType, number> = map[item.productId] ?? (map[item.productId] = {} as Record<UnitType, number>)
+      entry[item.unitType] = (entry[item.unitType] ?? 0) + item.unitQuantity
+    }
+    return map
+  }, [bonusItems])
+
   // Opening a company starts at the top of its products.
   const openCompany = (id: string) => {
     setSelectedCompany(id)
     window.scrollTo({ top: 0 })
   }
 
-  /** Selling units for a Bonus product. Source of truth = the units the admin
-   *  enabled for the item in Products Management (product_units.is_active),
-   *  read directly from the catalog rows. Available in the BONUS store ONLY —
-   *  the normal Storefront keeps its existing behavior. */
-  const sellingUnitsOf = (p: ProductWithPrice): UnitType[] => {
-    const strict = (activeUnits[p.id] ?? []).filter((u) => p.unitPrices.some((x) => x.unitType === u))
-    if (strict.length > 0) return strict
-    return (p.availableUnitTypes ?? []).filter((u) => p.unitPrices.some((x) => x.unitType === u))
+  /** Shared pending-quantity record for cards not yet in the Bonus Cart (the
+   *  ± steppers accumulate locally until the card is added). Mirrored in a ref
+   *  so the memoized card handlers stay referentially stable. */
+  const setQty = (id: string, qty: number) => {
+    const next = { ...quantitiesRef.current, [id]: qty }
+    quantitiesRef.current = next
+    setQuantities(next)
   }
 
-  const unitOf = (p: ProductWithPrice): UnitType => {
-    const selling = sellingUnitsOf(p)
-    if (selling.length === 0) return p.unitPrices[0]?.unitType ?? 'piece'
-    const saved = units[p.id]
-    if (saved && selling.includes(saved)) return saved
-    return UNIT_PRIORITY.find((u) => selling.includes(u)) ?? selling[0]
-  }
-
-  const unitPriceOf = (p: ProductWithPrice): number => {
-    const bp = priceMap.get(p.id)
-    const unit = unitOf(p)
-    if (!bp) return p.unitPrices.find((u) => u.unitType === unit)?.price ?? 0
-    return unit === 'piece' ? bp.piecePrice : unit === 'dozen' ? bp.dozenPrice : bp.cartonPrice
-  }
-
-  const inCartQty = (p: ProductWithPrice): number => {
-    const unit = unitOf(p)
-    return bonusItems.filter((i) => i.productId === p.id && i.unitType === unit).reduce((s, i) => s + i.unitQuantity, 0)
-  }
-
-  const handleAdd = async (p: ProductWithPrice) => {
-    const qty = quantities[p.id] ?? 1
+  const handleAdd = useCallback(async (p: ProductWithPrice, unit: UnitType, qty: number) => {
     if (qty <= 0 || !p.isActive || p.isOutOfStock) return
-    const unit = unitOf(p)
     const result = await checkCartAvailability(p.id, qty, unit)
-    setAvailability((prev) => ({ ...prev, [availKey(p, unit)]: result }))
     const { allowed } = bonusAddDecision(qty, result)
     if (!allowed) {
       toast.error('الكمية المطلوبة تتجاوز المتاح من هذا الصنف — لا يمكن إضافتها لبونص الشرائح.')
       return
     }
     addBonusItem(p, unit, qty)
-  }
+  }, [addBonusItem])
 
   /** Shared stepper: once a product is in the Bonus Cart the ± buttons drive the
    *  GOVERNED Bonus Cart state directly (updateBonusQuantity/removeBonusItem),
-   *  so credit/remaining/overflow recompute immediately — no duplicate local cart. */
-  const handleStep = async (p: ProductWithPrice, delta: number) => {
-    const unit = unitOf(p)
-    const inCart = inCartQty(p)
-    const base = inCart > 0 ? inCart : (quantities[p.id] ?? 1)
-    const proposed = base + delta
+   *  so credit/remaining/overflow recompute immediately — no duplicate local cart.
+   *  `proposed` is the absolute target quantity (computed inside the card) so this
+   *  stays referentially stable for the memoized cards. */
+  const handleStep = useCallback(async (p: ProductWithPrice, unit: UnitType, proposed: number) => {
+    const inCart = useCartStore.getState().bonusItems
+      .filter((i) => i.productId === p.id && i.unitType === unit)
+      .reduce((s, i) => s + i.unitQuantity, 0)
     if (proposed <= 0) {
       if (inCart > 0) {
         updateBonusQuantity(p.id, unit, 0)
       } else {
-        setQuantities((prev) => ({ ...prev, [p.id]: 1 }))
+        setQty(p.id, 1)
       }
       return
     }
     if (!p.isActive || p.isOutOfStock) return
     const result = await checkCartAvailability(p.id, proposed, unit)
-    setAvailability((prev) => ({ ...prev, [availKey(p, unit)]: result }))
     const { allowed, boundedQty } = bonusAddDecision(proposed, result)
     if (allowed) {
       if (inCart > 0) {
         updateBonusQuantity(p.id, unit, proposed)
       } else {
-        setQuantities((prev) => ({ ...prev, [p.id]: proposed }))
+        setQty(p.id, proposed)
       }
     } else {
-      if (inCart <= 0) setQuantities((prev) => ({ ...prev, [p.id]: Math.max(1, boundedQty) }))
+      if (inCart <= 0) setQty(p.id, Math.max(1, boundedQty))
       toast.error('الحد الأقصى المتاح من هذا الصنف تم الوصول إليه.')
     }
-  }
+  }, [updateBonusQuantity])
 
-  /** Shared bonus product card — unchanged business behavior, rendered at Level 2. */
-  const renderCard = (p: ProductWithPrice) => {
-    const unit = unitOf(p)
-    const disabled = !p.isActive || p.isOutOfStock
-    const inCart = inCartQty(p)
-    return (
-      <div key={p.id} className={`bg-white rounded-xl border overflow-hidden transition-all hover:shadow-sm flex flex-col ${
-        inCart > 0 ? 'border-violet-500/40 bg-violet-50/40' : 'border-border'
-      }`}>
-        {/* Image */}
-        <div className="relative h-28 bg-surface overflow-hidden">
-          {p.imageUrl ? (
-            <img src={p.imageUrl} alt={p.productName} className="w-full h-full object-contain p-2" loading="lazy" />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center">
-              <Gift className="w-8 h-8 text-violet-300" />
-            </div>
-          )}
-          <div className="absolute top-2 right-2 bg-violet-600 text-white text-[10px] px-2 py-0.5 rounded-full font-semibold">
-            {BONUS_COPY.catalogBadge}
-          </div>
-          {disabled && (
-            <div className="absolute bottom-2 right-2 bg-warning/90 text-white text-[10px] px-2 py-0.5 rounded-full font-semibold">
-              نفذت الكمية
-            </div>
-          )}
-        </div>
-
-        {/* Body */}
-        <div className="p-3 flex-1 space-y-1.5">
-          <h3 className="text-[13px] font-extrabold text-text leading-tight line-clamp-2 min-h-[2.2em]">{p.productName}</h3>
-          <p className="text-[11px] text-text-secondary truncate">{p.companyName}</p>
-
-          {/* Price (geo-adjusted BASE only) */}
-          <div className="flex items-center gap-1 text-[13px] text-text-secondary">
-            <span>السعر الأصلي:</span>
-            <span className="font-extrabold text-text text-[14.3px]">{fmtAmount(unitPriceOf(p))}</span>
-            <span className="text-[11px]">للـ {UNIT_LABELS[unit]}</span>
-          </div>
-
-          {/* Unit selector — the SAME selling units as the normal Storefront */}
-          <div className="flex items-center gap-1 flex-wrap">
-            <span className="text-[10px] text-text-secondary font-semibold">الوحدة:</span>
-            {sellingUnitsOf(p).map((ut) => (
-              <button
-                key={ut}
-                onClick={() => setUnits((prev) => ({ ...prev, [p.id]: ut }))}
-                className={`px-2 py-0.5 rounded-md text-[10px] font-bold border transition-colors ${
-                  unit === ut
-                    ? 'bg-violet-600 text-white border-violet-600'
-                    : 'bg-white text-text-secondary border-border hover:bg-violet-50'
-                }`}
-              >
-                {UNIT_LABELS[ut]}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Quantity + Add */}
-        <div className="p-3 pt-0 space-y-2">
-          <div className="flex items-center justify-between gap-1">
-            <button
-              onClick={() => handleStep(p, -1)}
-              disabled={disabled}
-              className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-border text-text-secondary text-sm disabled:opacity-40 shrink-0"
-              aria-label="تقليل الكمية"
-            >
-              <Minus className="w-3.5 h-3.5" />
-            </button>
-            <div className="flex-1 min-w-0 text-center text-sm font-semibold text-text truncate">
-              {inCart > 0 ? inCart : (quantities[p.id] ?? 1)}
-              <span className="text-[10px] text-text-secondary mr-1">{UNIT_LABELS[unit]}</span>
-            </div>
-            <button
-              onClick={() => handleStep(p, 1)}
-              disabled={disabled}
-              className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-border text-text-secondary text-sm disabled:opacity-40 shrink-0"
-              aria-label="زيادة الكمية"
-            >
-              <Plus className="w-3.5 h-3.5" />
-            </button>
-          </div>
-
-          {inCart > 0 ? (
-            <div className="space-y-1">
-              <div className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg bg-violet-600 text-white text-xs font-bold">
-                <Check className="w-3.5 h-3.5" />
-                تمت الإضافة للسلة
-              </div>
-              <p className="text-center text-[10px] font-semibold text-violet-600">
-                الكمية: {inCart} {UNIT_LABELS[unit]}
-              </p>
-              <button
-                onClick={() => removeBonusItem(p.id, unit)}
-                className="w-full text-center text-[10px] text-text-secondary hover:text-danger underline"
-              >
-                إزالة من السلة
-              </button>
-            </div>
-          ) : (
-            <button
-              onClick={() => handleAdd(p)}
-              disabled={disabled}
-              className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg bg-violet-600 text-white text-xs font-bold hover:bg-violet-700 transition-colors active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              <Gift className="w-3.5 h-3.5" />
-              {BONUS_COPY.addToBonusCart}
-            </button>
-          )}
-
-          {(() => {
-            const av = availability[availKey(p, unit)]
-            const status = bonusAvailabilityStatus(av)
-            if (!av || !status || status === 'green' || !p.isActive || p.isOutOfStock) return null
-            return <BusinessStatusCard data={buildBusinessStatusCard(av)} compact />
-          })()}
-        </div>
-      </div>
-    )
-  }
+  const handleRemove = useCallback((p: ProductWithPrice, unit: UnitType) => {
+    removeBonusItem(p.id, unit)
+  }, [removeBonusItem])
 
   return (
     <div className="space-y-4">
@@ -406,11 +573,7 @@ export function BonusCatalogPage() {
           className="relative bg-white border border-border rounded-lg px-3 py-2 text-sm"
         >
           🛒 السلة
-          {bonusItemCount > 0 && (
-            <span className="absolute -top-1.5 -right-1.5 bg-violet-600 text-white text-[10px] w-5 h-5 rounded-full flex items-center justify-center">
-              {bonusItemCount}
-            </span>
-          )}
+          <BonusCartBadge />
         </button>
       </div>
 
@@ -428,13 +591,7 @@ export function BonusCatalogPage() {
       )}
 
       {bonusMode && !selectedCompany && (
-        <div className="bg-violet-50 border border-violet-200 rounded-xl p-3 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Gift className="w-4 h-4 text-violet-600" />
-            <span className="text-xs font-semibold text-violet-700">رصيد البونص المتاح</span>
-          </div>
-          <span className="text-sm font-extrabold text-violet-700">{fmtAmount(bonusCredit)}</span>
-        </div>
+        <BonusStatusBar onBackToCompanies={() => {}} onGoToCart={() => navigate('/cart')} />
       )}
 
       {loading && (
@@ -515,39 +672,32 @@ export function BonusCatalogPage() {
 
       {!loading && !error && products.length > 0 && bonusMode && selectedCompany && (
         <>
-          {/* Level 2 — sticky status bar (stays visible while browsing) */}
-          <div className="sticky top-14 z-40 bg-white/95 backdrop-blur rounded-xl border border-violet-200 shadow-sm px-3 py-2 space-y-2">
-            <div className="flex items-stretch gap-1 text-center">
-              <div className="flex-1 min-w-0">
-                <div className="text-[10px] text-text-secondary">رصيد البونص</div>
-                <div className="text-xs sm:text-sm font-bold text-violet-700 truncate" dir="ltr">{fmtAmount(bonusCredit)}</div>
-              </div>
-              <div className="flex-1 min-w-0 border-s border-violet-200">
-                <div className="text-[10px] text-text-secondary">إجمالي مشتريات البونص</div>
-                <div className="text-xs sm:text-sm font-bold text-text truncate" dir="ltr">{fmtAmount(selectionTotal)}</div>
-              </div>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <button
-                type="button"
-                onClick={() => setSelectedCompany(null)}
-                className="flex-1 bg-violet-50 border border-violet-300 text-violet-700 text-xs font-bold rounded-lg py-2 active:bg-violet-100 transition-colors"
-              >
-                رجوع لشركات البونص
-              </button>
-              <button
-                type="button"
-                onClick={() => navigate('/cart')}
-                className="flex-1 bg-primary text-white text-xs font-bold rounded-lg py-2 active:opacity-90 transition-opacity"
-              >
-                العودة لإتمام الطلب
-              </button>
-            </div>
-          </div>
+          {/* Level 2 — sticky status bar (isolated subscription: catalog cards
+              do NOT re-render when its values update). */}
+          <BonusStatusBar
+            onBackToCompanies={() => setSelectedCompany(null)}
+            onGoToCart={() => navigate('/cart')}
+          />
 
-          {/* Level 2 — selected company's Bonus products only */}
+          {/* Level 2 — selected company's Bonus products only. Cards are memoized
+              and prop-driven in the normal Storefront ProductCard pattern: the
+              page owns a single bonusItems subscription and passes each card's
+              in-cart quantity down as a prop; each card performs its own lazy,
+              debounced availability check on user interaction only. */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 items-stretch">
-            {selectedProducts.map((p) => renderCard(p))}
+            {selectedProducts.map((p) => (
+              <BonusProductCard
+                key={p.id}
+                product={p}
+                activeUnits={activeUnitsByProduct[p.id] ?? []}
+                unitPrices={p.unitPrices}
+                stepperValue={quantities[p.id] ?? 1}
+                inCartQtyByUnit={bonusQtyByProduct[p.id]}
+                onAdd={handleAdd}
+                onStep={handleStep}
+                onRemove={handleRemove}
+              />
+            ))}
           </div>
           {selectedProducts.length === 0 && (
             <div className="text-center py-12 bg-white rounded-xl border border-border">

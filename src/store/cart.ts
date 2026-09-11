@@ -65,6 +65,7 @@ interface CartState {
   setDiscountContext: (context: DiscountPricingContext | null) => void
   setProducts: (products: ProductWithPrice[]) => void
   syncProduct: (product: ProductWithPrice) => void
+  mergeProducts: (products: ProductWithPrice[]) => void
   selectTier: (tierId: string | null) => void
   selectPaymentMethod: (paymentMethodId: string | null) => void
   selectShippingMethod: (shippingMethodId: string | null) => void
@@ -252,6 +253,30 @@ export const useCartStore = create(
           ? state.products.map((p) => (p.id === product.id ? product : p))
           : [...state.products, product]
         set({ products })
+        get().recalculateAll()
+        get().recomputeBonus()
+      },
+
+      /** Same final result as looping syncProduct for every entry (existing ids
+       *  replaced in place, new ids appended in order) but with a SINGLE store
+       *  notify + a single recalculation. Identical observable state; one merge
+       *  instead of N per-product merges. Used by the Bonus Store to load its
+       *  catalog through the state pattern the normal Storefront uses. */
+      mergeProducts: (products) => {
+        const state = get()
+        const existing = state.products
+        const existingIds = existing.map((p) => p.id)
+        const next = [...existing]
+        for (const product of products) {
+          const idx = existingIds.indexOf(product.id)
+          if (idx >= 0) {
+            next[idx] = product
+          } else {
+            existingIds.push(product.id)
+            next.push(product)
+          }
+        }
+        set({ products: next })
         get().recalculateAll()
         get().recomputeBonus()
       },
