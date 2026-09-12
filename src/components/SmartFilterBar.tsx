@@ -20,6 +20,9 @@ interface SmartFilterBarProps {
   onFilterChange: (filters: FilterValues) => void
   initialFilters?: Partial<FilterValues>
   collapsible?: boolean
+  /** Stack the employee filter on its own full-width row BELOW the search bar
+   *  (opt-in per screen; default keeps the legacy side-by-side row). */
+  employeeBelowSearch?: boolean
 }
 
 const DATE_PRESETS = [
@@ -32,7 +35,7 @@ const DATE_PRESETS = [
   { key: 'custom', label: 'فترة' },
 ]
 
-export default memo(function SmartFilterBar({ searchPlaceholder, employees, employeeLabel, multiEmployee, onFilterChange, initialFilters, collapsible = true }: SmartFilterBarProps) {
+export default memo(function SmartFilterBar({ searchPlaceholder, employees, employeeLabel, multiEmployee, onFilterChange, initialFilters, collapsible = true, employeeBelowSearch = false }: SmartFilterBarProps) {
   const [datePreset, setDatePreset] = useState(initialFilters?.datePreset ?? 'month')
   const [dateFrom, setDateFrom] = useState(initialFilters?.dateFrom ?? '')
   const [dateTo, setDateTo] = useState(initialFilters?.dateTo ?? '')
@@ -89,7 +92,32 @@ export default memo(function SmartFilterBar({ searchPlaceholder, employees, empl
         </div>
       )}
 
-      {/* Search + Employee filter row */}
+      {/* Search + Employee filter row (or stacked when employeeBelowSearch) */}
+      {employeeBelowSearch ? (
+        <>
+          <input type="text" value={search} onChange={e => { setSearch(e.target.value); emit({ search: e.target.value }) }}
+            placeholder={searchPlaceholder || 'بحث بالاسم أو الكود...'}
+            className="w-full text-xs px-3 py-2 rounded-lg border border-border bg-surface focus:outline-none focus:border-primary transition-colors" />
+          {multiEmployee ? (
+            <MultiSelectFilter
+              className="w-full"
+              allLabel={employeeLabel || 'كل المناديب'}
+              searchPlaceholder="بحث باسم المسؤول..."
+              options={employeeOptions}
+              selected={employeeIds}
+              onChange={(next) => { setEmployeeIds(next); emit({ employeeIds: next }) }}
+            />
+          ) : (
+            <SearchableSelect
+              items={employees}
+              value={employeeId}
+              onChange={(id) => { setEmployeeId(id); emit({ employeeId: id }) }}
+              placeholder={employeeLabel || 'كل المناديب'}
+              className="w-full"
+            />
+          )}
+        </>
+      ) : (
       <div className="flex gap-2">
         <input type="text" value={search} onChange={e => { setSearch(e.target.value); emit({ search: e.target.value }) }}
           placeholder={searchPlaceholder || 'بحث بالاسم أو الكود...'}
@@ -113,6 +141,7 @@ export default memo(function SmartFilterBar({ searchPlaceholder, employees, empl
           />
         )}
       </div>
+      )}
     </div>
   )
 })

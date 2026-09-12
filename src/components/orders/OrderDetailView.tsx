@@ -127,7 +127,7 @@ export function OrderDetailView({ data, actions, onBack, editMode, editItems, on
         <div className="px-5 py-3">
           <div className="flex items-center justify-between">
             {onBack && (
-              <button onClick={onBack} className="text-[13px] text-[#2563EB] hover:text-[#1D4ED8] transition-colors shrink-0 font-medium">
+              <button onClick={onBack} className="text-[13px] text-[#2563EB] hover:text-[#1D4ED8] transition-colors shrink-0 font-medium py-1">
                 الرجوع للطلبات
               </button>
             )}
@@ -150,7 +150,7 @@ export function OrderDetailView({ data, actions, onBack, editMode, editItems, on
 
       {/* ── 2. ORDER SUMMARY: Type + Creation Date + Total ── */}
       <div className="bg-white rounded-lg border border-[#E5E7EB] shadow-sm p-4">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-x-3 gap-y-1.5">
           <div className="flex items-center gap-1.5">
             <span style={{color:'#9CA3AF'}}>نوع الطلب:</span>
             <span className={'text-xs px-2 py-0.5 rounded font-medium ' + orderTypeBadgeClass((order as any).order_type)}>
@@ -241,7 +241,7 @@ export function OrderDetailView({ data, actions, onBack, editMode, editItems, on
         </div>
         <div>
           <span style={{color:'#9CA3AF'}}>الهاتف:</span>{' '}
-          <span className="inline-flex items-center gap-1.5">
+          <span className="inline-flex items-center gap-1.5 flex-wrap">
             <span className="font-semibold text-[#111827] font-mono" dir="ltr">
               {customer?.phone || order.snapshot_customer_phone || 'غير متوفر'}
             </span>

@@ -355,7 +355,7 @@ export function OrderStatusManager({ orderId, currentStatus, canReview, canAppro
 
   return (
     <>
-      <div className="flex flex-nowrap items-center gap-1.5 max-w-full overflow-x-auto bg-white border border-border/60 rounded-xl px-2.5 py-2 shadow-sm">
+      <div className="flex flex-wrap md:flex-nowrap items-center gap-1.5 max-w-full overflow-x-auto bg-white border border-border/60 rounded-xl px-2.5 py-2 shadow-sm">
         {targets.map(renderCapsule)}
         {!hideRevisionButton && currentStatus !== 'returned_for_revision' && currentStatus !== 'cancelled' && (
           <button onClick={() => setShowReturnModal(true)} disabled={loading !== null}

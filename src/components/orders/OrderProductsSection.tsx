@@ -202,6 +202,88 @@ function CalculationSummary({ presentation, mode }: { presentation: OrderFinanci
   )
 }
 
+/**
+ * MOBILE-ONLY (below md) product presentation — view mode only.
+ * Every monetary value is passed in PRECOMPUTED by the caller with the EXACT
+ * same expressions as the desktop table rows. No financial logic lives here.
+ */
+function MobileGroupHeader({ company, itemsCount, piecesLabel, subtotalLabel, amber }: {
+  company: string
+  itemsCount: string
+  piecesLabel: string
+  subtotalLabel: string
+  amber?: boolean
+}) {
+  return (
+    <div className={`rounded-xl border px-3 py-2.5 ${amber ? 'bg-[#FFFBEB] border-[#FDE68A]' : 'bg-[#F0FDF4] border-[#D1FAE5]'}`}>
+      <p className={`text-[13px] font-extrabold leading-snug break-words ${amber ? 'text-[#B45309]' : 'text-[#2563EB]'}`}>
+        شركة {company}
+      </p>
+      <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-[#475569]">
+        <span>الأصناف: {itemsCount}</span>
+        <span>القطع: {piecesLabel}</span>
+        <span className="font-bold text-[#111827]">الإجمالي: {subtotalLabel}</span>
+      </div>
+    </div>
+  )
+}
+
+function MobileProductCard({ name, code, company, displayQty, unitLabel, isCarton, origUnit, netUnit, origLine, netLine, credit, showCredit, toneBg, unitPriceLabel }: {
+  name: string
+  code: string
+  company: string
+  displayQty: number
+  unitLabel: string
+  isCarton: boolean
+  origUnit: number | null
+  netUnit: number
+  origLine: number | null
+  netLine: number
+  credit?: number | null
+  showCredit?: boolean
+  toneBg?: string
+  unitPriceLabel?: string
+}) {
+  return (
+    <div className={`bg-white rounded-xl border border-[#E5E7EB] p-3 space-y-2 ${toneBg ?? ''}`}>
+      <p className="text-[14px] font-bold text-[#111827] leading-snug break-words">{name}</p>
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="inline-block text-[11px] font-bold font-mono text-blue-700 bg-blue-100 border border-blue-300 px-2 py-0.5 rounded-full" dir="ltr">{code}</span>
+        <span className="text-[11px] text-[#6B7280] break-words">الشركة: {company}</span>
+      </div>
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-[11px] text-[#6B7280]">الكمية:</span>
+        <span className={"inline-flex items-center justify-center rounded-full border px-3 py-1 " + (isCarton ? 'bg-[#FFFBEB] border-[#F5D58A]' : 'bg-[#EFF6FF] border-[#BFDBFE]')}>
+          <span className={"text-[12px] font-bold " + (isCarton ? 'text-[#A16207]' : 'text-[#1D4ED8]')}>{displayQty}</span>
+        </span>
+        <span className={"inline-flex items-center justify-center rounded-full border px-3 py-1 " + (isCarton ? 'bg-[#FFFBEB] border-[#F5D58A]' : 'bg-[#EFF6FF] border-[#BFDBFE]')}>
+          <span className={"text-[12px] font-semibold " + (isCarton ? 'text-[#8A5A14]' : 'text-[#315A8A]')}>{unitLabel}</span>
+        </span>
+      </div>
+      <div className="flex items-center justify-between gap-2 border-t border-[#F1F3F5] pt-2">
+        <span className="text-[11px] text-[#6B7280] shrink-0">{unitPriceLabel ?? 'سعر الوحدة:'}</span>
+        <span className="text-[13px] font-bold text-[#111827] text-left leading-snug" dir="ltr">
+          {origUnit != null && <s className="text-[#9CA3AF] font-medium ml-1">{formatValue(origUnit)}</s>}
+          {formatValue(netUnit)} ج.م
+        </span>
+      </div>
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[11px] text-[#6B7280] shrink-0">إجمالي الصنف:</span>
+        <span className="text-[14px] font-extrabold text-[#111827] text-left leading-snug" dir="ltr">
+          {origLine != null && <s className="text-[#9CA3AF] font-medium ml-1">{formatValue(origLine)}</s>}
+          {formatValue(netLine)} ج.م
+        </span>
+      </div>
+      {showCredit && (
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-[11px] text-[#6B7280] shrink-0">قيمة البونص:</span>
+          <span className="text-[13px] font-bold text-[#059669]" dir="ltr">{credit != null ? `${formatValue(credit)} ج.م` : '—'}</span>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function FinalTotalsCard({ itemCount, totalQty, totalPieces, finalDisplay }: { itemCount: number; totalQty: number; totalPieces: number; finalDisplay: string }) {
   return (
     <div className="bg-white rounded-lg border border-[#E5E7EB] shadow-sm p-5 mt-3">
@@ -299,14 +381,93 @@ export function OrderProductsSection({ items, mode = 'view', onQuantityChange, o
             </div>
           </div>
 
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto hidden md:block">
             <BonusTable groups={sortedMainGroups} creditPct={p.perLineCreditPct} bonusStyle={false} />
+          </div>
+          {/* Mobile cards (below md) — same groups, same values, no table */}
+          <div className="md:hidden px-3 py-3 space-y-3">
+            {sortedMainGroups.map((group) => (
+              <div key={group.company} className="space-y-2">
+                <MobileGroupHeader
+                  company={group.company}
+                  itemsCount={formatNumber(group.items.length)}
+                  piecesLabel={formatNumber(group.totalPieces)}
+                  subtotalLabel={formatValue(group.subtotal)}
+                />
+                {group.items.map((item, idx) => {
+                  const qty = Number(item.unit_quantity || 1)
+                  const base = Number(item.base_unit_price || item.unit_price || 0)
+                  const isDozen = item.unit_type === 'dozen'
+                  const displayQty = isDozen ? qty * 12 : qty
+                  const displayUnitType = isDozen ? 'piece' : item.unit_type
+                  const displayPrice = isDozen ? base / 12 : base
+                  const unitLabel = displayUnitType === 'piece' ? UNIT_LABELS.piece : UNIT_LABELS[item.unit_type] || item.unit_type
+                  const lineTotal = qty * base
+                  const credit = mainLineCredit(item, p.perLineCreditPct)
+                  return (
+                    <MobileProductCard
+                      key={item.id || idx}
+                      name={item.product_name || 'غير متوفر'}
+                      code={item.legacy_code || '—'}
+                      company={item.company_name || group.company}
+                      displayQty={displayQty}
+                      unitLabel={unitLabel}
+                      isCarton={displayUnitType === 'carton'}
+                      origUnit={null}
+                      netUnit={displayPrice}
+                      origLine={null}
+                      netLine={lineTotal}
+                      credit={credit}
+                      showCredit={p.perLineCreditPct != null}
+                      unitPriceLabel="سعر الوحدة الأساسي:"
+                    />
+                  )
+                })}
+              </div>
+            ))}
           </div>
 
           {p.bonusGroup && (
-            <div className="overflow-x-auto">
-              <BonusTable groups={[p.bonusGroup]} creditPct={null} bonusStyle={true} />
-            </div>
+            <>
+              <div className="overflow-x-auto hidden md:block">
+                <BonusTable groups={[p.bonusGroup]} creditPct={null} bonusStyle={true} />
+              </div>
+              <div className="md:hidden px-3 py-3 space-y-2">
+                <MobileGroupHeader
+                  company={p.bonusGroup.company}
+                  itemsCount={formatNumber(p.bonusGroup.items.length)}
+                  piecesLabel={formatNumber(p.bonusGroup.totalPieces)}
+                  subtotalLabel={formatValue(p.bonusGroup.subtotal)}
+                  amber
+                />
+                {p.bonusGroup.items.map((item, idx) => {
+                  const qty = Number(item.unit_quantity || 1)
+                  const base = Number(item.base_unit_price || item.unit_price || 0)
+                  const isDozen = item.unit_type === 'dozen'
+                  const displayQty = isDozen ? qty * 12 : qty
+                  const displayUnitType = isDozen ? 'piece' : item.unit_type
+                  const displayPrice = isDozen ? base / 12 : base
+                  const unitLabel = displayUnitType === 'piece' ? UNIT_LABELS.piece : UNIT_LABELS[item.unit_type] || item.unit_type
+                  const lineTotal = qty * base
+                  return (
+                    <MobileProductCard
+                      key={item.id || idx}
+                      name={item.product_name || 'غير متوفر'}
+                      code={item.legacy_code || '—'}
+                      company={item.company_name || p.bonusGroup!.company}
+                      displayQty={displayQty}
+                      unitLabel={unitLabel}
+                      isCarton={displayUnitType === 'carton'}
+                      origUnit={null}
+                      netUnit={displayPrice}
+                      origLine={null}
+                      netLine={lineTotal}
+                      unitPriceLabel="سعر الوحدة الأساسي:"
+                    />
+                  )
+                })}
+              </div>
+            </>
           )}
 
           <CalculationSummary presentation={p} mode="view" />
@@ -336,7 +497,7 @@ export function OrderProductsSection({ items, mode = 'view', onQuantityChange, o
             </div>
           )}
         </div>
-        <div className="overflow-x-auto">
+        <div className={isEdit ? 'overflow-x-auto' : 'overflow-x-auto hidden md:block'}>
           <table className="w-full text-[12px] border-separate border-spacing-0">
             <thead>
               <tr className="text-[#475569]">
@@ -477,6 +638,53 @@ export function OrderProductsSection({ items, mode = 'view', onQuantityChange, o
             </tbody>
           </table>
         </div>
+        {/* Mobile cards (below md, view mode only) — same groups, same values, no table */}
+        {!isEdit && (
+          <div className="md:hidden px-3 py-3 space-y-3">
+            {groups.map((group) => (
+              <div key={group.company} className="space-y-2">
+                <MobileGroupHeader
+                  company={group.company}
+                  itemsCount={formatNumber(group.items.length)}
+                  piecesLabel={formatNumber(group.totalPieces)}
+                  subtotalLabel={formatValue(net(group.subtotal))}
+                />
+                {group.items.map((item, idx) => {
+                  const qty = Number(item.unit_quantity || 1)
+                  const price = Number(item.unit_price || 0)
+                  const base = Number(item.base_unit_price || 0)
+                  const discounted = base > 0 && Math.abs(base - price) > 0.009
+                  const isDozen = item.unit_type === 'dozen'
+                  const displayQty = isDozen ? qty * 12 : qty
+                  const displayUnitType = isDozen ? 'piece' : item.unit_type
+                  const displayPrice = isDozen ? price / 12 : price
+                  const unitLabel = displayUnitType === 'piece' ? UNIT_LABELS.piece : UNIT_LABELS[item.unit_type] || item.unit_type
+                  const lineTotal = qty * price
+                  const isShortage = shortageProductIds?.has(item.product_id) === true
+                  const statusCard = businessStatusByItem?.[`${item.product_id}:${item.unit_type}`]
+                  const tone = statusCard?.status ?? (isShortage ? 'red' : undefined)
+                  const toneBg = tone === 'red' ? 'bg-red-50' : tone === 'yellow' ? 'bg-yellow-50' : tone === 'green' ? 'bg-green-50' : ''
+                  return (
+                    <MobileProductCard
+                      key={item.id || idx}
+                      name={item.product_name || 'غير متوفر'}
+                      code={item.legacy_code || '—'}
+                      company={item.company_name || group.company}
+                      displayQty={displayQty}
+                      unitLabel={unitLabel}
+                      isCarton={displayUnitType === 'carton'}
+                      origUnit={discounted ? (isDozen ? base / 12 : base) : null}
+                      netUnit={net(displayPrice)}
+                      origLine={discounted ? qty * base : null}
+                      netLine={net(lineTotal)}
+                      toneBg={toneBg}
+                    />
+                  )
+                })}
+              </div>
+            ))}
+          </div>
+        )}
         {!isEdit && presentation && presentation.mode === 'direct' && (
           <CalculationSummary presentation={presentation} mode="view" />
         )}

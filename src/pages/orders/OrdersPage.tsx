@@ -419,17 +419,24 @@ export function OrdersPage() {
         employees={smartFilterEmployees}
         employeeLabel="المسؤول"
         multiEmployee
+        employeeBelowSearch
         initialFilters={filters}
         onFilterChange={(f) => setViewState({ filters: f })}
       />
 
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 flex-wrap">
         <span className="text-xs text-text-secondary">نوع التاريخ:</span>
         <select value={dateSource} onChange={(e) => setViewState({ dateSource: e.target.value })}
           className="border border-border rounded-lg px-2 py-1.5 text-xs bg-white">
           <option value="created">وقت إنشاء الطلب</option>
           <option value="event">آخر حدث تشغيلي</option>
         </select>
+        <MultiSelectFilter className="w-[140px] shrink-0"
+          allLabel="كل الأنواع"
+          searchPlaceholder="بحث بنوع الطلب..."
+          options={FILTER_ORDER_TYPE_OPTIONS}
+          selected={orderTypeFilters}
+          onChange={(orderTypeFilter) => setViewState({ orderTypeFilter })} />
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -439,12 +446,6 @@ export function OrdersPage() {
           options={FILTER_STATUS_OPTIONS}
           selected={statusFilters}
           onChange={(statusFilter) => setViewState({ statusFilter })} />
-        <MultiSelectFilter className="w-[140px] shrink-0"
-          allLabel="كل الأنواع"
-          searchPlaceholder="بحث بنوع الطلب..."
-          options={FILTER_ORDER_TYPE_OPTIONS}
-          selected={orderTypeFilters}
-          onChange={(orderTypeFilter) => setViewState({ orderTypeFilter })} />
         <MultiSelectFilter className="flex-1"
           allLabel="كل الشرائح"
           searchPlaceholder="بحث بالشريحة..."
