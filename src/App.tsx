@@ -120,7 +120,7 @@ export function App() {
   return (
     <Router>
       {loading ? (
-        <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center" style={{ background: '#071B4D' }}>
+        <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center" style={{ background: 'var(--theme-navy-deep)' }}>
           {/* Logo */}
           <img src={`${import.meta.env.BASE_URL}pwa/branding/logo.png`} alt="الأهرام"
             className="w-20 h-20 mx-auto mb-5 object-contain" />
@@ -148,11 +148,11 @@ export function App() {
         toastOptions={{
           duration: 3000,
           style: {
-            background: 'rgba(11, 61, 145, 0.9)',
+            background: 'rgba(var(--theme-navy-rgb), 0.9)',
             color: '#fff',
             fontSize: '14px',
             borderRadius: '16px',
-            border: '1px solid rgba(201, 162, 39, 0.15)',
+            border: '1px solid rgba(var(--theme-accent-rgb), 0.15)',
             backdropFilter: 'blur(12px)',
           },
         }}

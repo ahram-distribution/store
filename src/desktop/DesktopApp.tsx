@@ -32,13 +32,13 @@ export function DesktopShell() {
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        background: '#0B3D91',
+        background: 'var(--theme-navy)',
       }}>
         <div style={{
           width: 40,
           height: 40,
           border: '3px solid rgba(255,255,255,0.2)',
-          borderTopColor: '#C9A227',
+          borderTopColor: 'var(--theme-accent)',
           borderRadius: '50%',
           animation: 'dt-spin 0.8s linear infinite',
           marginBottom: 16,
@@ -60,11 +60,11 @@ export function DesktopShell() {
             toastOptions={{
               duration: 3000,
               style: {
-                background: 'rgba(11, 61, 145, 0.9)',
+                background: 'rgba(var(--theme-navy-rgb), 0.9)',
                 color: '#fff',
                 fontSize: 13,
                 borderRadius: 8,
-                border: '1px solid rgba(201, 162, 39, 0.15)',
+                border: '1px solid rgba(var(--theme-accent-rgb), 0.15)',
               },
             }}
           />

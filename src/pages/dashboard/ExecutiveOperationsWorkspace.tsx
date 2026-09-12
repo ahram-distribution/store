@@ -387,7 +387,7 @@ export function ExecutiveOperationsWorkspace() {
 
   const orderContent = () => (
     <div className="space-y-4 pb-12" dir="rtl">
-      <div className="bg-gradient-to-br from-secondary to-[#0F2B5B] text-white rounded-xl p-5">
+      <div className="bg-gradient-to-br from-secondary to-[var(--theme-primary)] text-white rounded-xl p-5">
         <p className="text-sm opacity-90">غرفة العمليات التنفيذية</p>
         <h2 className="text-xl font-bold mt-1">{user?.full_name || 'المشرف التنفيذي'}</h2>
       </div>

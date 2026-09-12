@@ -44,7 +44,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
                 this.setState({ hasError: false, error: null })
               }}
               className="px-6 py-2 rounded-lg text-white text-sm font-medium"
-              style={{ background: '#0B3D91' }}
+              style={{ background: 'var(--theme-navy)' }}
             >
               إعادة المحاولة
             </button>

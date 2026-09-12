@@ -18,6 +18,29 @@
     <link rel="apple-touch-icon" sizes="180x180" href="/pwa/apple/apple-touch-icon-180x180.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <title>الأهرام - نظام التوزيع المتكامل</title>
+    <script>
+      // Theme cold-load shim: synchronously re-applies the last theme values saved
+      // by ThemeContext (the single source of truth) before first paint, so the
+      // persisted theme is visible from the first frame with no Default flash.
+      // This shim contains no theme values, IDs, or tokens itself; it only applies
+      // the validated cache when it matches the persisted selection.
+      try {
+        var storedId = null, cache = null;
+        try { storedId = localStorage.getItem('ahram_theme'); } catch (e) {}
+        try { cache = JSON.parse(localStorage.getItem('ahram_theme_vars') || 'null'); } catch (e) {}
+        if (storedId && cache && cache.id === storedId && cache.vars && typeof cache.vars === 'object') {
+          var root = document.documentElement, keys = Object.keys(cache.vars), n = 0;
+          root.dataset.theme = String(cache.id);
+          for (var i = 0; i < keys.length && n < 100; i++) {
+            var k = keys[i], v = cache.vars[k];
+            if (/^--[A-Za-z0-9-]+$/.test(k) && typeof v === 'string' && v.length < 64) {
+              root.style.setProperty(k, v);
+              n++;
+            }
+          }
+        }
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="app"></div>

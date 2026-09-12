@@ -1,7 +1,7 @@
 :root {
   --dt-bg: #F5F7FA;
   --dt-bg-surface: #FFFFFF;
-  --dt-bg-sidebar: #0B3D91;
+  --dt-bg-sidebar: var(--theme-navy);
   --dt-bg-sidebar-hover: rgba(255, 255, 255, 0.08);
   --dt-bg-sidebar-active: rgba(255, 255, 255, 0.14);
   --dt-bg-toolbar: #FFFFFF;
@@ -23,12 +23,12 @@
 
   --dt-border: #E2E8F0;
   --dt-border-light: #F1F5F9;
-  --dt-border-focus: #0B3D91;
+  --dt-border-focus: var(--theme-navy);
   --dt-border-sidebar: rgba(255, 255, 255, 0.06);
 
-  --dt-primary: #0B3D91;
+  --dt-primary: var(--theme-navy);
   --dt-primary-hover: #0A357E;
-  --dt-accent: #C9A227;
+  --dt-accent: var(--theme-accent);
   --dt-accent-hover: #B89122;
   --dt-success: #059669;
   --dt-warning: #D97706;

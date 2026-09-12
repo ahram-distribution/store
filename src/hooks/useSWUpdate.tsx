@@ -114,7 +114,7 @@ export function useSWUpdate() {
           <button
             onClick={() => activateUpdate()}
             style={{
-              background: '#C9A227', color: '#fff', border: 'none',
+              background: 'var(--theme-accent)', color: '#fff', border: 'none',
               borderRadius: '8px', padding: '6px 16px', cursor: 'pointer',
               fontWeight: 600, fontSize: '14px',
             }}

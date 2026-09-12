@@ -60,7 +60,7 @@ export function DesktopDashboard() {
     : 'كل الفترات'
 
   const kpiMeta = [
-    { title: 'إجمالي المبيعات', value: `${formatMoney({ amount: totalSales, currency: 'EGP' })}`, trend: totalOrders > 0 ? 'neutral' as const : 'neutral' as const, trendValue: `${formatCount(totalOrders)} طلب`, icon: '📈', color: '#0B3D91',
+    { title: 'إجمالي المبيعات', value: `${formatMoney({ amount: totalSales, currency: 'EGP' })}`, trend: totalOrders > 0 ? 'neutral' as const : 'neutral' as const, trendValue: `${formatCount(totalOrders)} طلب`, icon: '📈', color: 'var(--theme-navy)',
       definition: 'إجمالي قيمة المبيعات (سعر البيع شامل الخصم)', source: 'get_unified_orders', period: periodLabel, lastUpdate: lastUpdate },
     { title: 'الطلبات المعلقة', value: formatCount(pendingOrders), subtitle: 'في انتظار المراجعة', trend: pendingOrders > 0 ? 'up' as const : 'neutral' as const, trendValue: `${pendingOrders}`, icon: '📋', color: '#D97706',
       definition: 'الطلبات المقدمة والتي لم يتم اعتمادها بعد', source: 'get_unified_orders (status=submitted,reviewing)', period: periodLabel, lastUpdate: lastUpdate,

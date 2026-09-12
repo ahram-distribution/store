@@ -27,7 +27,7 @@ export function SplashScreen({ onFinish, message }: SplashScreenProps) {
       className={`fixed inset-0 z-[9999] flex flex-col items-center justify-center transition-opacity duration-600 ${
         fadeOut ? 'opacity-0' : 'opacity-100'
       }`}
-      style={{ background: '#071B4D' }}
+      style={{ background: 'var(--theme-navy-deep)' }}
     >
       {/* Background mark */}
       <img
@@ -53,7 +53,7 @@ export function SplashScreen({ onFinish, message }: SplashScreenProps) {
           style={{ width: 88, height: 88, marginBottom: 20, objectFit: 'contain' }}
         />
 
-        <h1 style={{ fontSize: 28, fontWeight: 700, color: '#C9A227', textAlign: 'center' }}>
+        <h1 style={{ fontSize: 28, fontWeight: 700, color: 'var(--theme-accent)', textAlign: 'center' }}>
           الأهرام للتجارة والتوزيع
         </h1>
 
@@ -61,7 +61,7 @@ export function SplashScreen({ onFinish, message }: SplashScreenProps) {
           نظام تشغيل متكامل للتوزيع والمبيعات
         </p>
 
-        <div style={{ width: 140, height: 3, borderRadius: 999, background: 'rgba(201,162,39,.15)', marginTop: 28, position: 'relative', overflow: 'hidden' }}>
+        <div style={{ width: 140, height: 3, borderRadius: 999, background: 'rgba(var(--theme-accent-rgb),.15)', marginTop: 28, position: 'relative', overflow: 'hidden' }}>
           <div className="splash-progress-bar" />
         </div>
 

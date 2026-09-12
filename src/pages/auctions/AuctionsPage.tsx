@@ -46,8 +46,8 @@ export function AuctionsPage() {
   }, [])
 
   if (loading) return (
-    <div className="min-h-screen bg-gradient-to-b from-[#071A3A] to-[#0F2B5B] flex items-center justify-center">
-      <div className="w-8 h-8 border-2 border-[#C9A227] border-t-transparent rounded-full animate-spin" />
+    <div className="min-h-screen bg-gradient-to-b from-[var(--theme-navy-deep)] to-[var(--theme-primary)] flex items-center justify-center">
+      <div className="w-8 h-8 border-2 border-[var(--theme-accent)] border-t-transparent rounded-full animate-spin" />
     </div>
   )
 
@@ -56,10 +56,10 @@ export function AuctionsPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="bg-gradient-to-b from-[#071A3A] to-[#0F2B5B] px-4 pt-12 pb-8">
+      <div className="bg-gradient-to-b from-[var(--theme-navy-deep)] to-[var(--theme-primary)] px-4 pt-12 pb-8">
         <div className="flex items-center gap-3 mb-4">
-          <div className="w-10 h-10 bg-[#C9A227]/20 rounded-full flex items-center justify-center">
-            <Gavel className="w-5 h-5 text-[#C9A227]" />
+          <div className="w-10 h-10 bg-[var(--theme-accent)]/20 rounded-full flex items-center justify-center">
+            <Gavel className="w-5 h-5 text-[var(--theme-accent)]" />
           </div>
           <div>
             <h1 className="text-lg font-bold text-white">المزادات</h1>
@@ -83,7 +83,7 @@ export function AuctionsPage() {
                   <LiveCountdown endTime={a.end_time} />
                 </div>
                 <div className="flex items-center justify-between text-xs">
-                  <span className="text-[#C9A227] font-bold">{formatCurrencyShort(a.current_price)}</span>
+                  <span className="text-[var(--theme-accent)] font-bold">{formatCurrencyShort(a.current_price)}</span>
                   <span className="text-white/60">{a.participant_count} مشارك</span>
                 </div>
               </div>
@@ -116,7 +116,7 @@ export function AuctionsPage() {
                 </div>
                 <p className="text-[10px] text-gray-500 mb-1.5">{a.bid_count} مزايدة · {a.participant_count} مشارك</p>
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-[#C9A227]">{formatCurrencyShort(a.current_price)}</span>
+                  <span className="text-xs font-bold text-[var(--theme-accent)]">{formatCurrencyShort(a.current_price)}</span>
                   {a.status === 'pending' && (
                     <span className="text-[10px] text-gray-400">
                       {new Date(a.start_time).toLocaleDateString('ar-EG-u-nu-latn')}

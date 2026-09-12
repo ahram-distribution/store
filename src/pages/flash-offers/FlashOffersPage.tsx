@@ -136,22 +136,22 @@ export function FlashOffersPage() {
       {heroOffer && (
         <div
           className="relative min-h-[70vh] flex flex-col items-center justify-center px-4 py-12 text-center overflow-hidden"
-          style={{ background: 'linear-gradient(135deg, #071A3A 0%, #0F2B5B 100%)' }}
+          style={{ background: 'linear-gradient(135deg, var(--theme-navy-deep) 0%, var(--theme-primary) 100%)' }}
         >
           <div className="absolute inset-0 opacity-10" style={{
-            backgroundImage: 'radial-gradient(circle at 25% 25%, #C9A227 1px, transparent 1px), radial-gradient(circle at 75% 75%, #C9A227 1px, transparent 1px)',
+            backgroundImage: 'radial-gradient(circle at 25% 25%, var(--theme-accent) 1px, transparent 1px), radial-gradient(circle at 75% 75%, var(--theme-accent) 1px, transparent 1px)',
             backgroundSize: '60px 60px'
           }} />
           <div className="relative z-10 flex flex-col items-center gap-4 w-full max-w-sm">
             <svg className="w-12 h-12" viewBox="0 0 24 24" fill="none">
-              <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" fill="#C9A227" stroke="#E0B84D" strokeWidth="1.5" />
+              <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" style={{ fill: 'var(--theme-accent)', stroke: 'var(--color-gold-light)' }} strokeWidth="1.5" />
             </svg>
-            <h1 className="text-2xl font-bold text-[#C9A227]">عرض الساعة</h1>
-            <p className="text-sm text-[#E0B84D]/80">متبقي على انتهاء العرض</p>
-            <div className="text-4xl font-bold text-white" style={{ textShadow: '0 0 20px rgba(201,162,39,0.5)' }}>
+            <h1 className="text-2xl font-bold text-[var(--theme-accent)]">عرض الساعة</h1>
+            <p className="text-sm text-[var(--color-gold-light)]/80">متبقي على انتهاء العرض</p>
+            <div className="text-4xl font-bold text-white" style={{ textShadow: '0 0 20px rgba(var(--theme-accent-rgb),0.5)' }}>
               <Countdown targetDate={heroOffer.endsAt!} />
             </div>
-            <div className="mt-4 w-full bg-[#0F2B5B]/80 rounded-2xl border border-[#C9A227]/30 overflow-hidden">
+            <div className="mt-4 w-full bg-[var(--theme-primary)]/80 rounded-2xl border border-[var(--theme-accent)]/30 overflow-hidden">
               {heroOffer.imageUrl && (
                 <img src={heroOffer.imageUrl} alt={heroOffer.title} className="w-full h-48 object-cover"
                   onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
@@ -159,18 +159,18 @@ export function FlashOffersPage() {
               <div className="p-4 space-y-3 text-right">
                 <h2 className="text-lg font-bold text-white">{heroOffer.title}</h2>
                 {heroOffer.description && (
-                  <p className="text-sm text-[#E0B84D]/70">{heroOffer.description}</p>
+                  <p className="text-sm text-[var(--color-gold-light)]/70">{heroOffer.description}</p>
                 )}
                 <div className="flex items-center justify-between">
-                  <span className="text-2xl font-bold text-[#C9A227]">{formatCurrencyShort(heroOffer.fixedPrice)}</span>
-                  <span className="text-xs text-[#E0B84D]/60">المتبقي: {heroOffer.availableQuantity}</span>
+                  <span className="text-2xl font-bold text-[var(--theme-accent)]">{formatCurrencyShort(heroOffer.fixedPrice)}</span>
+                  <span className="text-xs text-[var(--color-gold-light)]/60">المتبقي: {heroOffer.availableQuantity}</span>
                 </div>
                 <button
                   onClick={() => {
                     addFlashOffer(heroOffer)
                     navigate('/cart')
                   }}
-                  className="w-full bg-[#C9A227] text-[#071A3A] text-sm font-bold py-3 rounded-xl active:bg-[#E0B84D] transition-colors"
+                  className="w-full bg-[var(--theme-accent)] text-[var(--theme-navy-deep)] text-sm font-bold py-3 rounded-xl active:bg-[#E0B84D] transition-colors"
                 >
                   أضف إلى السلة
                 </button>

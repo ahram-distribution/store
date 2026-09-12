@@ -30,7 +30,7 @@ export function LoginScreen() {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        background: 'linear-gradient(135deg, #0B3D91 0%, #062559 100%)',
+        background: 'linear-gradient(135deg, var(--theme-navy) 0%, var(--theme-navy-deep) 100%)',
         position: 'relative',
         overflow: 'hidden',
       }}
@@ -44,7 +44,7 @@ export function LoginScreen() {
           width: 400,
           height: 400,
           borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(201, 162, 39, 0.06) 0%, transparent 70%)',
+          background: 'radial-gradient(circle, rgba(var(--theme-accent-rgb), 0.06) 0%, transparent 70%)',
           pointerEvents: 'none',
         }}
       />
@@ -67,13 +67,13 @@ export function LoginScreen() {
             width: 64,
             height: 64,
             borderRadius: 14,
-            background: 'linear-gradient(135deg, #0B3D91, #062559)',
+            background: 'linear-gradient(135deg, var(--theme-navy), var(--theme-navy-deep))',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             marginBottom: 20,
             fontSize: 28,
-            color: '#C9A227',
+            color: 'var(--theme-accent)',
             fontWeight: 700,
           }}
         >
@@ -118,7 +118,7 @@ export function LoginScreen() {
                 transition: 'border-color 150ms ease',
                 direction: 'rtl',
               }}
-              onFocus={(e) => (e.target.style.borderColor = '#0B3D91')}
+              onFocus={(e) => (e.target.style.borderColor = 'var(--theme-navy)')}
               onBlur={(e) => (e.target.style.borderColor = '#E2E8F0')}
             />
           </div>
@@ -139,7 +139,7 @@ export function LoginScreen() {
                 transition: 'border-color 150ms ease',
                 direction: 'rtl',
               }}
-              onFocus={(e) => (e.target.style.borderColor = '#0B3D91')}
+              onFocus={(e) => (e.target.style.borderColor = 'var(--theme-navy)')}
               onBlur={(e) => (e.target.style.borderColor = '#E2E8F0')}
             />
           </div>
@@ -165,7 +165,7 @@ export function LoginScreen() {
               padding: '10px 0',
               border: 'none',
               borderRadius: 8,
-              background: submitting ? '#94A3B8' : 'linear-gradient(135deg, #0B3D91, #0A357E)',
+              background: submitting ? '#94A3B8' : 'linear-gradient(135deg, var(--theme-navy), var(--theme-navy-deep))',
               color: '#fff',
               fontSize: 14,
               fontWeight: 600,

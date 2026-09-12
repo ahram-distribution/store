@@ -116,8 +116,8 @@ export function AuctionDetailPage() {
   }
 
   if (loading) return (
-    <div className="min-h-screen bg-[#071A3A] flex items-center justify-center">
-      <div className="w-8 h-8 border-2 border-[#C9A227] border-t-transparent rounded-full animate-spin" />
+    <div className="min-h-screen bg-[var(--theme-navy-deep)] flex items-center justify-center">
+      <div className="w-8 h-8 border-2 border-[var(--theme-accent)] border-t-transparent rounded-full animate-spin" />
     </div>
   )
 
@@ -142,7 +142,7 @@ export function AuctionDetailPage() {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Sticky Top Bar */}
-      <div className="sticky top-0 z-20 bg-gradient-to-r from-[#071A3A] to-[#0F2B5B] px-4 py-3 flex items-center gap-3">
+      <div className="sticky top-0 z-20 bg-gradient-to-r from-[var(--theme-navy-deep)] to-[var(--theme-primary)] px-4 py-3 flex items-center gap-3">
         <button onClick={() => navigate('/auctions')} className="text-white/80"><ArrowRight className="w-5 h-5" /></button>
         <div className="flex-1 min-w-0">
           <h1 className="text-sm font-bold text-white truncate">{auction.title}</h1>
@@ -154,17 +154,17 @@ export function AuctionDetailPage() {
       {auction.image_url && (
         <div className="relative">
           <img src={auction.image_url} alt={auction.title} className="w-full aspect-video object-cover" />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#071A3A]/80 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-[var(--theme-navy-deep)]/80 to-transparent" />
         </div>
       )}
 
       {/* Live Status Card */}
       <div className={`${auction.image_url ? '-mt-16' : 'mt-4'} relative z-10 mx-4 mb-3`}>
-        <div className="bg-gradient-to-br from-[#071A3A] to-[#0F2B5B] rounded-2xl p-4 border border-[#C9A227]/30 shadow-lg">
+        <div className="bg-gradient-to-br from-[var(--theme-navy-deep)] to-[var(--theme-primary)] rounded-2xl p-4 border border-[var(--theme-accent)]/30 shadow-lg">
           <div className="flex items-center justify-between mb-3">
             <div>
               <p className="text-[10px] text-white/60">أعلى عرض</p>
-              <p className="text-2xl font-bold text-[#C9A227]">{formatCurrencyShort(auction.current_price)}</p>
+              <p className="text-2xl font-bold text-[var(--theme-accent)]">{formatCurrencyShort(auction.current_price)}</p>
             </div>
             <div className="text-center">
               <p className="text-[10px] text-white/60">المتبقي</p>
@@ -203,7 +203,7 @@ export function AuctionDetailPage() {
             <button
               onClick={handleRequestParticipation}
               disabled={requesting}
-              className="w-full bg-[#C9A227] text-white rounded-xl py-3 text-sm font-bold flex items-center justify-center gap-2 active:bg-[#B8921F] disabled:opacity-50 transition-colors"
+              className="w-full bg-[var(--theme-accent)] text-white rounded-xl py-3 text-sm font-bold flex items-center justify-center gap-2 active:bg-[#B8921F] disabled:opacity-50 transition-colors"
             >
               {requesting ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <UserCheck className="w-4 h-4" />}
               طلب المشاركة في المزاد
@@ -260,7 +260,7 @@ export function AuctionDetailPage() {
               <button
                 onClick={handlePlaceBid}
                 disabled={placing}
-                className="bg-[#C9A227] text-white rounded-lg px-5 py-2.5 text-sm font-bold flex items-center gap-1.5 active:bg-[#B8921F] disabled:opacity-50 transition-colors"
+                className="bg-[var(--theme-accent)] text-white rounded-lg px-5 py-2.5 text-sm font-bold flex items-center gap-1.5 active:bg-[#B8921F] disabled:opacity-50 transition-colors"
               >
                 {placing ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Send className="w-4 h-4" />}
                 مزايدة
@@ -283,7 +283,7 @@ export function AuctionDetailPage() {
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key)}
                 className={`flex-1 py-2.5 text-[11px] font-medium flex items-center justify-center gap-1 transition-colors ${
-                  activeTab === tab.key ? 'text-[#C9A227] border-b-2 border-[#C9A227]' : 'text-gray-400'
+                  activeTab === tab.key ? 'text-[var(--theme-accent)] border-b-2 border-[var(--theme-accent)]' : 'text-gray-400'
                 }`}
               >
                 <tab.icon className="w-3.5 h-3.5" />
@@ -299,7 +299,7 @@ export function AuctionDetailPage() {
                 <div className="space-y-2">
                   {activityLog.map(a => (
                     <div key={a.id} className="flex items-start gap-2 text-xs">
-                      <div className="w-1.5 h-1.5 rounded-full bg-[#C9A227] mt-1.5 flex-shrink-0" />
+                      <div className="w-1.5 h-1.5 rounded-full bg-[var(--theme-accent)] mt-1.5 flex-shrink-0" />
                       <div>
                         <p className="text-gray-700">{a.message}</p>
                         <p className="text-[10px] text-gray-400">{new Date(a.created_at).toLocaleTimeString('ar-EG-u-nu-latn')}</p>
@@ -323,7 +323,7 @@ export function AuctionDetailPage() {
                         <p className="text-[10px] text-gray-400">{new Date(b.placed_at).toLocaleTimeString('ar-EG-u-nu-latn')}</p>
                       </div>
                       <div className="text-left">
-                        <p className={`text-xs font-bold ${b.is_winning ? 'text-emerald-600' : 'text-[#C9A227]'}`}>
+                        <p className={`text-xs font-bold ${b.is_winning ? 'text-emerald-600' : 'text-[var(--theme-accent)]'}`}>
                           {formatCurrencyShort(b.amount)}
                         </p>
                         {b.is_winning && <p className="text-[9px] text-emerald-500">متصدر</p>}
@@ -368,18 +368,18 @@ export function AuctionDetailPage() {
       <div className="fixed bottom-0 left-0 right-0 z-20 bg-white border-t border-gray-200 px-4 py-3 shadow-lg">
         {(() => {
           if (!token) return (
-            <button onClick={() => navigate('/login')} className="w-full bg-[#C9A227] text-white rounded-xl py-3 text-sm font-bold">
+            <button onClick={() => navigate('/login')} className="w-full bg-[var(--theme-accent)] text-white rounded-xl py-3 text-sm font-bold">
               سجل الدخول للمشاركة
             </button>
           )
           if (ps.status === 'registered' && ps.can_request && isLive) return (
-            <button onClick={handleRequestParticipation} disabled={requesting} className="w-full bg-[#C9A227] text-white rounded-xl py-3 text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-50">
+            <button onClick={handleRequestParticipation} disabled={requesting} className="w-full bg-[var(--theme-accent)] text-white rounded-xl py-3 text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-50">
               {requesting ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <UserPlus className="w-4 h-4" />}
               طلب المشاركة
             </button>
           )
           if (canBid) return (
-            <button onClick={handlePlaceBid} disabled={placing} className="w-full bg-[#C9A227] text-white rounded-xl py-3 text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-50">
+            <button onClick={handlePlaceBid} disabled={placing} className="w-full bg-[var(--theme-accent)] text-white rounded-xl py-3 text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-50">
               {placing ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Send className="w-4 h-4" />}
               مزايدة {formatCurrencyShort(Number(bidAmount) || auction.current_price + auction.bid_increment)}
             </button>

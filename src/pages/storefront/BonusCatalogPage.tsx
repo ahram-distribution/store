@@ -61,6 +61,13 @@ const BonusProductCard = memo(function BonusProductCard({
   const checkTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const commitTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const qtyInputFocused = useRef(false)
+  // Authoritative typed value (ref mirrors state so click handlers always read
+  // the CURRENT input text, never a stale prop/debounced value).
+  const qtyTextRef = useRef('1')
+  const setQtyTextBoth = (v: string) => {
+    qtyTextRef.current = v
+    setQtyText(v)
+  }
 
   const availableUnits = useMemo(() => {
     const strict = activeUnits.filter((u) => unitPrices.some((x) => x.unitType === u))
@@ -111,7 +118,7 @@ const BonusProductCard = memo(function BonusProductCard({
   // one availability RPC per keystroke. External displayQty changes (from steppers,
   // add, or cart restore) are mirrored while the field is not being edited.
   useEffect(() => {
-    if (!qtyInputFocused.current) setQtyText(String(displayQty))
+    if (!qtyInputFocused.current) setQtyTextBoth(String(displayQty))
   }, [displayQty])
 
   const parseQtyText = (raw: string): number => {
@@ -121,16 +128,22 @@ const BonusProductCard = memo(function BonusProductCard({
     return Number.isFinite(n) ? Math.max(0, n) : displayQty
   }
 
+  // The quantity the user MEANT at click time: current input text if valid,
+  // otherwise the displayed quantity. Click handlers use this (not the
+  // possibly-stale stepperValue prop) so type-then-immediately-add/± commits
+  // exactly what is in the box.
+  const entryQty = (): number => parseQtyText(qtyTextRef.current)
+
   const commitQty = (qty: number) => {
     if (commitTimer.current) clearTimeout(commitTimer.current)
-    setQtyText(String(qty))
+    setQtyTextBoth(String(qty))
     onStep(product, selectedUnit, qty)
     scheduleAvailabilityCheck(qty)
   }
 
   const handleQtyInput = (e: ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value
-    setQtyText(raw)
+    setQtyTextBoth(raw)
     const n = Math.floor(Number(raw))
     if (raw.trim() !== '' && Number.isFinite(n) && n >= 0) {
       if (commitTimer.current) clearTimeout(commitTimer.current)
@@ -141,7 +154,7 @@ const BonusProductCard = memo(function BonusProductCard({
   const handleQtyBlur = () => {
     qtyInputFocused.current = false
     const qty = parseQtyText(qtyText)
-    setQtyText(String(qty))
+    setQtyTextBoth(String(qty))
     if (qty !== displayQty) commitQty(qty)
   }
 
@@ -186,7 +199,7 @@ const BonusProductCard = memo(function BonusProductCard({
           {availableUnits.map((ut) => (
             <button
               key={ut}
-              onClick={() => { setUnit(ut); scheduleAvailabilityCheck() }}
+              onClick={() => { if (commitTimer.current) clearTimeout(commitTimer.current); setUnit(ut); scheduleAvailabilityCheck() }}
               className={`px-2 py-0.5 rounded-md text-[10px] font-bold border transition-colors ${
                 selectedUnit === ut
                   ? 'bg-violet-600 text-white border-violet-600'
@@ -203,7 +216,7 @@ const BonusProductCard = memo(function BonusProductCard({
       <div className="p-3 pt-0 space-y-2">
         <div className="flex items-center justify-between gap-1">
           <button
-            onClick={() => { if (commitTimer.current) clearTimeout(commitTimer.current); onStep(product, selectedUnit, displayQty - 1); scheduleAvailabilityCheck(displayQty - 1) }}
+            onClick={() => { if (commitTimer.current) clearTimeout(commitTimer.current); const base = entryQty(); onStep(product, selectedUnit, base - 1); scheduleAvailabilityCheck(base - 1) }}
             disabled={disabled}
             className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-border text-text-secondary text-sm disabled:opacity-40 shrink-0"
             aria-label="تقليل الكمية"
@@ -226,7 +239,7 @@ const BonusProductCard = memo(function BonusProductCard({
           />
           <span className="text-[10px] text-text-secondary mr-1 shrink-0">{UNIT_LABELS[selectedUnit]}</span>
           <button
-            onClick={() => { if (commitTimer.current) clearTimeout(commitTimer.current); onStep(product, selectedUnit, displayQty + 1); scheduleAvailabilityCheck(displayQty + 1) }}
+            onClick={() => { if (commitTimer.current) clearTimeout(commitTimer.current); const base = entryQty(); onStep(product, selectedUnit, base + 1); scheduleAvailabilityCheck(base + 1) }}
             disabled={disabled}
             className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-border text-text-secondary text-sm disabled:opacity-40 shrink-0"
             aria-label="زيادة الكمية"
@@ -253,7 +266,7 @@ const BonusProductCard = memo(function BonusProductCard({
           </div>
         ) : (
           <button
-            onClick={() => { onAdd(product, selectedUnit, stepperValue); scheduleAvailabilityCheck(stepperValue) }}
+            onClick={() => { if (commitTimer.current) clearTimeout(commitTimer.current); const q = Math.max(1, entryQty()); onAdd(product, selectedUnit, q); scheduleAvailabilityCheck(q) }}
             disabled={disabled}
             className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg bg-violet-600 text-white text-xs font-bold hover:bg-violet-700 transition-colors active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed"
           >

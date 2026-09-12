@@ -161,9 +161,9 @@ export function CustomerForm({
               <select value={form.businessType} onChange={e => set('businessType', e.target.value)}
                 className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/50 transition-colors"
                 style={{ color: form.businessType ? '#fff' : 'rgba(255,255,255,0.35)' }}>
-                <option value="" style={{ background: '#0B3D91' }}>-- اختر --</option>
+                <option value="" style={{ background: 'var(--theme-navy)' }}>-- اختر --</option>
                 {CUSTOMER_BUSINESS_TYPES.map(bt => (
-                  <option key={bt.value} value={bt.value} style={{ background: '#0B3D91', color: '#fff' }}>{bt.label}</option>
+                  <option key={bt.value} value={bt.value} style={{ background: 'var(--theme-navy)', color: '#fff' }}>{bt.label}</option>
                 ))}
               </select>
             </div>
@@ -218,9 +218,9 @@ export function CustomerForm({
               <select value={form.governorateId} onChange={e => { set('governorateId', e.target.value); set('city', '') }}
                 className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/50 transition-colors"
                 style={{ color: form.governorateId ? '#fff' : 'rgba(255,255,255,0.35)' }}>
-                <option value="" style={{ background: '#0B3D91' }}>اختر المحافظة...</option>
+                <option value="" style={{ background: 'var(--theme-navy)' }}>اختر المحافظة...</option>
                 {governorates.map(g => (
-                  <option key={g.id} value={g.id} style={{ background: '#0B3D91', color: '#fff' }}>{g.name_ar}</option>
+                  <option key={g.id} value={g.id} style={{ background: 'var(--theme-navy)', color: '#fff' }}>{g.name_ar}</option>
                 ))}
               </select>
             </div>
@@ -263,8 +263,8 @@ export function CustomerForm({
         <button type="submit" disabled={submitting}
           className="w-full py-3.5 rounded-xl font-bold text-sm border-none cursor-pointer transition-all disabled:opacity-50"
           style={{
-            background: 'linear-gradient(135deg, #C9A227 0%, #E0B85A 100%)',
-            color: '#071B4D',
+            background: 'linear-gradient(135deg, var(--theme-accent) 0%, var(--color-gold-light) 100%)',
+            color: 'var(--theme-navy-deep)',
             fontSize: 15,
           }}>
           {submitting ? 'جاري إنشاء الحساب...' : 'إنشاء حساب'}

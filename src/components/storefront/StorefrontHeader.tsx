@@ -23,10 +23,10 @@ export function StorefrontHeader() {
   }
 
   return (
-    <div className="-mx-4 px-4 flex items-center justify-between gap-2" style={{ background: '#0F2B5B', height: 56, borderBottom: '1px solid rgba(201,162,39,.2)' }}>
+    <div className="-mx-4 px-4 flex items-center justify-between gap-2" style={{ background: 'var(--theme-primary)', height: 56, borderBottom: '1px solid rgba(var(--theme-accent-rgb),.2)' }}>
       <div className="flex items-center gap-2.5 shrink-0">
         <img src={`${import.meta.env.BASE_URL}pwa/branding/logo-square.png`} alt="" style={{ width: 32, height: 32, borderRadius: 6 }} />
-        <div className="text-lg font-bold" style={{ color: '#C9A227', lineHeight: 1.2 }}>
+        <div className="text-lg font-bold" style={{ color: 'var(--theme-accent)', lineHeight: 1.2 }}>
           {companyName}
         </div>
       </div>
@@ -45,7 +45,7 @@ export function StorefrontHeader() {
             paddingLeft: 12,
             borderRadius: 999,
             background: 'rgba(255,255,255,.08)',
-            border: '1px solid rgba(201,162,39,.15)',
+            border: '1px solid rgba(var(--theme-accent-rgb),.15)',
             color: '#fff',
             fontSize: 13,
             outline: 'none',
@@ -56,7 +56,7 @@ export function StorefrontHeader() {
       <button
         onClick={() => navigate(token ? '/account' : '/login')}
         className="shrink-0 flex items-center justify-center active:opacity-80 transition-opacity"
-        style={{ width: 36, height: 36, borderRadius: 999, background: 'rgba(201,162,39,.15)', border: '1px solid rgba(201,162,39,.25)', color: '#C9A227' }}
+        style={{ width: 36, height: 36, borderRadius: 999, background: 'rgba(var(--theme-accent-rgb),.15)', border: '1px solid rgba(var(--theme-accent-rgb),.25)', color: 'var(--theme-accent)' }}
       >
         {token ? <span style={{ fontSize: 18, lineHeight: 1 }}>👤</span> : <span style={{ fontSize: 13, fontWeight: 600 }}>دخول</span>}
       </button>

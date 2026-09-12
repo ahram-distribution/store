@@ -27,9 +27,9 @@ export function InstallBanner() {
       <div
         className="rounded-3xl p-5 shadow-2xl"
         style={{
-          background: 'linear-gradient(135deg, rgba(11, 61, 145, 0.85) 0%, rgba(7, 27, 77, 0.95) 100%)',
+          background: 'linear-gradient(135deg, rgba(var(--theme-navy-rgb), 0.85) 0%, rgba(var(--theme-navy-deep-rgb), 0.95) 100%)',
           backdropFilter: 'blur(16px)',
-          border: '1px solid rgba(201, 162, 39, 0.15)',
+          border: '1px solid rgba(var(--theme-accent-rgb), 0.15)',
           boxShadow: '0 12px 48px rgba(0, 0, 0, 0.4)',
         }}
       >
@@ -37,13 +37,13 @@ export function InstallBanner() {
           <div
             className="w-14 h-14 rounded-2xl flex items-center justify-center shrink-0"
             style={{
-              background: 'linear-gradient(135deg, rgba(201, 162, 39, 0.15) 0%, rgba(201, 162, 39, 0.05) 100%)',
-              border: '1px solid rgba(201, 162, 39, 0.15)',
+              background: 'linear-gradient(135deg, rgba(var(--theme-accent-rgb), 0.15) 0%, rgba(var(--theme-accent-rgb), 0.05) 100%)',
+              border: '1px solid rgba(var(--theme-accent-rgb), 0.15)',
             }}
           >
             <svg width="28" height="28" viewBox="0 0 48 48" fill="none">
-              <rect width="48" height="48" rx="8" fill="#C9A227" />
-              <text x="24" y="34" textAnchor="middle" fill="#071B4D" fontSize="24" fontWeight="bold" fontFamily="system-ui">أ</text>
+              <rect width="48" height="48" rx="8" style={{ fill: 'var(--theme-accent)' }} />
+              <text x="24" y="34" textAnchor="middle" style={{ fill: 'var(--theme-navy-deep)' }} fontSize="24" fontWeight="bold" fontFamily="system-ui">أ</text>
             </svg>
           </div>
           <div className="flex-1 min-w-0">
@@ -54,8 +54,8 @@ export function InstallBanner() {
                 onClick={handleInstall}
                 className="flex-1 py-3 rounded-2xl text-sm font-bold"
                 style={{
-                  background: 'linear-gradient(135deg, #C9A227 0%, #E0B85A 100%)',
-                  color: '#071B4D',
+                  background: 'linear-gradient(135deg, var(--theme-accent) 0%, var(--color-gold-light) 100%)',
+                  color: 'var(--theme-navy-deep)',
                 }}
               >
                 تثبيت الآن

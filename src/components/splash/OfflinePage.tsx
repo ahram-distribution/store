@@ -17,7 +17,7 @@ export function OfflinePage() {
   if (online) return null
 
   return (
-    <div className="fixed inset-0 z-[9998] flex flex-col items-center justify-center" style={{ background: '#071B4D' }}>
+    <div className="fixed inset-0 z-[9998] flex flex-col items-center justify-center" style={{ background: 'var(--theme-navy-deep)' }}>
       <div className="text-center px-8">
         {/* Logo */}
         <img src={`${import.meta.env.BASE_URL}pwa/branding/logo.png`} alt="الأهرام"

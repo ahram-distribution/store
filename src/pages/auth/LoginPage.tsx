@@ -78,7 +78,7 @@ export function LoginPage() {
   const installSteps = getInstallSteps(browser, capability)
 
   return (
-    <div style={{ position: 'relative', background: '#071B4D', minHeight: '100vh' }}>
+    <div style={{ position: 'relative', background: 'var(--theme-navy-deep)', minHeight: '100vh' }}>
       {/* ── BACKGROUND IMAGE (fixed, aspect-safe cover) ── */}
       <div
         style={{
@@ -95,7 +95,7 @@ export function LoginPage() {
         style={{
           position: 'fixed',
           inset: 0,
-          background: 'rgba(7, 27, 77, 0.45)',
+          background: 'rgba(var(--theme-navy-deep-rgb), 0.45)',
         }}
       />
 
@@ -108,18 +108,18 @@ export function LoginPage() {
             alt="الأهرام"
             style={{ width: 72, height: 72, display: 'inline-block' }}
           />
-          <div style={{ color: '#E0B85A', fontSize: 20, fontWeight: 700, marginTop: 8 }}>
+          <div style={{ color: 'var(--color-gold-light)', fontSize: 20, fontWeight: 700, marginTop: 8 }}>
             الأهرام للتجارة والتوزيع
           </div>
-          <div style={{ color: '#E0B85A', fontSize: 12, marginTop: 4 }}>
+          <div style={{ color: 'var(--color-gold-light)', fontSize: 12, marginTop: 4 }}>
             منصة إدارة الطلبات والمبيعات والتوزيع
           </div>
         </div>
 
         {/* ── LOGIN CARD ── */}
         <div style={{
-          background: '#0F2B5B',
-          border: '1px solid #C9A227',
+          background: 'var(--theme-primary)',
+          border: '1px solid var(--theme-accent)',
           borderRadius: 14,
           padding: 12,
           marginTop: 14,
@@ -138,8 +138,8 @@ export function LoginPage() {
                 width: '100%',
                 padding: '11px 14px',
                 borderRadius: 10,
-                background: '#071B4D',
-                border: '1px solid #C9A227',
+                background: 'var(--theme-navy-deep)',
+                border: '1px solid var(--theme-accent)',
                 color: '#ffffff',
                 fontSize: 14,
                 outline: 'none',
@@ -159,8 +159,8 @@ export function LoginPage() {
                   width: '100%',
                   padding: '11px 14px',
                   borderRadius: 10,
-                  background: '#071B4D',
-                  border: '1px solid #C9A227',
+                  background: 'var(--theme-navy-deep)',
+                  border: '1px solid var(--theme-accent)',
                   color: '#ffffff',
                   fontSize: 14,
                   outline: 'none',
@@ -176,8 +176,8 @@ export function LoginPage() {
                 width: '100%',
                 padding: 13,
                 borderRadius: 10,
-                background: submitting ? '#a3851f' : '#C9A227',
-                color: '#071B4D',
+                background: submitting ? '#a3851f' : 'var(--theme-accent)',
+                color: 'var(--theme-navy-deep)',
                 fontSize: 15,
                 fontWeight: 700,
                 border: 'none',
@@ -199,9 +199,9 @@ export function LoginPage() {
               width: '100%',
               padding: 13,
               borderRadius: 10,
-              background: '#0F2B5B',
+              background: 'var(--theme-primary)',
               border: '1px solid #1a3a6e',
-              color: '#C9A227',
+              color: 'var(--theme-accent)',
               fontSize: 14,
               fontWeight: 700,
               cursor: 'pointer',
@@ -219,16 +219,16 @@ export function LoginPage() {
         <div style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
           <div onClick={() => setShowContactSheet(false)} style={{ flex: 1 }} />
           <div style={{
-            background: '#0F2B5B',
+            background: 'var(--theme-primary)',
             borderTopLeftRadius: 20,
             borderTopRightRadius: 20,
-            border: '1px solid #C9A227',
+            border: '1px solid var(--theme-accent)',
             borderBottom: 'none',
             maxHeight: 'calc(100dvh - 6rem)',
             overflowY: 'auto',
           }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', borderBottom: '1px solid #1a3a6e' }}>
-              <span style={{ color: '#E0B85A', fontSize: 15, fontWeight: 700 }}>تواصل معنا</span>
+              <span style={{ color: 'var(--color-gold-light)', fontSize: 15, fontWeight: 700 }}>تواصل معنا</span>
               <button
                 type="button"
                 onClick={() => setShowContactSheet(false)}
@@ -258,7 +258,7 @@ export function LoginPage() {
                 contactEntries.map((item, i) => {
                   const row = (
                     <div style={{ padding: '12px 16px', borderBottom: i < contactEntries.length - 1 ? '1px solid #1a3a6e' : 'none' }}>
-                      <div style={{ color: '#E0B85A', fontSize: 12, fontWeight: 700 }}>{item.label}</div>
+                      <div style={{ color: 'var(--color-gold-light)', fontSize: 12, fontWeight: 700 }}>{item.label}</div>
                       <div style={{ color: item.href ? '#ffffff' : '#6b7280', fontSize: 13, marginTop: 4, direction: 'ltr' }}>{item.value}</div>
                     </div>
                   )
@@ -282,8 +282,8 @@ export function LoginPage() {
           <div onClick={() => setShowInstallDialog(false)} style={{ position: 'fixed', inset: 0, background: '#000' }} />
           <div style={{
             position: 'relative',
-            background: '#0F2B5B',
-            border: '1px solid #C9A227',
+            background: 'var(--theme-primary)',
+            border: '1px solid var(--theme-accent)',
             borderRadius: 16,
             padding: 24,
             margin: 20,
@@ -291,7 +291,7 @@ export function LoginPage() {
             width: '100%',
           }}>
             <div style={{ textAlign: 'center' }}>
-              <div style={{ color: '#E0B85A', fontSize: 16, fontWeight: 700 }}>
+              <div style={{ color: 'var(--color-gold-light)', fontSize: 16, fontWeight: 700 }}>
                 {'\u2B07'}{' '}
                 {capability === 'ios_share'
                   ? 'لتثبيت التطبيق على iPhone / iPad'
@@ -308,8 +308,8 @@ export function LoginPage() {
                       width: 22,
                       height: 22,
                       borderRadius: 11,
-                      background: '#C9A227',
-                      color: '#071B4D',
+                      background: 'var(--theme-accent)',
+                      color: 'var(--theme-navy-deep)',
                       fontSize: 12,
                       fontWeight: 700,
                       display: 'flex',
@@ -330,8 +330,8 @@ export function LoginPage() {
                   width: '100%',
                   padding: 12,
                   borderRadius: 10,
-                  background: '#C9A227',
-                  color: '#071B4D',
+                  background: 'var(--theme-accent)',
+                  color: 'var(--theme-navy-deep)',
                   fontSize: 14,
                   fontWeight: 700,
                   border: 'none',
