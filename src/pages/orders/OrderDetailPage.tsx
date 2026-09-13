@@ -7,6 +7,7 @@ import { OrderStatusManager } from '../../components/orders/OrderStatusManager'
 import { useCapability } from '../../hooks/useCapability'
 import { useAuthStore } from '../../store/auth'
 import { useEntityViewsStore } from '../../store/entityViews'
+import { useCartStore } from '../../store/cart'
 import { isExecutiveDirectorUser, normalizeEmployeeRole } from '../../utils/roleNormalization'
 import { formatCurrencyShort, formatTierName } from '../../utils/format'
 import { resolveConfiguredUnitTypes } from '../../utils/catalog'
@@ -159,6 +160,7 @@ export function OrderDetailPage() {
   const [transferReason, setTransferReason] = useState('')
   const [transferEmployees, setTransferEmployees] = useState<any[]>([])
   const [transferring, setTransferring] = useState(false)
+  const [restoringOrder, setRestoringOrder] = useState(false)
 
   function loadOrder() {
     if (!id) return
@@ -543,6 +545,92 @@ export function OrderDetailPage() {
     setEditShippingId(data.order.shipping_method_option_id)
     setEditModeType(type)
     setEditMode(true)
+  }
+
+  async function handleReturnToCart() {
+    if (!id || restoringOrder) return
+    const token = getToken()
+    if (!token) { toast.error('انتهت الجلسة، سجّل الدخول مرة أخرى'); return }
+
+    // Restore the order's COMMERCIAL contents into the actual cart store
+    // BEFORE any navigation, so the restore never depends on StorefrontPage
+    // mounting, companyId being present, or catalog loading.
+    setRestoringOrder(true)
+    try {
+      const { data, error } = await supabase.rpc('get_unified_order', { p_token: token, p_id: id })
+      if (error) {
+        console.error('[OrderDetail] restore RPC error:', error)
+        toast.error('تعذر تحميل الطلب للاسترجاع: ' + error.message)
+        return
+      }
+      const raw = data
+      if (!raw || raw.error) {
+        toast.error(raw?.error === 'NOT_FOUND' ? 'الطلب غير موجود' : raw?.error === 'FORBIDDEN' ? 'ليس لديك صلاحية لهذا الطلب' : 'تعذر تحميل الطلب للاسترجاع')
+        return
+      }
+      const items: any[] = Array.isArray(raw.items) ? raw.items : []
+      if (items.length === 0) {
+        toast.error('الطلب لا يحتوي على منتجات قابلة للاسترجاع')
+        return
+      }
+      // Restore the customer the SAME way Order Detail displays it: use the
+      // authoritative `customer` block already returned by get_unified_order
+      // (live join over customers/identities/addresses), and fall back to the
+      // order's snapshot fields when the live record has gaps. Never blank a
+      // customer that exists on the order — the order itself is the source of
+      // truth, and Order Detail proves the data is already available here.
+      const liveCustomer = raw.customer || null
+      if (liveCustomer?.id) {
+        const parts = [liveCustomer.address_line1, liveCustomer.address_line2, liveCustomer.city, liveCustomer.governorate].filter(Boolean)
+        const displayAddr = String(liveCustomer.display_address || parts.join(', ') || '').trim() || undefined
+        useCartStore.getState().setSelectedCustomer({
+          id: liveCustomer.id,
+          name: String(liveCustomer.company_name || raw.order?.snapshot_customer_name || ''),
+          phone: String(liveCustomer.phone || raw.order?.snapshot_customer_phone || ''),
+          code: String(liveCustomer.code || raw.order?.snapshot_customer_code || ''),
+          address: displayAddr,
+        })
+      } else if (raw.order?.customer_id) {
+        // Live customer block missing but the order references one: preserve the
+        // reference + snapshot data instead of blanking to "غير محدد".
+        useCartStore.getState().setSelectedCustomer({
+          id: raw.order.customer_id,
+          name: String(raw.order.snapshot_customer_name || ''),
+          phone: String(raw.order.snapshot_customer_phone || ''),
+          code: String(raw.order.snapshot_customer_code || ''),
+          address: String(raw.order.snapshot_customer_address || '').trim() || undefined,
+        })
+      }
+      // Load CURRENT authoritative product rows (across all companies, incl.
+      // inactive) into the cart store BEFORE restoreCart, so recalculateAll()
+      // reprices every restored line at today's catalog prices — never the old
+      // order snapshot. Same RPC + mergeProducts pipeline StorefrontPage uses.
+      const productIds = Array.from(new Set(items.map((i: any) => i.product_id)))
+      if (productIds.length > 0) {
+        try {
+          const { data: rows, error: rowsError } = await supabase.rpc('get_governed_products', {
+            p_token: token,
+            p_company_id: null,
+            p_active_only: false,
+            p_visible_only: false,
+          })
+          if (!rowsError) {
+            const arr = Array.isArray(rows) ? rows : []
+            const needed = arr.filter((r: any) => productIds.includes(r.id))
+            if (needed.length > 0) useCartStore.getState().mergeProducts((needed as any[]).map(mapProduct))
+          }
+        } catch (err) {
+          console.warn('[OrderDetail] product price load skipped:', err)
+        }
+      }
+      useCartStore.getState().restoreCart(items, id, raw.order?.order_type)
+      navigate('/cart')
+    } catch (err: any) {
+      console.error('[OrderDetail] restore failed:', err)
+      toast.error('فشل استرجاع الطلب: ' + (err?.message || 'خطأ غير متوقع'))
+    } finally {
+      setRestoringOrder(false)
+    }
   }
 
   const handleQuantityChange = useCallback((productId: string, unitType: string, newQty: number) => {
@@ -1035,18 +1123,18 @@ export function OrderDetailPage() {
         isCustomer ? (
           customerCanEdit ? (
             <div className="flex items-stretch gap-2 flex-wrap">
-              <button onClick={() => navigate(`/storefront/products?editOrder=${id}`)}
-                className="inline-flex items-center gap-1 bg-accent text-white text-xs px-3 py-2.5 rounded-lg active:opacity-90 shrink-0">
-                تعديل الطلب
+              <button onClick={handleReturnToCart} disabled={restoringOrder}
+                className="inline-flex items-center gap-1 bg-accent text-white text-xs px-3 py-2.5 rounded-lg active:opacity-90 shrink-0 disabled:opacity-50">
+                {restoringOrder ? 'جاري استرجاع الطلب...' : 'تعديل الطلب'}
               </button>
             </div>
           ) : undefined
         ) : (
           <div className="flex items-stretch gap-2 flex-wrap">
             {showEditOrderButton && (
-              <button onClick={() => navigate(`/storefront/products?editOrder=${id}`)}
-                className="inline-flex items-center gap-1 bg-accent text-white text-xs px-3 py-2.5 rounded-lg active:opacity-90 shrink-0">
-                تعديل الطلب
+              <button onClick={handleReturnToCart} disabled={restoringOrder}
+                className="inline-flex items-center gap-1 bg-accent text-white text-xs px-3 py-2.5 rounded-lg active:opacity-90 shrink-0 disabled:opacity-50">
+                {restoringOrder ? 'جاري استرجاع الطلب...' : 'تعديل الطلب'}
               </button>
             )}
             {isSupreme && !isExecDirector && (

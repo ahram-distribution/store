@@ -8,7 +8,7 @@ import { ProductCard } from '../../components/storefront/ProductCard'
 import { StorefrontBanner, StorefrontFooter } from '../../components/storefront/CompanyInfoSection'
 import { CartSummaryBar } from '../../components/storefront/CartSummaryBar'
 import { computeProductPrices } from '../../engine/pricing'
-import { discountOptionsService, resolveExceptionLookup } from '../../services/discountOptions'
+import { resolveExceptionLookup } from '../../services/discountOptions'
 import { DiscountOptionSelector, type SelectableDiscountOption } from '../../components/storefront/DiscountOptionSelector'
 import { buildSearchIndex, searchProducts, type ProductSearchIndex } from '../../utils/smartSearch'
 import type { ProductWithPrice, ProductUnitPrice, UnitType } from '../../types/storefront'
@@ -54,7 +54,8 @@ export function StorefrontPage() {
     setSelectedCustomer,
     setEditingOrder,
     setOrderType,
-    restoreCart,
+restoreCart,
+    mergeProducts,
     geographicContext,
     resolveEmployeeGeographicContext,
     resolveGeographicPricing,
@@ -104,7 +105,7 @@ export function StorefrontPage() {
 
   const fetchProducts = useCallback(async () => {
     setLoadingProducts(true)
-    if (!authToken) {
+    if (!authToken || editOrderId) {
       setProducts([])
       setLoadingProducts(false)
       return
@@ -185,38 +186,82 @@ export function StorefrontPage() {
 
   useEffect(() => {
     if (!editOrderId || !authToken) return
+    let cancelled = false
+    const mapRows = (rows: any[]): ProductWithPrice[] => rows.map((row: any) => {
+      const cartonPrice = Number(row.carton_price) || 0
+      const cartonQuantity = Number(row.carton_quantity) || 0
+      const piecePrice = Number(row.piece_price) || 0
+      const dozenPrice = Number(row.dozen_price) || 0
+      const activeUnits = resolveConfiguredUnitTypes(row)
+      const availableUnitTypes: UnitType[] = activeUnits
+      const allUnitPrices: ProductUnitPrice[] = [
+        { unitType: 'piece', price: piecePrice },
+        { unitType: 'dozen', price: dozenPrice },
+        { unitType: 'carton', price: cartonPrice },
+      ]
+      const unitPrices = allUnitPrices.filter((up) => up.unitType === 'piece' || up.unitType === 'carton' || availableUnitTypes.includes(up.unitType))
+      return {
+        id: row.id,
+        productName: row.product_name,
+        legacyCode: row.legacy_code || '',
+        cartonPrice,
+        cartonQuantity,
+        piecePrice,
+        dozenPrice,
+        isActive: row.is_active ?? true,
+        isOutOfStock: row.is_out_of_stock === true,
+        isVisible: row.is_visible ?? true,
+        imageUrl: row.image_url || undefined,
+        companyId: row.company_id,
+        companyName: row.company_name ?? '',
+        unitPrices,
+        availableUnitTypes,
+        recentlyAvailableAt: row.recently_available_at || undefined,
+      }
+    })
+
     supabase.rpc('get_unified_order', { p_token: authToken, p_id: editOrderId }).then(async ({ data }) => {
-      if (!data || data.error) return
+      if (cancelled || !data || data.error) return
       const order = data.order
       const items = data.items || []
       if (order.customer_id) {
         supabase.rpc('get_governed_customer', { p_token: authToken, p_id: order.customer_id }).then(({ data }) => {
+          if (cancelled) return
           if (data?.id) {
             setSelectedCustomer({ id: data.id, name: data.company_name || '', phone: data.phone || '', code: data.code || '', governorateId: data.governorate_id || undefined })
           } else {
             setSelectedCustomer({ id: order.customer_id, name: order.customer_name || '', phone: order.customer_phone || '', code: order.customer_code || '' })
           }
         }).catch(() => {
+          if (cancelled) return
           setSelectedCustomer({ id: order.customer_id, name: order.customer_name || '', phone: order.customer_phone || '', code: order.customer_code || '' })
         })
       }
-      let restores: { tierId?: string | null; paymentMethodId?: string | null; shippingMethodId?: string | null } = {}
-      try {
-        const snaps = await discountOptionsService.getOrderDiscountSnapshots([editOrderId])
-        const snap = snaps[0]
-        if (snap) {
-          restores = {
-            tierId: snap.tierId,
-            paymentMethodId: snap.paymentMethodOptionId,
-            shippingMethodId: snap.shippingMethodOptionId,
+      // Load CURRENT authoritative product rows for every restored line (across
+      // all companies, including inactive ones) so the pricing pipeline reprices
+      // the whole cart at today's prices — never the old financial snapshot.
+      const productIds = Array.from(new Set(items.map((i: any) => i.product_id)))
+      if (productIds.length > 0) {
+        try {
+          const { data: rows, error: rowsError } = await supabase.rpc('get_governed_products', {
+            p_token: authToken,
+            p_company_id: null,
+            p_active_only: false,
+            p_visible_only: false,
+          })
+          if (!cancelled && !rowsError) {
+            const arr = Array.isArray(rows) ? rows : []
+            const needed = arr.filter((r: any) => productIds.includes(r.id))
+            mergeProducts(mapRows(needed))
           }
+        } catch {
+          // products stay empty; recalculateAll keeps snapshot-free lines untouched
         }
-      } catch {
-        // fall back to restoring nothing
       }
-      restoreCart(items, editOrderId, order.order_type, restores.tierId, restores.paymentMethodId, restores.shippingMethodId)
+      if (!cancelled) restoreCart(items, editOrderId, order.order_type)
     })
-  }, [editOrderId, authToken])
+    return () => { cancelled = true }
+  }, [editOrderId, authToken, setSelectedCustomer, restoreCart, mergeProducts])
 
   useEffect(() => {
     const urlOrderType = searchParams.get('order_type')

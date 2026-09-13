@@ -7,6 +7,7 @@ export type AuctionStatus = 'pending' | 'live' | 'ended' | 'awarded' | 'cancelle
 export interface CartItem {
   productId: string
   productName: string
+  productCode?: string
   unitType: UnitType
   unitQuantity: number
   pieceQuantity: number

@@ -14,7 +14,7 @@ import toast from 'react-hot-toast'
 import type { CartItem as CartItemType, CompanyAddGuardResult } from '../../types/storefront'
 import { checkCartAvailability } from '../../utils/cart-availability'
 import { evaluateCompanyMaxAdd, companyDiversificationSentence } from '../../engine/pricing'
-import { resolveLinePrice } from '../../utils/cart-line-price-display'
+import { resolveLinePrice, itemBaseUnitPrice, groupAndSortCartItems, type CartCompanyGroup } from '../../utils/cart-line-price-display'
 
 /** Compact LTR money cell — thousands separators, no currency suffix, smart decimals. */
 function Money({ value, className = '' }: { value: number; className?: string }) {
@@ -32,6 +32,17 @@ const percentText = (pct: number) => {
 
 function SectionTitle({ children }: { children: string }) {
   return <div className="text-xs font-bold text-text-secondary mb-1.5">{children}</div>
+}
+
+function GroupHeader({ group, tone = 'blue' }: { group: CartCompanyGroup; tone?: 'blue' | 'violet' }) {
+  return (
+    <div className={`px-3 py-1.5 text-[11px] font-bold flex items-center justify-between border-y ${
+      tone === 'violet' ? 'bg-violet-50/90 border-violet-100 text-violet-800' : 'bg-blue-50/90 border-blue-100 text-blue-900'
+    }`}>
+      <span className="truncate">{group.companyName}</span>
+      <span className={`font-normal ${tone === 'violet' ? 'text-violet-600/80' : 'text-blue-600/80'}`}>{group.items.length} منتج</span>
+    </div>
+  )
 }
 
 export function CartPage() {
@@ -160,6 +171,12 @@ export function CartPage() {
     return map
   }, [products])
 
+  /** Company-grouped, alphabetically-ordered MAIN/BONUS lines for presentation only.
+   *  Quantities, prices, and offered discounts are untouched — the arrays feed
+   *  the row renderers in the exact same shape, merely reordered + grouped. */
+  const mainGroups = useMemo(() => groupAndSortCartItems(items, productCompanyMap), [items, productCompanyMap])
+  const bonusGroups = useMemo(() => groupAndSortCartItems(bonusItems, productCompanyMap), [bonusItems, productCompanyMap])
+
   if (!hydrated) return null
 
   if (items.length === 0 && dealItems.length === 0 && flashOfferItems.length === 0 && bonusItems.length === 0) {
@@ -246,15 +263,18 @@ export function CartPage() {
   }
 
   const codeFor = (item: CartItemType) => {
+    if (item.productCode) return item.productCode
     const product = products.find((p) => p.id === item.productId)
     return product?.legacyCode
   }
 
-  const hasDiscount = (item: CartItemType) =>
-    typeof item.baseUnitPrice === 'number' && item.baseUnitPrice >= 0 && Math.abs(item.baseUnitPrice - item.unitPrice) > 0.005
+  const hasDiscount = (item: CartItemType) => {
+    const base = itemBaseUnitPrice(item)
+    return base > 0 && Math.abs(base - item.unitPrice) > 0.005
+  }
 
   const lineBaseValue = (item: CartItemType) =>
-    Math.round((typeof item.baseUnitPrice === 'number' && item.baseUnitPrice >= 0 ? item.baseUnitPrice : item.unitPrice) * item.unitQuantity * 100) / 100
+    Math.round(itemBaseUnitPrice(item) * item.unitQuantity * 100) / 100
 
   /** Per-main-product-line governed Bonus credit (from totals.bonusSummary.items). */
   const bonusCreditFor = (item: CartItemType): number | null => {
@@ -270,7 +290,7 @@ export function CartPage() {
   /** Per-main-product-line actual monetary discount (Direct Discount mode only). */
   const discountFor = (item: CartItemType): number | null => {
     if (bonusMode || item.isBonus || !hasDiscount(item)) return null
-    return Math.round((item.baseUnitPrice - item.unitPrice) * item.unitQuantity * 100) / 100
+    return Math.round((itemBaseUnitPrice(item) - item.unitPrice) * item.unitQuantity * 100) / 100
   }
 
   const benefitFor = (item: CartItemType): number | null => (bonusMode ? bonusCreditFor(item) : discountFor(item))
@@ -871,13 +891,25 @@ export function CartPage() {
           {/* Desktop table (md+) */}
           <div className="hidden md:block bg-white">
             {tableHead(benefitWord)}
-            <div className="divide-y divide-blue-100">
-              {items.map((item, i) => desktopRow(item, false, i))}
-            </div>
+            {mainGroups.map((group) => (
+              <div key={group.companyId}>
+                <GroupHeader group={group} />
+                <div className="divide-y divide-blue-100">
+                  {group.items.map((item, i) => desktopRow(item, false, i))}
+                </div>
+              </div>
+            ))}
           </div>
           {/* Mobile structured blocks */}
-          <div className="md:hidden bg-white divide-y divide-blue-100">
-            {items.map((item) => mobileRow(item, false, ''))}
+          <div className="md:hidden bg-white">
+            {mainGroups.map((group) => (
+              <div key={group.companyId}>
+                <GroupHeader group={group} />
+                <div className="divide-y divide-blue-100">
+                  {group.items.map((item) => mobileRow(item, false, ''))}
+                </div>
+              </div>
+            ))}
           </div>
           {/* Total main products */}
           <div className="px-3 py-2 bg-blue-50/70 border-t border-blue-100 space-y-1">
@@ -957,13 +989,25 @@ export function CartPage() {
               {/* Desktop table (md+) */}
               <div className="hidden md:block bg-white">
                 {tableHead('إجمالي الصنف')}
-                <div className="divide-y divide-violet-100">
-                  {bonusItems.map((item, i) => desktopRow(item, true, i))}
-                </div>
+                {bonusGroups.map((group) => (
+                  <div key={group.companyId}>
+                    <GroupHeader group={group} tone="violet" />
+                    <div className="divide-y divide-violet-100">
+                      {group.items.map((item, i) => desktopRow(item, true, i))}
+                    </div>
+                  </div>
+                ))}
               </div>
               {/* Mobile structured blocks */}
-              <div className="md:hidden bg-white divide-y divide-violet-100">
-                {bonusItems.map((item) => mobileRow(item, true, 'bonus-'))}
+              <div className="md:hidden bg-white">
+                {bonusGroups.map((group) => (
+                  <div key={group.companyId}>
+                    <GroupHeader group={group} tone="violet" />
+                    <div className="divide-y divide-violet-100">
+                      {group.items.map((item) => mobileRow(item, true, 'bonus-'))}
+                    </div>
+                  </div>
+                ))}
               </div>
               {/* Total bonus products */}
               <div className="px-3 py-2 bg-violet-50/70 border-t border-violet-200 flex items-center justify-between">

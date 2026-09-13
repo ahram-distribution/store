@@ -13,7 +13,7 @@ import { formatMixedQuantity } from '../../utils/quantity-format'
 import { BusinessStatusCard } from '../../components/storefront/BusinessStatusCard'
 import type { CartItem as CartItemType, ProductWithPrice, UnitType } from '../../types/storefront'
 import { TierCompanyRulesNotice } from '../../components/storefront/TierCompanyRulesNotice'
-import { resolveLinePrice, percentText } from '../../utils/cart-line-price-display'
+import { resolveLinePrice, percentText, itemBaseUnitPrice, groupAndSortCartItems } from '../../utils/cart-line-price-display'
 
 const COMPANY_COLORS = [
   { bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-800', header: 'bg-blue-500' },
@@ -108,19 +108,12 @@ export function OrderReviewPage() {
   }, [products])
 
   const groups = useMemo(() => {
-    const grouped = new Map<string, { companyName: string; items: CartItemType[]; subtotal: number }>()
-    for (const item of items) {
-      const company = productCompanyMap.get(item.productId)
-      const companyId = company?.id || item.companyId || 'unknown'
-      const companyName = company?.name || item.companyName || 'غير معروف'
-      if (!grouped.has(companyId)) {
-        grouped.set(companyId, { companyName, items: [], subtotal: 0 })
-      }
-      const g = grouped.get(companyId)!
-      g.items.push(item)
-      g.subtotal += item.totalPrice
-    }
-    return Array.from(grouped.entries()).map(([id, g]) => ({ id, ...g }))
+    return groupAndSortCartItems(items, productCompanyMap).map((g) => ({
+      id: g.companyId,
+      companyName: g.companyName,
+      items: g.items,
+      subtotal: g.items.reduce((sum, i) => sum + i.totalPrice, 0),
+    }))
   }, [items, productCompanyMap])
 
   if (cartEmpty) {
@@ -209,7 +202,7 @@ export function OrderReviewPage() {
           total_price: Math.round(item.totalPrice * 100) / 100,
         }
         if (!bonusMode) return base
-        const baseUnitPrice = Math.round((item.baseUnitPrice >= 0 ? item.baseUnitPrice : item.unitPrice) * 100) / 100
+        const baseUnitPrice = Math.round(itemBaseUnitPrice(item) * 100) / 100
         return { ...base, base_unit_price: baseUnitPrice }
       })
 
@@ -218,15 +211,48 @@ export function OrderReviewPage() {
         unit_type: item.unitType,
         unit_quantity: item.unitQuantity,
         piece_quantity: item.pieceQuantity,
-        base_unit_price: Math.round((item.baseUnitPrice >= 0 ? item.baseUnitPrice : item.unitPrice) * 100) / 100,
+        base_unit_price: Math.round(itemBaseUnitPrice(item) * 100) / 100,
         unit_price: Math.round(item.unitPrice * 100) / 100,
       }))
+
+      const bonusFinancialPayload = live.bonusMode
+        ? {
+            p_bonus_items: bonusItemsPayload,
+            p_bonus_mode_used: true,
+            p_bonus_credit: Math.round(liveTotals.bonusCredit * 100) / 100,
+            p_bonus_products_total: Math.round(liveTotals.bonusProductsTotal * 100) / 100,
+            p_bonus_applied: Math.round(liveTotals.bonusApplied * 100) / 100,
+            p_bonus_unused: Math.round(liveTotals.bonusUnused * 100) / 100,
+            p_bonus_overflow: Math.round(liveTotals.bonusOverflow * 100) / 100,
+            p_main_base_total: Math.round(liveTotals.mainBaseTotal * 100) / 100,
+            p_bonus_overflow_approved: useCartStore.getState().bonusOverflowApproved,
+            p_bonus_governorate_id: (() => {
+              const gov = live.geographicContext?.governorateId ?? null
+              if (gov == null) return null
+              const cartProducts = [...live.items, ...live.bonusItems]
+              const resolved = live.geoItemAdjustments
+              // Only claim a governorate when EVERY cart product has a resolved
+              // per-product adjustment; otherwise the server would reprice those
+              // lines to a different geo base and reject the order. Unresolved
+              // lines keep the list price and submit without a governorate claim.
+              const canClaim = cartProducts.every((item) =>
+                Object.prototype.hasOwnProperty.call(resolved, item.productId)
+              )
+              return canClaim ? gov : null
+            })(),
+          }
+        : {}
 
       if (editingOrderId) {
         const { error: replaceError, data: replaceData } = await supabase.rpc('governed_replace_order_contents', {
           p_token: token,
           p_id: editingOrderId,
           p_items: orderItems,
+          p_tier_id: selectedTier?.id || null,
+          p_notes: null,
+          ...bonusFinancialPayload,
+          p_payment_method_option_id: selectedPaymentMethod?.id || null,
+          p_shipping_method_option_id: selectedShippingMethod?.id || null,
         })
         if (replaceError) { toast.error('تعذر تحديث الطلب الآن. يرجى المحاولة مرة أخرى.'); setSubmitting(false); return }
         if (replaceData && typeof replaceData === 'object' && 'error' in replaceData && replaceData.error) {
@@ -248,14 +274,6 @@ export function OrderReviewPage() {
           setSubmitting(false)
           return
         }
-        supabase.rpc('governed_update_order_discount_options', {
-          p_token: token,
-          p_order_id: editingOrderId,
-          p_tier_id: selectedTier?.id || null,
-          p_payment_method_option_id: selectedPaymentMethod?.id || null,
-          p_shipping_method_option_id: selectedShippingMethod?.id || null,
-          p_reason: 'تحديث خيارات الخصم أثناء تعديل الطلب',
-        }).then(() => {}).catch(() => {})
         toast.success('تم تحديث الطلب وإرساله بنجاح!')
       } else {
         const { data: created, error: createError } = await supabase.rpc('governed_create_order', {
@@ -272,33 +290,7 @@ export function OrderReviewPage() {
           p_order_type: orderType || 'cash',
           p_payment_method_option_id: selectedPaymentMethod?.id || null,
           p_shipping_method_option_id: selectedShippingMethod?.id || null,
-          ...(live.bonusMode
-            ? {
-                p_bonus_items: bonusItemsPayload,
-                p_bonus_mode_used: true,
-                p_bonus_credit: Math.round(liveTotals.bonusCredit * 100) / 100,
-                p_bonus_products_total: Math.round(liveTotals.bonusProductsTotal * 100) / 100,
-                p_bonus_applied: Math.round(liveTotals.bonusApplied * 100) / 100,
-                p_bonus_unused: Math.round(liveTotals.bonusUnused * 100) / 100,
-                p_bonus_overflow: Math.round(liveTotals.bonusOverflow * 100) / 100,
-                p_main_base_total: Math.round(liveTotals.mainBaseTotal * 100) / 100,
-                p_bonus_overflow_approved: useCartStore.getState().bonusOverflowApproved,
-                p_bonus_governorate_id: (() => {
-                  const gov = live.geographicContext?.governorateId ?? null
-                  if (gov == null) return null
-                  const cartProducts = [...live.items, ...live.bonusItems]
-                  const resolved = live.geoItemAdjustments
-                  // Only claim a governorate when EVERY cart product has a resolved
-                  // per-product adjustment; otherwise the server would reprice those
-                  // lines to a different geo base and reject the order. Unresolved
-                  // lines keep the list price and submit without a governorate claim.
-                  const canClaim = cartProducts.every((item) =>
-                    Object.prototype.hasOwnProperty.call(resolved, item.productId)
-                  )
-                  return canClaim ? gov : null
-                })(),
-              }
-            : {}),
+          ...bonusFinancialPayload,
         })
         if (createError) { toast.error(resolveCreateOrderError(createError.message)); setSubmitting(false); return }
         if (!created) { toast.error(resolveCreateOrderError(undefined)); setSubmitting(false); return }
@@ -412,15 +404,6 @@ export function OrderReviewPage() {
               {group.items.map((item) => (
                 <div key={`${item.productId}-${item.unitType}`} className="px-4 py-3">
                   <div className="flex gap-3">
-                    <div className="w-16 h-16 rounded-lg bg-white border border-border shrink-0 overflow-hidden">
-                      {item.imageUrl ? (
-                        <img src={item.imageUrl} alt={item.productName} className="w-full h-full object-contain" />
-                      ) : (
-                        <div className="w-full h-full bg-surface flex items-center justify-center">
-                          <span className="text-xs text-text-secondary">صورة</span>
-                        </div>
-                      )}
-                    </div>
                     <div className="flex-1 min-w-0 space-y-1">
                       <h4 className="text-sm font-semibold text-text leading-tight truncate">{item.productName}</h4>
                       <div className="text-xs text-text-secondary">
@@ -561,15 +544,6 @@ export function OrderReviewPage() {
           <div className="divide-y divide-violet-100">
             {bonusItems.map((item) => (
               <div key={`bonus-${item.productId}-${item.unitType}`} className="px-4 py-3 flex items-center gap-3">
-                <div className="w-12 h-12 rounded-lg bg-white border border-violet-200 shrink-0 overflow-hidden">
-                  {item.imageUrl ? (
-                    <img src={item.imageUrl} alt={item.productName} className="w-full h-full object-contain" />
-                  ) : (
-                    <div className="w-full h-full bg-white flex items-center justify-center">
-                      <span className="text-sm">🎁</span>
-                    </div>
-                  )}
-                </div>
                 <div className="flex-1 min-w-0">
                   <h4 className="text-sm font-semibold text-text leading-tight truncate">{item.productName}</h4>
                   <div className="text-xs text-text-secondary">

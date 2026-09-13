@@ -99,7 +99,7 @@ interface CartState {
   subscribeToBonusMode: () => void
   refreshDiscountOptions: () => Promise<void>
   subscribeToDiscountOptions: () => void
-  restoreCart: (items: CartItem[], editingOrderId: string, restoreOrderType?: string, restoreTierId?: string | null, restorePaymentMethodId?: string | null, restoreShippingMethodId?: string | null) => void
+  restoreCart: (items: CartItem[], editingOrderId: string, restoreOrderType?: string) => void
   resolveGeographicPricing: (governorateId: string | null, companyId?: string, productId?: string) => Promise<void>
   resolveEmployeeGeographicContext: (employeeId: string) => Promise<void>
   setGeographicContext: (ctx: GeographicContext | null) => void
@@ -244,7 +244,11 @@ export const useCartStore = create(
         get().recomputeBonus()
       },
 
-      setProducts: (products) => set({ products }),
+      setProducts: (products) => {
+        set({ products })
+        get().recalculateAll()
+        get().recomputeBonus()
+      },
 
       syncProduct: (product) => {
         const state = get()
@@ -1049,19 +1053,16 @@ export const useCartStore = create(
         }
       },
 
-      restoreCart: (orderItems, editingOrderId, restoreOrderType, restoreTierId, restorePaymentMethodId, restoreShippingMethodId) => {
+      restoreCart: (orderItems, editingOrderId, restoreOrderType) => {
         const state = get()
         const mapped: CartItem[] = orderItems.map((i: any) => {
           const product = state.products.find(p => p.id === i.product_id)
           return {
             productId: i.product_id,
             productName: i.product_name || '',
+            productCode: i.legacy_code || i.product_code || i.products?.legacy_code || undefined,
             unitType: i.unit_type,
-            unitQuantity: i.unit_quantity,
-            pieceQuantity: i.piece_quantity,
-            baseUnitPrice: i.base_unit_price ?? undefined,
-            unitPrice: i.unit_price,
-            totalPrice: i.total_price,
+            unitQuantity: Number(i.unit_quantity) || 0,
             imageUrl: i.image_url || undefined,
             note: i.note || undefined,
             companyId: product?.companyId ?? i.company_id,
@@ -1076,11 +1077,8 @@ export const useCartStore = create(
           bonusItems,
           editingOrderId,
           orderType: restoreOrderType || '',
-          selectedTierId: restoreTierId !== undefined ? restoreTierId : state.selectedTierId,
-          selectedPaymentMethodId: restorePaymentMethodId !== undefined ? restorePaymentMethodId : state.selectedPaymentMethodId,
-          selectedShippingMethodId: restoreShippingMethodId !== undefined ? restoreShippingMethodId : state.selectedShippingMethodId,
         })
-        get().recomputeBonus()
+        get().recalculateAll()
       },
 
       getDealItems: () => get().dealItems,

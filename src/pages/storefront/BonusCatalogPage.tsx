@@ -22,9 +22,12 @@ const UNIT_PRIORITY: UnitType[] = ['carton', 'dozen', 'piece']
 
 /** Base value of a Bonus cart line + selection-total derivation, mirroring the
  *  engine so the live status bar never needs the full bonus-totals recompute. */
-const bonusItemBaseValue = (item: { baseUnitPrice?: number; totalPrice: number; unitQuantity: number }): number => {
-  if (typeof item.baseUnitPrice === 'number' && item.baseUnitPrice >= 0) {
+const bonusItemBaseValue = (item: { baseUnitPrice?: number; unitPrice?: number; totalPrice: number; unitQuantity: number }): number => {
+  if (typeof item.baseUnitPrice === 'number' && item.baseUnitPrice > 0) {
     return Math.round(item.baseUnitPrice * item.unitQuantity * 100) / 100
+  }
+  if (typeof item.unitPrice === 'number' && item.unitPrice > 0) {
+    return Math.round(item.unitPrice * item.unitQuantity * 100) / 100
   }
   return Math.round(item.totalPrice * 100) / 100
 }
