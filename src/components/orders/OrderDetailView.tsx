@@ -18,6 +18,7 @@ import { buildTimelineEvents } from './order-detail.utils'
 import { copyToClipboard } from '../../utils/safeClipboard'
 import { buildOrderFinancialPresentation } from '../../utils/order-benefit-presentation'
 import { OrderOwnershipInfo } from './OrderOwnershipInfo'
+import { CustomerHistorySection } from './CustomerHistorySection'
 import type { UnifiedOrder, UnifiedOrderItem, InventorySnapshotItem, OrderEventLogItem } from '../../types/unified-order'
 import type { BusinessStatusCardData } from '../../utils/cart-availability'
 
@@ -304,6 +305,9 @@ export function OrderDetailView({ data, actions, onBack, editMode, editItems, on
         </span>
       </div>
 
+      {/* ── 4.1 CUSTOMER HISTORY SUMMARY (below Order Creator, before Products) ── */}
+      <CustomerHistorySection customer={customer} lastVisit={data.last_visit} currentOrderId={data.order.id} />
+
       {/* ── SHORTAGE SUMMARY (pre-execution guidance only — Physical Inventory Engine, never on execution-state orders) ── */}
       {inventorySnapshot && businessStatusByItem && !EXECUTION_GROUP.has(order.status) && (
         (() => {
@@ -355,77 +359,6 @@ export function OrderDetailView({ data, actions, onBack, editMode, editItems, on
       <OrderEventLogSection events={eventLog ?? []} />
 
       {/* ── 8. REMAINING: everything else ── */}
-
-      {/* Last Visit */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-        <div>
-          {data.last_visit && data.last_visit.start_latitude != null && data.last_visit.start_longitude != null ? (
-            <div className="bg-white rounded-lg border border-[#E5E7EB] shadow-sm p-4 h-full">
-              <p className="text-[14px] font-bold text-[#111827] mb-2">آخر زيارة للعميل</p>
-              <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[13px]">
-                <div><p className="text-[#9CA3AF] text-[11px]">المسؤول</p><p className="font-semibold text-[#111827]">{data.last_visit.employee_name || 'غير متوفر'}</p></div>
-                <div><p className="text-[#9CA3AF] text-[11px]">بداية الزيارة</p><p className="font-semibold text-[#111827]">{formatDateTime(data.last_visit.started_at)}</p></div>
-                {data.last_visit.completed_at && <div><p className="text-[#9CA3AF] text-[11px]">نهاية الزيارة</p><p className="font-semibold text-[#111827]">{formatDateTime(data.last_visit.completed_at)}</p></div>}
-                <div><p className="text-[#9CA3AF] text-[11px]">حالة الزيارة</p><p className="font-semibold text-[#111827]">{data.last_visit.status}</p></div>
-              </div>
-              <div className="grid grid-cols-4 gap-2 mt-2">
-                <a href={data.last_visit.maps_url} target="_blank" rel="noopener noreferrer"
-                  className="flex items-center justify-center gap-1 text-xs text-[#DC2626] bg-[#FEF2F2] hover:bg-[#FEE2E2] px-2 py-1.5 rounded-lg transition-colors font-medium h-[30px]">
-                  <svg className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-                  فتح
-                </a>
-                <button onClick={() => { copyToClipboard(data.last_visit.maps_url).then((ok) => { if (ok) window.alert('تم نسخ الرابط') }) }}
-                  className="flex items-center justify-center gap-1 text-xs text-[#2563EB] bg-[#EFF6FF] hover:bg-[#DBEAFE] px-2 py-1.5 rounded-lg transition-colors font-medium h-[30px]">
-                  <svg className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/></svg>
-                  نسخ
-                </button>
-                <button onClick={() => { if (navigator.share) navigator.share({title:'الموقع', text:'', url:data.last_visit.maps_url}) }}
-                  className="flex items-center justify-center gap-1 text-xs text-[#059669] bg-[#ECFDF5] hover:bg-[#D1FAE5] px-2 py-1.5 rounded-lg transition-colors font-medium h-[30px]">
-                  <svg className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/></svg>
-                  مشاركة
-                </button>
-                <button onClick={() => fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${data.last_visit.start_latitude}&lon=${data.last_visit.start_longitude}&accept-language=ar`).then(r=>r.json()).then(d=>window.alert(d.display_name||'تعذر استخراج العنوان')).catch(()=>window.alert('تعذر استخراج العنوان'))}
-                  className="flex items-center justify-center gap-1 text-xs text-[#D97706] bg-[#FFFBEB] hover:bg-[#FEF3C7] px-2 py-1.5 rounded-lg transition-colors font-medium h-[30px]">
-                  <svg className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
-                  عنوان
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="bg-white rounded-lg border border-[#E5E7EB] shadow-sm p-5 flex flex-col items-center justify-center gap-1.5 h-full min-h-[100px]">
-              <span className="text-2xl">📍</span>
-              <p className="text-xs text-[#6B7280] text-center">لم تتم أي زيارة لهذا العميل حتى الآن.</p>
-            </div>
-          )}
-        </div>
-        <div>
-          {(customer?.previous_order_count != null && customer.previous_order_count > 0) ? (
-            <div className="grid grid-cols-2 gap-2">
-              <div className="bg-white rounded-lg border border-[#E5E7EB] shadow-sm p-3 flex flex-col items-center justify-center">
-                <p className="text-[10px] text-[#9CA3AF] font-medium text-center">الطلبات السابقة</p>
-                <p className="text-[15px] font-bold text-[#111827]">{customer.previous_order_count}</p>
-              </div>
-              <div className="bg-white rounded-lg border border-[#E5E7EB] shadow-sm p-3 flex flex-col items-center justify-center">
-                <p className="text-[10px] text-[#9CA3AF] font-medium text-center">المشتريات السابقة</p>
-                <p className="text-[15px] font-bold text-[#059669]">{formatCurrencyShort(Number(customer.previous_orders_total))}</p>
-              </div>
-              <div className="bg-white rounded-lg border border-[#E5E7EB] shadow-sm p-3 flex flex-col items-center justify-center">
-                <p className="text-[10px] text-[#9CA3AF] font-medium text-center">آخر طلب سابق</p>
-                <p className="text-[12px] font-bold text-[#111827] font-mono">{customer.previous_order_number || '—'}</p>
-              </div>
-              <div className="bg-white rounded-lg border border-[#E5E7EB] shadow-sm p-3 flex flex-col items-center justify-center">
-                <p className="text-[10px] text-[#9CA3AF] font-medium text-center">قيمة آخر طلب</p>
-                {customer.previous_order_total != null && <p className="text-[13px] font-bold text-[#111827]">{formatCurrencyShort(Number(customer.previous_order_total))}</p>}
-                {customer.previous_order_date && <p className="text-[10px] text-[#6B7280]">{new Date(customer.previous_order_date).toLocaleDateString('ar-EG-u-nu-latn')}</p>}
-              </div>
-            </div>
-          ) : customer?.previous_order_count != null ? (
-            <div className="bg-white rounded-lg border border-[#E5E7EB] shadow-sm p-5 flex flex-col items-center justify-center h-full min-h-[100px]">
-              <p className="text-xs text-[#6B7280]">هذا أول طلب للعميل</p>
-            </div>
-          ) : null}
-        </div>
-      </div>
 
       {/* Order Notes */}
       {order.notes && (
