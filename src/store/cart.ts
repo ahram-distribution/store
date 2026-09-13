@@ -986,6 +986,16 @@ export const useCartStore = create(
           const merged = latest.geoItemEpoch === epochNow
             ? { ...latest.geoItemAdjustments, ...map }
             : map
+          // Products the batch omitted have NO effective geographic adjustment
+          // (0%). Record an explicit 0 so every requested product is marked as
+          // resolved — this is what lets the bonus submit path keep its
+          // governorate claim instead of dropping it. Dropping the claim while
+          // prices were already geo-adjusted would re-trigger the server's
+          // BONUS_PRICE_MISMATCH (client prices adhered to the rules, server
+          // would re-check against un-adjusted list prices).
+          for (const t of targets) {
+            if (merged[t.id] === undefined) merged[t.id] = 0
+          }
           set({ geoItemAdjustments: merged, geoItemEpoch: epochNow })
           get().recalculateAll()
         } catch {

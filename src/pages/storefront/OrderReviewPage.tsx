@@ -155,8 +155,24 @@ export function OrderReviewPage() {
       return
     }
 
-    const live = useCartStore.getState()
-    const liveTotals = live.getTotals()
+    let live = useCartStore.getState()
+    let liveTotals = live.getTotals()
+
+    // Bonus Mode is "verify-not-reprice": the server recomputes every line's
+    // geo-adjusted base price for p_bonus_governorate_id and aborts the order on
+    // any disagreement. Before building the payload we therefore AWAIT the
+    // per-product geographic resolution (no-op when already resolved) so the
+    // submitted unit prices always equal the server's authoritative base — this
+    // closes the window where a cart was priced at the fallback baseline while
+    // the server resolves a per-product geographic rule for the same governorate
+    // (which surfaced as a hard BONUS_PRICE_MISMATCH submission failure in
+    // governorates that carry product/company/sector price rules).
+    if (live.bonusMode) {
+      await live.ensureGeoItemAdjustments(live.products)
+      live = useCartStore.getState()
+      liveTotals = live.getTotals()
+    }
+
     if (live.bonusMode && (liveTotals.bonusOverflow ?? 0) > 0 && !live.bonusOverflowApproved) {
       toast.error('لم تتم الموافقة على الزيادة عن رصيد البونص. يرجى الموافقة عليها في سلة التسوق.')
       navigate('/cart')
@@ -183,7 +199,7 @@ export function OrderReviewPage() {
 
     let order: any = null
     try {
-      const orderItems = items.map((item) => {
+      const orderItems = live.items.map((item) => {
         const base = {
           product_id: item.productId,
           unit_type: item.unitType,
@@ -197,7 +213,7 @@ export function OrderReviewPage() {
         return { ...base, base_unit_price: baseUnitPrice }
       })
 
-      const bonusItemsPayload = bonusItems.map((item) => ({
+      const bonusItemsPayload = live.bonusItems.map((item) => ({
         product_id: item.productId,
         unit_type: item.unitType,
         unit_quantity: item.unitQuantity,
@@ -256,18 +272,31 @@ export function OrderReviewPage() {
           p_order_type: orderType || 'cash',
           p_payment_method_option_id: selectedPaymentMethod?.id || null,
           p_shipping_method_option_id: selectedShippingMethod?.id || null,
-          ...(bonusMode
+          ...(live.bonusMode
             ? {
                 p_bonus_items: bonusItemsPayload,
                 p_bonus_mode_used: true,
-                p_bonus_credit: Math.round(totals.bonusCredit * 100) / 100,
-                p_bonus_products_total: Math.round(totals.bonusProductsTotal * 100) / 100,
-                p_bonus_applied: Math.round(totals.bonusApplied * 100) / 100,
-                p_bonus_unused: Math.round(totals.bonusUnused * 100) / 100,
-                p_bonus_overflow: Math.round(totals.bonusOverflow * 100) / 100,
-                p_main_base_total: Math.round(totals.mainBaseTotal * 100) / 100,
+                p_bonus_credit: Math.round(liveTotals.bonusCredit * 100) / 100,
+                p_bonus_products_total: Math.round(liveTotals.bonusProductsTotal * 100) / 100,
+                p_bonus_applied: Math.round(liveTotals.bonusApplied * 100) / 100,
+                p_bonus_unused: Math.round(liveTotals.bonusUnused * 100) / 100,
+                p_bonus_overflow: Math.round(liveTotals.bonusOverflow * 100) / 100,
+                p_main_base_total: Math.round(liveTotals.mainBaseTotal * 100) / 100,
                 p_bonus_overflow_approved: useCartStore.getState().bonusOverflowApproved,
-                p_bonus_governorate_id: geographicContext?.governorateId || null,
+                p_bonus_governorate_id: (() => {
+                  const gov = live.geographicContext?.governorateId ?? null
+                  if (gov == null) return null
+                  const cartProducts = [...live.items, ...live.bonusItems]
+                  const resolved = live.geoItemAdjustments
+                  // Only claim a governorate when EVERY cart product has a resolved
+                  // per-product adjustment; otherwise the server would reprice those
+                  // lines to a different geo base and reject the order. Unresolved
+                  // lines keep the list price and submit without a governorate claim.
+                  const canClaim = cartProducts.every((item) =>
+                    Object.prototype.hasOwnProperty.call(resolved, item.productId)
+                  )
+                  return canClaim ? gov : null
+                })(),
               }
             : {}),
         })
