@@ -155,7 +155,18 @@ function buildBonusPresentation(order: UnifiedOrderHeader, items: UnifiedOrderIt
   const beforeBonusTotal = round2(mainBaseTotal + bonusProductsTotal)
 
   const effectivePercent = effectiveBenefitPercent(order)
-  const persistedCredit = num(order.bonus_credit)
+  // The persisted order-level bonus credit is authoritative. When a loaded
+  // payload omits the order-level bonus fields (get_unified_order regressions),
+  // fall back to the persisted per-item data: sum the per-line
+  // bonus_applied_amount markers on the gifted lines, else the order's
+  // discount_amount (which equals the applied bonus credit on a bonus order).
+  // Only orders that formally report bonus_mode_used === true rely exclusively
+  // on the order-level fields so the pinned no-fabrication contract holds.
+  const itemCreditFallback = round2(bonusItems.reduce((s, i) => s + num(i.bonus_applied_amount), 0))
+  const monetaryFallback = itemCreditFallback > 0 ? itemCreditFallback : num(order.discount_amount)
+  const persistedCredit = num(order.bonus_credit) > 0
+    ? num(order.bonus_credit)
+    : (order.bonus_mode_used === true ? 0 : monetaryFallback)
   const mainBase = num(order.main_base_total) > 0 ? num(order.main_base_total) : mainBaseTotal
   const creditRatio = mainBase > 0 && persistedCredit > 0 ? round2((persistedCredit / mainBase) * 100) : 0
   const uniform = creditRatio > 0 && Math.abs(creditRatio - effectivePercent) <= 0.01
@@ -199,7 +210,13 @@ export function buildOrderFinancialPresentation(
 ): OrderFinancialPresentation {
   const finalTotal = num(order.total_amount)
 
-  if (isBonusOrder(order)) {
+  // Bonus detection is item-driven whenever the order header does not confirm
+  // the bonus mode itself. Historical order payloads persist an `is_bonus`
+  // marker on every gifted (Bonus Store) line, so an order is presented as a
+  // Bonus Tiers order when that marker is present even if an order-level
+  // bonus_mode_used field is missing from the loaded payload.
+  const hasBonusItems = Array.isArray(items) && items.some((i) => i.is_bonus === true)
+  if (isBonusOrder(order) || hasBonusItems) {
     return buildBonusPresentation(order, items)
   }
 

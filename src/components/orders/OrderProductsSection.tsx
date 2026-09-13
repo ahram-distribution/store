@@ -374,10 +374,16 @@ export function OrderProductsSection({ items, mode = 'view', onQuantityChange, o
     return (
       <div>
         <div className="bg-white rounded-lg border border-[#E5E7EB] shadow-sm overflow-hidden">
-          <div className="px-5 py-3 border-b border-[#E5E7EB] bg-[#F9FAFB] flex flex-wrap items-center justify-between gap-2">
-            <h3 className="text-[14px] font-bold text-[#111827]">المنتجات</h3>
+          {/* MAIN PRODUCTS SECTION — المنتجات الأساسية */}
+          <div className="px-5 py-3 bg-[#F0FDF4] border-b border-[#D1FAE5] flex flex-wrap items-center justify-between gap-2">
+            <h3 className="text-[14px] font-extrabold text-[#2563EB]">المنتجات الأساسية</h3>
             <div className="flex items-center gap-3 flex-wrap">
-              <span className="text-[11px] text-[#6B7280]">{mainCount} صنف رئيسي{p.bonusGroup ? ` • ${bonusCount} صنف بونص` : ''}</span>
+              <span className="text-[11px] text-[#6B7280]">{mainCount} صنف رئيسي</span>
+              {p.bonusGroup && (
+                <span className="text-[11px] text-[#B45309] bg-[#FFFBEB] border border-[#FDE68A] px-2 py-0.5 rounded-full font-bold">
+                  {bonusCount} صنف بونص
+                </span>
+              )}
             </div>
           </div>
 
@@ -429,6 +435,11 @@ export function OrderProductsSection({ items, mode = 'view', onQuantityChange, o
 
           {p.bonusGroup && (
             <>
+              {/* BONUS PRODUCTS SECTION — منتجات البونص */}
+              <div className="px-5 py-3 bg-[#FFFBEB] border-t border-y border-[#FDE68A] flex flex-wrap items-center justify-between gap-2">
+                <h3 className="text-[14px] font-extrabold text-[#B45309]">منتجات البونص</h3>
+                <span className="text-[11px] text-[#B45309]">{bonusCount} صنف هدية</span>
+              </div>
               <div className="overflow-x-auto hidden md:block">
                 <BonusTable groups={[p.bonusGroup]} creditPct={null} bonusStyle={true} />
               </div>
