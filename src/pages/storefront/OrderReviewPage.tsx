@@ -134,7 +134,9 @@ export function OrderReviewPage() {
     // Two mandatory Bonus-mode eligibility gates (mirror CartPage.handleContinue):
     // تحقيق الشريحة (selected tier must be chosen AND achieved) and
     // الشراء بكامل رصيد البونص (gift products worth >= the earned credit).
-    if (bonusMode) {
+    // NO-TIER / BASE-PRICE orders (selectedTierId === null) do NOT participate in
+    // Bonus Tier eligibility and bypass both gates.
+    if (bonusMode && selectedTier !== null) {
       const tierAchieved = !!selectedTier && !!totals.meetsTierMinimum && !!totals.meetsCompanyRules
       const bonusUsageComplete = (totals.bonusProductsTotal ?? 0) >= (totals.bonusCredit ?? 0)
       if (!tierAchieved && !bonusUsageComplete) {
@@ -714,7 +716,7 @@ export function OrderReviewPage() {
       <button
         onClick={handleSubmit}
         disabled={submitting
-          || (bonusMode && (!(!!selectedTier && !!totals.meetsTierMinimum && !!totals.meetsCompanyRules) || (totals.bonusProductsTotal ?? 0) < (totals.bonusCredit ?? 0)))
+          || (bonusMode && selectedTier !== null && (!(!!selectedTier && !!totals.meetsTierMinimum && !!totals.meetsCompanyRules) || (totals.bonusProductsTotal ?? 0) < (totals.bonusCredit ?? 0)))
           || (selectedTier !== null && (!totals.meetsTierMinimum || !totals.meetsCompanyRules))
           || (bonusMode && (totals.bonusOverflow ?? 0) > 0 && !bonusOverflowApproved)}
         className="w-full bg-success text-white text-sm py-3 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed active:opacity-90 transition-colors"
