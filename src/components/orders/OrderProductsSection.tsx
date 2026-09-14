@@ -161,11 +161,11 @@ function CalculationSummary({ presentation, mode }: { presentation: OrderFinanci
         {presentation.mode === 'bonus' ? (
           <>
             <div className="flex items-center justify-between text-[13px]">
-              <span className="min-w-0 flex-1 pr-3 leading-snug text-[#6B7280]">إجمالي الطلب بالسعر الأساسي</span>
+              <span className="min-w-0 flex-1 pr-3 leading-snug text-[#6B7280]">إجمالي المنتجات الأساسية</span>
               <SummaryAmount amount={presentation.mainBaseTotal} symbol="+" tone="default" />
             </div>
             <div className="flex items-center justify-between text-[13px]">
-              <span className="min-w-0 flex-1 pr-3 leading-snug text-[#6B7280]">إجمالي قيمة منتجات البونص</span>
+              <span className="min-w-0 flex-1 pr-3 leading-snug text-[#6B7280]">إجمالي منتجات البونص</span>
               <SummaryAmount amount={presentation.bonusProductsTotal} symbol="+" tone="default" />
             </div>
             <div className="flex items-center justify-between border-t border-[#E5E7EB] pt-2.5">
@@ -173,11 +173,17 @@ function CalculationSummary({ presentation, mode }: { presentation: OrderFinanci
               <SummaryAmount amount={presentation.beforeBonusTotal} tone="result" symbol="=" />
             </div>
             <div className="flex items-center justify-between text-[13px] pt-1">
-              <span className="min-w-0 flex-1 pr-3 leading-snug text-[#6B7280]">إجمالي البونص المستحق</span>
-              <SummaryAmount amount={presentation.bonusCredit} tone="credit" symbol="−" />
+              <span className="min-w-0 flex-1 pr-3 leading-snug text-[#6B7280]">إجمالي البونص المستخدم</span>
+              <SummaryAmount amount={presentation.bonusApplied} tone="credit" symbol="−" />
             </div>
+            {presentation.bonusOverflow > 0 && (
+              <div className="flex items-center justify-between text-[13px] pt-1">
+                <span className="min-w-0 flex-1 pr-3 leading-snug text-[#6B7280]">الزيادة المطلوب دفعها</span>
+                <SummaryAmount amount={presentation.bonusOverflow} tone="result" symbol="+" />
+              </div>
+            )}
             <div className="flex items-center justify-between border-t border-[#D1D5DB] pt-2.5">
-              <span className="min-w-0 flex-1 pr-3 leading-snug text-[13px] font-bold text-[#111827]">المطلوب النهائي بعد خصم البونص</span>
+              <span className="min-w-0 flex-1 pr-3 leading-snug text-[13px] font-bold text-[#111827]">الإجمالي المستحق</span>
               <SummaryAmount amount={presentation.finalTotal} tone="final" symbol="=" />
             </div>
           </>

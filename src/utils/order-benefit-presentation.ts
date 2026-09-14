@@ -12,8 +12,13 @@
  *   mode 'none'   → no applicable Tier discount/benefit
  *
  * Never from today's global benefit mode. No values are invented here:
- * monetary numbers come from persisted fields and the item lines, and the
- * final total always equals the persisted order total.
+ * monetary numbers come from persisted fields and the item lines. Bonus credit
+ * is taken verbatim when persisted, otherwise derived ONLY from authoritative
+ * persisted snapshot percents × the item-derived main base (the same uniform
+ * math the shared Bonus engine uses) — never from today's global benefit mode
+ * and never from the live cart. The closing total is then computed from the
+ * bonus accounting (main base + overflow), matching the Cart's net total for
+ * historical Bonus orders; non-bonus orders keep the persisted order total.
  * ============================================================================
  */
 
@@ -55,13 +60,26 @@ export interface OrderFinancialPresentation {
   bonusProductsTotal: number
   /** mainBaseTotal + bonusProductsTotal (المطلوب قبل حساب البونص). */
   beforeBonusTotal: number
-  /** Persisted bonus credit (fallback: uniform ratio × main base total). */
+  /**
+   * Persisted bonus credit (fallback: uniform ratio × main base total). For
+   * payloads that drop the order-level bonus fields (get_unified_order
+   * regressions), the uniform ratio × item main base is derived instead.
+   */
   bonusCredit: number
+  /** min(bonusCredit, bonusProductsTotal) — how much of the credit covers gifts. */
+  bonusApplied: number
+  /** max(bonusCredit − bonusProductsTotal, 0) — credit left over when gifts < credit. */
+  bonusUnused: number
+  /** max(bonusProductsTotal − bonusCredit, 0) — gifts not covered by credit (amount due). */
+  bonusOverflow: number
   /** Sum of official base line totals of ALL products (Direct Discount). */
   directBaseTotal: number
   /** Actual monetary discount (persisted, or base − net). */
   directDiscountAmount: number
-  /** Persisted order total = the authoritative closing amount. */
+  /**
+   * Closing amount. Bonus mode: main base + overflow (Cart-equivalent bonus
+   * accounting). Direct / none: the persisted order total.
+   */
   finalTotal: number
 }
 
@@ -164,18 +182,30 @@ function buildBonusPresentation(order: UnifiedOrderHeader, items: UnifiedOrderIt
   // on the order-level fields so the pinned no-fabrication contract holds.
   const itemCreditFallback = round2(bonusItems.reduce((s, i) => s + num(i.bonus_applied_amount), 0))
   const monetaryFallback = itemCreditFallback > 0 ? itemCreditFallback : num(order.discount_amount)
+  const declaredBonusMode = order.bonus_mode_used === true
   const persistedCredit = num(order.bonus_credit) > 0
     ? num(order.bonus_credit)
-    : (order.bonus_mode_used === true ? 0 : monetaryFallback)
+    : (declaredBonusMode ? 0 : monetaryFallback)
   const mainBase = num(order.main_base_total) > 0 ? num(order.main_base_total) : mainBaseTotal
   const creditRatio = mainBase > 0 && persistedCredit > 0 ? round2((persistedCredit / mainBase) * 100) : 0
-  const uniform = creditRatio > 0 && Math.abs(creditRatio - effectivePercent) <= 0.01
 
-  const bonusCredit = persistedCredit > 0
-    ? persistedCredit
-    : uniform
-      ? round2((mainBase * effectivePercent) / 100)
-      : 0
+  // When the loaded payload drops the order-level bonus fields (a
+  // get_unified_order regression) the bonus credit is derived from the OTHER
+  // authoritative persisted markers: the snapshot percents × the item-derived
+  // main base — the exact uniform math the shared Bonus engine applies. This
+  // only fires when the payload did NOT formally declare bonus_mode_used, so an
+  // order that DOES declare bonus mode but carries no credit stays at 0 (the
+  // pinned no-fabrication contract). No values are ever taken from the live
+  // cart or today's global benefit mode.
+  const derivedCredit = !declaredBonusMode && persistedCredit === 0 && itemCreditFallback === 0 && num(order.discount_amount) === 0 && effectivePercent > 0 && mainBase > 0 && bonusProductsTotal > 0
+    ? round2((mainBase * effectivePercent) / 100)
+    : 0
+
+  const uniform = derivedCredit > 0 || (creditRatio > 0 && Math.abs(creditRatio - effectivePercent) <= 0.01)
+  const bonusCredit = persistedCredit > 0 ? persistedCredit : derivedCredit > 0 ? derivedCredit : 0
+  const bonusApplied = round2(Math.min(bonusCredit, bonusProductsTotal))
+  const bonusUnused = round2(Math.max(bonusCredit - bonusProductsTotal, 0))
+  const bonusOverflow = round2(Math.max(bonusProductsTotal - bonusCredit, 0))
 
   return {
     mode: 'bonus',
@@ -198,9 +228,12 @@ function buildBonusPresentation(order: UnifiedOrderHeader, items: UnifiedOrderIt
     bonusProductsTotal,
     beforeBonusTotal,
     bonusCredit,
+    bonusApplied,
+    bonusUnused,
+    bonusOverflow,
     directBaseTotal: 0,
     directDiscountAmount: 0,
-    finalTotal: num(order.total_amount),
+    finalTotal: round2(mainBase + bonusOverflow),
   }
 }
 
@@ -233,6 +266,9 @@ export function buildOrderFinancialPresentation(
       bonusProductsTotal: 0,
       beforeBonusTotal: 0,
       bonusCredit: 0,
+      bonusApplied: 0,
+      bonusUnused: 0,
+      bonusOverflow: 0,
       directBaseTotal: 0,
       directDiscountAmount: 0,
       finalTotal,
@@ -258,6 +294,9 @@ export function buildOrderFinancialPresentation(
     bonusProductsTotal: 0,
     beforeBonusTotal: 0,
     bonusCredit: 0,
+    bonusApplied: 0,
+    bonusUnused: 0,
+    bonusOverflow: 0,
     directBaseTotal,
     directDiscountAmount,
     finalTotal,

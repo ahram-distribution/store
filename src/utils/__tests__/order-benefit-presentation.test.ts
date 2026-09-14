@@ -318,7 +318,8 @@ describe('CASE C — edge cases', () => {
     assert.equal(p.bonusGroup, null)
     assert.equal(p.bonusProductsTotal, 0)
     assert.equal(p.beforeBonusTotal, 50880)
-    assert.equal(p.finalTotal, 51276)
+    assert.equal(p.finalTotal, 50880) // main base + no overflow (credit fully unused)
+    assert.equal(p.bonusUnused, 1272)
     assert.equal(p.uniform, true)
     assert.equal(p.perLineCreditPct, 2.5)
   })
@@ -327,6 +328,8 @@ describe('CASE C — edge cases', () => {
     order.bonus_credit = 999.5
     const p = buildOrderFinancialPresentation(order, acceptanceItems())
     assert.equal(p.bonusCredit, 999.5)
+    assert.equal(p.bonusApplied, 999.5)
+    assert.equal(p.bonusOverflow, 668.5)
   })
   it('does not fabricate a credit when nothing is persisted and ratio is unknown', () => {
     const order = acceptanceOrder()
@@ -343,10 +346,11 @@ describe('CASE C — edge cases', () => {
     assert.equal(mainLineCredit(item, 0.5), 5)
     assert.equal(mainLineCredit(item, 2.5), 25)
   })
-  it('uses the persisted final total as the authoritative closing number', () => {
+  it('computes the closing total from the bonus accounting (main base + overflow), mirroring the Cart net total', () => {
     const order = acceptanceOrder()
-    order.total_amount = 51276.5
-    assert.equal(buildOrderFinancialPresentation(order, acceptanceItems()).finalTotal, 51276.5)
+    order.total_amount = 51276.5 // stale stored total — the Cart-derived closing wins for Bonus orders
+    const p = buildOrderFinancialPresentation(order, acceptanceItems())
+    assert.equal(p.finalTotal, 51276) // 50880 + overflow 396, not the raw persisted total
   })
   it('formats integer uniform benefit percents without decimals (2 → "2%")', () => {
     const order = makeHeader({
@@ -354,5 +358,71 @@ describe('CASE C — edge cases', () => {
       main_base_total: 1000, bonus_credit: 20, total_amount: 980,
     })
     assert.equal(buildOrderFinancialPresentation(order, [makeItem({ base_unit_price: 250, unit_price: 250, unit_quantity: 4, total_price: 1000 })]).benefitInfoLabel, 'إجمالي المنفعة: 2%')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// REGRESSION — ORD-2026-000366 (returned_for_revision) through the live
+// get_unified_order payload. The RPC drops ALL order-level bonus fields
+// (bonus_mode_used, main_base_total, bonus_credit, bonus_products_total) and
+// the snapshot percents only arrive via get_order_discount_snapshots + merge
+// (1% tier + 0.5% payment = 1.5%). The credit must NOT collapse to 0 — it is
+// derived from the authoritative persisted snapshot ratio × the item-derived
+// main base (the same uniform math the shared Bonus engine applies), and the
+// closing total follows the bonus accounting (main base + overflow).
+//   main 145,725 + bonus 2,880 = 148,605
+//   credit 1.5% × 145,725 = 2,185.88 → applied 2,185.88, overflow 694.12
+//   final 145,725 + 694.12 = 146,419.12
+// ---------------------------------------------------------------------------
+describe('REGRESSION — ORD-2026-000366 (RPC drops order-level bonus fields)', () => {
+  function ord366Header(): UnifiedOrderHeader {
+    return makeHeader({
+      id: 'o366', order_number: 'ORD-2026-000366',
+      status: 'returned_for_revision', revision_number: 1,
+      subtotal: 148605, discount_amount: 0, total_amount: 148605, // persisted, stale closing (no credit applied)
+      snapshot_tier_name: 'شريحة ألفي جنيه', snapshot_tier_discount: 1,
+      snapshot_payment_name: 'دفع مسبق', snapshot_payment_discount: 0.5,
+      snapshot_shipping_name: 'استلام من مخزن الشركة', snapshot_shipping_discount: 0,
+    })
+  }
+  function ord366Items(): UnifiedOrderItem[] {
+    // main: 50×960 + 50×960 + 50×960 + 3×575 = 145,725
+    // bonus: 2×960 (dozen) + 1×960 (carton) = 2,880
+    return [
+      makeItem({ id: 'm1', legacy_code: '1', product_name: 'صبغه باليت', unit_type: 'carton', unit_quantity: 50, piece_quantity: 50, base_unit_price: 960, unit_price: 960, total_price: 48000, is_bonus: false, bonus_applied_amount: undefined }),
+      makeItem({ id: 'm2', legacy_code: '26', product_name: 'صبغه باليت', unit_type: 'carton', unit_quantity: 50, piece_quantity: 50, base_unit_price: 960, unit_price: 960, total_price: 48000, is_bonus: false, bonus_applied_amount: undefined }),
+      makeItem({ id: 'm3', legacy_code: '39', product_name: 'صبغه باليت', unit_type: 'carton', unit_quantity: 50, piece_quantity: 50, base_unit_price: 960, unit_price: 960, total_price: 48000, is_bonus: false, bonus_applied_amount: undefined }),
+      makeItem({ id: 'm4', legacy_code: '41', product_name: 'شامبو', unit_type: 'carton', unit_quantity: 3, piece_quantity: 3, base_unit_price: 575, unit_price: 575, total_price: 1725, is_bonus: false, bonus_applied_amount: undefined }),
+      makeItem({ id: 'b1', legacy_code: '1075', product_name: 'ايفا بادي سبلاش', unit_type: 'dozen', unit_quantity: 2, piece_quantity: 24, base_unit_price: 960, unit_price: 960, total_price: 1920, is_bonus: true, bonus_applied_amount: undefined }),
+      makeItem({ id: 'b2', legacy_code: '1076', product_name: 'ايفا بادي', unit_type: 'carton', unit_quantity: 1, piece_quantity: 1, base_unit_price: 960, unit_price: 960, total_price: 960, is_bonus: true, bonus_applied_amount: undefined }),
+    ]
+  }
+
+  it('derives the correct educational numbers that match the Cart (145,725 / 2,880 / 148,605 / 2,185.88 / 146,419.12)', () => {
+    const p = buildOrderFinancialPresentation(ord366Header(), ord366Items())
+    assert.equal(p.mode, 'bonus')
+    assert.equal(p.mainBaseTotal, 145725)
+    assert.equal(p.bonusProductsTotal, 2880)
+    assert.equal(p.beforeBonusTotal, 148605)
+    assert.equal(p.bonusCredit, 2185.88)
+    assert.equal(p.bonusApplied, 2185.88)
+    assert.equal(p.bonusUnused, 0)
+    assert.equal(p.bonusOverflow, 694.12)
+    assert.equal(p.finalTotal, 146419.12)
+  })
+  it('detects the uniform 1.5% snapshot ratio even though order-level bonus fields were dropped', () => {
+    const p = buildOrderFinancialPresentation(ord366Header(), ord366Items())
+    assert.equal(p.uniform, true)
+    assert.equal(p.perLineCreditPct, 1.5)
+    assert.equal(p.benefitInfoLabel, 'إجمالي المنفعة: 1.5%')
+  })
+  it('REG-ADJUST: a returned order whose payload DOES declare bonus_mode_used but carries no credit stays at 0 (no fabrication)', () => {
+    const order = ord366Header()
+    order.bonus_mode_used = true // formally declared, so it relies exclusively on order-level fields
+    order.bonus_credit = null
+    order.main_base_total = null
+    const p = buildOrderFinancialPresentation(order, ord366Items())
+    assert.equal(p.bonusCredit, 0)
+    assert.equal(p.uniform, false)
   })
 })

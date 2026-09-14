@@ -163,7 +163,7 @@ export function OrderDetailView({ data, actions, onBack, editMode, editItems, on
           </div>
           <div className="text-left">
             <div className="text-[18px] font-bold text-[#111827]">
-              {formatCurrencyShort(netTotal)}
+              {formatCurrencyShort(orderFinancial.mode === 'bonus' ? orderFinancial.finalTotal : netTotal)}
             </div>
             {discountAmount > 0 && (
               <div className="text-[11px] text-[#059669] font-medium">
