@@ -132,7 +132,7 @@ function BonusTable({ groups, creditPct, bonusStyle }: { groups: BonusGroupResul
 
 function SummaryAmount({ amount, symbol, tone }: { amount: number; symbol?: string; tone: 'default' | 'result' | 'credit' | 'final' }) {
   const cls = tone === 'final'
-    ? 'text-[22px] font-extrabold text-[#059669]'
+    ? 'text-[26px] font-extrabold text-[#059669]'
     : tone === 'credit'
       ? 'font-bold text-[#059669]'
       : tone === 'result'
@@ -146,61 +146,69 @@ function SummaryAmount({ amount, symbol, tone }: { amount: number; symbol?: stri
   )
 }
 
+function CalcRow({ label, explain, amount, symbol, tone, labelClass, divider }: {
+  label: string
+  explain?: string
+  amount: number
+  symbol?: string
+  tone: 'default' | 'result' | 'credit' | 'final'
+  labelClass?: string
+  divider?: boolean
+}) {
+  const cls = labelClass ?? 'text-[13px] font-medium text-[#374151]'
+  return (
+    <div className={`flex items-center justify-between gap-3 px-4 py-2.5 ${divider ? 'border-t border-[#E5E7EB]' : ''} ${tone === 'final' ? 'bg-[#F0FDF4]' : ''}`}>
+      <div className="min-w-0">
+        <p className={`leading-snug ${cls}`}>{label}</p>
+        {explain && <p className="mt-0.5 text-[10.5px] text-[#6B7280] leading-snug break-words">{explain}</p>}
+      </div>
+      <SummaryAmount amount={amount} symbol={symbol} tone={tone} />
+    </div>
+  )
+}
+
 /**
- * FINAL CALCULATION SUMMARY — always rendered AFTER every product group
- * (MAIN company groups + Bonus products) and immediately before the final
- * order totals. Never attaches a percentage to the monetary credit.
+ * FINAL CALCULATION SUMMARY — professional ERP-style card, always rendered
+ * AFTER every product group (MAIN company groups + Bonus products) and
+ * immediately before the final order totals. Displays ONLY the precomputed
+ * presentation values; no financial logic lives here. Never attaches a
+ * percentage to the monetary credit.
  */
 function CalculationSummary({ presentation, mode }: { presentation: OrderFinancialPresentation; mode: 'view' }) {
   if (presentation.mode === 'none') return null
 
+  const bonus = presentation.mode === 'bonus'
+
   return (
-    <div className="bg-[#F8FAFC] border-t border-[#E5E7EB] px-5 py-4">
-      <p className="text-[12px] font-bold text-[#111827] mb-3">حساب قيمة الطلب النهائية</p>
-      <div className="max-w-xl mx-auto space-y-2.5">
-        {presentation.mode === 'bonus' ? (
+    <div className="bg-[#F8FAFC] border-t border-[#E5E7EB] px-4 md:px-6 py-4">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <p className="text-[14px] font-extrabold text-[#111827]">حساب قيمة الطلب النهائية</p>
+        {bonus && presentation.effectivePercent > 0 && (
+          <span className="text-[11px] bg-[#ECFDF5] text-[#059669] px-2 py-0.5 rounded-full font-bold">
+            {presentation.benefitInfoLabel || `إجمالي المنفعة ${presentation.effectivePercent}%`}
+          </span>
+        )}
+      </div>
+      <div className="rounded-lg border border-[#E5E7EB] bg-white overflow-hidden">
+        {bonus ? (
           <>
-            <div className="flex items-center justify-between text-[13px]">
-              <span className="min-w-0 flex-1 pr-3 leading-snug text-[#6B7280]">إجمالي المنتجات الأساسية</span>
-              <SummaryAmount amount={presentation.mainBaseTotal} symbol="+" tone="default" />
-            </div>
-            <div className="flex items-center justify-between text-[13px]">
-              <span className="min-w-0 flex-1 pr-3 leading-snug text-[#6B7280]">إجمالي منتجات البونص</span>
-              <SummaryAmount amount={presentation.bonusProductsTotal} symbol="+" tone="default" />
-            </div>
-            <div className="flex items-center justify-between border-t border-[#E5E7EB] pt-2.5">
-              <span className="min-w-0 flex-1 pr-3 leading-snug text-[13px] font-bold text-[#111827]">المطلوب قبل حساب البونص</span>
-              <SummaryAmount amount={presentation.beforeBonusTotal} tone="result" symbol="=" />
-            </div>
-            <div className="flex items-center justify-between text-[13px] pt-1">
-              <span className="min-w-0 flex-1 pr-3 leading-snug text-[#6B7280]">إجمالي البونص المستخدم</span>
-              <SummaryAmount amount={presentation.bonusApplied} tone="credit" symbol="−" />
-            </div>
-            {presentation.bonusOverflow > 0 && (
-              <div className="flex items-center justify-between text-[13px] pt-1">
-                <span className="min-w-0 flex-1 pr-3 leading-snug text-[#6B7280]">الزيادة المطلوب دفعها</span>
-                <SummaryAmount amount={presentation.bonusOverflow} tone="result" symbol="+" />
-              </div>
+            <CalcRow label="إجمالي المنتجات الأساسية" explain="قيمة الأصناف الرئيسية بالسعر الأساسي قبل أي خصم" amount={presentation.mainBaseTotal} symbol="+" tone="result" labelClass="text-[15px] font-bold text-[#111827]" />
+            <CalcRow label="قيمة منتجات البونص المختارة" explain="قيمة الأصناف المهداة التي تم اختيارها" amount={presentation.bonusProductsTotal} symbol="+" tone="default" />
+            <CalcRow label="المطلوب قبل حساب البونص" explain="إجمالي الطلب قبل تطبيق رصيد البونص" amount={presentation.beforeBonusTotal} tone="result" symbol="=" labelClass="text-[13px] font-bold text-[#111827]" divider />
+            <CalcRow label="بونص الفاتورة" explain="الخصم الذي غطاه رصيد البونص" amount={presentation.bonusApplied} tone="credit" symbol="−" />
+            {presentation.bonusUnused > 0 && (
+              <CalcRow label="رصيد البونص المتبقي" explain="بونص متاح لم يُستهلك في هذا الطلب" amount={presentation.bonusUnused} tone="default" />
             )}
-            <div className="flex items-center justify-between border-t border-[#D1D5DB] pt-2.5">
-              <span className="min-w-0 flex-1 pr-3 leading-snug text-[13px] font-bold text-[#111827]">الإجمالي المستحق</span>
-              <SummaryAmount amount={presentation.finalTotal} tone="final" symbol="=" />
-            </div>
+            {presentation.bonusOverflow > 0 && (
+              <CalcRow label="الزيادة المطلوب دفعها" explain="قيمة أصناف البونص التي تتجاوز رصيد البونص" amount={presentation.bonusOverflow} tone="result" symbol="+" />
+            )}
+            <CalcRow label="الاجمالى النهائى" explain="المطلوب سداده عن هذا الطلب" amount={presentation.finalTotal} tone="final" symbol="=" labelClass="text-[16px] font-bold text-[#111827]" divider />
           </>
         ) : (
           <>
-            <div className="flex items-center justify-between text-[13px]">
-              <span className="min-w-0 flex-1 pr-3 leading-snug text-[#6B7280]">إجمالي الطلب بالسعر الأساسي</span>
-              <SummaryAmount amount={presentation.directBaseTotal} symbol="+" tone="default" />
-            </div>
-            <div className="flex items-center justify-between text-[13px]">
-              <span className="min-w-0 flex-1 pr-3 leading-snug text-[#6B7280]">إجمالي الخصم</span>
-              <SummaryAmount amount={presentation.directDiscountAmount} tone="credit" symbol="−" />
-            </div>
-            <div className="flex items-center justify-between border-t border-[#D1D5DB] pt-2.5">
-              <span className="min-w-0 flex-1 pr-3 leading-snug text-[13px] font-bold text-[#111827]">المطلوب النهائي بعد الخصم</span>
-              <SummaryAmount amount={presentation.finalTotal} tone="final" symbol="=" />
-            </div>
+            <CalcRow label="إجمالي الطلب بالسعر الأساسي" explain="قيمة الأصناف قبل تطبيق الخصم" amount={presentation.directBaseTotal} symbol="+" tone="default" />
+            <CalcRow label="إجمالي الخصم" explain="إجمالي الخصومات المطبقة على الطلب" amount={presentation.directDiscountAmount} tone="credit" symbol="−" />
+            <CalcRow label="المطلوب النهائي بعد الخصم" explain="المطلوب سداده عن هذا الطلب" amount={presentation.finalTotal} tone="final" symbol="=" labelClass="text-[16px] font-bold text-[#111827]" divider />
           </>
         )}
       </div>

@@ -2,6 +2,7 @@ import { formatCurrencyShort, formatDate } from '../../utils/format'
 import { formatNumber } from '../../utils/numbers'
 import { UNIT_LABELS, ORDER_STATUS_LABELS } from '../../types/order-display'
 import type { UnifiedOrder } from '../../types/unified-order'
+import { buildOrderFinancialPresentation } from '../../utils/order-benefit-presentation'
 
 function esc(s: string | null | undefined): string {
   if (!s) return ''
@@ -133,6 +134,12 @@ export function renderDeliveryPermitHtml(data: UnifiedOrder, logoUrl?: string): 
   const totalPieces = items.reduce((s, i) => s + Number(i.piece_quantity || 0), 0)
   const totalQty = items.reduce((s, i) => s + Number(i.unit_quantity || 0), 0)
 
+  const financial = buildOrderFinancialPresentation(order, items)
+  const statusLabel = ORDER_STATUS_LABELS[order.status] || order.status || ''
+  const effectivePercent = financial.mode !== 'none'
+    ? (financial.effectivePercent > 0 ? financial.effectivePercent : Number(order.effective_discount_percent || 0))
+    : 0
+
   const netTotal = Number(order.total_amount ?? (grandTotal - Number(order.discount_amount || 0)))
   const hasNetItems = items.length > 0 && items.some((i: any) => {
     const base = Number(i.base_unit_price ?? 0)
@@ -141,6 +148,8 @@ export function renderDeliveryPermitHtml(data: UnifiedOrder, logoUrl?: string): 
   })
   const netFactor = !hasNetItems && grandTotal > 0 && netTotal > 0 && netTotal < grandTotal ? netTotal / grandTotal : 1
   const net = (amount: number) => Math.round(amount * netFactor * 100) / 100
+
+  const finalTotal = financial.mode !== 'none' && financial.finalTotal > 0 ? financial.finalTotal : Number(order.total_amount ?? 0) || net(grandTotal)
 
   const groups = () => {
     const map: Record<string, { company: string; items: typeof items; subtotal: number }> = {}
@@ -179,8 +188,66 @@ export function renderDeliveryPermitHtml(data: UnifiedOrder, logoUrl?: string): 
       <div class="summary-row"><span class="summary-label">إجمالي الوحدات</span><span class="summary-value">${formatNumber(totalQty)}</span></div>
       <div class="summary-row"><span class="summary-label">إجمالي القطع</span><span class="summary-value">${formatNumber(totalPieces)}</span></div>
       <hr class="summary-divider" />
-      <div class="summary-row summary-grand"><span class="summary-label">الإجمالي النهائي</span><span class="summary-value">${formatCurrencyShort(net(grandTotal))}</span></div>
+      <div class="summary-row summary-grand"><span class="summary-label">الإجمالي النهائي</span><span class="summary-value">${formatCurrencyShort(finalTotal)}</span></div>
     </div>`
+  }
+
+  function calcTableRow(label: string, value: string, symbol?: string, tone?: 'default' | 'credit' | 'result' | 'final'): string {
+    const rowCls = tone === 'final' ? ' calc-final' : ''
+    const labelCls = tone === 'result' || tone === 'final' ? ' calc-label-strong' : ''
+    const valueCls = tone === 'credit' ? ' calc-value-credit' : tone === 'final' ? ' calc-value-final' : ''
+    return `<tr class="calc-row${rowCls}"><td class="calc-label${labelCls}">${label}</td><td class="calc-value${valueCls}" dir="ltr">${symbol ? `${symbol} ` : ''}${value}</td></tr>`
+  }
+
+  function calcSection(): string {
+    if (financial.mode === 'none') {
+      return `<div class="bill-section"><div class="bill-title">حساب قيمة الطلب النهائية</div><table class="calc-table">${calcTableRow('الاجمالى النهائى', formatCurrencyShort(finalTotal), '=', 'final')}</table></div>`
+    }
+    let body = ''
+    if (financial.mode === 'bonus') {
+      body = calcTableRow('إجمالي المنتجات الأساسية', formatCurrencyShort(financial.mainBaseTotal), '+', 'result')
+        + calcTableRow('قيمة منتجات البونص المختارة', formatCurrencyShort(financial.bonusProductsTotal), '+')
+        + calcTableRow('المطلوب قبل حساب البونص', formatCurrencyShort(financial.beforeBonusTotal), '=', 'result')
+        + calcTableRow('بونص الفاتورة', formatCurrencyShort(financial.bonusApplied), '−', 'credit')
+      if (financial.bonusUnused > 0) body += calcTableRow('رصيد البونص المتبقي', formatCurrencyShort(financial.bonusUnused))
+      if (financial.bonusOverflow > 0) body += calcTableRow('الزيادة المطلوب دفعها', formatCurrencyShort(financial.bonusOverflow), '+', 'result')
+      body += calcTableRow('الاجمالى النهائى', formatCurrencyShort(finalTotal), '=', 'final')
+    } else {
+      body = calcTableRow('إجمالي الطلب بالسعر الأساسي', formatCurrencyShort(financial.directBaseTotal), '+')
+        + calcTableRow('إجمالي الخصم', formatCurrencyShort(financial.directDiscountAmount), '−', 'credit')
+        + calcTableRow('الاجمالى النهائى', formatCurrencyShort(finalTotal), '=', 'final')
+    }
+    return `<div class="bill-section"><div class="bill-title">حساب قيمة الطلب النهائية</div><table class="calc-table">${body}</table></div>`
+  }
+
+  function benefitDetailsSection(): string {
+    const rows: string[] = []
+    const add = (label: string, value: string) => rows.push(`<div class="b-item"><span class="b-label">${label}</span><span class="b-value">${value}</span></div>`)
+
+    if (order.snapshot_tier_name) {
+      add('الشريحة السعرية', `${esc(order.snapshot_tier_name)}${order.snapshot_tier_discount ? ` <span class="b-pct">(${order.snapshot_tier_discount}%)</span>` : ''}`)
+    }
+    if (order.snapshot_payment_name) {
+      add('طريقة الدفع', `${esc(order.snapshot_payment_name)}${order.snapshot_payment_discount ? ` <span class="b-pct">(${order.snapshot_payment_discount}%)</span>` : ''}`)
+    }
+    if (order.snapshot_shipping_name) {
+      add('نظام الشحن', `${esc(order.snapshot_shipping_name)}${order.snapshot_shipping_discount ? ` <span class="b-pct">(${order.snapshot_shipping_discount}%)</span>` : ''}`)
+    }
+
+    if (financial.mode === 'bonus') {
+      if (effectivePercent > 0) add('إجمالي نسبة المنفعة', `${effectivePercent}%`)
+      add('قيمة البونص', formatCurrencyShort(financial.bonusApplied))
+      add('رصيد البونص', formatCurrencyShort(financial.bonusCredit))
+      add('قيمة منتجات البونص', formatCurrencyShort(financial.bonusProductsTotal))
+      if (financial.bonusUnused > 0) add('البونص غير المستخدم', formatCurrencyShort(financial.bonusUnused))
+      if (financial.bonusOverflow > 0) add('الزيادة المطلوب دفعها', formatCurrencyShort(financial.bonusOverflow))
+    } else if (financial.directDiscountAmount > 0 || effectivePercent > 0) {
+      if (effectivePercent > 0) add('إجمالي نسبة الخصم', `${effectivePercent}%`)
+      add('قيمة الخصم', formatCurrencyShort(financial.directDiscountAmount))
+    }
+
+    if (rows.length === 0) return ''
+    return `<div class="bill-section"><div class="bill-title">تفاصيل الشريحة والخصومات</div><div class="bill-grid">${rows.join('')}</div></div>`
   }
 
   return `<!DOCTYPE html>
@@ -225,6 +292,23 @@ export function renderDeliveryPermitHtml(data: UnifiedOrder, logoUrl?: string): 
   .summary-divider { border: none; border-top: 1px solid #d1d5db; margin: 5px 0; }
   .summary-grand .summary-label { font-weight: 700; color: #0d2b6b; font-size: 11pt; }
   .summary-grand .summary-value { font-weight: 800; color: #0052cc; font-size: 11pt; }
+  .bill-section { border: 1px solid #e5e7eb; border-radius: 6px; padding: 10px 14px; margin-bottom: 16px; background: #fafafa; page-break-inside: avoid; }
+  .bill-title { font-size: 11pt; font-weight: 700; color: #0d2b6b; margin-bottom: 8px; padding-bottom: 5px; border-bottom: 1px solid #d1d5db; }
+  .bill-grid { display: flex; flex-wrap: wrap; gap: 4px 24px; font-size: 9pt; }
+  .b-item { min-width: 42%; display: flex; gap: 6px; align-items: baseline; padding: 2px 0; }
+  .b-label { color: #6b7280; font-weight: 700; white-space: nowrap; }
+  .b-value { font-weight: 600; color: #222; }
+  .b-pct { color: #059669; font-weight: 700; font-size: 8pt; }
+  .calc-table { width: 100%; border-collapse: collapse; }
+  .calc-table tr { page-break-inside: avoid; }
+  .calc-row td { padding: 5px 6px; border-bottom: 1px solid #e5e7eb; font-size: 9pt; text-align: right; }
+  .calc-row .calc-label { color: #6b7280; }
+  .calc-row .calc-label-strong { color: #0d2b6b; font-weight: 700; }
+  .calc-row .calc-value { text-align: left; font-weight: 700; color: #111; white-space: nowrap; }
+  .calc-row .calc-value-credit { color: #059669; }
+  .calc-final td { background: #f0f5ff; border-top: 2px solid #0052cc; border-bottom: none; }
+  .calc-final .calc-label-strong { font-size: 11pt; color: #0d2b6b; }
+  .calc-final .calc-value-final { font-size: 11pt; font-weight: 800; color: #0052cc; }
   .legal-box { border: 2px solid #dc2626; border-radius: 6px; padding: 10px 14px; margin-top: 20px; background: #fff5f5; page-break-inside: avoid; }
   .legal-box .legal-title { font-size: 9pt; font-weight: 700; color: #dc2626; margin-bottom: 4px; }
   .legal-box .legal-text { font-size: 9pt; color: #555; line-height: 1.8; }
@@ -261,12 +345,17 @@ export function renderDeliveryPermitHtml(data: UnifiedOrder, logoUrl?: string): 
     <div style="width:100%"><span class="label">العنوان:</span> <span class="value">${esc(customerAddress) || 'غير متوفر'}</span></div>
     <div><span class="label">المندوب:</span> <span class="value">${esc(repName)}</span></div>
     <div><span class="label">نوع الدفع:</span> <span class="value">${esc(paymentLabel)}</span></div>
+    <div><span class="label">الحالة:</span> <span class="value">${esc(statusLabel)}</span></div>
   </div>
 </div>
 
 ${itemsTable()}
 
 ${summarySection()}
+
+${benefitDetailsSection()}
+
+${calcSection()}
 
 <div class="legal-box">
   <div class="legal-title">تنويه قانوني</div>
