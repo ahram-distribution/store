@@ -467,8 +467,14 @@ restoreCart,
   }
 
   const moveToNextInitStep = () => {
-    if (initStep === 'tier') setInitStep('payment')
-    else if (initStep === 'payment') setInitStep('shipping')
+    if (initStep === 'tier') {
+      if (selectedTierId === null) {
+        if (isEmployee) setInitStep('customer')
+        else setTimeout(() => handleInitComplete(), 0)
+      } else {
+        setInitStep('payment')
+      }
+    } else if (initStep === 'payment') setInitStep('shipping')
     else if (initStep === 'shipping') {
       if (isEmployee) setInitStep('customer')
       else setTimeout(() => handleInitComplete(), 0)
@@ -621,9 +627,9 @@ restoreCart,
 
       {/* Order Initialization Modal */}
       {showInitModal && (() => {
-        const initSteps: ('tier' | 'payment' | 'shipping' | 'customer')[] = isEmployee
-          ? ['tier', 'payment', 'shipping', 'customer']
-          : ['tier', 'payment', 'shipping']
+        const initSteps: ('tier' | 'payment' | 'shipping' | 'customer')[] = ['tier']
+        if (selectedTierId !== null) initSteps.push('payment', 'shipping')
+        if (isEmployee) initSteps.push('customer')
         const initStepIndex = initSteps.indexOf(initStep)
         const stepTitle =
           initStep === 'tier' ? 'اختر شريحتك السعرية'

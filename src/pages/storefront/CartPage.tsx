@@ -797,9 +797,9 @@ export function CartPage() {
                 selectTier,
                 'السعر الأساسي'
               )}
-            {visiblePaymentMethods.length > 0 &&
+            {selectedTierId !== null && visiblePaymentMethods.length > 0 &&
               renderBenefitSelect('طريقة الدفع', selectedPaymentMethodId, visiblePaymentMethods, selectPaymentMethod, 'نقدي / بدون طريقة')}
-            {visibleShippingMethods.length > 0 &&
+            {selectedTierId !== null && visibleShippingMethods.length > 0 &&
               renderBenefitSelect('طريقة الشحن', selectedShippingMethodId, visibleShippingMethods, selectShippingMethod, 'بدون طريقة شحن')}
           </div>
           {selectedTier && !totals.meetsTierMinimum && (
