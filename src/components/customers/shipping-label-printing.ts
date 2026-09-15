@@ -36,7 +36,7 @@ export function renderShippingLabelHtml(data: ShippingLabelData): string {
 </style></head>
 <body>
 <div class="sheet">
-  <div class="row"><span class="lbl">المرسل اليه / </span><span class="val">${val(data.customerName)}</span></div>
+  <div class="row"><span class="lbl">المرسل له / </span><span class="val">${val(data.customerName)}</span></div>
   <div class="row"><span class="lbl">رقم التليفون / </span><span class="val" dir="ltr">${val(data.customerPhone)}</span></div>
   <div class="row"><span class="lbl">العنوان / </span><span class="val">${val(data.customerAddress)}</span></div>
   <div class="row"><span class="lbl">الراسل / </span><span class="val sender">${SENDER}</span></div>
