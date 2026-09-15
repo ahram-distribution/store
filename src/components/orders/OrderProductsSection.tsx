@@ -130,13 +130,13 @@ function BonusTable({ groups, creditPct, bonusStyle }: { groups: BonusGroupResul
   )
 }
 
-function SummaryAmount({ amount, symbol, tone }: { amount: number; symbol?: string; tone: 'default' | 'result' | 'credit' | 'final' }) {
+function SummaryAmount({ amount, symbol, tone, large }: { amount: number; symbol?: string; tone: 'default' | 'result' | 'credit' | 'final'; large?: boolean }) {
   const cls = tone === 'final'
     ? 'text-[26px] font-extrabold text-[#059669]'
     : tone === 'credit'
       ? 'font-bold text-[#059669]'
       : tone === 'result'
-        ? 'font-bold text-[#111827] text-[15px]'
+        ? (large ? 'font-extrabold text-[#1D4ED8] text-[22px]' : 'font-bold text-[#111827] text-[15px]')
         : 'font-semibold text-[#111827]'
   return (
     <span className={`inline-flex items-center gap-1 whitespace-nowrap shrink-0 ${cls}`} dir="ltr">
@@ -146,7 +146,7 @@ function SummaryAmount({ amount, symbol, tone }: { amount: number; symbol?: stri
   )
 }
 
-function CalcRow({ label, explain, amount, symbol, tone, labelClass, divider }: {
+function CalcRow({ label, explain, amount, symbol, tone, labelClass, divider, highlight }: {
   label: string
   explain?: string
   amount: number
@@ -154,7 +154,18 @@ function CalcRow({ label, explain, amount, symbol, tone, labelClass, divider }: 
   tone: 'default' | 'result' | 'credit' | 'final'
   labelClass?: string
   divider?: boolean
+  highlight?: boolean
 }) {
+  if (highlight) {
+    return (
+      <div className="my-1.5 rounded-xl border-2 border-[#2563EB] bg-[#EFF6FF] px-4 py-3 shadow-sm">
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-[19px] font-extrabold text-[#1D4ED8] leading-snug">{label}</p>
+          <SummaryAmount amount={amount} symbol={symbol} tone={tone} large />
+        </div>
+      </div>
+    )
+  }
   const cls = labelClass ?? 'text-[13px] font-medium text-[#374151]'
   return (
     <div className={`flex items-center justify-between gap-3 px-4 py-2.5 ${divider ? 'border-t border-[#E5E7EB]' : ''} ${tone === 'final' ? 'bg-[#F0FDF4]' : ''}`}>
@@ -192,7 +203,7 @@ function CalculationSummary({ presentation, mode }: { presentation: OrderFinanci
       <div className="rounded-lg border border-[#E5E7EB] bg-white overflow-hidden">
         {bonus ? (
           <>
-            <CalcRow label="إجمالي المنتجات الأساسية" explain="قيمة الأصناف الرئيسية بالسعر الأساسي قبل أي خصم" amount={presentation.mainBaseTotal} symbol="+" tone="result" labelClass="text-[15px] font-bold text-[#111827]" />
+            <CalcRow label="إجمالي المنتجات الأساسية" amount={presentation.mainBaseTotal} symbol="+" tone="result" highlight />
             <CalcRow label="قيمة منتجات البونص المختارة" explain="قيمة الأصناف المهداة التي تم اختيارها" amount={presentation.bonusProductsTotal} symbol="+" tone="default" />
             <CalcRow label="المطلوب قبل حساب البونص" explain="إجمالي الطلب قبل تطبيق رصيد البونص" amount={presentation.beforeBonusTotal} tone="result" symbol="=" labelClass="text-[13px] font-bold text-[#111827]" divider />
             <CalcRow label="بونص الفاتورة" explain="الخصم الذي غطاه رصيد البونص" amount={presentation.bonusApplied} tone="credit" symbol="−" />

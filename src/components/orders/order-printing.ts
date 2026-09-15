@@ -210,10 +210,10 @@ export function renderDeliveryPermitHtml(data: UnifiedOrder, logoUrl?: string): 
     </div>`
   }
 
-  function calcTableRow(label: string, value: string, symbol?: string, tone?: 'default' | 'credit' | 'result' | 'final'): string {
-    const rowCls = tone === 'final' ? ' calc-final' : ''
-    const labelCls = tone === 'result' || tone === 'final' ? ' calc-label-strong' : ''
-    const valueCls = tone === 'credit' ? ' calc-value-credit' : tone === 'final' ? ' calc-value-final' : ''
+  function calcTableRow(label: string, value: string, symbol?: string, tone?: 'default' | 'credit' | 'result' | 'final' | 'highlight'): string {
+    const rowCls = tone === 'final' ? ' calc-final' : tone === 'highlight' ? ' calc-highlight' : ''
+    const labelCls = tone === 'result' || tone === 'final' ? ' calc-label-strong' : tone === 'highlight' ? ' calc-label-highlight' : ''
+    const valueCls = tone === 'credit' ? ' calc-value-credit' : tone === 'final' ? ' calc-value-final' : tone === 'highlight' ? ' calc-value-highlight' : ''
     return `<tr class="calc-row${rowCls}"><td class="calc-label${labelCls}">${label}</td><td class="calc-value${valueCls}" dir="ltr">${symbol ? `${symbol} ` : ''}${value}</td></tr>`
   }
 
@@ -223,7 +223,7 @@ export function renderDeliveryPermitHtml(data: UnifiedOrder, logoUrl?: string): 
     }
     let body = ''
     if (financial.mode === 'bonus') {
-      body = calcTableRow('إجمالي المنتجات الأساسية', formatCurrencyShort(financial.mainBaseTotal), '+', 'result')
+      body = calcTableRow('إجمالي المنتجات الأساسية', formatCurrencyShort(financial.mainBaseTotal), '+', 'highlight')
         + calcTableRow('قيمة منتجات البونص المختارة', formatCurrencyShort(financial.bonusProductsTotal), '+')
         + calcTableRow('المطلوب قبل حساب البونص', formatCurrencyShort(financial.beforeBonusTotal), '=', 'result')
         + calcTableRow('بونص الفاتورة', formatCurrencyShort(financial.bonusApplied), '−', 'credit')
@@ -330,6 +330,11 @@ export function renderDeliveryPermitHtml(data: UnifiedOrder, logoUrl?: string): 
   .calc-final td { background: #f0f5ff; border-top: 2px solid #0052cc; border-bottom: none; }
   .calc-final .calc-label-strong { font-size: 11pt; color: #0d2b6b; }
   .calc-final .calc-value-final { font-size: 11pt; font-weight: 800; color: #0052cc; }
+  .calc-highlight td { background: #EFF6FF; border-top: 2px solid #2563EB; border-bottom: 2px solid #2563EB; }
+  .calc-highlight td:first-child { border-right: 2px solid #2563EB; }
+  .calc-highlight td:last-child { border-left: 2px solid #2563EB; }
+  .calc-row .calc-label-highlight { font-size: 12pt; font-weight: 800; color: #1D4ED8; }
+  .calc-row .calc-value-highlight { font-size: 12pt; font-weight: 800; color: #1D4ED8; }
   .legal-box { border: 2px solid #dc2626; border-radius: 6px; padding: 10px 14px; margin-top: 20px; background: #fff5f5; page-break-inside: avoid; }
   .legal-box .legal-title { font-size: 9pt; font-weight: 700; color: #dc2626; margin-bottom: 4px; }
   .legal-box .legal-text { font-size: 9pt; color: #555; line-height: 1.8; }
