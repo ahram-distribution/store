@@ -31,17 +31,21 @@ interface CustomerAddressCardProps {
 
 const ENRICHED = 'completed'
 
+/** Authoritative manual full address (العنوان الكامل) exactly as shown on the
+ * customer screen: governorate + city + street/landmark, joined with ' - '. */
+export function buildManualFullAddress(data: { governorate: string | null; city: string | null; address_line1: string | null; address_line2: string | null } | null | undefined): string {
+  if (!data) return ''
+  return [
+    data.governorate,
+    data.city,
+    data.address_line1 || data.address_line2,
+  ].filter(Boolean).join(' - ')
+}
+
 export function CustomerAddressCard({ type, manualData, gpsData, onUpdateLocation }: CustomerAddressCardProps) {
   const isManual = type === 'manual'
 
-  const manualFullAddress = useMemo(() => {
-    if (!manualData) return ''
-    return [
-      manualData.governorate,
-      manualData.city,
-      manualData.address_line1 || manualData.address_line2,
-    ].filter(Boolean).join(' - ')
-  }, [manualData])
+  const manualFullAddress = useMemo(() => buildManualFullAddress(manualData), [manualData])
 
   const hasCoords = gpsData?.latitude != null && gpsData?.longitude != null
   const statusPending = gpsData?.enrichment_status === 'pending'

@@ -1,5 +1,7 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { supabase } from '../../lib/supabase'
+import { buildManualFullAddress } from '../customers/CustomerAddressCard'
 import { sendWhatsAppFromDisplay, copyWhatsAppFromDisplay } from '../../lib/whatsapp'
 import { buildOrderDisplayData } from '../../types/order-display'
 import { StatusBadge } from '../shared/StatusBadge'
@@ -58,6 +60,31 @@ export function OrderDetailView({ data, actions, onBack, editMode, editItems, on
   const orderFinancial = useMemo(() => buildOrderFinancialPresentation(order, items), [order, items])
   const timelineEvents = useMemo(() => buildTimelineEvents(data), [data])
 
+  // Authoritative current customer address (العنوان الكامل) from the customer
+  // record — the single source for both the screen display and all PDFs.
+  const [customerFullAddress, setCustomerFullAddress] = useState<string | undefined>(undefined)
+  useEffect(() => {
+    const cid = customer?.id || order.customer_id
+    let token: string | null = null
+    try { token = localStorage.getItem('session_token') } catch { token = null }
+    if (!cid || !token) return
+    supabase.rpc('get_governed_customer', { p_token: token, p_id: cid }).then(({ data: res }) => {
+      const c = (Array.isArray(res) ? res[0] : res) as any
+      if (!c || c.error) return
+      setCustomerFullAddress(buildManualFullAddress({
+        governorate: c.governorate_name ?? null,
+        city: c.city_name ?? null,
+        address_line1: c.street_address ?? null,
+        address_line2: c.landmark ?? null,
+      }))
+    }).catch(() => {})
+  }, [customer?.id, order.customer_id])
+
+  const legacyAddress = customer
+    ? [customer.address_line1, customer.address_line2, customer.city, customer.governorate].filter(Boolean).join(', ')
+    : ''
+  const displayAddress = customerFullAddress !== undefined ? customerFullAddress : legacyAddress
+
   const collectedAmount = useMemo(() => {
     if (!collections?.length) return 0
     return collections
@@ -73,7 +100,7 @@ export function OrderDetailView({ data, actions, onBack, editMode, editItems, on
 
   function handlePdf(compact: boolean) {
     const logoUrl = window.location.origin + '/store/branding/ahram-logo.png'
-    const html = renderDeliveryPermitHtml(data, logoUrl)
+    const html = renderDeliveryPermitHtml(data, logoUrl, customerFullAddress)
     if (compact) {
       const comp = html.replace(/size: A4/, 'size: A5').replace(/1cm/g, '0.4cm').replace(/10pt/g, '8pt').replace(/18pt/g, '11pt').replace(/20pt/g, '14pt')
       printInvoice(comp)
@@ -84,7 +111,7 @@ export function OrderDetailView({ data, actions, onBack, editMode, editItems, on
 
   async function handlePdfDownload() {
     const logoUrl = window.location.origin + '/store/branding/ahram-logo.png'
-    const html = renderDeliveryPermitHtml(data, logoUrl)
+    const html = renderDeliveryPermitHtml(data, logoUrl, customerFullAddress)
       .replace(/size: A4/, 'size: A5')
       .replace(/1cm/g, '0.4cm')
       .replace(/10pt/g, '8pt')
@@ -97,11 +124,11 @@ export function OrderDetailView({ data, actions, onBack, editMode, editItems, on
   }
 
   function handlePrepPrint() {
-    printPreparationPermit(data)
+    printPreparationPermit(data, customerFullAddress)
   }
 
   async function handlePrepDownload() {
-    await downloadPreparationPermitPdf(data)
+    await downloadPreparationPermitPdf(data, customerFullAddress)
   }
 
   function handleWhatsApp() {
@@ -266,11 +293,11 @@ export function OrderDetailView({ data, actions, onBack, editMode, editItems, on
             })()}
           </span>
         </div>
-        {customer && (customer.address_line1 || customer.address_line2 || customer.city || customer.governorate) && (
+        {displayAddress && (
           <div>
             <span style={{color:'#9CA3AF'}}>العنوان:</span>{' '}
             <span className="font-semibold text-[#111827]">
-              {[customer.address_line1, customer.address_line2, customer.city, customer.governorate].filter(Boolean).join(', ')}
+              {displayAddress}
             </span>
           </div>
         )}

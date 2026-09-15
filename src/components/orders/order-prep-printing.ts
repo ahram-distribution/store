@@ -139,7 +139,7 @@ const PAGINATION_SCRIPT = `
  * كود الصنف | اسم الصنف | الكمية | الوحدة | تم التحضير | تمت المراجعة
  * so the two manual checkbox columns sit on the LEFT.
  */
-export function renderPreparationPermitHtml(data: UnifiedOrder): string {
+export function renderPreparationPermitHtml(data: UnifiedOrder, customerFullAddress?: string | null): string {
   const order = data.order
   const items = data.items
   const lc = data.customer
@@ -147,9 +147,9 @@ export function renderPreparationPermitHtml(data: UnifiedOrder): string {
 
   const customerName = useLive ? (lc.company_name || '') : (order.snapshot_customer_name || '')
   const customerPhone = useLive ? (lc.phone || '') : (order.snapshot_customer_phone || '')
-  const customerAddress = useLive
+  const customerAddress = customerFullAddress !== undefined ? (customerFullAddress || '') : (useLive
     ? [lc.governorate, lc.city, lc.address_line1, lc.address_line2].filter(Boolean).join(' - ')
-    : (order.snapshot_customer_address || '')
+    : (order.snapshot_customer_address || ''))
   const repName = order.order_creator_name || order.snapshot_sender_name || ''
 
   const mainItems = items.filter((i) => i.is_bonus !== true)
@@ -346,12 +346,12 @@ export function renderPreparationPermitHtml(data: UnifiedOrder): string {
 </body></html>`
 }
 
-export function printPreparationPermit(data: UnifiedOrder) {
-  printInvoice(renderPreparationPermitHtml(data))
+export function printPreparationPermit(data: UnifiedOrder, customerFullAddress?: string | null) {
+  printInvoice(renderPreparationPermitHtml(data, customerFullAddress))
 }
 
-export async function downloadPreparationPermitPdf(data: UnifiedOrder) {
-  const html = renderPreparationPermitHtml(data)
+export async function downloadPreparationPermitPdf(data: UnifiedOrder, customerFullAddress?: string | null) {
+  const html = renderPreparationPermitHtml(data, customerFullAddress)
   const html2canvas = (await import('html2canvas')).default
   const { jsPDF } = await import('jspdf')
 
