@@ -29,14 +29,15 @@ export function renderShippingLabelHtml(data: ShippingLabelData): string {
   body { font-family: Calibri, sans-serif; background: #fff; color: #000; }
   .sheet { border: 2pt solid #000; display: flex; flex-direction: column; }
   .warn-zone { flex: 0 0 33%; display: flex; flex-direction: row; align-items: center; justify-content: space-evenly; border-bottom: 1.5pt solid #000; }
-  .warn-text { font-size: 28pt; font-weight: 800; color: #000; text-align: center; }
+  .warn-text { font-size: 44.7216pt; font-weight: 900; color: #000; text-align: center; white-space: nowrap; }
   .fragile { border: 2pt solid #000; background: #fff; padding: 2mm; display: flex; }
   .fragile svg { display: block; width: 24mm; height: 24mm; }
   .data-zone { flex: 1; display: flex; flex-direction: column; justify-content: space-evenly; padding: 4mm 3mm; }
   .row { text-align: right; line-height: 1.4; }
-  .lbl { font-size: 20pt; font-weight: 700; color: #000; }
-  .val { font-size: 24pt; font-weight: 700; color: #000; }
-  .sender { font-size: 21pt; white-space: nowrap; }
+  .lbl { font-size: 26.62pt; font-weight: 700; color: #000; }
+  .val { font-size: 31.944pt; font-weight: 700; color: #000; }
+  .sender { font-size: 19pt; white-space: nowrap; }
+  .data-zone > .row:last-child { white-space: nowrap; }
   @media print { body { margin: 7mm !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; } .sheet { height: 196mm; } }
 </style></head>
 <body>
