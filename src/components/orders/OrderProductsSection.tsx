@@ -130,18 +130,28 @@ function BonusTable({ groups, creditPct, bonusStyle }: { groups: BonusGroupResul
   )
 }
 
-function SummaryAmount({ amount, symbol, tone, large }: { amount: number; symbol?: string; tone: 'default' | 'result' | 'credit' | 'final'; large?: boolean }) {
+function SummaryAmount({ amount, symbol, tone, large }: { amount: number; symbol?: string; tone: 'default' | 'result' | 'credit' | 'final' | 'highlight' | 'amber' | 'purple' | 'teal' | 'red'; large?: boolean }) {
   const cls = tone === 'final'
     ? 'text-[26px] font-extrabold text-[#059669]'
     : tone === 'credit'
       ? 'font-bold text-[#059669]'
-      : tone === 'result'
-        ? (large ? 'font-extrabold text-[#1D4ED8] text-[22px]' : 'font-bold text-[#111827] text-[15px]')
-        : 'font-semibold text-[#111827]'
+      : tone === 'highlight' || (tone === 'result' && large)
+        ? 'font-extrabold text-[#1D4ED8] text-[22px]'
+        : tone === 'result'
+          ? 'font-bold text-[#111827] text-[15px]'
+          : tone === 'amber'
+            ? 'font-bold text-[#B45309]'
+            : tone === 'purple'
+              ? 'font-bold text-[#7C3AED]'
+              : tone === 'teal'
+                ? 'font-bold text-[#0E7490]'
+                : tone === 'red'
+                  ? 'font-bold text-[#DC2626]'
+                  : 'font-semibold text-[#111827]'
   return (
     <span className={`inline-flex items-center gap-1 whitespace-nowrap shrink-0 ${cls}`} dir="ltr">
       {symbol && <span className="text-[11px] font-bold text-[#94A3B8]">{symbol}</span>}
-      {formatCurrencyShort(amount)}
+      {formatValue(amount)}
     </span>
   )
 }
@@ -151,7 +161,7 @@ function CalcRow({ label, explain, amount, symbol, tone, labelClass, divider, hi
   explain?: string
   amount: number
   symbol?: string
-  tone: 'default' | 'result' | 'credit' | 'final'
+  tone: 'default' | 'result' | 'credit' | 'final' | 'highlight' | 'amber' | 'purple' | 'teal' | 'red'
   labelClass?: string
   divider?: boolean
   highlight?: boolean
@@ -160,7 +170,10 @@ function CalcRow({ label, explain, amount, symbol, tone, labelClass, divider, hi
     return (
       <div className="my-1.5 rounded-xl border-2 border-[#2563EB] bg-[#EFF6FF] px-4 py-3 shadow-sm">
         <div className="flex items-center justify-between gap-3">
-          <p className="text-[19px] font-extrabold text-[#1D4ED8] leading-snug">{label}</p>
+          <div className="min-w-0">
+            <p className="text-[19px] font-extrabold text-[#1D4ED8] leading-snug">{label}</p>
+            {explain && <p className="mt-0.5 text-[11px] font-medium text-[#1D4ED8] leading-snug break-words">{explain}</p>}
+          </div>
           <SummaryAmount amount={amount} symbol={symbol} tone={tone} large />
         </div>
       </div>
@@ -204,22 +217,22 @@ function CalculationSummary({ presentation, mode }: { presentation: OrderFinanci
         {bonus ? (
           <>
             <CalcRow label="إجمالي المنتجات الأساسية" amount={presentation.mainBaseTotal} symbol="+" tone="result" highlight />
-            <CalcRow label="قيمة منتجات البونص المختارة" explain="قيمة الأصناف المهداة التي تم اختيارها" amount={presentation.bonusProductsTotal} symbol="+" tone="default" />
-            <CalcRow label="المطلوب قبل حساب البونص" explain="إجمالي الطلب قبل تطبيق رصيد البونص" amount={presentation.beforeBonusTotal} tone="result" symbol="=" labelClass="text-[13px] font-bold text-[#111827]" divider />
-            <CalcRow label="بونص الفاتورة" explain="الخصم الذي غطاه رصيد البونص" amount={presentation.bonusApplied} tone="credit" symbol="−" />
+            <CalcRow label="قيمة منتجات البونص المختارة" explain="قيمة الأصناف المهداة التي تم اختيارها" amount={presentation.bonusProductsTotal} symbol="+" tone="amber" labelClass="text-[13px] font-bold text-[#B45309]" />
+            <CalcRow label="المطلوب قبل حساب البونص" explain="إجمالي الطلب قبل تطبيق رصيد البونص" amount={presentation.beforeBonusTotal} tone="purple" symbol="=" labelClass="text-[13px] font-bold text-[#7C3AED]" divider />
+            <CalcRow label="بونص الفاتورة" explain="الخصم الذي غطاه رصيد البونص" amount={presentation.bonusApplied} tone="credit" symbol="−" labelClass="text-[13px] font-bold text-[#059669]" />
             {presentation.bonusUnused > 0 && (
-              <CalcRow label="رصيد البونص المتبقي" explain="بونص متاح لم يُستهلك في هذا الطلب" amount={presentation.bonusUnused} tone="default" />
+              <CalcRow label="رصيد البونص المتبقي" explain="بونص متاح لم يُستهلك في هذا الطلب" amount={presentation.bonusUnused} tone="teal" labelClass="text-[13px] font-bold text-[#0E7490]" />
             )}
             {presentation.bonusOverflow > 0 && (
-              <CalcRow label="الزيادة المطلوب دفعها" explain="قيمة أصناف البونص التي تتجاوز رصيد البونص" amount={presentation.bonusOverflow} tone="result" symbol="+" />
+              <CalcRow label="الزيادة المطلوب دفعها" explain="قيمة أصناف البونص التي تتجاوز رصيد البونص" amount={presentation.bonusOverflow} tone="red" symbol="+" labelClass="text-[13px] font-bold text-[#DC2626]" />
             )}
-            <CalcRow label="الاجمالى النهائى" explain="المطلوب سداده عن هذا الطلب" amount={presentation.finalTotal} tone="final" symbol="=" labelClass="text-[16px] font-bold text-[#111827]" divider />
+            <CalcRow label="الاجمالى النهائى" explain="المطلوب سداده عن هذا الطلب" amount={presentation.finalTotal} tone="highlight" symbol="=" divider highlight />
           </>
         ) : (
           <>
             <CalcRow label="إجمالي الطلب بالسعر الأساسي" explain="قيمة الأصناف قبل تطبيق الخصم" amount={presentation.directBaseTotal} symbol="+" tone="default" />
             <CalcRow label="إجمالي الخصم" explain="إجمالي الخصومات المطبقة على الطلب" amount={presentation.directDiscountAmount} tone="credit" symbol="−" />
-            <CalcRow label="المطلوب النهائي بعد الخصم" explain="المطلوب سداده عن هذا الطلب" amount={presentation.finalTotal} tone="final" symbol="=" labelClass="text-[16px] font-bold text-[#111827]" divider />
+            <CalcRow label="المطلوب النهائي بعد الخصم" explain="المطلوب سداده عن هذا الطلب" amount={presentation.finalTotal} tone="highlight" symbol="=" divider highlight />
           </>
         )}
       </div>

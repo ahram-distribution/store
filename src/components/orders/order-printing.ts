@@ -148,6 +148,7 @@ export function renderDeliveryPermitHtml(data: UnifiedOrder, logoUrl?: string): 
   })
   const netFactor = !hasNetItems && grandTotal > 0 && netTotal > 0 && netTotal < grandTotal ? netTotal / grandTotal : 1
   const net = (amount: number) => Math.round(amount * netFactor * 100) / 100
+  const plainAmount = (amount: number) => formatNumber(amount, { minFractionDigits: 2, maxFractionDigits: 2 }).replace(/\.00$/, '')
 
   const finalTotal = financial.mode !== 'none' && financial.finalTotal > 0 ? financial.finalTotal : Number(order.total_amount ?? 0) || net(grandTotal)
 
@@ -210,30 +211,30 @@ export function renderDeliveryPermitHtml(data: UnifiedOrder, logoUrl?: string): 
     </div>`
   }
 
-  function calcTableRow(label: string, value: string, symbol?: string, tone?: 'default' | 'credit' | 'result' | 'final' | 'highlight'): string {
+  function calcTableRow(label: string, value: string, symbol?: string, tone?: 'default' | 'credit' | 'result' | 'final' | 'highlight' | 'amber' | 'purple' | 'teal' | 'red'): string {
     const rowCls = tone === 'final' ? ' calc-final' : tone === 'highlight' ? ' calc-highlight' : ''
-    const labelCls = tone === 'result' || tone === 'final' ? ' calc-label-strong' : tone === 'highlight' ? ' calc-label-highlight' : ''
-    const valueCls = tone === 'credit' ? ' calc-value-credit' : tone === 'final' ? ' calc-value-final' : tone === 'highlight' ? ' calc-value-highlight' : ''
+    const labelCls = tone === 'result' || tone === 'final' ? ' calc-label-strong' : tone === 'highlight' ? ' calc-label-highlight' : tone === 'amber' ? ' calc-label-amber' : tone === 'purple' ? ' calc-label-purple' : tone === 'teal' ? ' calc-label-teal' : tone === 'red' ? ' calc-label-red' : tone === 'credit' ? ' calc-label-credit' : ''
+    const valueCls = tone === 'credit' ? ' calc-value-credit' : tone === 'final' ? ' calc-value-final' : tone === 'highlight' ? ' calc-value-highlight' : tone === 'amber' ? ' calc-value-amber' : tone === 'purple' ? ' calc-value-purple' : tone === 'teal' ? ' calc-value-teal' : tone === 'red' ? ' calc-value-red' : ''
     return `<tr class="calc-row${rowCls}"><td class="calc-label${labelCls}">${label}</td><td class="calc-value${valueCls}" dir="ltr">${symbol ? `${symbol} ` : ''}${value}</td></tr>`
   }
 
   function calcSection(): string {
     if (financial.mode === 'none') {
-      return `<div class="bill-section"><div class="bill-title">حساب قيمة الطلب النهائية</div><table class="calc-table">${calcTableRow('الاجمالى النهائى', formatCurrencyShort(finalTotal), '=', 'final')}</table></div>`
+      return `<div class="bill-section"><div class="bill-title">حساب قيمة الطلب النهائية</div><table class="calc-table">${calcTableRow('الاجمالى النهائى', plainAmount(finalTotal), '=', 'highlight')}</table></div>`
     }
     let body = ''
     if (financial.mode === 'bonus') {
-      body = calcTableRow('إجمالي المنتجات الأساسية', formatCurrencyShort(financial.mainBaseTotal), '+', 'highlight')
-        + calcTableRow('قيمة منتجات البونص المختارة', formatCurrencyShort(financial.bonusProductsTotal), '+')
-        + calcTableRow('المطلوب قبل حساب البونص', formatCurrencyShort(financial.beforeBonusTotal), '=', 'result')
-        + calcTableRow('بونص الفاتورة', formatCurrencyShort(financial.bonusApplied), '−', 'credit')
-      if (financial.bonusUnused > 0) body += calcTableRow('رصيد البونص المتبقي', formatCurrencyShort(financial.bonusUnused))
-      if (financial.bonusOverflow > 0) body += calcTableRow('الزيادة المطلوب دفعها', formatCurrencyShort(financial.bonusOverflow), '+', 'result')
-      body += calcTableRow('الاجمالى النهائى', formatCurrencyShort(finalTotal), '=', 'final')
+      body = calcTableRow('إجمالي المنتجات الأساسية', plainAmount(financial.mainBaseTotal), '+', 'highlight')
+        + calcTableRow('قيمة منتجات البونص المختارة', plainAmount(financial.bonusProductsTotal), '+', 'amber')
+        + calcTableRow('المطلوب قبل حساب البونص', plainAmount(financial.beforeBonusTotal), '=', 'purple')
+        + calcTableRow('بونص الفاتورة', plainAmount(financial.bonusApplied), '−', 'credit')
+      if (financial.bonusUnused > 0) body += calcTableRow('رصيد البونص المتبقي', plainAmount(financial.bonusUnused), undefined, 'teal')
+      if (financial.bonusOverflow > 0) body += calcTableRow('الزيادة المطلوب دفعها', plainAmount(financial.bonusOverflow), '+', 'red')
+      body += calcTableRow('الاجمالى النهائى', plainAmount(finalTotal), '=', 'highlight')
     } else {
-      body = calcTableRow('إجمالي الطلب بالسعر الأساسي', formatCurrencyShort(financial.directBaseTotal), '+')
-        + calcTableRow('إجمالي الخصم', formatCurrencyShort(financial.directDiscountAmount), '−', 'credit')
-        + calcTableRow('الاجمالى النهائى', formatCurrencyShort(finalTotal), '=', 'final')
+      body = calcTableRow('إجمالي الطلب بالسعر الأساسي', plainAmount(financial.directBaseTotal), '+')
+        + calcTableRow('إجمالي الخصم', plainAmount(financial.directDiscountAmount), '−', 'credit')
+        + calcTableRow('الاجمالى النهائى', plainAmount(finalTotal), '=', 'highlight')
     }
     return `<div class="bill-section"><div class="bill-title">حساب قيمة الطلب النهائية</div><table class="calc-table">${body}</table></div>`
   }
@@ -335,6 +336,15 @@ export function renderDeliveryPermitHtml(data: UnifiedOrder, logoUrl?: string): 
   .calc-highlight td:last-child { border-left: 2px solid #2563EB; }
   .calc-row .calc-label-highlight { font-size: 12pt; font-weight: 800; color: #1D4ED8; }
   .calc-row .calc-value-highlight { font-size: 12pt; font-weight: 800; color: #1D4ED8; }
+  .calc-row .calc-label-credit { color: #059669; font-weight: 700; }
+  .calc-row .calc-label-amber { color: #B45309; font-weight: 700; }
+  .calc-row .calc-value-amber { color: #B45309; font-weight: 700; }
+  .calc-row .calc-label-purple { color: #7C3AED; font-weight: 700; }
+  .calc-row .calc-value-purple { color: #7C3AED; font-weight: 700; }
+  .calc-row .calc-label-teal { color: #0E7490; font-weight: 700; }
+  .calc-row .calc-value-teal { color: #0E7490; font-weight: 700; }
+  .calc-row .calc-label-red { color: #DC2626; font-weight: 700; }
+  .calc-row .calc-value-red { color: #DC2626; font-weight: 700; }
   .legal-box { border: 2px solid #dc2626; border-radius: 6px; padding: 10px 14px; margin-top: 20px; background: #fff5f5; page-break-inside: avoid; }
   .legal-box .legal-title { font-size: 9pt; font-weight: 700; color: #dc2626; margin-bottom: 4px; }
   .legal-box .legal-text { font-size: 9pt; color: #555; line-height: 1.8; }
