@@ -61,11 +61,13 @@ const PAGINATION_SCRIPT = `
     if (j < blocks.length - 1) sizes.push(mm(rects[j + 1].top - rects[j].top));
     else sizes.push(mm(rects[j].height));
   }
-  /* keep a company heading with its first product row */
+  /* keep headings with their content: a heading requires its whole following
+     chain (e.g. bonus-section bar + bonus company heading + first bonus row),
+     so a heading never strands alone or clips at a page bottom */
   var required = sizes.slice();
-  for (var g = 0; g < blocks.length - 1; g++) {
-    if (blocks[g].tagName === 'TR' && /group-header/.test(blocks[g].className)) {
-      required[g] = sizes[g] + sizes[g + 1];
+  for (var g = blocks.length - 1; g >= 0; g--) {
+    if (blocks[g].tagName === 'TR' && /(group-header|bonus-section-header)/.test(blocks[g].className)) {
+      required[g] = sizes[g] + (g + 1 < blocks.length ? required[g + 1] : 0);
     }
   }
 
@@ -142,15 +144,22 @@ export function renderPreparationPermitHtml(data: UnifiedOrder): string {
     : (order.snapshot_customer_address || '')
   const repName = order.order_creator_name || order.snapshot_sender_name || ''
 
-  const groups: { company: string; items: UnifiedOrderItem[] }[] = (() => {
+  const mainItems = items.filter((i) => i.is_bonus !== true)
+  const bonusItems = items.filter((i) => i.is_bonus === true)
+
+  function buildGroups(list: UnifiedOrderItem[]): { company: string; items: UnifiedOrderItem[] }[] {
     const map: Record<string, { company: string; items: UnifiedOrderItem[] }> = {}
-    for (const item of items) {
+    for (const item of list) {
       const companyName = item.company_name || 'أخرى'
       if (!map[companyName]) map[companyName] = { company: companyName, items: [] }
       map[companyName].items.push(item)
     }
     return Object.values(map)
-  })()
+  }
+
+  const mainGroups = buildGroups(mainItems)
+  const bonusGroups = buildGroups(bonusItems)
+  const companyCount = new Set(items.map((i) => i.company_name || 'أخرى')).size
 
   const totalPieces = items.reduce((s, i) => s + num(i.piece_quantity), 0)
 
@@ -163,21 +172,31 @@ export function renderPreparationPermitHtml(data: UnifiedOrder): string {
     h += '<th class="col-chk">تم التحضير</th>'
     h += '<th class="col-chk">تمت المراجعة</th>'
     h += '</tr></thead><tbody>'
-    for (const g of groups) {
+    const groupBlock = (g: { company: string; items: UnifiedOrderItem[] }): string => {
       const pieces = g.items.reduce((s, i) => s + num(i.piece_quantity), 0)
-      h += `<tr class="group-header"><td colspan="6"><div class="group-head-line"><span class="group-company">شركة: ${esc(g.company)}</span><span class="group-totals"><span class="g-total-label">إجمالي الأصناف: ${g.items.length}</span><span class="g-total-sep">|</span><span class="g-total-label">إجمالي القطع: ${formatNumber(pieces)}</span></span></div></td></tr>`
+      let b = `<tr class="group-header"><td colspan="6"><div class="group-head-line"><span class="group-company">شركة: ${esc(g.company)}</span><span class="group-totals"><span class="g-total-label">إجمالي الأصناف: ${g.items.length}</span><span class="g-total-sep">|</span><span class="g-total-label">إجمالي القطع: ${formatNumber(pieces)}</span></span></div></td></tr>`
       for (const item of g.items) {
         const qty = num(item.unit_quantity)
         const unit = UNIT_LABELS[item.unit_type] || item.unit_type || 'قطعة'
         const bonusTag = item.is_bonus === true ? ' <span class="bonus-tag">بونص</span>' : ''
-        h += `<tr class="item-row">`
-        h += `<td class="col-code" style="font-family:monospace;direction:ltr">${esc(item.legacy_code || 'غير متوفر')}</td>`
-        h += `<td class="col-name">${esc(cleanProductName(item.product_name))}${bonusTag}</td>`
-        h += `<td class="col-qty num">${formatNumber(qty)}</td>`
-        h += `<td class="col-unit">${esc(unit)}</td>`
-        h += `<td class="col-chk"><span class="chk-box"></span></td>`
-        h += `<td class="col-chk"><span class="chk-box"></span></td>`
-        h += `</tr>`
+        b += `<tr class="item-row">`
+        b += `<td class="col-code" style="font-family:monospace;direction:ltr">${esc(item.legacy_code || 'غير متوفر')}</td>`
+        b += `<td class="col-name">${esc(cleanProductName(item.product_name))}${bonusTag}</td>`
+        b += `<td class="col-qty num">${formatNumber(qty)}</td>`
+        b += `<td class="col-unit">${esc(unit)}</td>`
+        b += `<td class="col-chk"><span class="chk-box"></span></td>`
+        b += `<td class="col-chk"><span class="chk-box"></span></td>`
+        b += `</tr>`
+      }
+      return b
+    }
+    for (const g of mainGroups) {
+      h += groupBlock(g)
+    }
+    if (bonusGroups.length > 0) {
+      h += `<tr class="bonus-section-header"><td colspan="6">منتجات البونص</td></tr>`
+      for (const g of bonusGroups) {
+        h += groupBlock(g)
       }
     }
     h += '</tbody></table>'
@@ -202,7 +221,7 @@ export function renderPreparationPermitHtml(data: UnifiedOrder): string {
   function summarySection(): string {
     return `<table class="summary">
       <tr>
-        <td><span class="s-label">عدد الشركات</span><span class="s-value">${groups.length}</span></td>
+        <td><span class="s-label">عدد الشركات</span><span class="s-value">${companyCount}</span></td>
         <td><span class="s-label">عدد الأصناف</span><span class="s-value">${items.length}</span></td>
         <td><span class="s-label">إجمالي القطع</span><span class="s-value">${formatNumber(totalPieces)}</span></td>
       </tr>
@@ -259,6 +278,7 @@ export function renderPreparationPermitHtml(data: UnifiedOrder): string {
 
   /* ── Company grouping (light gray / white, no dark fills) ── */
   .group-header td { background: #F2F2F2; font-weight: 700; text-align: right; font-size: 7.5pt; border: 0.5px solid #666; padding: 1.4mm 0.6mm; }
+  .bonus-section-header td { background: #000; color: #fff; font-weight: 800; text-align: center; font-size: 9pt; border: 0.5px solid #000; padding: 1.6mm 0.6mm; }
   .group-head-line { display: flex; flex-direction: row; align-items: baseline; justify-content: space-between; gap: 4mm; width: 100%; }
   .group-company { font-weight: 800; white-space: normal; overflow: visible; }
   .group-totals { white-space: nowrap; flex: none; }
