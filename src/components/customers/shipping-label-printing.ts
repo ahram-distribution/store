@@ -26,13 +26,13 @@ export function renderShippingLabelHtml(data: ShippingLabelData): string {
 <style>
   @page { size: A5 landscape; margin: 0; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: Calibri, 'Segoe UI', Arial, Tahoma, sans-serif; background: #fff; color: #000; }
-  .sheet { display: flex; flex-direction: column; justify-content: space-evenly; width: 100%; }
-  .row { text-align: right; line-height: 1.4; overflow-wrap: break-word; word-break: break-word; }
-  .lbl { font-size: 24pt; font-weight: 700; color: #000; }
-  .val { font-size: 30pt; font-weight: 700; color: #000; }
-  .sender { font-size: 28pt; }
-  @media print { body { margin: 10mm !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; } .sheet { height: 128mm; } }
+  body { font-family: Calibri, sans-serif; background: #fff; color: #000; }
+  .sheet { border: 2pt solid #000; display: flex; flex-direction: column; justify-content: center; gap: 9mm; padding: 6mm 8mm; }
+  .row { text-align: right; line-height: 1.5; overflow-wrap: break-word; word-break: break-word; }
+  .lbl { font-size: 25pt; font-weight: 700; color: #000; }
+  .val { font-size: 32pt; font-weight: 700; color: #000; }
+  .sender { font-size: 30pt; }
+  @media print { body { margin: 7mm !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; } .sheet { height: 134mm; } }
 </style></head>
 <body>
 <div class="sheet">
