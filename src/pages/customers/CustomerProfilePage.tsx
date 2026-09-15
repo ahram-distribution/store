@@ -12,6 +12,7 @@ import { trackingEngine } from '../../services/trackingEngine'
 import { CustomerForm } from '../../components/customers/CustomerForm'
 import type { CustomerFormData } from '../../components/customers/CustomerForm'
 import { CustomerAddressCard } from '../../components/customers/CustomerAddressCard'
+import { printShippingLabel } from '../../components/customers/shipping-label-printing'
 import { SearchableSelect } from '../../components/shared/SearchableSelect'
 import { copyToClipboard } from '../../utils/safeClipboard'
 import { followUpService, type CustomerFollowUpHistory } from '../../services/followUpService'
@@ -671,6 +672,14 @@ export function CustomerProfilePage() {
     }
   }
 
+  function handlePrintShippingLabel() {
+    printShippingLabel({
+      customerName: customer.company_name || '',
+      customerPhone: customer.phone || '',
+      customerAddress: [customer.street_address, customer.city_name].filter(Boolean).join(' - '),
+    })
+  }
+
   async function handleToggleActive() {
     const token = getToken()
     const fn = customer.is_active ? 'governed_deactivate_customer' : 'governed_activate_customer'
@@ -736,6 +745,8 @@ export function CustomerProfilePage() {
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-bold text-text">بيانات العميل</h3>
               <div className="flex gap-1.5">
+                <button onClick={handlePrintShippingLabel}
+                  className="text-[10px] text-white font-semibold bg-[#0d2b6b] px-2.5 py-1 rounded-lg">طباعة بوليصة شحن</button>
                 {canFollowUp && (
                   <button onClick={() => navigate(`/followups/new/${id}`)}
                     className="text-[10px] text-accent font-semibold bg-accent/10 px-2.5 py-1 rounded-lg">📌 متابعة</button>
