@@ -29,17 +29,17 @@ export function renderShippingLabelHtml(data: ShippingLabelData): string {
   body { font-family: Calibri, sans-serif; background: #fff; color: #000; }
   .sheet { border: 2pt solid #000; display: flex; flex-direction: column; justify-content: center; gap: 9mm; padding: 6mm 8mm; }
   .row { text-align: right; line-height: 1.5; overflow-wrap: break-word; word-break: break-word; }
-  .lbl { font-size: 30pt; font-weight: 700; color: #000; }
-  .val { font-size: 38.4pt; font-weight: 700; color: #000; }
-  .sender { font-size: 36pt; }
+  .lbl { font-size: 33pt; font-weight: 700; color: #000; }
+  .val { font-size: 42.24pt; font-weight: 700; color: #000; }
+  .sender { font-size: 39.6pt; }
   @media print { body { margin: 7mm !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; } .sheet { height: 134mm; } }
 </style></head>
 <body>
 <div class="sheet">
-  <div class="row"><span class="lbl">المرسل له / </span><span class="val">${val(data.customerName)}</span></div>
-  <div class="row"><span class="lbl">رقم التليفون / </span><span class="val" dir="ltr">${val(data.customerPhone)}</span></div>
-  <div class="row"><span class="lbl">العنوان / </span><span class="val">${val(data.customerAddress)}</span></div>
-  <div class="row"><span class="lbl">الراسل / </span><span class="val sender">${SENDER}</span></div>
+  <div class="row"><span class="lbl">المرسل له : </span><span class="val">${val(data.customerName)}</span></div>
+  <div class="row"><span class="lbl">رقم التليفون : </span><span class="val" dir="ltr">${val(data.customerPhone)}</span></div>
+  <div class="row"><span class="lbl">العنوان : </span><span class="val">${val(data.customerAddress)}</span></div>
+  <div class="row"><span class="lbl">الراسل : </span><span class="val sender">${SENDER}</span></div>
 </div>
 </body></html>`
 }
