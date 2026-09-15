@@ -154,6 +154,7 @@ export function renderDeliveryPermitHtml(data: UnifiedOrder, logoUrl?: string): 
   const groups = () => {
     const map: Record<string, { company: string; items: typeof items; subtotal: number }> = {}
     for (const item of items) {
+      if (item.is_bonus === true) continue
       const companyName = item.company_name || 'أخرى'
       if (!map[companyName]) map[companyName] = { company: companyName, items: [], subtotal: 0 }
       map[companyName].items.push(item)
@@ -161,6 +162,8 @@ export function renderDeliveryPermitHtml(data: UnifiedOrder, logoUrl?: string): 
     }
     return Object.values(map)
   }
+
+  const bonusItems = items.filter((i) => i.is_bonus === true)
 
   function itemsTable(): string {
     const gs = groups()
@@ -177,6 +180,21 @@ export function renderDeliveryPermitHtml(data: UnifiedOrder, logoUrl?: string): 
       if (gs.length > 1) {
         h += `<tr class="subtotal-row"><td colspan="5" style="text-align:left">إجمالي ${esc(g.company)}</td><td>${formatCurrencyShort(net(g.subtotal))}</td></tr>`
       }
+    }
+    h += '</tbody></table>'
+    return h
+  }
+
+  function bonusSection(): string {
+    if (bonusItems.length === 0) return ''
+    let h = '<table><thead><tr><th>كود الصنف</th><th>اسم الصنف</th><th>الوحدة</th><th>الكمية</th><th>سعر الوحدة</th><th>الإجمالي</th></tr></thead><tbody>'
+    h += `<tr class="group-header bonus-header"><td colspan="6">منتجات البونص (${bonusItems.length})</td></tr>`
+    for (const item of bonusItems) {
+      const qty = Number(item.unit_quantity || 1)
+      const unit = UNIT_LABELS[item.unit_type] || item.unit_type || 'قطعة'
+      const price = Number(item.base_unit_price ?? item.unit_price ?? 0)
+      const lineTotal = qty * Number(item.base_unit_price ?? item.unit_price ?? 0)
+      h += `<tr class="bonus-row"><td style="font-family:monospace;direction:ltr">${esc(item.legacy_code || 'غير متوفر')}</td><td><span class="bonus-badge">بونص</span>${esc(item.product_name)}</td><td>${esc(unit)}</td><td>${qty}</td><td>${formatCurrencyShort(price)}</td><td>${formatCurrencyShort(lineTotal)}</td></tr>`
     }
     h += '</tbody></table>'
     return h
@@ -284,6 +302,9 @@ export function renderDeliveryPermitHtml(data: UnifiedOrder, logoUrl?: string): 
   td { padding: 8px 4px !important; border-bottom: 1px solid #e5e7eb; text-align: center; vertical-align: middle !important; font-size: 9pt; word-wrap: break-word; }
   tbody tr { page-break-inside: avoid; }
   .group-header td { background: #e8f0fe; font-weight: 700; color: #0d2b6b; font-size: 10pt; text-align: right; padding: 6px 10px; border-bottom: 1px solid #0052cc; }
+  .bonus-header td { background: #fef3c7; color: #92400e; border-bottom: 1px solid #f59e0b; }
+  .bonus-row td { background: #fffbeb; }
+  .bonus-badge { display: inline-block; background: #f59e0b; color: #fff; font-size: 7pt; font-weight: 700; padding: 1px 6px; border-radius: 9px; margin-inline-end: 6px; vertical-align: middle; }
   .subtotal-row td { font-weight: 700; background: #f0f5ff; border-top: 2px solid #0052cc; padding: 6px 5px; color: #0d2b6b; font-size: 9pt; }
   .summary { border: 1px solid #e5e7eb; border-radius: 6px; padding: 10px 14px; margin-bottom: 16px; background: #fafafa; page-break-inside: avoid; }
   .summary-row { display: flex; justify-content: space-between; padding: 3px 0; font-size: 10pt; }
@@ -350,6 +371,8 @@ export function renderDeliveryPermitHtml(data: UnifiedOrder, logoUrl?: string): 
 </div>
 
 ${itemsTable()}
+
+${bonusSection()}
 
 ${summarySection()}
 
