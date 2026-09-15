@@ -169,9 +169,10 @@ export function renderPreparationPermitHtml(data: UnifiedOrder): string {
       for (const item of g.items) {
         const qty = num(item.unit_quantity)
         const unit = UNIT_LABELS[item.unit_type] || item.unit_type || 'قطعة'
+        const bonusTag = item.is_bonus === true ? ' <span class="bonus-tag">بونص</span>' : ''
         h += `<tr class="item-row">`
         h += `<td class="col-code" style="font-family:monospace;direction:ltr">${esc(item.legacy_code || 'غير متوفر')}</td>`
-        h += `<td class="col-name">${esc(cleanProductName(item.product_name))}</td>`
+        h += `<td class="col-name">${esc(cleanProductName(item.product_name))}${bonusTag}</td>`
         h += `<td class="col-qty num">${formatNumber(qty)}</td>`
         h += `<td class="col-unit">${esc(unit)}</td>`
         h += `<td class="col-chk"><span class="chk-box"></span></td>`
@@ -254,6 +255,7 @@ export function renderPreparationPermitHtml(data: UnifiedOrder): string {
   .col-chk { width: 12%; }
   .num { font-weight: 700; }
   .chk-box { display: inline-block; width: 4.5mm; height: 4.5mm; border: 1px solid #000; background: #fff; }
+  .bonus-tag { display: inline-block; border: 1px solid #000; background: #fff; font-weight: 800; font-size: 6.5pt; padding: 0 1.2mm; margin-inline-start: 2mm; vertical-align: middle; }
 
   /* ── Company grouping (light gray / white, no dark fills) ── */
   .group-header td { background: #F2F2F2; font-weight: 700; text-align: right; font-size: 7.5pt; border: 0.5px solid #666; padding: 1.4mm 0.6mm; }
