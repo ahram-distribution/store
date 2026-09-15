@@ -61,12 +61,20 @@ const PAGINATION_SCRIPT = `
     if (j < blocks.length - 1) sizes.push(mm(rects[j + 1].top - rects[j].top));
     else sizes.push(mm(rects[j].height));
   }
-  /* keep headings with their content: a heading requires its whole following
-     chain (e.g. bonus-section bar + bonus company heading + first bonus row),
-     so a heading never strands alone or clips at a page bottom */
+  /* keep headings with their content, and keep the whole bonus section atomic:
+     a company heading requires its following chain, while the bonus-section bar
+     requires the entire bonus section (bar + all following bonus rows) so the
+     section never splits across pages and no bonus row is visually detached;
+     oversized sections fall back to heading chains so pagination stays feasible */
   var required = sizes.slice();
   for (var g = blocks.length - 1; g >= 0; g--) {
-    if (blocks[g].tagName === 'TR' && /(group-header|bonus-section-header)/.test(blocks[g].className)) {
+    if (blocks[g].tagName !== 'TR') continue;
+    var gcls = blocks[g].className || '';
+    if (/bonus-section-header/.test(gcls)) {
+      var btot = sizes[g], bh = g + 1;
+      while (bh < blocks.length && blocks[bh].tagName === 'TR') { btot += sizes[bh]; bh++; }
+      required[g] = (btot <= USABLE) ? btot : sizes[g] + (g + 1 < blocks.length ? required[g + 1] : 0);
+    } else if (/group-header/.test(gcls)) {
       required[g] = sizes[g] + (g + 1 < blocks.length ? required[g + 1] : 0);
     }
   }
