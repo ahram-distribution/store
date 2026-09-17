@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect } from 'react'
+import toast from 'react-hot-toast'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../store/auth'
@@ -17,6 +18,7 @@ import {
   type CustomerReportFilterContext,
   type CustomerReportMeta,
 } from '../../services/customerReport'
+import { exportCustomersToPhone } from '../../services/googleContactsExport'
 
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
@@ -185,6 +187,19 @@ export function CustomersPage() {
     printCustomersReport(buildCustomerReportRows(customers, governorates), buildReportMeta())
   }
 
+  const handleExportPhone = async () => {
+    if (!customers.length) {
+      toast.error('لا يوجد عملاء متاحون للتصدير')
+      return
+    }
+    try {
+      const count = await exportCustomersToPhone({ customers, governorates })
+      toast.success(`تم تصدير ${count} عميل`)
+    } catch {
+      toast.error('حدث خطأ أثناء التصدير')
+    }
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3">
@@ -192,6 +207,7 @@ export function CustomersPage() {
         <h1 className="text-lg font-bold text-text">العملاء</h1>
         {!loading && customers.length > 0 && isExactUpperMgmt && (
           <div className="flex gap-1.5">
+            <button onClick={handleExportPhone} className="bg-white border border-border rounded-lg text-[11px] px-2.5 py-1.5 font-semibold text-text hover:bg-neutral-50">📱 تصدير للهاتف</button>
             <button onClick={handleReportExcel} className="bg-white border border-border rounded-lg text-[11px] px-2.5 py-1.5 font-semibold text-text hover:bg-neutral-50">📊 Excel</button>
             <button onClick={handleReportPrint} className="bg-white border border-border rounded-lg text-[11px] px-2.5 py-1.5 font-semibold text-text hover:bg-neutral-50">🖨️ طباعة</button>
           </div>
