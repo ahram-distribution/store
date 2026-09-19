@@ -258,7 +258,11 @@ restoreCart,
           // products stay empty; recalculateAll keeps snapshot-free lines untouched
         }
       }
-      if (!cancelled) restoreCart(items, editOrderId, order.order_type)
+      if (!cancelled) restoreCart(items, editOrderId, order.order_type, {
+        tierId: order.tier_id ?? null,
+        paymentMethodId: order.payment_method_option_id ?? null,
+        shippingMethodId: order.shipping_method_option_id ?? null,
+      })
     })
     return () => { cancelled = true }
   }, [editOrderId, authToken, setSelectedCustomer, restoreCart, mergeProducts])

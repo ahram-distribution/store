@@ -99,7 +99,7 @@ interface CartState {
   subscribeToBonusMode: () => void
   refreshDiscountOptions: () => Promise<void>
   subscribeToDiscountOptions: () => void
-  restoreCart: (items: CartItem[], editingOrderId: string, restoreOrderType?: string) => void
+  restoreCart: (items: CartItem[], editingOrderId: string, restoreOrderType?: string, options?: { tierId?: string | null; paymentMethodId?: string | null; shippingMethodId?: string | null }) => void
   resolveGeographicPricing: (governorateId: string | null, companyId?: string, productId?: string) => Promise<void>
   resolveEmployeeGeographicContext: (employeeId: string) => Promise<void>
   setGeographicContext: (ctx: GeographicContext | null) => void
@@ -837,6 +837,8 @@ export const useCartStore = create(
 
       subscribeToDiscountOptions: () => {
         if (discountOptionsChannel) return
+        const existing = supabase.getChannels().find((ch: any) => ch?.topic === 'discount-options-live')
+        if (existing) { discountOptionsChannel = existing as RealtimeChannel; return }
         const scheduleRefresh = () => {
           if (_discountRefreshTimer) clearTimeout(_discountRefreshTimer)
           _discountRefreshTimer = setTimeout(() => {
@@ -1053,7 +1055,7 @@ export const useCartStore = create(
         }
       },
 
-      restoreCart: (orderItems, editingOrderId, restoreOrderType) => {
+      restoreCart: (orderItems, editingOrderId, restoreOrderType, options) => {
         const state = get()
         const mapped: CartItem[] = orderItems.map((i: any) => {
           const product = state.products.find(p => p.id === i.product_id)
@@ -1077,6 +1079,9 @@ export const useCartStore = create(
           bonusItems,
           editingOrderId,
           orderType: restoreOrderType || '',
+          selectedTierId: options?.tierId ?? undefined,
+          selectedPaymentMethodId: options?.paymentMethodId ?? undefined,
+          selectedShippingMethodId: options?.shippingMethodId ?? undefined,
         })
         get().recalculateAll()
       },

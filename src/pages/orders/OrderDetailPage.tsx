@@ -623,7 +623,11 @@ export function OrderDetailPage() {
           console.warn('[OrderDetail] product price load skipped:', err)
         }
       }
-      useCartStore.getState().restoreCart(items, id, raw.order?.order_type)
+      useCartStore.getState().restoreCart(items, id, raw.order?.order_type, {
+        tierId: raw.order?.tier_id ?? null,
+        paymentMethodId: raw.order?.payment_method_option_id ?? null,
+        shippingMethodId: raw.order?.shipping_method_option_id ?? null,
+      })
       navigate('/cart')
     } catch (err: any) {
       console.error('[OrderDetail] restore failed:', err)
