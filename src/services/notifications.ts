@@ -107,7 +107,7 @@ export const notificationInboxService = {
 
   // ---- Push Subscription Management ----
 
-  VAPID_PUBLIC_KEY: 'BLvPl__v7fL1hsF7u3cpCmiZqLpBMlyfRziC72PDU9NxltZMYnwAquRRpY_e79yyjUoummCC49uBaKADGFvywJk',
+  VAPID_PUBLIC_KEY: 'BMvtHcnJ2NuC7BBZ-mcR3oZZg7sr-bilV6XCQwecbif1mmqIH8p3C8mgFHLQu1ma3NntTYnOeObNC2CrryvpG0I',
 
   isPushSupported(): boolean {
     return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window
@@ -131,8 +131,11 @@ export const notificationInboxService = {
       const existingSubscription = await registration.pushManager.getSubscription()
 
       if (existingSubscription) {
-        await this.saveSubscription(existingSubscription)
-        return true
+        if (this.subscriptionMatchesCurrentKey(existingSubscription)) {
+          await this.saveSubscription(existingSubscription)
+          return true
+        }
+        await existingSubscription.unsubscribe()
       }
 
       const subscription = await registration.pushManager.subscribe({
@@ -164,9 +167,29 @@ export const notificationInboxService = {
   async getExistingSubscription(): Promise<PushSubscription | null> {
     try {
       const registration = await navigator.serviceWorker.ready
-      return await registration.pushManager.getSubscription()
+      const subscription = await registration.pushManager.getSubscription()
+      if (!subscription) return null
+      if (!this.subscriptionMatchesCurrentKey(subscription)) return null
+      return subscription
     } catch {
       return null
+    }
+  },
+
+  subscriptionMatchesCurrentKey(subscription: PushSubscription): boolean {
+    try {
+      const options = (subscription as any)?.options
+      const existingKey = options?.applicationServerKey
+      if (!existingKey) return true
+      const existing = new Uint8Array(existingKey as ArrayBuffer)
+      const current = this.urlBase64ToUint8Array(this.VAPID_PUBLIC_KEY)
+      if (existing.length !== current.length) return false
+      for (let i = 0; i < existing.length; i++) {
+        if (existing[i] !== current[i]) return false
+      }
+      return true
+    } catch {
+      return true
     }
   },
 
