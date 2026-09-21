@@ -101,6 +101,7 @@ export default function LiveActivityCenterPage() {
 
   const fetchData = useCallback(async () => {
     if (!token) { setLoading(false); return }
+    if (document.hidden) return
     const { data, error: err } = await supabase.rpc('get_live_activity_center', { p_token: token.trim() })
     if (err) { setError(err.message); setLoading(false); return }
     if (!data || typeof data !== 'object' || (data as Record<string, unknown>).error) {

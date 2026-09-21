@@ -49,6 +49,7 @@ export default function SalesManagerCCPage() {
 
   const fetchData = useCallback(async () => {
     if (!token) return
+    if (document.hidden) return
     const { data: result, error } = await supabase.rpc('get_sales_manager_cc', { p_token: token.trim() })
     if (error || (result && typeof result === 'object' && (result as Record<string, unknown>).error)) {
       setLoading(false)

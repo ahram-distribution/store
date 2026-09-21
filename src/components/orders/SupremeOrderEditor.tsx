@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { supabase } from '../../lib/supabase'
+import { governedCatalog } from '../../services/governedCatalog'
 import { UNIT_LABELS } from '../../types/order-display'
 import { computeProductPrices, computePieceQuantity } from '../../engine/pricing'
 import { formatCurrencyShort } from '../../utils/format'
@@ -93,7 +94,7 @@ export function SupremeOrderEditor({ orderId, initialItems, initialNotes, initia
   useEffect(() => {
     if (!token) return
     Promise.all([
-      supabase.rpc('get_governed_products', { p_token: token, p_active_only: true, p_visible_only: true }),
+      governedCatalog({ p_token: token, p_active_only: true, p_visible_only: true }),
       supabase.rpc('get_governed_companies', { p_token: token }),
     ]).then(([prodRes, compRes]) => {
       if (prodRes.data) {

@@ -84,6 +84,7 @@ export default function OperationsCenterPage() {
 
   const fetchData = useCallback(async () => {
     if (!token) return
+    if (document.hidden) return
     const { data: result, error } = await supabase.rpc('get_live_workday_overview', { p_token: token?.trim() })
     if (error) { setLoading(false); return }
     if (result && typeof result === 'object' && !('error' in (result as Record<string, unknown>))) {

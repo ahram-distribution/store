@@ -86,16 +86,21 @@ export function App() {
   }, [])
 
   useEffect(() => {
-    const handleVisibility = () => {
-      if (document.visibilityState === 'visible') {
-        lifeSignalService.handleAppResume()
-        invalidateBonusModeCache()
-        useCartStore.getState().refreshBonusMode()
-      }
-    }
-    const handleFocus = () => {
+    const MIN_INTERVAL = 60000
+    let lastResumeSync = 0
+    const syncNow = () => {
+      const now = Date.now()
+      if (now - lastResumeSync < MIN_INTERVAL) return
+      lastResumeSync = now
+      lifeSignalService.handleAppResume()
       invalidateBonusModeCache()
       useCartStore.getState().refreshBonusMode()
+    }
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') syncNow()
+    }
+    const handleFocus = () => {
+      syncNow()
     }
     document.addEventListener('visibilitychange', handleVisibility)
     window.addEventListener('focus', handleFocus)

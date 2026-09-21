@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase'
+import { invalidateGovernedCatalog } from './governedCatalog'
 
 function getSessionToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
@@ -38,6 +39,7 @@ export async function setProductBonusEnabled(id: string, enabled: boolean): Prom
     p_bonus_enabled: enabled,
   })
   if (error) return { error: error.message }
+  invalidateGovernedCatalog()
   return {}
 }
 
@@ -51,5 +53,6 @@ export async function setCompanyBonusEnabled(id: string, enabled: boolean): Prom
     p_bonus_enabled: enabled,
   })
   if (error) return { error: error.message }
+  invalidateGovernedCatalog()
   return {}
 }

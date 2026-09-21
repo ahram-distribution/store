@@ -20,6 +20,7 @@ import { parseProductExcelFile, buildImportPreview, type ImportRow, type ImportP
 import { exportProductStockTemplate } from '../../services/productExcelExport'
 import { discountOptionsService } from '../../services/discountOptions'
 import { setProductBonusEnabled } from '../../services/bonus'
+import { governedCatalog, invalidateGovernedCatalog } from '../../services/governedCatalog'
 
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
@@ -176,7 +177,7 @@ export function ProductManagerPage() {
     const token = getToken()
     if (!token) { setLoading(false); return }
     const [prodRes, compRes, tiersRes, policyRes] = await Promise.all([
-      supabase.rpc('get_governed_products', { p_token: token, p_active_only: false, p_visible_only: false }),
+      governedCatalog({ p_token: token, p_active_only: false, p_visible_only: false }),
       supabase.rpc('get_governed_companies', { p_token: token }),
       supabase.rpc('get_governed_tiers', { p_token: token }),
       supabase.rpc('get_inventory_policies', { p_token: token }),
@@ -268,6 +269,7 @@ export function ProductManagerPage() {
       toast.success('تم تفعيل المنتج')
     }
     useCatalogStore.getState().updateProduct(product.id, newState)
+    invalidateGovernedCatalog()
     const updatedRow = useCatalogStore.getState().products.find((p: any) => p.id === product.id)
     if (updatedRow) useCartStore.getState().syncProduct(toProductWithPrice(updatedRow))
   }, [])
@@ -304,6 +306,7 @@ export function ProductManagerPage() {
         : { is_active: true, is_visible: true })
       // Refresh from the DB (single source of truth) so the screen always reflects
       // the actual product state, including any other flag the RPC changed
+      invalidateGovernedCatalog()
       await loadData()
       const updatedRow = useCatalogStore.getState().products.find((p: any) => p.id === product.id)
       if (updatedRow) useCartStore.getState().syncProduct(toProductWithPrice(updatedRow))
@@ -330,6 +333,7 @@ export function ProductManagerPage() {
     try {
       const res = await setProductBonusEnabled(product.id, next)
       if (res.error) { toast.error(res.error); return }
+      invalidateGovernedCatalog()
       await loadData()
       const updatedRow = useCatalogStore.getState().products.find((p: any) => p.id === product.id)
       if (updatedRow) useCartStore.getState().syncProduct(toProductWithPrice(updatedRow))
@@ -378,6 +382,7 @@ export function ProductManagerPage() {
     const result = data as any
     if (result?.error) { toast.error(result.error); setDeleting(false); return }
     toast.success('تم حذف المنتج نهائياً')
+    invalidateGovernedCatalog()
     useCatalogStore.getState().removeProduct(deleteTarget.id)
     setDeleteTarget(null)
     setDeletePreview(null)
@@ -425,6 +430,7 @@ export function ProductManagerPage() {
     setShowAdd(false)
     resetAddForm()
     setAddSubmitting(false)
+    invalidateGovernedCatalog()
     await loadData()
   }
 
@@ -521,6 +527,7 @@ export function ProductManagerPage() {
       const result = data as any
       if (result?.error) { setImportError(String(result.error)); setImportApplying(false); return }
       setImportResult(result)
+      invalidateGovernedCatalog()
       await loadData()
       const parts: string[] = []
       if ((result?.applied ?? 0) > 0) parts.push(`تحديث مخزون/أسعار ${result.applied} منتج`)
@@ -833,6 +840,7 @@ export function ProductManagerPage() {
       }
 
       // Reload from DB (single source of truth) so the manager list reflects the save
+      invalidateGovernedCatalog()
       await loadData()
 
       // Push the updated product into the shared cart catalog so already-open

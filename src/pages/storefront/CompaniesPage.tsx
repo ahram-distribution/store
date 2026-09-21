@@ -11,6 +11,7 @@ import { SearchHighlight } from '../../components/shared/SearchHighlight'
 import { CartSummaryBar } from '../../components/storefront/CartSummaryBar'
 import { formatNumber } from '../../utils/numbers'
 import { useGeographicVisibility } from '../../hooks/useGeographicVisibility'
+import { governedCatalog } from '../../services/governedCatalog'
 import { applyGeographicAdjustment } from '../../engine/pricing'
 import { buildSearchIndex, searchProducts as smartSearchProducts, type ProductSearchIndex } from '../../utils/smartSearch'
 import type { ProductWithPrice, ProductUnitPrice, UnitType } from '../../types/storefront'
@@ -72,7 +73,7 @@ export function CompaniesPage() {
     if (!authToken || searchFetchRef.current) return
     searchFetchRef.current = true
     setSearchLoading(true)
-    const { data, error } = await supabase.rpc('get_governed_products', {
+    const { data, error } = await governedCatalog({
       p_token: authToken,
       p_company_id: null,
       p_active_only: true,

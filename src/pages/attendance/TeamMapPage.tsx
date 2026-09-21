@@ -93,6 +93,7 @@ export default function TeamMapPage() {
   useEffect(() => {
     if (!token) return
     const fetchData = () => {
+      if (document.hidden) return
       supabase.rpc('get_team_map', { p_token: token?.trim() }).then(({ data }) => {
         if (data) {
           const d = data as { counters: TeamCounters; employees: TeamMember[] }

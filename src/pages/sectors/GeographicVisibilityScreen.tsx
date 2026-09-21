@@ -5,6 +5,7 @@ import { MultiSearchableSelect } from '../../components/shared/MultiSearchableSe
 import { useCapability } from '../../hooks/useCapability'
 import toast from 'react-hot-toast'
 import { supabase } from '../../lib/supabase'
+import { governedCatalog } from '../../services/governedCatalog'
 import { useAuthStore } from '../../store/auth'
 import type { Sector, GeographicVisibilityRule } from '../../types/sectors'
 
@@ -81,7 +82,7 @@ export function GeographicVisibilityScreen() {
   async function loadProductOptions() {
     if (!authToken) return
     try {
-      const { data, error } = await supabase.rpc('get_governed_products', {
+      const { data, error } = await governedCatalog({
         p_token: authToken,
         p_active_only: true,
         p_visible_only: true,

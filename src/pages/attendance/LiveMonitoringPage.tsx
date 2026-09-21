@@ -65,6 +65,7 @@ export default function LiveMonitoringPage({ embedded }: { embedded?: boolean })
   useEffect(() => {
     if (!token) return
     const fetchLive = async () => {
+      if (document.hidden) return
       const { data, error } = await supabase.rpc('get_live_workday_overview', { p_token: token?.trim() })
       if (error) { setLoading(false); return }
       if (data && typeof data === 'object' && !('error' in (data as Record<string, unknown>))) {

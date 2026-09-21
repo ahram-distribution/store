@@ -72,10 +72,16 @@ class HeartbeatService {
     this._sessionId = sessionId
     this._running = true
     this._consecutiveFailures = 0
-    this._doHeartbeat()
+    if (!document.hidden) this._doHeartbeat()
     this._intervalId = setInterval(() => this._doHeartbeat(), HEARTBEAT_INTERVAL)
     this._onlineHandler = () => this._doHeartbeat()
     window.addEventListener('online', this._onlineHandler)
+    this._visibilityHandler = () => {
+      if (!document.hidden && this._running) {
+        this._doHeartbeat()
+      }
+    }
+    document.addEventListener('visibilitychange', this._visibilityHandler)
     this._notify()
   }
 
@@ -87,11 +93,15 @@ class HeartbeatService {
     if (this._intervalId) { clearInterval(this._intervalId); this._intervalId = null }
     if (this._reconnectId) { clearInterval(this._reconnectId); this._reconnectId = null }
     if (this._onlineHandler) { window.removeEventListener('online', this._onlineHandler); this._onlineHandler = null }
+    if (this._visibilityHandler) { document.removeEventListener('visibilitychange', this._visibilityHandler); this._visibilityHandler = null }
     this._notify()
   }
 
+  private _visibilityHandler: (() => void) | null = null
+
   private async _doHeartbeat() {
     if (!this._sessionId) return
+    if (document.hidden) return
     const token = getToken()
     if (!token) { this._onFail('NO_TOKEN'); return }
 

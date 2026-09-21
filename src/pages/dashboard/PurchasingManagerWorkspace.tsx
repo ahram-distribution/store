@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
+import { governedCatalog } from '../../services/governedCatalog'
 
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
@@ -14,7 +15,7 @@ export function PurchasingManagerWorkspace() {
   useEffect(() => {
     const token = getToken()
     if (!token) { setLoading(false); return }
-    supabase.rpc('get_governed_products', { p_token: token, p_active_only: false, p_visible_only: false }).then(({ data }) => {
+    governedCatalog({ p_token: token, p_active_only: false, p_visible_only: false }).then(({ data }) => {
       if (data) setProducts(Array.isArray(data) ? data : [])
       setLoading(false)
     })

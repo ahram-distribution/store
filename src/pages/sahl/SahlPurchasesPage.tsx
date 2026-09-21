@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
+import { governedCatalog } from '../../services/governedCatalog'
 import { formatCurrencyShort, formatDate } from '../../utils/format'
 import { useCapability } from '../../hooks/useCapability'
 import toast from 'react-hot-toast'
@@ -101,7 +102,7 @@ export function SahlPurchasesPage() {
       const token = getToken()
       if (!token) return
       setSearching(true)
-      const res = await supabase.rpc('get_governed_products', { p_token: token, p_search: q.trim(), p_active_only: true })
+      const res = await governedCatalog({ p_token: token, p_search: q.trim(), p_active_only: true })
       setSearching(false)
       if (!res.error && !(res.data as any)?.error) setResults(Array.isArray(res.data) ? res.data.slice(0, 8) : [])
     }, 300)

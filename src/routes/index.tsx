@@ -90,6 +90,7 @@ import { SahlReportsPage } from '../pages/sahl/SahlReportsPage'
 import { SahlPosPage } from '../pages/sahl/SahlPosPage'
 import { SahlInvoicesPage } from '../pages/sahl/SahlInvoicesPage'
 import { SahlSettingsPage } from '../pages/sahl/SahlSettingsPage'
+import UsageMonitorPage from '../pages/usage/UsageMonitorPage'
 
 import { NotificationInbox } from '../components/notifications/NotificationInbox'
 import { GpsTestPage } from '../pages/diagnostics'
@@ -288,6 +289,7 @@ export function AppRoutes() {
         <Route path="/sahl/invoices" element={<ProtectedRoute employeeOnly requireUpperManagement><SahlInvoicesPage /></ProtectedRoute>} />
         <Route path="/sahl/settings" element={<ProtectedRoute employeeOnly requireUpperManagement><SahlSettingsPage /></ProtectedRoute>} />
       <Route path="/coverage-map" element={<ProtectedRoute requireUpperManagement hideFromExecutiveDirector><CoverageMapPage /></ProtectedRoute>} />
+      <Route path="/system/usage" element={<ProtectedRoute employeeOnly requireUpperManagement><UsageMonitorPage /></ProtectedRoute>} />
       <Route path="/sectors" element={<ProtectedRoute requireCapability="sectors.manage"><SectorsPage /></ProtectedRoute>} />
       <Route path="/data-center" element={<ProtectedRoute requireUpperManagement hideFromExecutiveDirector><DataDeletionCenter /></ProtectedRoute>} />
 

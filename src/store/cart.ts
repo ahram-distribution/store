@@ -3,7 +3,7 @@ import { persist } from 'zustand/middleware'
 import type { CartItem, CartDealItem, CartTotals, TierConfig, PaymentMethodOption, ShippingMethodOption, ProductWithPrice, UnitType, DailyDealRecord, FlashOfferRecord, TierExceptionLookup, CompanyAddGuardResult } from '../types/storefront'
 import { computeProductPrices, getFinalUnitPrice, getUnitBasePrice, computePieceQuantity, computeCartTotals, round2, evaluateCompanyMaxAdd } from '../engine/pricing'
 import { computeBonusModeTotals, computeBonusSummary } from '../engine/bonusPricing'
-import { resolveExceptionLookup, discountOptionsService, buildDiscountPricingContext, type DiscountPricingContext } from '../services/discountOptions'
+import { resolveExceptionLookup, discountOptionsService, buildDiscountPricingContext, invalidateDiscountOptionsCache, type DiscountPricingContext } from '../services/discountOptions'
 import { supabase } from '../lib/supabase'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import toast from 'react-hot-toast'
@@ -840,6 +840,7 @@ export const useCartStore = create(
         const existing = supabase.getChannels().find((ch: any) => ch?.topic === 'discount-options-live')
         if (existing) { discountOptionsChannel = existing as RealtimeChannel; return }
         const scheduleRefresh = () => {
+          invalidateDiscountOptionsCache()
           if (_discountRefreshTimer) clearTimeout(_discountRefreshTimer)
           _discountRefreshTimer = setTimeout(() => {
             _discountRefreshTimer = null

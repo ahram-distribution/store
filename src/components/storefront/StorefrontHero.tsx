@@ -1,45 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../store/auth'
 import { ThemeSelector } from './ThemeSelector'
-
-interface CompanyData {
-  company_name: string
-  company_banner_url: string
-}
-
-function useCompanyProfile() {
-  const [data, setData] = useState<CompanyData | null>(null)
-  const [loading, setLoading] = useState(true)
-  const token = useAuthStore((s) => s.token)
-
-  useEffect(() => {
-    if (!token) {
-      supabase.rpc('get_public_company_profile').then(({ data: res }) => {
-        if (res?.success && res.data) {
-          setData({
-            company_name: (res.data as any).company_name || '',
-            company_banner_url: (res.data as any).company_banner_url || '',
-          })
-        }
-        setLoading(false)
-      })
-      return
-    }
-    supabase.rpc('get_company_profile', { p_token: token }).then(({ data: res }) => {
-      if (res?.success && res.data) {
-        setData({
-          company_name: (res.data as any).company_name || '',
-          company_banner_url: (res.data as any).company_banner_url || '',
-        })
-      }
-      setLoading(false)
-    })
-  }, [token])
-
-  return { data, loading }
-}
 
 const stats = [
   { value: '35+', label: 'شركة شريكة' },
@@ -50,7 +12,6 @@ const stats = [
 
 export function StorefrontHero() {
   const navigate = useNavigate()
-  const { data, loading } = useCompanyProfile()
   const { token } = useAuthStore()
   const [themeOpen, setThemeOpen] = useState(false)
 

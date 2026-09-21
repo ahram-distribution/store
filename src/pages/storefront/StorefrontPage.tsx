@@ -15,6 +15,7 @@ import type { ProductWithPrice, ProductUnitPrice, UnitType } from '../../types/s
 import { DYNAMIC_COLLECTIONS, loadCollection, type CollectionStrategy } from '../../config/dynamicCollections'
 import { resolveConfiguredUnitTypes } from '../../utils/catalog'
 import { useGeographicVisibility } from '../../hooks/useGeographicVisibility'
+import { governedCatalog } from '../../services/governedCatalog'
 
 const UNIT_PRIORITY: UnitType[] = ['carton', 'dozen', 'piece']
 
@@ -119,7 +120,7 @@ restoreCart,
       data = result.data
       error = result.error
     } else if (collectionConfig?.type === 'static') {
-      const result = await supabase.rpc('get_governed_products', {
+      const result = await governedCatalog({
         p_token: authToken, p_company_id: companyId || null, p_active_only: true, p_visible_only: true,
       })
       data = result.data
@@ -243,7 +244,7 @@ restoreCart,
       const productIds = Array.from(new Set(items.map((i: any) => i.product_id)))
       if (productIds.length > 0) {
         try {
-          const { data: rows, error: rowsError } = await supabase.rpc('get_governed_products', {
+          const { data: rows, error: rowsError } = await governedCatalog({
             p_token: authToken,
             p_company_id: null,
             p_active_only: false,

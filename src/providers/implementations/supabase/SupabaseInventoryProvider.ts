@@ -5,6 +5,7 @@ import { InventoryMapper } from '../../mappers/InventoryMapper'
 import { ProviderException } from '../../contracts/exceptions'
 import type { RequestContext } from '../../contracts/RequestContext'
 import { supabase } from './client'
+import { invalidateGovernedCatalog } from '../../../services/governedCatalog'
 
 const PROVIDER_NAME = 'SupabaseInventoryProvider'
 
@@ -38,6 +39,7 @@ export class SupabaseInventoryProvider implements IInventoryProvider {
       p_quantity: quantity,
     })
     if (error) throw new ProviderException(error.message, PROVIDER_NAME, error)
+    invalidateGovernedCatalog()
     const current = await this.getInventoryLevel(productId)
     return current ?? {
       id: `${productId}-inv`,

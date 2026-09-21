@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useCapability } from '../../hooks/useCapability'
 import { DynamicSchemaEditor, TIER_COLUMNS, PAYMENT_METHOD_COLUMNS, SHIPPING_METHOD_COLUMNS, type ColumnDef } from '../../utils/schemaEditor'
-import { discountOptionsService } from '../../services/discountOptions'
+import { discountOptionsService, invalidateDiscountOptionsCache } from '../../services/discountOptions'
 import { invalidateBonusModeCache, announceBonusModeChanged } from '../../services/bonusConfig'
 import { useCartStore } from '../../store/cart'
 import { formatCurrencyShort } from '../../utils/format'
@@ -182,6 +182,7 @@ export function TiersManagerPage() {
   async function refreshRows() {
     setLoading(true)
     try {
+      invalidateDiscountOptionsCache()
       const bundle = await discountOptionsService.getAll().catch(() => null)
       setTiers(bundle?.tiers ?? [])
       setPayments(bundle?.paymentMethods ?? [])

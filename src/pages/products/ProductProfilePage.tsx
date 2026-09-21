@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
+import { governedCatalog } from '../../services/governedCatalog'
 import { formatCurrencyShort, formatDateTime } from '../../utils/format'
 import { UNIT_LABELS } from '../../types/order-display'
 import { InventoryBreakdown } from '../../components/shared/InventoryBreakdown'
@@ -20,7 +21,7 @@ export function ProductProfilePage() {
     const token = getToken()
     if (!token) { setLoading(false); return }
 
-    supabase.rpc('get_governed_products', { p_token: token, p_active_only: false, p_visible_only: false })
+    governedCatalog({ p_token: token, p_active_only: false, p_visible_only: false })
       .then(({ data, error }) => {
         if (error || !data) { setLoading(false); return }
         const arr = Array.isArray(data) ? data : []

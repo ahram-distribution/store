@@ -1,71 +1,15 @@
-import { useState, useEffect } from 'react'
-import { supabase } from '../../lib/supabase'
-import { useAuthStore } from '../../store/auth'
-
-interface CompanyData {
-  company_name: string
-  company_banner_url: string
-  facebook_url: string
-  sales_phone_1: string
-  sales_phone_2: string
-  sales_whatsapp_1: string
-  sales_whatsapp_2: string
-  technical_support_phone: string
-}
-
-function useCompanyProfile() {
-  const [data, setData] = useState<CompanyData | null>(null)
-  const [loading, setLoading] = useState(true)
-  const token = useAuthStore((s) => s.token)
-
-  useEffect(() => {
-    if (!token) {
-      supabase.rpc('get_public_company_profile').then(({ data: res }) => {
-        if (res?.success && res.data) {
-          setData({
-            company_name: (res.data as any).company_name || '',
-            company_banner_url: (res.data as any).company_banner_url || '',
-            facebook_url: (res.data as any).facebook_url || '',
-            sales_phone_1: (res.data as any).sales_phone_1 || '',
-            sales_phone_2: (res.data as any).sales_phone_2 || '',
-            sales_whatsapp_1: (res.data as any).sales_whatsapp_1 || '',
-            sales_whatsapp_2: (res.data as any).sales_whatsapp_2 || '',
-            technical_support_phone: (res.data as any).technical_support_phone || '',
-          })
-        }
-        setLoading(false)
-      })
-      return
-    }
-    supabase.rpc('get_company_profile', { p_token: token }).then(({ data: res }) => {
-      if (res?.success && res.data) {
-        setData({
-          company_name: (res.data as any).company_name || '',
-          company_banner_url: (res.data as any).company_banner_url || '',
-          facebook_url: (res.data as any).facebook_url || '',
-          sales_phone_1: (res.data as any).sales_phone_1 || '',
-          sales_phone_2: (res.data as any).sales_phone_2 || '',
-          sales_whatsapp_1: (res.data as any).sales_whatsapp_1 || '',
-          sales_whatsapp_2: (res.data as any).sales_whatsapp_2 || '',
-          technical_support_phone: (res.data as any).technical_support_phone || '',
-        })
-      }
-      setLoading(false)
-    })
-  }, [token])
-
-  return { data, loading }
-}
+import { useState } from 'react'
+import { useCompanyProfile } from '../../hooks/useCompanyProfile'
 
 export function StorefrontBanner() {
-  const { data, loading } = useCompanyProfile()
+  const { profile, loading } = useCompanyProfile()
 
-  if (loading || !data?.company_banner_url) return null
+  if (loading || !profile?.company_banner_url) return null
 
   return (
     <img
-      src={data.company_banner_url}
-      alt={data.company_name || 'الشركة'}
+      src={profile.company_banner_url}
+      alt={profile.company_name || 'الشركة'}
       className="w-full h-[200px] object-cover rounded-2xl"
       onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
     />
@@ -73,7 +17,7 @@ export function StorefrontBanner() {
 }
 
 export function StorefrontFooter() {
-  const { data, loading } = useCompanyProfile()
+  const { profile: data, loading } = useCompanyProfile()
   const [phoneSheet, setPhoneSheet] = useState(false)
   const [whatsappSheet, setWhatsappSheet] = useState(false)
 

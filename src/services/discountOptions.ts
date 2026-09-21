@@ -14,6 +14,22 @@ function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
 }
 
+// Short-lived module cache for the governed discount-options bundle. The RPC
+// returns the full pricing config (tiers, payment/shipping methods, exception
+// lookups) and is read on every storefront/cart/orderflow mount. Kept keyed by
+// token with a TTL so account switches re-resolve; realtime change events and
+// admin mutations call invalidateDiscountOptionsCache() to force a fresh read.
+const CACHE_TTL_MS = 60_000
+let discountOptionsEpoch = 0
+let discountOptionsCached: { key: string; bundle: DiscountOptionsBundle; at: number } | null = null
+let discountOptionsInflight: { key: string; promise: Promise<DiscountOptionsBundle> } | null = null
+
+export function invalidateDiscountOptionsCache(): void {
+  discountOptionsEpoch += 1
+  discountOptionsCached = null
+  discountOptionsInflight = null
+}
+
 function mapPaymentMethodOption(row: any): PaymentMethodOption {
   return {
     id: row.id,
@@ -102,15 +118,40 @@ export function mergeSnapshotIntoRow(row: {
   row.snapshot_shipping_discount = snap.snapshotShippingDiscount
 }
 
+async function fetchDiscountOptionsBundle(key: string): Promise<DiscountOptionsBundle> {
+  const token = key === 'anonymous' ? null : key
+  const { data, error } = await supabase.rpc('get_governed_discount_options', { p_token: token ?? null })
+  if (error) throw error
+  return {
+    tiers: (data?.tiers ?? []).map(mapTierRecord),
+    paymentMethods: (data?.payment_methods ?? []).map(mapPaymentMethodOption),
+    shippingMethods: (data?.shipping_methods ?? []).map(mapShippingMethodOption),
+  }
+}
+
 export const discountOptionsService = {
   async getAll(): Promise<DiscountOptionsBundle> {
     const token = getToken()
-    const { data, error } = await supabase.rpc('get_governed_discount_options', { p_token: token ?? null })
-    if (error) throw error
-    return {
-      tiers: (data?.tiers ?? []).map(mapTierRecord),
-      paymentMethods: (data?.payment_methods ?? []).map(mapPaymentMethodOption),
-      shippingMethods: (data?.shipping_methods ?? []).map(mapShippingMethodOption),
+    const key = token ?? 'anonymous'
+    const epochAtStart = discountOptionsEpoch
+    if (discountOptionsCached && discountOptionsCached.key === key && Date.now() - discountOptionsCached.at < CACHE_TTL_MS) {
+      return discountOptionsCached.bundle
+    }
+    if (discountOptionsInflight && discountOptionsInflight.key === key) {
+      return discountOptionsInflight.promise
+    }
+    const inflight = fetchDiscountOptionsBundle(key)
+    discountOptionsInflight = { key, promise: inflight }
+    try {
+      const bundle = await inflight
+      if (epochAtStart === discountOptionsEpoch) {
+        discountOptionsCached = { key, bundle, at: Date.now() }
+        discountOptionsInflight = null
+      }
+      return bundle
+    } catch (err) {
+      if (discountOptionsInflight && discountOptionsInflight.key === key) discountOptionsInflight = null
+      throw err
     }
   },
 
@@ -130,6 +171,7 @@ export const discountOptionsService = {
       p_is_visible: params.isVisible ?? true,
     })
     if (error) return { success: false, error: error.message }
+    invalidateDiscountOptionsCache()
     return data ?? { success: false, error: 'Unknown error' }
   },
 
@@ -152,6 +194,7 @@ export const discountOptionsService = {
       p_is_active: params.isActive ?? null,
     })
     if (error) return { success: false, error: error.message }
+    invalidateDiscountOptionsCache()
     return data ?? { success: false }
   },
 
@@ -171,6 +214,7 @@ export const discountOptionsService = {
       p_is_visible: params.isVisible ?? true,
     })
     if (error) return { success: false, error: error.message }
+    invalidateDiscountOptionsCache()
     return data ?? { success: false, error: 'Unknown error' }
   },
 
@@ -193,6 +237,7 @@ export const discountOptionsService = {
       p_is_active: params.isActive ?? null,
     })
     if (error) return { success: false, error: error.message }
+    invalidateDiscountOptionsCache()
     return data ?? { success: false }
   },
 

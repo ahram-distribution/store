@@ -8,6 +8,7 @@ import { useCapability } from '../../hooks/useCapability'
 import { useAuthStore } from '../../store/auth'
 import { useEntityViewsStore } from '../../store/entityViews'
 import { useCartStore } from '../../store/cart'
+import { governedCatalog } from '../../services/governedCatalog'
 import { isExecutiveDirectorUser, normalizeEmployeeRole } from '../../utils/roleNormalization'
 import { formatCurrencyShort, formatTierName } from '../../utils/format'
 import { resolveConfiguredUnitTypes } from '../../utils/catalog'
@@ -243,6 +244,7 @@ export function OrderDetailPage() {
   useEffect(() => {
     if (!id) return
     const timer = window.setInterval(() => {
+      if (document.hidden) return
       if (!editMode) silentRefreshCustomer()
     }, 15000)
     return () => window.clearInterval(timer)
@@ -384,7 +386,7 @@ export function OrderDetailPage() {
     const token = getToken()
     if (!token) return
     Promise.all([
-      supabase.rpc('get_governed_products', { p_token: token, p_active_only: true, p_visible_only: true }),
+      governedCatalog({ p_token: token, p_active_only: true, p_visible_only: true }),
       supabase.rpc('get_governed_companies', { p_token: token }),
     ]).then(([prodRes, compRes]) => {
       if (prodRes.data) {
@@ -608,7 +610,7 @@ export function OrderDetailPage() {
       const productIds = Array.from(new Set(items.map((i: any) => i.product_id)))
       if (productIds.length > 0) {
         try {
-          const { data: rows, error: rowsError } = await supabase.rpc('get_governed_products', {
+          const { data: rows, error: rowsError } = await governedCatalog({
             p_token: token,
             p_company_id: null,
             p_active_only: false,

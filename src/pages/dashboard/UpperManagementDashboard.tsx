@@ -80,6 +80,7 @@ export default function UpperManagementDashboard() {
     { icon: '🛰️', label: 'الحضور والمتابعة', path: '/attendance/executive' },
     { icon: '📦', label: 'المخزون', path: '/launcher/inventory', isSubLauncher: true },
     { icon: '🧮', label: 'سهل', path: '/sahl' },
+    { icon: '📡', label: 'استهلاك Supabase', path: '/system/usage' },
     { icon: '🏷️', label: 'الأقسام', path: '/launcher/deals', isSubLauncher: true },
     { icon: '🗺️', label: 'القطاعات', path: '/sectors' },
     { icon: '📈', label: 'التقارير', path: '/launcher/reports', isSubLauncher: true },
@@ -103,7 +104,7 @@ export default function UpperManagementDashboard() {
   const greeting = new Date().getHours() < 12 ? 'صباح الخير' : 'مساء الخير'
   const curDateLabel = WEEKDAYS[now.getDay()] + ' ' + now.getDate() + ' ' + MONTHS[now.getMonth()] + ' ' + now.getFullYear()
 
-  const adminPaths = ['/launcher/settings', '/ops/gps-test', '/data-center']
+  const adminPaths = ['/launcher/settings', '/ops/gps-test', '/data-center', '/system/usage']
   const isEd = isExecutiveDirectorUser(user)
   const edForbiddenGroups = new Set(['/coverage-map', '/launcher/deals', '/launcher/settings', '/data-center'])
   const edForbiddenQuick = new Set(['/employees#permissions', '/employees#roles', '/attendance/settings#work-policies'])

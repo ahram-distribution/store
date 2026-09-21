@@ -1,20 +1,14 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../../store/auth'
-import { supabase } from '../../lib/supabase'
+import { useCompanyProfile } from '../../hooks/useCompanyProfile'
 
 export function StorefrontHeader() {
   const navigate = useNavigate()
   const { token } = useAuthStore()
   const [search, setSearch] = useState('')
-  const [companyName, setCompanyName] = useState('الأهرام للتجارة والتوزيع')
-
-  useEffect(() => {
-    if (!token) return
-    supabase.rpc('get_company_profile', { p_token: token }).then(({ data }) => {
-      if (data?.success && data.data?.company_name) setCompanyName(data.data.company_name)
-    })
-  }, [token])
+  const { profile } = useCompanyProfile()
+  const companyName = profile?.company_name || 'الأهرام للتجارة والتوزيع'
 
   const handleSearch = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && search.trim()) {

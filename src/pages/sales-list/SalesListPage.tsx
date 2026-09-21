@@ -9,6 +9,7 @@ import { buildSearchIndex, searchProducts, type ProductSearchIndex } from '../..
 import { SearchHighlight } from '../../components/shared/SearchHighlight'
 import { exportToExcel } from '../../services/excelExporter'
 import { discountOptionsService, buildDiscountPricingContext, resolveExceptionLookup, type DiscountPricingContext } from '../../services/discountOptions'
+import { governedCatalog } from '../../services/governedCatalog'
 import type { TierRecord, PaymentMethodOption, ShippingMethodOption } from '../../types/storefront'
 import {
   getGovernorateAdjustmentRows,
@@ -262,7 +263,7 @@ export default function SalesListPage() {
     if (!hasAccess) return
     if (!authToken) { setLoading(false); return }
     setLoading(true)
-    supabase.rpc('get_governed_products', { p_token: authToken, p_active_only: true, p_visible_only: true })
+    governedCatalog({ p_token: authToken, p_active_only: true, p_visible_only: true })
       .then(({ data }) => {
         const arr = Array.isArray(data) ? data : []
         setProducts(arr)

@@ -1,5 +1,7 @@
 import { supabase } from '../lib/supabase'
 import { useCompaniesStore } from '../store/companies'
+import { invalidateGovernedCatalog } from '../services/governedCatalog'
+import { invalidateDiscountOptionsCache } from '../services/discountOptions'
 
 export interface CompanyFormData {
   company_name: string
@@ -18,6 +20,8 @@ function getToken(): string | null {
 
 function invalidate() {
   useCompaniesStore.getState().triggerRefresh()
+  invalidateGovernedCatalog()
+  invalidateDiscountOptionsCache()
   try { localStorage.removeItem('ahram_company_profile_cache') } catch {}
 }
 

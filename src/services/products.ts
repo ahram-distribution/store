@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase'
 import { unifiedSearchService } from './unifiedSearch'
+import { governedCatalog } from './governedCatalog'
 
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
@@ -65,7 +66,7 @@ export const productService = {
   async getAll(token?: string) {
     const t = token || getToken()
     if (!t) throw new Error('NO_TOKEN')
-    const { data, error } = await supabase.rpc('get_governed_products', { p_token: t })
+    const { data, error } = await governedCatalog({ p_token: t })
     if (error) throw error
     const arr = Array.isArray(data) ? data : []
     return arr.map(mapRow)
@@ -74,7 +75,7 @@ export const productService = {
   async getActive(token?: string) {
     const t = token || getToken()
     if (!t) throw new Error('NO_TOKEN')
-    const { data, error } = await supabase.rpc('get_governed_products', { p_token: t, p_active_only: true })
+    const { data, error } = await governedCatalog({ p_token: t, p_active_only: true })
     if (error) throw error
     const arr = Array.isArray(data) ? data : []
     return arr.map(mapRow)
@@ -83,7 +84,7 @@ export const productService = {
   async getById(id: string, token?: string) {
     const t = token || getToken()
     if (!t) throw new Error('NO_TOKEN')
-    const { data, error } = await supabase.rpc('get_governed_products', { p_token: t, p_active_only: false, p_visible_only: false })
+    const { data, error } = await governedCatalog({ p_token: t, p_active_only: false, p_visible_only: false })
     if (error) throw error
     const arr = Array.isArray(data) ? data : []
     const found = arr.find((p: any) => p.id === id)
@@ -93,7 +94,7 @@ export const productService = {
   async search(query: string, token?: string) {
     const t = token || getToken()
     if (!t) throw new Error('NO_TOKEN')
-    const { data, error } = await supabase.rpc('get_governed_products', { p_token: t, p_search: query, p_active_only: false })
+    const { data, error } = await governedCatalog({ p_token: t, p_search: query, p_active_only: false })
     if (error) throw error
     const arr = Array.isArray(data) ? data : []
     return arr.map(mapRow)

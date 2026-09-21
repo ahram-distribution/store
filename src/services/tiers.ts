@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase'
+import { invalidateDiscountOptionsCache } from './discountOptions'
 import type { TierRecord, TierConfig, TierCompanyException, TierProductException } from '../types/storefront'
 
 function getToken(): string | null {
@@ -117,6 +118,7 @@ export const tierService = {
       p_max_company_purchase_percent_set: params.maxCompanyPurchasePercentSet ?? false,
     })
     if (error) return { success: false, error: error.message }
+    invalidateDiscountOptionsCache()
     return data ?? { success: false }
   },
 
@@ -130,6 +132,7 @@ export const tierService = {
       p_discount_percent: discountPercent,
     })
     if (error) return { success: false, error: error.message }
+    invalidateDiscountOptionsCache()
     return data ?? { success: false }
   },
 

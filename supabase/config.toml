@@ -7,3 +7,11 @@ project_id = "ahram-distribution"
 
 [functions.send-push]
 verify_jwt = false
+
+# Executive "استهلاك Supabase" usage monitor.
+# The browser calls it with `Authorization: Bearer <app session token>`, which is
+# NOT a Supabase JWT — the default JWT verification would reject it (401).
+# The function re-validates the app session server-side (validate_session) and
+# enforces the Executive-Administration role before proxying Management API data.
+[functions.usage-monitor]
+verify_jwt = false
