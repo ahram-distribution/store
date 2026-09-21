@@ -78,6 +78,7 @@ docs/
 | File | Description |
 |------|-------------|
 | `COMMERCIAL_RUNTIME_STATUS.md` | Commercial runtime status summary |
+| `USAGE_MONITOR_STATUS.md` | Usage Monitor runtime status — Supabase usage aggregation, org plan/quota, confirmed Egress limitation |
 
 ### 07-audits/
 
