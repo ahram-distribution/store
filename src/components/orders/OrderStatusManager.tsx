@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { supabase } from '../../lib/supabase'
+import { invalidateGovernedCatalog } from '../../services/governedCatalog'
 import { ORDER_STATUS_LABELS, EXECUTION_GROUP, USER_FACING_STATUS_ORDER } from '../../types/order-display'
 import { formatMixedQuantity } from '../../utils/quantity-format'
 import type { UnitType } from '../../types/storefront'
@@ -257,6 +258,10 @@ export function OrderStatusManager({ orderId, currentStatus, canReview, canAppro
         return
       }
       onSuccess?.(target)
+      // Status transitions (approval release, cancel, return-to-revision) move
+      // stock server-side; drop the cached catalog so availability display on
+      // storefront/cart reflects it immediately instead of waiting out the TTL.
+      invalidateGovernedCatalog()
       setLoading(null)
       return
     }
@@ -289,6 +294,7 @@ export function OrderStatusManager({ orderId, currentStatus, canReview, canAppro
       return
     }
     onSuccess?.(target)
+    invalidateGovernedCatalog()
     setLoading(null)
   }
 
@@ -333,6 +339,7 @@ export function OrderStatusManager({ orderId, currentStatus, canReview, canAppro
     setShowReturnModal(false)
     setReturnReason('')
     onSuccess?.('returned_for_revision')
+    invalidateGovernedCatalog()
     setLoading(null)
   }
 

@@ -64,7 +64,7 @@ interface CollectionDrill {
   id: string; amount: number; employee_name: string; created_at: string
 }
 
-const POLL_INTERVAL = 30000
+const POLL_INTERVAL = 60000
 
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }

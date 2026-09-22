@@ -59,20 +59,17 @@ export default function MapTab() {
   useEffect(() => {
     if (!token) return
     const fetchMap = async () => {
+      if (document.hidden) return
       const { data } = await supabase.rpc('get_team_map', { p_token: token })
-      console.log('[MapTab] get_team_map raw response:', data)
-      console.log('[MapTab] typeof:', typeof data, 'isArray:', Array.isArray(data))
       if (data && typeof data === 'object') {
         const d = data as Record<string, unknown>
-        console.log('[MapTab] keys:', Object.keys(d), 'has employees:', 'employees' in d)
         if ('employees' in d && Array.isArray(d.employees)) {
-          console.log('[MapTab] employees count:', d.employees.length)
           setEmployees(d.employees as TeamMapEmployee[])
         }
       }
     }
     fetchMap()
-    const interval = setInterval(fetchMap, 60000)
+    const interval = setInterval(fetchMap, 120000)
     return () => clearInterval(interval)
   }, [token])
 

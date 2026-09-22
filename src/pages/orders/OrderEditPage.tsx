@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
-import { governedCatalog } from '../../services/governedCatalog'
+import { governedCatalog, invalidateGovernedCatalog } from '../../services/governedCatalog'
 import { sendWhatsAppFromDisplay } from '../../lib/whatsapp'
 import { buildOrderDisplayData, UNIT_LABELS, ORDER_STATUS_LABELS } from '../../types/order-display'
 import { ProductCard } from '../../components/storefront/ProductCard'
@@ -401,6 +401,10 @@ export function OrderEditPage() {
         return
       }
       toast.success('تم إرسال التعديلات بنجاح')
+
+      // Stock moved server-side; drop the cached catalog so availability shown
+      // on storefront/cart reflects current inventory instead of waiting out TTL.
+      invalidateGovernedCatalog()
 
       // 3. Open WhatsApp (best-effort) — Source of Truth = get_unified_order
       try {

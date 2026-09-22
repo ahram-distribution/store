@@ -331,6 +331,7 @@ export default function CoverageMapPage() {
 
   const fetchData = useCallback(async (isInitial: boolean) => {
     if (!token) return
+    if (document.hidden) return
     const repo = new LocationRepository(token)
     const mapData = await repo.getCoverageMap()
     if (isInitial && mapData.customers) setCustomers(mapData.customers)
@@ -340,7 +341,7 @@ export default function CoverageMapPage() {
     if (isInitial) setLoading(false)
   }, [token])
 
-  useEffect(() => { fetchData(true); const id = setInterval(() => fetchData(false), 60000); return () => clearInterval(id) }, [fetchData])
+  useEffect(() => { fetchData(true); const id = setInterval(() => fetchData(false), 120000); return () => clearInterval(id) }, [fetchData])
 
   const allPoints: [number, number][] = [
     ...(layer !== 'employees' ? filteredCustomers.filter(c => c.latitude && c.longitude).map(c => [c.latitude, c.longitude] as [number, number]) : []),

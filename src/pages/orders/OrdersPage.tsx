@@ -187,7 +187,7 @@ export function OrdersPage() {
       } finally {
         silentRefreshing.current = false
       }
-    }, 15000)
+    }, 60000)
     return () => window.clearInterval(timer)
   }, [buildRpcParams])
 

@@ -12,10 +12,13 @@ import { supabase } from '../lib/supabase'
  *
  * - Keyed by session token + exact RPC params, so filtered/searched reads stay
  *   correct per caller.
- * - TTL is short (default 60s); mutations must call invalidateGovernedCatalog().
+ * - TTL is 5 min; mutations must call invalidateGovernedCatalog() so admin
+ *   product/unit changes appear immediately without short-TTL polling. Stock and
+ *   reservation rules are enforced server-side by the governed RPCs (fresh DB
+ *   reads), so a longer client cache never weakens business invariants.
  * - Inflight dedupe returns the SAME promise to concurrent identical calls.
  */
-const CACHE_TTL_MS = 60_000
+const CACHE_TTL_MS = 300_000
 const inflight = new Map<string, Promise<{ data: any; error: any }>>()
 const cache = new Map<string, { at: number; res: { data: any; error: any } }>()
 

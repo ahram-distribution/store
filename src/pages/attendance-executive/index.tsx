@@ -98,7 +98,7 @@ export default function ExecutiveAttendancePage() {
 
   useEffect(() => {
     if (!liveMode) return
-    const id = setInterval(() => { void load(true) }, 60000)
+    const id = setInterval(() => { if (!document.hidden) void load(true) }, 120000)
     return () => clearInterval(id)
   }, [liveMode, load])
 

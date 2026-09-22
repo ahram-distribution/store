@@ -9,6 +9,7 @@ import { buildOrderDisplayData, UNIT_LABELS } from '../../types/order-display'
 import toast from 'react-hot-toast'
 import { lifeSignalService } from '../../services/lifeSignalService'
 import { checkCartAvailability, buildBusinessStatusCard, type AvailabilityResult } from '../../utils/cart-availability'
+import { invalidateGovernedCatalog } from '../../services/governedCatalog'
 import { formatMixedQuantity } from '../../utils/quantity-format'
 import { BusinessStatusCard } from '../../components/storefront/BusinessStatusCard'
 import type { CartItem as CartItemType, ProductWithPrice, UnitType } from '../../types/storefront'
@@ -356,6 +357,11 @@ export function OrderReviewPage() {
       setSubmitting(false)
       return
     }
+
+    // Order placement (create or edit) consumed stock server-side; drop the
+    // cached governed catalog so inventory shown on the next storefront/cart
+    // screen reflects the new stock immediately instead of waiting out the TTL.
+    invalidateGovernedCatalog()
 
     try {
       const orderRes = await supabase.rpc('get_unified_order', { p_token: token, p_id: order.id })

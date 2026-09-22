@@ -53,6 +53,7 @@ class TrackingEngine {
   private _onlineHandler: (() => void) | null = null
   private _visibilityHandler: (() => void) | null = null
   private _lastPosition: { latitude: number; longitude: number; accuracy: number } | null = null
+  private _lastCapturedCoords: { latitude: number; longitude: number } | null = null
   private _authStored = false
   private _nativeService = false
   private _gpsDeniedLogged = false
@@ -349,6 +350,23 @@ class TrackingEngine {
         capturedAt: this._lastPointAt,
       }))
     } catch {}
+
+    // Skip the RPC for a routine periodic fix that is effectively unchanged from
+    // the last captured point (rounded ~1m). The server dedups via
+    // ensure_tracking_point + sync_tracking_points, and the heartbeat keeps the
+    // session "connected", so skipping unchanged fixes never affects presence or
+    // attendance. Movement or any business action still captures normally.
+    if (pointType === 'periodic' && this._lastCapturedCoords) {
+      const prev = this._lastCapturedCoords
+      const same = Math.abs(prev.latitude - loc.latitude) < 0.00001 && Math.abs(prev.longitude - loc.longitude) < 0.00001
+      if (same) {
+        this._telemetry.dropped++
+        this._notify()
+        return
+      }
+    }
+    this._lastCapturedCoords = { latitude: loc.latitude, longitude: loc.longitude }
+
     getBattery().then((battery) => {
       const point = {
         employee_id: this._employeeId,

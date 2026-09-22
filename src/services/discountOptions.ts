@@ -19,7 +19,9 @@ function getToken(): string | null {
 // lookups) and is read on every storefront/cart/orderflow mount. Kept keyed by
 // token with a TTL so account switches re-resolve; realtime change events and
 // admin mutations call invalidateDiscountOptionsCache() to force a fresh read.
-const CACHE_TTL_MS = 60_000
+// TTL is 5 min; admin edits surface immediately through the realtime channel +
+// mutation invalidation (never through short-TTL polling).
+const CACHE_TTL_MS = 300_000
 let discountOptionsEpoch = 0
 let discountOptionsCached: { key: string; bundle: DiscountOptionsBundle; at: number } | null = null
 let discountOptionsInflight: { key: string; promise: Promise<DiscountOptionsBundle> } | null = null

@@ -11,7 +11,7 @@ function getToken(): string | null {
 
 const fmt = (n: number) => formatNumber(n)
 
-const POLLING_INTERVAL = 30000
+const POLLING_INTERVAL = 60000
 
 export default function SalesManagerField() {
   const nav = useNavigate()
@@ -155,7 +155,7 @@ export default function SalesManagerField() {
       </MobileDialog>
 
       <div className="text-center text-[10px] text-text-secondary pb-4">
-        يتم التحديث تلقائياً كل 30 ثانية
+        يتم التحديث تلقائياً كل دقيقة
       </div>
     </div>
   )

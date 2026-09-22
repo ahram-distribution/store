@@ -246,7 +246,7 @@ export function OrderDetailPage() {
     const timer = window.setInterval(() => {
       if (document.hidden) return
       if (!editMode) silentRefreshCustomer()
-    }, 15000)
+    }, 120000)
     return () => window.clearInterval(timer)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, editMode])

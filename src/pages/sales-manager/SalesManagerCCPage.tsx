@@ -8,7 +8,7 @@ import { DeliveredOrdersKPI } from '../../components/activity/DeliveredOrdersKPI
 import toast from 'react-hot-toast'
 import { formatNumber } from '../../utils/numbers'
 
-const POLLING_INTERVAL = 30000
+const POLLING_INTERVAL = 60000
 
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
@@ -192,7 +192,7 @@ export default function SalesManagerCCPage() {
       </MobileDialog>
 
       <div className="text-center text-[10px] text-text-secondary pb-4">
-        يتم التحديث تلقائياً كل 30 ثانية
+        يتم التحديث تلقائياً كل دقيقة
       </div>
     </div>
   )

@@ -43,7 +43,7 @@ interface LiveOverview {
   }
 }
 
-const POLLING_INTERVAL = 30000
+const POLLING_INTERVAL = 60000
 
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }

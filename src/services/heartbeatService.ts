@@ -1,7 +1,11 @@
 import { supabase } from '../lib/supabase'
 import { trackingQueue } from './trackingQueue'
 
-const HEARTBEAT_INTERVAL = 60000
+// 3 min heartbeat keeps last_activity_at fresh enough to stay "connected"
+// (threshold = tracking interval, default 15 min) and well inside the 2h
+// inactivity timeout warning. Visibility-change and online events still beat
+// immediately, so sessions never appear stale after returning to the tab.
+const HEARTBEAT_INTERVAL = 180000
 const RECONNECT_INTERVAL = 5000
 
 export interface HeartbeatStatus {

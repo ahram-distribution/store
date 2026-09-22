@@ -74,7 +74,7 @@ export default function LiveMonitoringPage({ embedded }: { embedded?: boolean })
       setLoading(false)
     }
     fetchLive()
-    const interval = setInterval(fetchLive, 30000)
+    const interval = setInterval(fetchLive, 60000)
     return () => clearInterval(interval)
   }, [token])
 

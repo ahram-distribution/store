@@ -92,6 +92,7 @@ export default function AttendanceRuntimePage() {
 
   const fetchStatus = useCallback(async () => {
     if (!token) return
+    if (document.hidden) return
     const { data } = await supabase.rpc('get_my_workday_status', { p_token: token })
     if (data && typeof data === 'object' && !('error' in (data as Record<string, unknown>))) {
       setStatus(data as WorkdayStatus)
@@ -114,7 +115,7 @@ export default function AttendanceRuntimePage() {
 
   useEffect(() => {
     fetchStatus()
-    pollRef.current = setInterval(fetchStatus, 30000)
+    pollRef.current = setInterval(fetchStatus, 60000)
     timerRef.current = setInterval(() => setCurrentTime(new Date()), 1000)
 
     const unsub = trackingEngine.subscribe(setTrackingStatus)
