@@ -43,8 +43,6 @@ interface LiveOverview {
   }
 }
 
-const POLLING_INTERVAL = 60000
-
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
 }
@@ -96,8 +94,6 @@ export default function OperationsCenterPage() {
 
   useEffect(() => {
     fetchData()
-    const interval = setInterval(fetchData, POLLING_INTERVAL)
-    return () => clearInterval(interval)
   }, [fetchData])
 
   const departments = useMemo(() => {
@@ -209,7 +205,6 @@ export default function OperationsCenterPage() {
       <div className="mx-auto" style={{ maxWidth: '1440px' }}>
         <Header
           lastUpdate={lastUpdate}
-          pollingSeconds={POLLING_INTERVAL / 1000}
           onRefresh={fetchData}
           canConfigure={canConfigure}
         />

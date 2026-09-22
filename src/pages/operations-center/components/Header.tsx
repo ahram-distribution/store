@@ -1,29 +1,15 @@
-import { useState, useEffect } from 'react'
 import { Monitor, RefreshCw, Settings } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { formatTime } from '../../../utils/format'
 
 interface HeaderProps {
   lastUpdate: Date | null
-  pollingSeconds: number
   onRefresh: () => void
   canConfigure?: boolean
 }
 
-export default function Header({ lastUpdate, pollingSeconds, onRefresh, canConfigure }: HeaderProps) {
+export default function Header({ lastUpdate, onRefresh, canConfigure }: HeaderProps) {
   const navigate = useNavigate()
-  const [countdown, setCountdown] = useState(pollingSeconds)
-
-  useEffect(() => {
-    setCountdown(pollingSeconds)
-  }, [pollingSeconds])
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setCountdown((prev) => (prev > 0 ? prev - 1 : 0))
-    }, 1000)
-    return () => clearInterval(interval)
-  }, [lastUpdate])
 
   return (
     <div className="flex items-center justify-between mb-6">
@@ -36,10 +22,6 @@ export default function Header({ lastUpdate, pollingSeconds, onRefresh, canConfi
         <button onClick={onRefresh} className="p-2 hover:bg-gray-100 rounded-xl" title="تحديث يدوي">
           <RefreshCw className="w-5 h-5 text-gray-500" />
         </button>
-
-        <div className="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded-lg hidden sm:block" dir="ltr">
-          {countdown}s
-        </div>
 
         {lastUpdate && (
           <div className="text-xs text-gray-400 hidden md:block">
