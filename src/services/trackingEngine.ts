@@ -1,6 +1,5 @@
 import { supabase } from '../lib/supabase'
 import { trackingQueue } from './trackingQueue'
-import { heartbeatService } from './heartbeatService'
 import { lastSeenTracker } from './lastSeenTracker'
 import { failureLogger } from './failureLogger'
 import * as gpsService from './gpsService'
@@ -171,8 +170,6 @@ class TrackingEngine {
       this._flushInterval = setInterval(() => this._flush(), 30000)
     }
 
-    heartbeatService.setEmployeeId(this._employeeId)
-    heartbeatService.start(this._sessionId!)
     lastSeenTracker.setSession(this._sessionId)
     lastSeenTracker.setOnline(navigator.onLine)
 
@@ -207,7 +204,6 @@ class TrackingEngine {
       await this._stopNativeService()
     }
 
-    heartbeatService.stop()
     lastSeenTracker.clear()
     try { localStorage.removeItem('tracking_last_location') } catch {}
     this._sessionId = null

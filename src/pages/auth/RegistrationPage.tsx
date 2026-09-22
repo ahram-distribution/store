@@ -53,7 +53,7 @@ export default function RegistrationPage() {
       style={{ background: 'linear-gradient(135deg, var(--theme-navy-deep) 0%, var(--theme-navy) 40%, #1565C0 70%, #1E88E5 100%)' }}>
       <div className="w-full max-w-sm">
         <div className="text-center mb-6">
-          <img src="https://gbcbejejgpvltuhbztbx.supabase.co/storage/v1/object/public/ahram/ahram.png" alt="Logo"
+          <img src="https://fpsepeuykcioelcmkuup.supabase.co/storage/v1/object/public/ahram/ahram.png" alt="Logo"
             className="h-14 w-auto mx-auto mb-3 rounded-xl border-2 border-[var(--theme-accent)] shadow-lg shadow-[var(--theme-accent)]/30" />
           <h1 className="text-2xl font-extrabold text-white mb-1">أهلاً بك في أهرام</h1>
           <p className="text-sm text-white/60">أنشئ حسابك في ثوانٍ وابدأ طلبك</p>

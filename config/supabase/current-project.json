@@ -1,0 +1,32 @@
+{
+  "authoritative_source": "D:\\Projects\\Access Tokens new",
+  "current_project": {
+    "name": "alahram-project",
+    "ref": "fpsepeuykcioelcmkuup",
+    "url": "https://fpsepeuykcioelcmkuup.supabase.co",
+    "region": "eu-west-1",
+    "db_pooler_host": "aws-1-eu-west-1.pooler.supabase.com",
+    "db_user": "postgres.fpsepeuykcioelcmkuup",
+    "db_port": 5432,
+    "db_database": "postgres",
+    "dashboard": "https://supabase.com/dashboard/project/fpsepeuykcioelcmkuup"
+  },
+  "old_project": {
+    "ref": "gbcbejejgpvltuhbztbx",
+    "url": "https://gbcbejejgpvltuhbztbx.supabase.co",
+    "note": "DEPRECATED - must not be used by active Web runtime, deployment, migration, or database-writing workflows."
+  },
+  "secrets": {
+    "policy": "Secrets are NEVER stored here. Keep them in git-ignored local locations only: .env.local (project root) and GitHub repository secrets.",
+    "vite_env": "VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY (set in .env.local and GitHub secrets)",
+    "server_env": "SUPABASE_SERVICE_ROLE_KEY, SUPABASE_DB_PASSWORD, SUPABASE_DB_HOST, SUPABASE_DB_PORT, SUPABASE_DB_NAME (set in .env.local only)",
+    "management_api_token": "Management API PAT (stored in local secret store / CI secrets; never committed)"
+  },
+  "usage": {
+    "web_development": ".env.local",
+    "web_deployment": ".github/workflows/deploy.yml (GitHub secrets)",
+    "migrations": "POST https://api.supabase.com/v1/projects/fpsepeuykcioelcmkuup/database/query",
+    "edge_functions": "supabase functions deploy --project-ref fpsepeuykcioelcmkuup",
+    "db_inspection": "postgres.fpsepeuykcioelcmkuup @ aws-1-eu-west-1.pooler.supabase.com via pg, or Management API SQL endpoint"
+  }
+}

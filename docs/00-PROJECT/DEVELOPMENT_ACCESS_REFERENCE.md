@@ -22,18 +22,23 @@
 
 ## 2. Supabase
 
+> **Centralized project configuration:** see `config/supabase/` (README + current-project.json).
+> AUTHORITATIVE SOURCE for project credentials: `D:\Projects\Access Tokens new`. Secrets live only in the gitignored `.env.local` / local secret store — never commit keys.
+
 ### Project identity
 | Property | Value |
 |---|---|
-| Project Ref | `gbcbejejgpvltuhbztbx` |
-| Project Name | "alahram Project" |
-| Organization ID | `kpyqwvbvrcnjrzhujjo` |
-| API URL | `https://gbcbejejgpvltuhbztbx.supabase.co` |
-| Dashboard | `https://supabase.com/dashboard/project/gbcbejejgpvltuhbztbx` |
+| Project Ref | `fpsepeuykcioelcmkuup` |
+| Project Name | "alahram-project" |
+| Organization ID | `sideglqzyvtkqbdrzrzf` |
+| API URL | `https://fpsepeuykcioelcmkuup.supabase.co` |
+| Region | `eu-west-1` |
+| Dashboard | `https://supabase.com/dashboard/project/fpsepeuykcioelcmkuup` |
+| Old project (do NOT use) | `gbcbejejgpvltuhbztbx` (deprecated) |
 
 ### Authentication model
 The project does **NOT** use Supabase Auth. It uses a custom RPC-based session system:
-- Login: `supabase.rpc('login', { p_username, p_password })` → returns `p_token`
+- Login: `supabase.rpc('login', { p_phone, p_password })` → returns `p_token`
 - Session validation: `supabase.rpc('validate_session', { p_token })`
 - Logout: `supabase.rpc('logout', { p_token })`
 - Token stored in `localStorage('session_token')`
@@ -47,11 +52,12 @@ The project does **NOT** use Supabase Auth. It uses a custom RPC-based session s
 
 ### Management API
 - **Token:** Stored in CI secrets (DO NOT commit tokens)
-- **SQL endpoint:** `POST https://api.supabase.com/v1/projects/gbcbejejgpvltuhbztbx/database/query`
+- **SQL endpoint:** `POST https://api.supabase.com/v1/projects/fpsepeuykcioelcmkuup/database/query`
 - **Body format:** `{ "query": "SQL..." }`
 
 ### Direct database connection
-- **Host:** `db.gbcbejejgpvltuhbztbx.supabase.co`
+- **Host:** `aws-1-eu-west-1.pooler.supabase.com` (pooler, region eu-west-1)
+- **User:** `postgres.fpsepeuykcioelcmkuup`
 - **Port:** `5432`
 - **Database:** `postgres`
 - **Used by:** Root-level `__*.cjs` diagnostic scripts via `pg` driver
@@ -197,7 +203,7 @@ npm run dev
 | `VITE_SUPABASE_ANON_KEY` | Supabase anon/public key (client) | Same as above |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase admin key (server scripts only) | Root `__*.cjs` diagnostic scripts |
 | `SUPABASE_DB_PASSWORD` | Direct Postgres password | Root `__*.cjs` diagnostic scripts via `pg` |
-| `SUPABASE_DB_HOST` | Postgres host (`db.gbcbejejgpvltuhbztbx.supabase.co`) | Root `__*.cjs` diagnostic scripts |
+| `SUPABASE_DB_HOST` | Postgres host (`aws-1-eu-west-1.pooler.supabase.com`) | Root `__*.cjs` diagnostic scripts |
 | `SUPABASE_DB_PORT` | Postgres port (`5432`) | Root `__*.cjs` diagnostic scripts |
 | `SUPABASE_DB_NAME` | Postgres database name (`postgres`) | Root `__*.cjs` diagnostic scripts |
 
@@ -221,13 +227,13 @@ npm run dev
 | Item | Value | Purpose |
 |---|---|---|
 | Management API token | Stored in CI secrets | Direct SQL execution, schema changes |
-| SQL endpoint | `POST https://api.supabase.com/v1/projects/gbcbejejgpvltuhbztbx/database/query` | Apply migrations |
+| SQL endpoint | `POST https://api.supabase.com/v1/projects/fpsepeuykcioelcmkuup/database/query` | Apply migrations |
 
 ### Source code (hardcoded — public, not secrets)
 
 | Value | Location | Purpose |
 |---|---|---|
-| Supabase project ref `gbcbejejgpvltuhbztbx` | Multiple (URLs, API calls) | Project identifier |
+| Supabase project ref `fpsepeuykcioelcmkuup` | Multiple (URLs, API calls) | Project identifier (see `config/supabase/`) |
 | WhatsApp fallback `01040880002` | `src/lib/whatsapp.ts:109` | Default contact when env var missing |
 | Google Maps deep link | `src/components/shared/MapButton.tsx`, `src/types/order-display.ts` | Open location in maps (no API key) |
 
