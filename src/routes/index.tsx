@@ -74,22 +74,6 @@ import { OperationsCenterPage } from '../pages/operations-center'
 import { SalesManagerCCPage, SalesManagerOperations, SalesManagerField, SalesManagerPersonal, SalesManagerVisitsList, SalesManagerCustomersList, SalesManagerOrdersList } from '../pages/sales-manager'
 import { SalesListPage } from '../pages/sales-list'
 import { SalesAnalyticsPage } from '../pages/sales-analytics'
-import SahlDashboardPage from '../pages/sahl/SahlDashboardPage'
-import { SahlReceiptsPage } from '../pages/sahl/SahlReceiptsPage'
-import { SahlExpensesPage } from '../pages/sahl/SahlExpensesPage'
-import { SahlTreasuryPage } from '../pages/sahl/SahlTreasuryPage'
-import { SahlAccountsPage } from '../pages/sahl/SahlAccountsPage'
-import { SahlSuppliersPage } from '../pages/sahl/SahlSuppliersPage'
-import { SahlPurchasesPage } from '../pages/sahl/SahlPurchasesPage'
-import { SahlReturnsPage } from '../pages/sahl/SahlReturnsPage'
-import { SahlAdvancesPage } from '../pages/sahl/SahlAdvancesPage'
-import { SahlInventoryPage } from '../pages/sahl/SahlInventoryPage'
-import { SahlInstallmentsPage } from '../pages/sahl/SahlInstallmentsPage'
-import { SahlChequesPage } from '../pages/sahl/SahlChequesPage'
-import { SahlReportsPage } from '../pages/sahl/SahlReportsPage'
-import { SahlPosPage } from '../pages/sahl/SahlPosPage'
-import { SahlInvoicesPage } from '../pages/sahl/SahlInvoicesPage'
-import { SahlSettingsPage } from '../pages/sahl/SahlSettingsPage'
 import UsageMonitorPage from '../pages/usage/UsageMonitorPage'
 
 import { NotificationInbox } from '../components/notifications/NotificationInbox'
@@ -271,23 +255,6 @@ export function AppRoutes() {
 
       <Route path="/ops/gps-test" element={<ProtectedRoute requireUpperManagement><GpsTestPage /></ProtectedRoute>} />
 
-      {/* SAHL workspace (الإدارة العليا → سهل) */}
-      <Route path="/sahl" element={<ProtectedRoute employeeOnly requireUpperManagement><SahlDashboardPage /></ProtectedRoute>} />
-      <Route path="/sahl/receipts" element={<ProtectedRoute employeeOnly requireUpperManagement><SahlReceiptsPage /></ProtectedRoute>} />
-      <Route path="/sahl/expenses" element={<ProtectedRoute employeeOnly requireUpperManagement><SahlExpensesPage /></ProtectedRoute>} />
-      <Route path="/sahl/treasury" element={<ProtectedRoute employeeOnly requireUpperManagement><SahlTreasuryPage /></ProtectedRoute>} />
-      <Route path="/sahl/accounts" element={<ProtectedRoute employeeOnly requireUpperManagement><SahlAccountsPage /></ProtectedRoute>} />
-      <Route path="/sahl/suppliers" element={<ProtectedRoute employeeOnly requireUpperManagement><SahlSuppliersPage /></ProtectedRoute>} />
-      <Route path="/sahl/purchases" element={<ProtectedRoute employeeOnly requireUpperManagement><SahlPurchasesPage /></ProtectedRoute>} />
-      <Route path="/sahl/returns" element={<ProtectedRoute employeeOnly requireUpperManagement><SahlReturnsPage /></ProtectedRoute>} />
-      <Route path="/sahl/advances" element={<ProtectedRoute employeeOnly requireUpperManagement><SahlAdvancesPage /></ProtectedRoute>} />
-      <Route path="/sahl/inventory" element={<ProtectedRoute employeeOnly requireUpperManagement><SahlInventoryPage /></ProtectedRoute>} />
-      <Route path="/sahl/installments" element={<ProtectedRoute employeeOnly requireUpperManagement><SahlInstallmentsPage /></ProtectedRoute>} />
-      <Route path="/sahl/cheques" element={<ProtectedRoute employeeOnly requireUpperManagement><SahlChequesPage /></ProtectedRoute>} />
-      <Route path="/sahl/reports" element={<ProtectedRoute employeeOnly requireUpperManagement><SahlReportsPage /></ProtectedRoute>} />
-      <Route path="/sahl/pos" element={<ProtectedRoute employeeOnly requireUpperManagement><SahlPosPage /></ProtectedRoute>} />
-        <Route path="/sahl/invoices" element={<ProtectedRoute employeeOnly requireUpperManagement><SahlInvoicesPage /></ProtectedRoute>} />
-        <Route path="/sahl/settings" element={<ProtectedRoute employeeOnly requireUpperManagement><SahlSettingsPage /></ProtectedRoute>} />
       <Route path="/coverage-map" element={<ProtectedRoute requireUpperManagement hideFromExecutiveDirector><CoverageMapPage /></ProtectedRoute>} />
       <Route path="/system/usage" element={<ProtectedRoute employeeOnly requireUpperManagement><UsageMonitorPage /></ProtectedRoute>} />
       <Route path="/sectors" element={<ProtectedRoute requireCapability="sectors.manage"><SectorsPage /></ProtectedRoute>} />

@@ -1,6 +1,6 @@
 {
   "baselineVersion": 1,
-  "schemaVersion": 16,
+  "schemaVersion": 27,
   "migrations": [
     {
       "version": 2,
@@ -76,6 +76,16 @@
       "version": 16,
       "file": "0016_geographic_visibility.sql",
       "description": "Geographic Company & Product Visibility Rules (sibling to geographic pricing, same architecture): geographic_visibility_rules table (scopes all/governorates/sectors, multi company_ids/product_ids arrays), capabilities geographic_visibility.manage/read granted to الإدارة العليا, governed CRUD RPCs, and per-governorate/sector resolvers get_geographic_visibility_hidden_products(_for_sector) that hide selected companies/products from BOTH المتجر and ليستة البيع WITHOUT changing global product status (is_active/is_visible/is_out_of_stock untouched)"
+    },
+    {
+      "version": 27,
+      "file": "0027_get_governed_product_rpc.sql",
+      "description": "Web parity: single-product governed read get_governed_product(p_token, p_id) for Product Profile (same jsonb shape as get_governed_products, one row by id — avoids shipping the entire catalog to render one product)"
+    },
+    {
+      "version": 28,
+      "file": "0028_remove_sahl_module.sql",
+      "description": "REMOVE SAHL (سهل): drops every public.sahl_* object (tables, views, functions, sequences, types, triggers, policies, grants) guard-safe via catalog loops. Keeps 0027 get_governed_product (approved catalog egress optimization)."
     }
   ]
 }

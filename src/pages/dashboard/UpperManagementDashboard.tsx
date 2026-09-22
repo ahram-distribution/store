@@ -79,7 +79,6 @@ export default function UpperManagementDashboard() {
     { icon: '⏱️', label: 'الحضور والانصراف', path: '/attendance' },
     { icon: '🛰️', label: 'الحضور والمتابعة', path: '/attendance/executive' },
     { icon: '📦', label: 'المخزون', path: '/launcher/inventory', isSubLauncher: true },
-    { icon: '🧮', label: 'سهل', path: '/sahl' },
     { icon: '📡', label: 'استهلاك Supabase', path: '/system/usage' },
     { icon: '🏷️', label: 'الأقسام', path: '/launcher/deals', isSubLauncher: true },
     { icon: '🗺️', label: 'القطاعات', path: '/sectors' },
