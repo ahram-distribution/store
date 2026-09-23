@@ -9,6 +9,9 @@ import type { RealtimeChannel } from '@supabase/supabase-js'
 import toast from 'react-hot-toast'
 import { currentGeoEpoch, getGeographicAdjustmentsForProducts, invalidateGeographicResolutions } from '../services/geographicPricing'
 import { readBonusMode, currentBonusModeEpoch, invalidateBonusModeCache, subscribeToBonusModeChanges } from '../services/bonusConfig'
+import { fetchProductsByIds } from '../services/governedCatalog'
+import { toProductWithPrice } from '../utils/catalog'
+import { useAuthStore } from './auth'
 
 let geoRulesChannel: RealtimeChannel | null = null
 let bonusModeUnsubscribe: (() => void) | null = null
@@ -16,6 +19,10 @@ let _geoResolveVersion = 0
 let discountOptionsChannel: RealtimeChannel | null = null
 let _discountRefreshVersion = 0
 let _discountRefreshTimer: ReturnType<typeof setTimeout> | null = null
+let _cartRowsFetchPromise: Promise<void> | null = null
+/** Cooldown per product id so deleted/unfetchable rows are not refetched on every recalc. */
+const _missingRowCooldown = new Map<string, number>()
+const CART_ROW_REFETCH_COOLDOWN_MS = 60_000
 
 interface CartCustomer {
   id: string
@@ -50,6 +57,7 @@ interface CartState {
   geoItemAdjustments: Record<string, number>
   geoItemEpoch: number
   geoResolveEpoch: number
+  missingProductIds: string[]
 
   bonusMode: boolean
   bonusEpoch: number
@@ -105,6 +113,7 @@ interface CartState {
   setGeographicContext: (ctx: GeographicContext | null) => void
   subscribeToGeoRules: (governorateId: string) => void
   ensureGeoItemAdjustments: (products: Array<{ id: string; companyId: string }>) => Promise<void>
+  ensureCartRows: () => Promise<void>
 }
 
 export const useCartStore = create(
@@ -225,6 +234,7 @@ export const useCartStore = create(
       geoItemAdjustments: {},
       geoItemEpoch: -1,
       geoResolveEpoch: 0,
+      missingProductIds: [],
       bonusMode: false,
       bonusEpoch: -1,
       bonusItems: [],
@@ -617,7 +627,7 @@ export const useCartStore = create(
        * Used for recovery and continuing the same order after accidental refresh.
        */
       clearCart: () => {
-        set({ items: [], dealItems: [], flashOfferItems: [], bonusItems: [] })
+        set({ items: [], dealItems: [], flashOfferItems: [], bonusItems: [], missingProductIds: [] })
         enforceCartInvariant()
         get().recomputeBonus()
       },
@@ -653,6 +663,7 @@ export const useCartStore = create(
           geoItemAdjustments: {},
           geoItemEpoch: -1,
           geoResolveEpoch: currentGeoEpoch(),
+          missingProductIds: [],
         })
       },
 
@@ -717,9 +728,15 @@ export const useCartStore = create(
         const payment = state.getSelectedPaymentMethod()
         const shipping = state.getSelectedShippingMethod()
         const useBase = state.bonusMode
+        const missed: string[] = []
         const newItems = state.items.map((item) => {
           const product = state.products.find((p) => p.id === item.productId)
-          if (!product) return item
+          if (!product) {
+            // Never silently skip: flag the id, keep the stored price as a safe
+            // interim, and let ensureCartRows() refetch the row (targeted p_ids).
+            missed.push(item.productId)
+            return item
+          }
           const geoAdj = getAdjForProduct(state, item.productId)
           const prices = computeProductPrices(product, tier, buildLookup(state, product), geoAdj || undefined, payment, shipping)
           const baseUnitPrice = getUnitBasePrice(prices, item.unitType)
@@ -738,6 +755,19 @@ export const useCartStore = create(
         const newBonusItems = state.bonusItems.map((item) => priceBonusAtBase(state, item, tier, payment, shipping))
         set({ items: newItems, bonusItems: newBonusItems })
         get().recomputeBonus()
+        const stillMissing = newItems.concat(newBonusItems)
+          .filter((i) => !get().products.some((p) => p.id === i.productId))
+          .map((i) => i.productId)
+        const uniqueMissing = Array.from(new Set(stillMissing))
+        if (missed.length > 0 || uniqueMissing.length > 0) {
+          const allMissing = Array.from(new Set([...missed, ...uniqueMissing]))
+          set({ missingProductIds: allMissing })
+          setTimeout(() => {
+            get().ensureCartRows().catch(() => {})
+          }, 0)
+        } else if (get().missingProductIds.length > 0) {
+          set({ missingProductIds: [] })
+        }
       },
 
       recomputeBonus: () => {
@@ -1010,6 +1040,63 @@ export const useCartStore = create(
         }
       },
 
+      /**
+       * ensureCartRows()
+       * Purpose: Guarantees every cart/bonus line has its product row in the
+       * store (for recompute, availability, company meta). Fetches ONLY the
+       * missing ids via targeted p_ids (never the full catalog), including
+       * inactive/out-of-stock historical lines. Deleted/unfetchable ids are
+       * kept flagged in missingProductIds with a per-id cooldown so we never
+       * spin in a fetch loop, but never silently ignore them.
+       */
+      ensureCartRows: async () => {
+        const state = get()
+        const token = useAuthStore.getState().token
+        if (!token) return
+        const required = Array.from(
+          new Set(
+            [...state.items, ...state.bonusItems]
+              .map((i) => i.productId)
+              .filter(Boolean)
+          )
+        )
+        if (required.length === 0) return
+        const present = new Set(state.products.map((p) => p.id))
+        const now = Date.now()
+        const missing = required.filter(
+          (id) => !present.has(id) && (now - (_missingRowCooldown.get(id) ?? 0)) >= CART_ROW_REFETCH_COOLDOWN_MS
+        )
+        if (missing.length === 0) {
+          const stillMissing = required.filter((id) => !present.has(id))
+          set({ missingProductIds: stillMissing })
+          return
+        }
+        if (_cartRowsFetchPromise) return _cartRowsFetchPromise
+
+        _cartRowsFetchPromise = (async () => {
+          try {
+            const rows = await fetchProductsByIds(token, missing)
+            const foundIds = new Set(rows.map((r) => r.id))
+            const mapped = rows.map((r) => toProductWithPrice(r))
+            if (mapped.length > 0) get().mergeProducts(mapped)
+            const unfetchable = missing.filter((id) => !foundIds.has(id))
+            if (unfetchable.length > 0) {
+              const fresh = Date.now()
+              for (const id of unfetchable) _missingRowCooldown.set(id, fresh)
+              console.warn('[cart] missing product rows (deleted/unfetchable); keeping stored line prices:', unfetchable)
+            }
+            const after = get()
+            const stillMissing = [...after.items, ...after.bonusItems]
+              .filter((i) => !after.products.some((p) => p.id === i.productId))
+              .map((i) => i.productId)
+            set({ missingProductIds: Array.from(new Set(stillMissing)) })
+          } finally {
+            _cartRowsFetchPromise = null
+          }
+        })()
+        return _cartRowsFetchPromise
+      },
+
       resolveEmployeeGeographicContext: async (employeeId) => {
         const myVersion = _geoResolveVersion
         try {
@@ -1085,6 +1172,9 @@ export const useCartStore = create(
           selectedShippingMethodId: options?.shippingMethodId ?? undefined,
         })
         get().recalculateAll()
+        // Backstop: pull any historical line rows (inactive/out-of-stock) via
+        // targeted p_ids instead of requiring a full-catalog preload by the caller.
+        get().ensureCartRows().catch(() => {})
       },
 
       getDealItems: () => get().dealItems,

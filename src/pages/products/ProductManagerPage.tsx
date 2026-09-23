@@ -8,7 +8,6 @@ import { isExecutiveDirectorUser } from '../../utils/roleNormalization'
 import { ProductCard } from '../../components/products/ProductCard'
 import { formatCurrencyShort, toEnglishDigits } from '../../utils/format'
 import { ORDER_STATUS_LABELS, UNIT_LABELS } from '../../types/order-display'
-import { buildSearchIndex, searchProducts } from '../../utils/smartSearch'
 import { SearchHighlight } from '../../components/shared/SearchHighlight'
 import { SearchableSelect } from '../../components/shared/SearchableSelect'
 import toast from 'react-hot-toast'
@@ -122,79 +121,101 @@ export function ProductManagerPage() {
     return () => { if (searchTimerRef.current) clearTimeout(searchTimerRef.current) }
   }, [searchInput])
 
-  // Derived company names (from products list)
+  // Derived company names (server companies list — the server is the filter source)
   const companyNames = useMemo(() => {
-    return Array.from(new Set(products.map((p: any) => p.company_name))).sort()
-  }, [products])
+    return Array.from(new Set((companies as any[]).map((c: any) => c.company_name))).sort()
+  }, [companies])
 
-  // Filtered products
-  const searchIndices = useMemo(() => {
-    return products.map((p: any) => ({
-      id: p.id,
-      product: p,
-      index: buildSearchIndex({
-        id: p.id,
-        legacyCode: p.legacy_code,
-        productName: p.product_name,
-        companyName: p.company_name,
-      }),
-    }))
-  }, [products])
+  // Map the persisted company NAME filter to its id (the RPC filters by id)
+  const selectedCompanyId = useMemo(() => {
+    if (!companyFilter) return ''
+    const c = (companies as any[]).find((x: any) => x.company_name === companyFilter)
+    return c?.id || ''
+  }, [companies, companyFilter])
 
-  // ── Actual product status — single source of truth for the status filters.
-  // Mirrors the 3-state model used by the edit screen (نشط / نفذت الكمية / مخفي).
-  // Each product maps to exactly one state so it can never appear under two
-  // different status filters.
-  function getProductStatus(p: any): 'out_of_stock' | 'inactive' | 'active' {
-    if (p.is_out_of_stock === true && p.is_active !== false) return 'out_of_stock'
-    if (!p.is_active || p.is_visible === false) return 'inactive'
-    return 'active'
+  // Translate view-state filters into additive RPC params (all AND-combine server-side).
+  function buildServerParams() {
+    const params: Record<string, any> = {}
+    if (statusFilter === 'active') params.p_active_status_only = true
+    if (statusFilter === 'out_of_stock') params.p_out_of_stock_only = true
+    if (statusFilter === 'inactive') params.p_inactive_only = true
+    if (statusFilter === 'no_price') params.p_no_price = true
+    if (dataFilter === 'no_image') params.p_no_image = true
+    if (dataFilter === 'no_stock') params.p_no_stock = true
+    if (selectedCompanyId) params.p_company_id = selectedCompanyId
+    const q = searchQuery.trim()
+    if (q) params.p_search = q
+    return params
   }
 
+  const PAGE_SIZE = 20
+  const [page, setPage] = useState(1)
+  const [totalFiltered, setTotalFiltered] = useState(0)
+
+  // The grid is ALWAYS the current server page (already filtered + paged) —
+  // stored products are replaced on every fetch. Sorted by name to match the
+  // RPC ORDER BY.
   const filtered = useMemo(() => {
-    let list = products
-    if (statusFilter === 'active') list = list.filter((p: any) => getProductStatus(p) === 'active')
-    if (statusFilter === 'out_of_stock') list = list.filter((p: any) => getProductStatus(p) === 'out_of_stock')
-    if (statusFilter === 'inactive') list = list.filter((p: any) => getProductStatus(p) === 'inactive')
-    if (statusFilter === 'no_price') list = list.filter((p: any) => !p.carton_price || Number(p.carton_price) <= 0)
-    if (dataFilter === 'no_image') list = list.filter((p: any) => !p.image_url)
-    if (dataFilter === 'no_price') list = list.filter((p: any) => !p.carton_price || Number(p.carton_price) <= 0)
-    if (dataFilter === 'no_stock') list = list.filter((p: any) => !Number(p.inventory?.quantity))
-    if (companyFilter) list = list.filter((p: any) => p.company_name === companyFilter)
-    const q = searchQuery.trim()
-    if (q) {
-      const filteredIds = new Set(list.map((p: any) => p.id))
-      const indices = searchIndices.filter((si) => filteredIds.has(si.product.id))
-      list = searchProducts(q, indices, (si) => si.index).map((si) => si.product)
-    } else {
-      list = [...list].sort((a: any, b: any) => (a.product_name || '').localeCompare(b.product_name || ''))
-    }
+    const list = [...products] as any[]
+    list.sort((a: any, b: any) => (a.product_name || '').localeCompare(b.product_name || ''))
     return list
-  }, [products, searchQuery, companyFilter, statusFilter, dataFilter, searchIndices])
+  }, [products])
 
   // ── Load data ──
+  // Page + count with the CURRENT view-state filters. Called on filter/page
+  // changes and after every product mutation to refresh the grid.
   async function loadData() {
     const token = getToken()
     if (!token) { setLoading(false); return }
-    const [prodRes, compRes, tiersRes, policyRes] = await Promise.all([
-      governedCatalog({ p_token: token, p_active_only: false, p_visible_only: false }),
+    const base = { p_token: token, p_active_only: false, p_visible_only: false, ...buildServerParams() }
+    const [pageRes, countRes] = await Promise.all([
+      governedCatalog({ ...base, p_page: Math.max(1, page), p_per_page: PAGE_SIZE }),
+      governedCatalog({ ...base, p_count_only: true }),
+    ])
+    if (pageRes.data) useCatalogStore.getState().setProducts(Array.isArray(pageRes.data) ? pageRes.data : [])
+    const cnt = Array.isArray(countRes.data) ? null : (countRes.data as any)?.count
+    if (typeof cnt === 'number') setTotalFiltered(cnt)
+  }
+
+  // Reset to page 1 whenever any filter changes.
+  useEffect(() => {
+    setPage(1)
+  }, [searchQuery, companyFilter, statusFilter, dataFilter])
+
+  useEffect(() => {
+    const token = getToken()
+    if (!token) { setLoading(false); return }
+    let cancelled = false
+    setLoading(true)
+    const base = { p_token: token, p_active_only: false, p_visible_only: false, ...buildServerParams() }
+    Promise.all([
+      governedCatalog({ ...base, p_page: Math.max(1, page), p_per_page: PAGE_SIZE }),
+      governedCatalog({ ...base, p_count_only: true }),
       supabase.rpc('get_governed_companies', { p_token: token }),
       supabase.rpc('get_governed_tiers', { p_token: token }),
       supabase.rpc('get_inventory_policies', { p_token: token }),
     ])
-    if (prodRes.data) useCatalogStore.getState().setProducts(Array.isArray(prodRes.data) ? prodRes.data : [])
-    if (compRes.data) setCompanies(Array.isArray(compRes.data) ? compRes.data : [])
-    if (tiersRes.data) setAllTiers(Array.isArray(tiersRes.data) ? tiersRes.data : [])
-    if (policyRes.data && !policyRes.error) setGlobalPolicies(policyRes.data)
-    const opts = await discountOptionsService.getAll().catch(() => null)
-    if (opts) {
+      .then(([pageRes, countRes, compRes, tiersRes, policyRes]) => {
+        if (cancelled) return
+        if (pageRes.data) useCatalogStore.getState().setProducts(Array.isArray(pageRes.data) ? pageRes.data : [])
+        const cnt = Array.isArray(countRes.data) ? null : (countRes.data as any)?.count
+        if (typeof cnt === 'number') setTotalFiltered(cnt)
+        if (compRes.data) setCompanies(Array.isArray(compRes.data) ? compRes.data : [])
+        if (tiersRes.data) setAllTiers(Array.isArray(tiersRes.data) ? tiersRes.data : [])
+        if (policyRes.data && !policyRes.error) setGlobalPolicies(policyRes.data)
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [searchQuery, companyFilter, statusFilter, dataFilter, page])
+
+  useEffect(() => {
+    discountOptionsService.getAll().catch(() => null).then((opts) => {
+      if (!opts) return
       setPaymentOptions(opts.paymentMethods)
       setShippingOptions(opts.shippingMethods)
-    }
-    setLoading(false)
-  }
-
-  useEffect(() => { loadData() }, [])
+    })
+  }, [])
 
   // ── Global Policy Change Handlers ──
   function handleNegativeSellingChange(newValue: boolean) {
@@ -456,15 +477,16 @@ export function ProductManagerPage() {
   const toggleSection = (id: string) => setOpenSections((p) => ({ ...p, [id]: !p[id] }))
   const isSectionOpen = (id: string) => !!openSections[id]
 
-  // ── Excel export (official stock/price template from CURRENT governed catalog) ──
+  // ── Excel export (official stock/price template from the FULL governed catalog) ──
   const [exporting, setExporting] = useState(false)
-  function handleExportTemplate() {
+  async function handleExportTemplate() {
     setExporting(true)
     try {
-      // Data scope = the already-loaded governed catalog (get_governed_products),
-      // i.e. the products the current user is authorized to manage. Pure client-side
-      // snapshot — no DB write, no extra request, no N+1.
-      const source = useCatalogStore.getState().products
+      // Explicit on-demand full fetch — export is an admin batch action, not a
+      // normal screen load, so it never ships the catalog into the grid state.
+      const token = getToken()
+      const { data } = await governedCatalog({ p_token: token, p_active_only: false, p_visible_only: false })
+      const source = Array.isArray(data) ? data : []
       const { fileName } = exportProductStockTemplate(source)
       toast.success(`تم تنزيل قالب المخزون والأسعار (${fileName})`)
     } catch (e: any) {
@@ -486,7 +508,11 @@ export function ProductManagerPage() {
     try {
       const rows = await parseProductExcelFile(file)
       setImportRows(rows)
-      const preview = buildImportPreview(rows, useCatalogStore.getState().products)
+      // Explicit on-demand full fetch for code matching — same authorized scope
+      // the export template uses; never loaded into the grid state.
+      const token = getToken()
+      const { data: allRows } = await governedCatalog({ p_token: token, p_active_only: false, p_visible_only: false })
+      const preview = buildImportPreview(rows, Array.isArray(allRows) ? (allRows as any[]) : [])
       setImportPreview(preview)
       const hasAction = preview.matched.length > 0 || preview.missing.some((m) => m.needsChange)
       if (!hasAction) {
@@ -1004,7 +1030,7 @@ export function ProductManagerPage() {
           </div>
 
           <div className="flex gap-2 text-[11px] text-text-secondary pt-0.5">
-            <span>{filtered.length} من {products.length} منتج</span>
+            <span>{filtered.length} من {totalFiltered} منتج</span>
             {(searchQuery || companyFilter || statusFilter !== 'all' || dataFilter !== 'all') && (
               <button
                 onClick={resetViewState}
@@ -1048,6 +1074,29 @@ export function ProductManagerPage() {
                 canManage={canManage}
               />
             ))}
+          </div>
+        )}
+
+        {/* ── Pagination (server-side pages of 20) ── */}
+        {!loading && totalFiltered > PAGE_SIZE && (
+          <div className="flex items-center justify-between pt-4">
+            <button
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page <= 1}
+              className="text-xs px-3 py-1.5 rounded-lg border border-border text-text-secondary disabled:opacity-40"
+            >
+              &larr; السابق
+            </button>
+            <span className="text-xs text-text-secondary">
+              صفحة {page} من {Math.ceil(totalFiltered / PAGE_SIZE)} · إجمالي {totalFiltered} منتج
+            </span>
+            <button
+              onClick={() => setPage((p) => p + 1)}
+              disabled={page >= Math.ceil(totalFiltered / PAGE_SIZE)}
+              className="text-xs px-3 py-1.5 rounded-lg border border-border text-text-secondary disabled:opacity-40"
+            >
+              التالي &rarr;
+            </button>
           </div>
         )}
       </div>

@@ -1,11 +1,12 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { sectorsService } from '../../services/sectors'
 import { SearchableSelect } from '../../components/shared/SearchableSelect'
 import { MultiSearchableSelect } from '../../components/shared/MultiSearchableSelect'
+import { RemoteMultiSearchableSelect, type RemoteMultiSearchableSelectItem } from '../../components/shared/RemoteMultiSearchableSelect'
 import { useCapability } from '../../hooks/useCapability'
 import toast from 'react-hot-toast'
 import { supabase } from '../../lib/supabase'
-import { governedCatalog } from '../../services/governedCatalog'
+import { governedCatalog, fetchProductsByIds } from '../../services/governedCatalog'
 import { useAuthStore } from '../../store/auth'
 import type { Sector, GeographicVisibilityRule } from '../../types/sectors'
 
@@ -33,7 +34,6 @@ export function GeographicVisibilityScreen() {
   const [sectors, setSectors] = useState<Sector[]>([])
   const [governorates, setGovernorates] = useState<any[]>([])
   const [companies, setCompanies] = useState<any[]>([])
-  const [allProducts, setAllProducts] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
 
@@ -79,25 +79,37 @@ export function GeographicVisibilityScreen() {
     }
   }
 
-  async function loadProductOptions() {
-    if (!authToken) return
+  // Server-side product picker: options are fetched per keystroke (page 1 of 20)
+  // and chip labels resolve via targeted p_ids fetches — never the full catalog.
+  const productOptions = useCallback(async (q: string): Promise<RemoteMultiSearchableSelectItem[]> => {
+    if (!authToken) return []
+    const { data } = await governedCatalog({
+      p_token: authToken,
+      p_active_only: true,
+      p_visible_only: true,
+      p_search: q || null,
+      p_page: 1,
+      p_per_page: 20,
+    })
+    return Array.isArray(data)
+      ? data.map((p: any) => ({ id: p.id, name: p.product_name, keywords: [p.legacy_code, p.company_name].filter(Boolean) }))
+      : []
+  }, [authToken])
+
+  const resolveProductLabel = useCallback(async (id: string): Promise<string | null> => {
+    if (!authToken) return null
     try {
-      const { data, error } = await governedCatalog({
-        p_token: authToken,
-        p_active_only: true,
-        p_visible_only: true,
-        p_company_id: null,
-      })
-      if (!error && Array.isArray(data)) setAllProducts(data)
+      const rows = await fetchProductsByIds(authToken, [id])
+      const row = Array.isArray(rows) && rows.length > 0 ? rows[0] : null
+      return row?.product_name ?? null
     } catch {
-      /* نكتفي بالصمت - اختياري */
+      return null
     }
-  }
+  }, [authToken])
 
   useEffect(() => {
     if (!canManage) return
     loadCompanyOptions()
-    loadProductOptions()
   }, [canManage])
 
   const showSectorField = ruleScope === 'sectors'
@@ -285,10 +297,11 @@ export function GeographicVisibilityScreen() {
 
               <div>
                 <label className="text-[11px] font-bold text-text-secondary block mb-1">الأصناف</label>
-                <MultiSearchableSelect
-                  items={allProducts.map(p => ({ id: p.id, name: p.product_name, keywords: [p.legacy_code, p.company_name].filter(Boolean) }))}
+                <RemoteMultiSearchableSelect
                   values={ruleProductIds}
                   onChange={setRuleProductIds}
+                  loadOptions={productOptions}
+                  resolveLabel={resolveProductLabel}
                   placeholder="اختر الأصناف"
                 />
               </div>

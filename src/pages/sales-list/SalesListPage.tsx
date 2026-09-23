@@ -259,17 +259,27 @@ export default function SalesListPage() {
   const [overrideHiddenProductIds, setOverrideHiddenProductIds] = useState<Set<string>>(new Set())
   const [overrideHiddenResolving, setOverrideHiddenResolving] = useState(false)
 
+  // When a governorate/sector is selected, the RPC geo-scopes the response
+  // (visibility rules enforced server-side) so we never download the full
+  // active+visible catalog for a regional price list.
+  const regionParams = useMemo(() => {
+    if (!isUpperMgmt) return {}
+    if (listType === 'governorate' && selectedGovernorate) return { p_governorate_id: selectedGovernorate }
+    if (listType === 'sector' && selectedSector) return { p_sector_id: selectedSector }
+    return {}
+  }, [isUpperMgmt, listType, selectedGovernorate, selectedSector])
+
   useEffect(() => {
     if (!hasAccess) return
     if (!authToken) { setLoading(false); return }
     setLoading(true)
-    governedCatalog({ p_token: authToken, p_active_only: true, p_visible_only: true })
+    governedCatalog({ p_token: authToken, p_active_only: true, p_visible_only: true, ...regionParams })
       .then(({ data }) => {
         const arr = Array.isArray(data) ? data : []
         setProducts(arr)
       })
       .finally(() => setLoading(false))
-  }, [hasAccess, authToken])
+  }, [hasAccess, authToken, regionParams])
 
   useEffect(() => {
     supabase.from('companies').select('company_name, display_order').then(({ data }) => {

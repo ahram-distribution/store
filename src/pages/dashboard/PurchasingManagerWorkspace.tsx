@@ -9,23 +9,37 @@ function getToken(): string | null {
 
 export function PurchasingManagerWorkspace() {
   const navigate = useNavigate()
-  const [products, setProducts] = useState<any[]>([])
+  const [total, setTotal] = useState(0)
+  const [inactiveCount, setInactiveCount] = useState(0)
+  const [noPrice, setNoPrice] = useState(0)
+  const [topInactive, setTopInactive] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     const token = getToken()
     if (!token) { setLoading(false); return }
-    governedCatalog({ p_token: token, p_active_only: false, p_visible_only: false }).then(({ data }) => {
-      if (data) setProducts(Array.isArray(data) ? data : [])
+    let cancelled = false
+    const base = { p_token: token, p_active_only: false, p_visible_only: false }
+    Promise.all([
+      governedCatalog({ ...base, p_count_only: true }),
+      governedCatalog({ ...base, p_inactive_only: true, p_count_only: true }),
+      governedCatalog({ ...base, p_no_price: true, p_count_only: true }),
+      governedCatalog({ ...base, p_inactive_only: true, p_page: 1, p_per_page: 5 }),
+    ]).then(([totalRes, inactiveRes, noPriceRes, topRes]) => {
+      if (cancelled) return
+      const cnt = (d: any) => (Array.isArray(d) ? null : d?.count) ?? 0
+      setTotal(cnt(totalRes.data))
+      setInactiveCount(cnt(inactiveRes.data))
+      setNoPrice(cnt(noPriceRes.data))
+      setTopInactive(Array.isArray(topRes.data) ? topRes.data : [])
       setLoading(false)
-    })
+    }).catch(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
   }, [])
 
   if (loading) return <div className="text-center py-12 text-text-secondary text-sm">جاري التحميل...</div>
 
-  const inactiveCount = products.filter(p => !p.is_active).length
-  const noPrice = products.filter(p => !p.carton_price || p.carton_price <= 0).length
-  const active = products.filter(p => p.is_active)
+  const active = Math.max(0, total - inactiveCount)
 
   return (
     <div className="space-y-4">
@@ -36,7 +50,7 @@ export function PurchasingManagerWorkspace() {
 
       <div className="grid grid-cols-2 gap-3">
         <div className="bg-white rounded-xl border border-border p-4 text-right">
-          <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center mb-2"><span className="text-white text-lg font-bold">{active.length}</span></div>
+          <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center mb-2"><span className="text-white text-lg font-bold">{active}</span></div>
           <span className="text-sm font-semibold text-text">منتجات نشطة</span>
         </div>
         <div className="bg-white rounded-xl border border-border p-4 text-right">
@@ -48,7 +62,7 @@ export function PurchasingManagerWorkspace() {
           <span className="text-sm font-semibold text-text">بلا سعر</span>
         </div>
         <div className="bg-white rounded-xl border border-border p-4 text-right">
-          <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center mb-2"><span className="text-white text-lg font-bold">{products.length}</span></div>
+          <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center mb-2"><span className="text-white text-lg font-bold">{total}</span></div>
           <span className="text-sm font-semibold text-text">إجمالي المنتجات</span>
         </div>
       </div>
@@ -56,7 +70,7 @@ export function PurchasingManagerWorkspace() {
       <div className="bg-white rounded-xl border border-border p-4">
         <h3 className="text-sm font-semibold text-text mb-3">منتجات غير نشطة ({inactiveCount})</h3>
         <div className="space-y-1.5 max-h-40 overflow-y-auto">
-          {products.filter(p => !p.is_active).slice(0, 5).map(p => (
+          {topInactive.map(p => (
             <div key={p.id} className="flex justify-between text-xs py-1 border-b border-border last:border-0">
               <span className="text-text">{p.product_name}</span>
               <span className="text-text-secondary">غير نشط</span>

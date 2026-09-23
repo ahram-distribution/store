@@ -8,7 +8,7 @@ import { useCapability } from '../../hooks/useCapability'
 import { useAuthStore } from '../../store/auth'
 import { useEntityViewsStore } from '../../store/entityViews'
 import { useCartStore } from '../../store/cart'
-import { governedCatalog } from '../../services/governedCatalog'
+import { governedCatalog, fetchProductsByIds } from '../../services/governedCatalog'
 import { isExecutiveDirectorUser, normalizeEmployeeRole } from '../../utils/roleNormalization'
 import { formatCurrencyShort, formatTierName } from '../../utils/format'
 import { resolveConfiguredUnitTypes } from '../../utils/catalog'
@@ -152,6 +152,9 @@ export function OrderDetailPage() {
   const [showProductSearch, setShowProductSearch] = useState(false)
   const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const [debouncedPickQuery, setDebouncedPickQuery] = useState('')
+  const [pickPage, setPickPage] = useState(1)
+  const [pickTotal, setPickTotal] = useState<number | null>(null)
   const [transferMode, setTransferMode] = useState(false)
   const [shortageItems, setShortageItems] = useState<Set<string> | null>(null)
   const [inventorySnapshot, setInventorySnapshot] = useState<InventorySnapshotItem[] | null>(null)
@@ -385,19 +388,52 @@ export function OrderDetailPage() {
     if (!editMode || !id) return
     const token = getToken()
     if (!token) return
-    Promise.all([
-      governedCatalog({ p_token: token, p_active_only: true, p_visible_only: true }),
-      supabase.rpc('get_governed_companies', { p_token: token }),
-    ]).then(([prodRes, compRes]) => {
-      if (prodRes.data) {
-        const allProds = prodRes.data.map(mapProduct)
-        setProducts(allProds)
-        if (compRes.data) {
-          setCompanies(compRes.data.filter((c: any) => c.is_visible !== false))
-        }
+    // Companies only — the product panel is loaded targeted (edit items via
+    // startEdit, picker pages via the picker effect), never the full catalog.
+    supabase.rpc('get_governed_companies', { p_token: token }).then((compRes) => {
+      if (compRes.data) {
+        setCompanies(compRes.data.filter((c: any) => c.is_visible !== false))
       }
     })
   }, [editMode, id])
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedPickQuery(searchQuery.trim()), 300)
+    return () => clearTimeout(t)
+  }, [searchQuery])
+
+  useEffect(() => {
+    if (!editMode || !showProductSearch || !selectedCompanyId) return
+    const token = getToken()
+    if (!token) return
+    let cancelled = false
+    const base: any = {
+      p_token: token,
+      p_company_id: selectedCompanyId,
+      p_active_only: true,
+      p_visible_only: true,
+      p_search: debouncedPickQuery || null,
+    }
+    governedCatalog({ ...base, p_page: pickPage, p_per_page: 20 })
+      .then((res) => {
+        if (cancelled || res.error || !res.data) return
+        const mapped = (Array.isArray(res.data) ? res.data : []).map(mapProduct)
+        setProducts((prev) => {
+          const byId = new Map(prev.map((p) => [p.id, p]))
+          for (const p of mapped) byId.set(p.id, p)
+          return Array.from(byId.values())
+        })
+      })
+      .catch(() => {})
+    governedCatalog({ ...base, p_count_only: true })
+      .then((res) => {
+        if (cancelled) return
+        const cnt = Array.isArray(res.data) ? null : res.data?.count
+        if (typeof cnt === 'number') setPickTotal(cnt)
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [editMode, showProductSearch, selectedCompanyId, debouncedPickQuery, pickPage])
 
   useEffect(() => {
     if (!editMode || editModeType !== 'supreme' || !id) return
@@ -526,7 +562,8 @@ export function OrderDetailPage() {
 
   function startEdit(type: 'supreme' | 'executive' = 'supreme') {
     if (!data) return
-    setEditItems(data.items.map(i => {
+    const token = getToken()
+    const items = data.items.map(i => {
       const isBaseStored = Number(i.base_unit_price || 0) > 0
       const base = isBaseStored ? Number(i.base_unit_price) : Number(i.unit_price || 0)
       const netUnit = Number(i.unit_price || 0)
@@ -538,7 +575,8 @@ export function OrderDetailPage() {
         total_price: Math.round(base * qty * 100) / 100,
         _original_net_unit: netUnit,
       }
-    }))
+    })
+    setEditItems(items)
     setEditNotes(data.order.notes || '')
     setEditOrderType((data.order as any).order_type || 'cash')
     setEditTierId(data.order.tier_id)
@@ -547,6 +585,30 @@ export function OrderDetailPage() {
     setEditShippingId(data.order.shipping_method_option_id)
     setEditModeType(type)
     setEditMode(true)
+    setShowProductSearch(false)
+    setSelectedCompanyId(null)
+    setSearchQuery('')
+    setDebouncedPickQuery('')
+    setPickPage(1)
+    setPickTotal(null)
+    // Targeted price/unit rows for the EXISTING edit items only (unit changes,
+    // reservation rejection names, chip pricing). Picker pages are loaded on
+    // demand by the picker effect.
+    if (token) {
+      const ids = Array.from(new Set(items.map((i) => i.product_id).filter(Boolean)))
+      if (ids.length > 0) {
+        fetchProductsByIds(token, ids)
+          .then((rows) => {
+            const mapped = (Array.isArray(rows) ? rows : []).map(mapProduct)
+            setProducts((prev) => {
+              const byId = new Map(prev.map((p) => [p.id, p]))
+              for (const p of mapped) byId.set(p.id, p)
+              return Array.from(byId.values())
+            })
+          })
+          .catch(() => {})
+      }
+    }
   }
 
   async function handleReturnToCart() {
@@ -606,21 +668,13 @@ export function OrderDetailPage() {
       // Load CURRENT authoritative product rows (across all companies, incl.
       // inactive) into the cart store BEFORE restoreCart, so recalculateAll()
       // reprices every restored line at today's catalog prices — never the old
-      // order snapshot. Same RPC + mergeProducts pipeline StorefrontPage uses.
+      // order snapshot. Targeted p_ids batch, not the full catalog.
       const productIds = Array.from(new Set(items.map((i: any) => i.product_id)))
       if (productIds.length > 0) {
         try {
-          const { data: rows, error: rowsError } = await governedCatalog({
-            p_token: token,
-            p_company_id: null,
-            p_active_only: false,
-            p_visible_only: false,
-          })
-          if (!rowsError) {
-            const arr = Array.isArray(rows) ? rows : []
-            const needed = arr.filter((r: any) => productIds.includes(r.id))
-            if (needed.length > 0) useCartStore.getState().mergeProducts((needed as any[]).map(mapProduct))
-          }
+          const rows = await fetchProductsByIds(token, productIds)
+          const arr = Array.isArray(rows) ? rows : []
+          if (arr.length > 0) useCartStore.getState().mergeProducts(arr.map(mapProduct))
         } catch (err) {
           console.warn('[OrderDetail] product price load skipped:', err)
         }
@@ -908,7 +962,7 @@ export function OrderDetailPage() {
                 .map(c => (
                 <button
                   key={c.id}
-                  onClick={() => { setSelectedCompanyId(c.id); setSearchQuery('') }}
+                  onClick={() => { setSelectedCompanyId(c.id); setSearchQuery(''); setDebouncedPickQuery(''); setPickPage(1); setPickTotal(null) }}
                   className="bg-white rounded-xl border border-[#E5E7EB] p-4 flex flex-col items-center gap-2 active:bg-[#F9FAFB] transition-colors"
                 >
                   {c.logo_url ? (
@@ -960,6 +1014,25 @@ export function OrderDetailPage() {
               {filteredProducts.length === 0 && searchQuery && (
                 <p className="text-center text-sm text-[#6B7280] py-4">لا توجد منتجات متطابقة</p>
               )}
+              {typeof pickTotal === 'number' && pickTotal > 20 && (
+                <div className="flex items-center justify-between border-t border-[#E5E7EB] pt-2">
+                  <button
+                    onClick={() => setPickPage(p => Math.max(1, p - 1))}
+                    disabled={pickPage === 1}
+                    className="text-xs px-3 py-1.5 rounded-lg border border-[#E5E7EB] text-[#374151] disabled:opacity-40"
+                  >
+                    &larr; السابق
+                  </button>
+                  <span className="text-xs text-[#6B7280]">صفحة {pickPage} من {Math.ceil(pickTotal / 20)}</span>
+                  <button
+                    onClick={() => setPickPage(p => p + 1)}
+                    disabled={pickPage >= Math.ceil(pickTotal / 20)}
+                    className="text-xs px-3 py-1.5 rounded-lg border border-[#E5E7EB] text-[#374151] disabled:opacity-40"
+                  >
+                    التالي &rarr;
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -980,7 +1053,7 @@ export function OrderDetailPage() {
         onUnitChange={handleUnitChange}
         unitOptions={unitOptions}
         onDeleteSelected={handleDeleteSelected}
-        onAddProduct={() => { setShowProductSearch(true); setSelectedCompanyId(null); setSearchQuery('') }}
+        onAddProduct={() => { setShowProductSearch(true); setSelectedCompanyId(null); setSearchQuery(''); setDebouncedPickQuery(''); setPickPage(1); setPickTotal(null) }}
         shortageProductIds={shortageItems}
         eventLog={eventLog}
         editActions={

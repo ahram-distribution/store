@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
-import { governedCatalog, invalidateGovernedCatalog } from '../../services/governedCatalog'
+import { governedCatalog, invalidateGovernedCatalog, fetchProductsByIds } from '../../services/governedCatalog'
 import { sendWhatsAppFromDisplay } from '../../lib/whatsapp'
 import { buildOrderDisplayData, UNIT_LABELS, ORDER_STATUS_LABELS } from '../../types/order-display'
 import { ProductCard } from '../../components/storefront/ProductCard'
@@ -9,10 +9,11 @@ import { computeProductPrices, computePieceQuantity, computeCartTotals } from '.
 import { formatCurrencyShort } from '../../utils/format'
 import { dailyDealService } from '../../services/dailyDeals'
 import { flashOfferService } from '../../services/flashOffers'
-import { buildSearchIndex, searchProducts } from '../../utils/smartSearch'
 import type { ProductWithPrice, ProductUnitPrice, UnitType, DailyDealRecord, FlashOfferRecord, CartTotals, TierConfig } from '../../types/storefront'
 import toast from 'react-hot-toast'
 import { TierCompanyRulesNotice } from '../../components/storefront/TierCompanyRulesNotice'
+
+const COMPANY_PAGE_SIZE = 20
 
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
@@ -86,9 +87,16 @@ export function OrderEditPage() {
 
   // Products & companies
   const [companies, setCompanies] = useState<any[]>([])
-  const [products, setProducts] = useState<ProductWithPrice[]>([])
+  const [companyTotalCounts, setCompanyTotalCounts] = useState<Record<string, number>>({})
+  const [searchCounts, setSearchCounts] = useState<Record<string, number>>({})
+  const [totalAvailableCount, setTotalAvailableCount] = useState(0)
+  const [companyProducts, setCompanyProducts] = useState<ProductWithPrice[]>([])
+  const [companyPage, setCompanyPage] = useState(1)
+  const [companyTotal, setCompanyTotal] = useState<number | null>(null)
   const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const [debouncedQuery, setDebouncedQuery] = useState('')
+  const [restoredRows, setRestoredRows] = useState<ProductWithPrice[]>([])
 
   // Cart
   const [cartItems, setCartItems] = useState<CartItem[]>([])
@@ -114,12 +122,11 @@ export function OrderEditPage() {
 
     Promise.all([
       supabase.rpc('get_unified_order', { p_token: token, p_id: id }),
-      governedCatalog({ p_token: token, p_active_only: true, p_visible_only: true }),
       supabase.rpc('get_governed_companies', { p_token: token }),
       supabase.rpc('get_governed_tiers', { p_token: token }),
       dailyDealService.getActive().catch(() => [] as DailyDealRecord[]),
       flashOfferService.getActive().catch(() => [] as FlashOfferRecord[]),
-    ]).then(([orderRes, prodRes, compRes, tiersRes, deals, offers]) => {
+    ]).then(async ([orderRes, compRes, tiersRes, deals, offers]) => {
       const raw = (orderRes.data as any)
       if (raw?.error) { setLoading(false); return }
 
@@ -133,13 +140,11 @@ export function OrderEditPage() {
       setCustomerName(ord.snapshot_customer_name || '')
       setCustomerCode(ord.snapshot_customer_code || '')
 
-      // Products
-      const allProds = prodRes.data ? prodRes.data.map(mapProduct) : []
-      setProducts(allProds)
-
       // Companies
+      let visibleCompanies: any[] = []
       if (compRes.data) {
-        setCompanies(compRes.data.filter((c: any) => c.is_visible !== false))
+        visibleCompanies = compRes.data.filter((c: any) => c.is_visible !== false)
+        setCompanies(visibleCompanies)
       }
 
       // Tiers
@@ -167,13 +172,14 @@ export function OrderEditPage() {
       setDailyDeals(deals)
       setFlashOffers(offers)
 
-      // Restore cart from order items
+      // Restore cart from order items — targeted p_ids rows for company meta
+      // (active and inactive alike), never the full catalog.
       const items: CartItem[] = (raw.items || raw.order_items || []).map((item: any) => ({
         productId: item.product_id,
         productName: item.product_name || '',
         imageUrl: item.image_url || null,
-        companyId: allProds.find((p) => p.id === item.product_id)?.companyId || '',
-        companyName: item.company_name || allProds.find((p) => p.id === item.product_id)?.companyName || '',
+        companyId: item.company_id || '',
+        companyName: item.company_name || '',
         unitType: item.unit_type as UnitType,
         unitQuantity: item.unit_quantity || 1,
         pieceQuantity: item.piece_quantity || 0,
@@ -182,36 +188,123 @@ export function OrderEditPage() {
       }))
       setCartItems(items)
 
+      // Per-company counts + total available count via tiny count-only reads.
+      await Promise.all([
+        governedCatalog({ p_token: token, p_active_only: true, p_visible_only: true, p_count_only: true })
+          .then((res) => {
+            const cnt = Array.isArray(res.data) ? null : res.data?.count
+            if (typeof cnt === 'number') setTotalAvailableCount(cnt)
+          })
+          .catch(() => {}),
+        ...visibleCompanies.map((c: any) =>
+          governedCatalog({ p_token: token, p_active_only: true, p_visible_only: true, p_company_id: c.id, p_count_only: true })
+            .then((res) => {
+              const cnt = Array.isArray(res.data) ? null : res.data?.count
+              if (typeof cnt === 'number') {
+                setCompanyTotalCounts((prev) => ({ ...prev, [c.id]: cnt }))
+              }
+            })
+            .catch(() => {})
+        ),
+      ])
+
+      // Targeted rows for the restored lines (company meta for inactive rows).
+      const itemProductIds = Array.from(new Set(items.map((i) => i.productId).filter(Boolean)))
+      if (itemProductIds.length > 0) {
+        try {
+          const rows = await fetchProductsByIds(token, itemProductIds)
+          setRestoredRows(rows.map(mapProduct))
+        } catch {
+          setRestoredRows([])
+        }
+      }
+
       setLoading(false)
     })
   }, [id, token])
 
-  const searchIndices = useMemo(() => {
-    return products.map((p) => ({
-      id: p.id,
-      product: p,
-      index: buildSearchIndex({
-        id: p.id,
-        legacyCode: p.legacyCode,
-        productName: p.productName,
-        companyName: p.companyName,
-      }),
-    }))
-  }, [products])
+  // Debounced search → server-side per-company match counts.
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQuery(searchQuery.trim()), 300)
+    return () => clearTimeout(t)
+  }, [searchQuery])
+
+  useEffect(() => {
+    if (!token || companies.length === 0) return
+    const term = debouncedQuery
+    if (!term) { setSearchCounts({}); return }
+    let cancelled = false
+    Promise.all(
+      companies.map((c: any) =>
+        governedCatalog({
+          p_token: token,
+          p_active_only: true,
+          p_visible_only: true,
+          p_company_id: c.id,
+          p_search: term,
+          p_count_only: true,
+        })
+          .then((res) => {
+            if (cancelled) return
+            const cnt = Array.isArray(res.data) ? null : res.data?.count
+            if (typeof cnt === 'number') {
+              setSearchCounts((prev) => ({ ...prev, [c.id]: cnt }))
+            }
+          })
+          .catch(() => {})
+      )
+    )
+    return () => { cancelled = true }
+  }, [debouncedQuery, token, companies])
+
+  // Fetch the selected company's page of products (server-side pagination + search).
+  useEffect(() => {
+    if (!token || !selectedCompanyId) {
+      setCompanyProducts([])
+      setCompanyTotal(null)
+      return
+    }
+    let cancelled = false
+    setCompanyProducts([])
+    governedCatalog({
+      p_token: token,
+      p_company_id: selectedCompanyId,
+      p_active_only: true,
+      p_visible_only: true,
+      p_search: debouncedQuery || null,
+      p_page: companyPage,
+      p_per_page: COMPANY_PAGE_SIZE,
+    }).then((res) => {
+      if (cancelled) return
+      if (!res.error && res.data) {
+        const arr = Array.isArray(res.data) ? res.data : []
+        setCompanyProducts(arr.map(mapProduct))
+      }
+    })
+    governedCatalog({
+      p_token: token,
+      p_company_id: selectedCompanyId,
+      p_active_only: true,
+      p_visible_only: true,
+      p_search: debouncedQuery || null,
+      p_count_only: true,
+    }).then((res) => {
+      if (cancelled) return
+      const cnt = Array.isArray(res.data) ? null : res.data?.count
+      if (typeof cnt === 'number') setCompanyTotal(cnt)
+    })
+    return () => { cancelled = true }
+  }, [token, selectedCompanyId, companyPage, debouncedQuery])
 
   const filteredProducts = useMemo(() => {
-    if (searchQuery.trim()) {
-      const indices = searchIndices.filter((si) => si.product.isActive !== false)
-      return searchProducts(searchQuery, indices, (si) => si.index).map((si) => si.product)
-    }
-    let list = selectedCompanyId ? products.filter((p) => p.companyId === selectedCompanyId) : []
+    const list = companyProducts.filter((p) => p.isActive !== false)
     return [...list].sort((a, b) => {
       const aAvail = !a.salesBlocked ? 0 : 1
       const bAvail = !b.salesBlocked ? 0 : 1
       if (aAvail !== bAvail) return aAvail - bAvail
       return a.productName.localeCompare(b.productName, 'ar')
     })
-  }, [products, selectedCompanyId, searchQuery, searchIndices])
+  }, [companyProducts])
 
   const cartTotal = useMemo(() => {
     const itemCount = cartItems.length + dealItems.length + flashOfferItems.length
@@ -440,13 +533,8 @@ export function OrderEditPage() {
   const q = searchQuery.trim().toLowerCase()
   const filteredCompanies = q
     ? companies.filter((c) => {
-        if (c.company_name.toLowerCase().includes(q)) return true
-        return products.some(
-          (p) =>
-            p.companyId === c.id &&
-            (p.productName.toLowerCase().includes(q) ||
-              (p.legacyCode && p.legacyCode.toLowerCase().includes(q)))
-        )
+        if (c.company_name?.toLowerCase().includes(q)) return true
+        return (searchCounts[c.id] ?? 0) > 0
       })
     : companies
 
@@ -480,7 +568,7 @@ export function OrderEditPage() {
             {customerCode && <p className="text-[11px] opacity-70 font-mono mt-0.5" dir="ltr">{customerCode}</p>}
           </div>
         </div>
-        <div className="text-[11px] opacity-80 mt-2">{products.filter(p => !p.salesBlocked).length} منتج متاح</div>
+        <div className="text-[11px] opacity-80 mt-2">{totalAvailableCount} منتج متاح</div>
       </div>
 
       {/* Cart summary inline */}
@@ -564,11 +652,13 @@ export function OrderEditPage() {
             <>
               <div className="grid grid-cols-2 gap-3">
                 {filteredCompanies.map((c) => {
-                  const count = products.filter(p => p.companyId === c.id && !p.salesBlocked).length
+                  const count = q
+                    ? (searchCounts[c.id] ?? 0)
+                    : (companyTotalCounts[c.id] ?? 0)
                   return (
                     <button
                       key={c.id}
-                      onClick={() => { setSelectedCompanyId(c.id); setSearchQuery('') }}
+                      onClick={() => { setSelectedCompanyId(c.id); setCompanyPage(1); setSearchQuery(''); setDebouncedQuery('') }}
                       className="bg-white rounded-xl border border-border p-3 flex flex-col items-center gap-2 active:bg-surface transition-colors"
                     >
                       {c.logo_url ? (
@@ -591,7 +681,7 @@ export function OrderEditPage() {
           ) : (
             <>
               <button
-                onClick={() => { setSelectedCompanyId(null); setSearchQuery('') }}
+                onClick={() => { setSelectedCompanyId(null); setCompanyPage(1); setSearchQuery(''); setDebouncedQuery('') }}
                 className="flex items-center gap-1 text-xs text-primary font-semibold"
               >
                 <span>&rarr;</span> جميع الشركات
@@ -614,6 +704,26 @@ export function OrderEditPage() {
               </div>
               {filteredProducts.length === 0 && (
                 <div className="text-center py-12 text-text-secondary text-sm">لا توجد منتجات متطابقة</div>
+              )}
+
+              {companyTotal != null && companyTotal > COMPANY_PAGE_SIZE && (
+                <div className="flex items-center justify-center gap-1.5 flex-wrap" dir="ltr">
+                  <button
+                    onClick={() => setCompanyPage(Math.max(1, companyPage - 1))}
+                    disabled={companyPage <= 1}
+                    className="px-3 py-1.5 rounded-lg border border-border text-xs text-text disabled:opacity-40 bg-white active:bg-surface"
+                  >
+                    السابق
+                  </button>
+                  <span className="text-[10px] text-text-secondary px-2">صفحة {companyPage} من {Math.max(1, Math.ceil(companyTotal / COMPANY_PAGE_SIZE))}</span>
+                  <button
+                    onClick={() => setCompanyPage(Math.min(Math.ceil(companyTotal / COMPANY_PAGE_SIZE), companyPage + 1))}
+                    disabled={companyPage >= Math.ceil(companyTotal / COMPANY_PAGE_SIZE)}
+                    className="px-3 py-1.5 rounded-lg border border-border text-xs text-text disabled:opacity-40 bg-white active:bg-surface"
+                  >
+                    التالي
+                  </button>
+                </div>
               )}
             </>
           )}

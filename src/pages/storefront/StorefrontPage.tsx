@@ -15,9 +15,45 @@ import type { ProductWithPrice, ProductUnitPrice, UnitType } from '../../types/s
 import { DYNAMIC_COLLECTIONS, loadCollection, type CollectionStrategy } from '../../config/dynamicCollections'
 import { resolveConfiguredUnitTypes } from '../../utils/catalog'
 import { useGeographicVisibility } from '../../hooks/useGeographicVisibility'
-import { governedCatalog } from '../../services/governedCatalog'
+import { governedCatalog, fetchProductsByIds } from '../../services/governedCatalog'
 
 const UNIT_PRIORITY: UnitType[] = ['carton', 'dozen', 'piece']
+const PAGE_SIZE = 20
+
+function mapCatalogRows(rows: any[]): ProductWithPrice[] {
+  return rows.map((row: any) => {
+    const cartonPrice = Number(row.carton_price) || 0
+    const cartonQuantity = Number(row.carton_quantity) || 0
+    const piecePrice = Number(row.piece_price) || 0
+    const dozenPrice = Number(row.dozen_price) || 0
+    const activeUnits = resolveConfiguredUnitTypes(row)
+    const availableUnitTypes: UnitType[] = activeUnits
+    const allUnitPrices: ProductUnitPrice[] = [
+      { unitType: 'piece', price: piecePrice },
+      { unitType: 'dozen', price: dozenPrice },
+      { unitType: 'carton', price: cartonPrice },
+    ]
+    const unitPrices = allUnitPrices.filter((up) => up.unitType === 'piece' || up.unitType === 'carton' || availableUnitTypes.includes(up.unitType))
+    return {
+      id: row.id,
+      productName: row.product_name,
+      legacyCode: row.legacy_code || '',
+      cartonPrice,
+      cartonQuantity,
+      piecePrice,
+      dozenPrice,
+      isActive: row.is_active ?? true,
+      isOutOfStock: row.is_out_of_stock === true,
+      isVisible: row.is_visible ?? true,
+      imageUrl: row.image_url || undefined,
+      companyId: row.company_id,
+      companyName: row.company_name ?? '',
+      unitPrices,
+      availableUnitTypes,
+      recentlyAvailableAt: row.recently_available_at || undefined,
+    }
+  })
+}
 
 export function StorefrontPage() {
   const navigate = useNavigate()
@@ -63,6 +99,7 @@ restoreCart,
     geoItemAdjustments,
     geoResolveEpoch,
     ensureGeoItemAdjustments,
+    ensureCartRows,
     refreshBonusMode,
     refreshDiscountOptions,
     subscribeToDiscountOptions,
@@ -70,7 +107,12 @@ restoreCart,
   } = useCartStore()
 
   const [searchQuery, setSearchQuery] = useState(searchParams.get('q') || '')
+  const [debouncedQuery, setDebouncedQuery] = useState(searchParams.get('q') || '')
+  const [page, setPage] = useState(1)
+  const [totalCount, setTotalCount] = useState<number | null>(null)
+  const [pageProducts, setPageProducts] = useState<ProductWithPrice[]>([])
   const [loadingProducts, setLoadingProducts] = useState(true)
+  const requestVersionRef = useRef(0)
   const [customers, setCustomers] = useState<any[]>([])
   const [customerPickerOpen, setCustomerPickerOpen] = useState(false)
   const [customerSearch, setCustomerSearch] = useState('')
@@ -105,66 +147,77 @@ restoreCart,
   }, [companyId, companyContext])
 
   const fetchProducts = useCallback(async () => {
+    const govId = geographicContext?.governorateId ?? null
+    const myVersion = ++requestVersionRef.current
     setLoadingProducts(true)
     if (!authToken || editOrderId) {
       setProducts([])
+      setPageProducts([])
+      setTotalCount(null)
       setLoadingProducts(false)
       return
     }
 
     let data: any[] | null = null
     let error: any = null
+    let total: number | null = null
 
     if (collectionConfig?.type === 'dynamic') {
       const result = await loadCollection(collectionConfig.strategy, authToken)
       data = result.data
       error = result.error
+      if (Array.isArray(data)) total = data.length
     } else if (collectionConfig?.type === 'static') {
-      const result = await governedCatalog({
-        p_token: authToken, p_company_id: companyId || null, p_active_only: true, p_visible_only: true,
-      })
-      data = result.data
-      error = result.error
+      const opts = {
+        p_token: authToken,
+        p_company_id: companyId || null,
+        p_active_only: true,
+        p_visible_only: true,
+        p_search: debouncedQuery.trim() || null,
+        p_governorate_id: govId,
+      }
+      const [pageRes, countRes] = await Promise.all([
+        governedCatalog({ ...opts, p_page: page, p_per_page: PAGE_SIZE }),
+        governedCatalog({ ...opts, p_count_only: true }),
+      ])
+      if (myVersion !== requestVersionRef.current) return
+      data = pageRes.data
+      error = pageRes.error
+      if (!error) {
+        const cnt = Array.isArray(countRes.data) ? null : (countRes.data?.count ?? null)
+        total = typeof cnt === 'number' ? cnt : (Array.isArray(data) ? data.length : null)
+      }
     }
+
+    if (myVersion !== requestVersionRef.current) return
 
     if (!error && data) {
       const arr = Array.isArray(data) ? data : []
-      const mapped: ProductWithPrice[] = arr.map((row: any) => {
-        const cartonPrice = Number(row.carton_price) || 0
-        const cartonQuantity = Number(row.carton_quantity) || 0
-        const piecePrice = Number(row.piece_price) || 0
-        const dozenPrice = Number(row.dozen_price) || 0
-        const activeUnits = resolveConfiguredUnitTypes(row)
-        const availableUnitTypes: UnitType[] = activeUnits
-        const allUnitPrices: ProductUnitPrice[] = [
-          { unitType: 'piece', price: piecePrice },
-          { unitType: 'dozen', price: dozenPrice },
-          { unitType: 'carton', price: cartonPrice },
-        ]
-        const unitPrices = allUnitPrices.filter((up) => up.unitType === 'piece' || up.unitType === 'carton' || availableUnitTypes.includes(up.unitType))
-        return {
-          id: row.id,
-          productName: row.product_name,
-          legacyCode: row.legacy_code || '',
-          cartonPrice,
-          cartonQuantity,
-          piecePrice,
-          dozenPrice,
-          isActive: row.is_active ?? true,
-          isOutOfStock: row.is_out_of_stock === true,
-          isVisible: row.is_visible ?? true,
-          imageUrl: row.image_url || undefined,
-          companyId: row.company_id,
-          companyName: row.company_name ?? '',
-          unitPrices,
-          availableUnitTypes,
-          recentlyAvailableAt: row.recently_available_at || undefined,
-        }
-      })
-      setProducts(mapped)
+      const mapped: ProductWithPrice[] = mapCatalogRows(arr)
+      setPageProducts(mapped)
+      setTotalCount(total)
+      // Merge the current page into the cart store's product rows (keeps cart
+      // rows alive across companies) then backstop-fetch any missing cart ids.
+      if (mapped.length > 0) mergeProducts(mapped)
+      void ensureCartRows()
     }
     setLoadingProducts(false)
-  }, [setProducts, companyId, authToken, collectionConfig])
+  }, [setProducts, companyId, authToken, collectionConfig, debouncedQuery, page, geographicContext?.governorateId, mergeProducts, ensureCartRows])
+
+  // Debounce the search input so heavy server searches only fire on pause.
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQuery(searchQuery.trim()), 300)
+    return () => clearTimeout(t)
+  }, [searchQuery])
+
+  // Back to page 1 whenever the query, company, or governorate changes.
+  useEffect(() => {
+    setPage(1)
+  }, [debouncedQuery, companyId, geographicContext?.governorateId])
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }, [page])
 
   const fetchDiscountOptions = useCallback(async () => {
     if (!authToken) return
@@ -188,38 +241,6 @@ restoreCart,
   useEffect(() => {
     if (!editOrderId || !authToken) return
     let cancelled = false
-    const mapRows = (rows: any[]): ProductWithPrice[] => rows.map((row: any) => {
-      const cartonPrice = Number(row.carton_price) || 0
-      const cartonQuantity = Number(row.carton_quantity) || 0
-      const piecePrice = Number(row.piece_price) || 0
-      const dozenPrice = Number(row.dozen_price) || 0
-      const activeUnits = resolveConfiguredUnitTypes(row)
-      const availableUnitTypes: UnitType[] = activeUnits
-      const allUnitPrices: ProductUnitPrice[] = [
-        { unitType: 'piece', price: piecePrice },
-        { unitType: 'dozen', price: dozenPrice },
-        { unitType: 'carton', price: cartonPrice },
-      ]
-      const unitPrices = allUnitPrices.filter((up) => up.unitType === 'piece' || up.unitType === 'carton' || availableUnitTypes.includes(up.unitType))
-      return {
-        id: row.id,
-        productName: row.product_name,
-        legacyCode: row.legacy_code || '',
-        cartonPrice,
-        cartonQuantity,
-        piecePrice,
-        dozenPrice,
-        isActive: row.is_active ?? true,
-        isOutOfStock: row.is_out_of_stock === true,
-        isVisible: row.is_visible ?? true,
-        imageUrl: row.image_url || undefined,
-        companyId: row.company_id,
-        companyName: row.company_name ?? '',
-        unitPrices,
-        availableUnitTypes,
-        recentlyAvailableAt: row.recently_available_at || undefined,
-      }
-    })
 
     supabase.rpc('get_unified_order', { p_token: authToken, p_id: editOrderId }).then(async ({ data }) => {
       if (cancelled || !data || data.error) return
@@ -241,22 +262,14 @@ restoreCart,
       // Load CURRENT authoritative product rows for every restored line (across
       // all companies, including inactive ones) so the pricing pipeline reprices
       // the whole cart at today's prices — never the old financial snapshot.
-      const productIds = Array.from(new Set(items.map((i: any) => i.product_id)))
+      // Targeted p_ids fetch — NOT the full catalog.
+      const productIds = Array.from(new Set(items.map((i: any) => i.product_id))) as string[]
       if (productIds.length > 0) {
         try {
-          const { data: rows, error: rowsError } = await governedCatalog({
-            p_token: authToken,
-            p_company_id: null,
-            p_active_only: false,
-            p_visible_only: false,
-          })
-          if (!cancelled && !rowsError) {
-            const arr = Array.isArray(rows) ? rows : []
-            const needed = arr.filter((r: any) => productIds.includes(r.id))
-            mergeProducts(mapRows(needed))
-          }
+          const rows = await fetchProductsByIds(authToken, productIds)
+          if (!cancelled) mergeProducts(mapCatalogRows(rows))
         } catch {
-          // products stay empty; recalculateAll keeps snapshot-free lines untouched
+          // products stay empty; ensureCartRows backstops missing rows later
         }
       }
       if (!cancelled) restoreCart(items, editOrderId, order.order_type, {
@@ -389,7 +402,7 @@ restoreCart,
   }, [items])
 
   const searchIndices = useMemo(() => {
-    return products.map((p) => ({
+    return pageProducts.map((p) => ({
       id: p.id,
       product: p,
       index: buildSearchIndex({
@@ -399,24 +412,21 @@ restoreCart,
         companyName: p.companyName,
       }),
     }))
-  }, [products])
+  }, [pageProducts])
 
   const filteredProducts = useMemo(() => {
-    let list = products.filter((p) => p.isActive && p.isVisible && !hiddenProductIds.has(p.id))
+    let list = pageProducts.filter((p) => p.isActive && p.isVisible && !hiddenProductIds.has(p.id))
     if (searchQuery.trim()) {
       const indices = searchIndices.filter((si) => list.includes(si.product))
       const matched = new Set(searchProducts(searchQuery, indices, (si) => si.index).map((si) => si.product.id))
       list = list.filter((p) => matched.has(p.id))
     } else {
-      if (companyId && collectionConfig?.type !== 'dynamic') {
-        list = list.filter((p) => p.companyId === companyId)
-      }
       if (collectionConfig?.type !== 'dynamic') {
         list = [...list].sort((a, b) => a.productName.localeCompare(b.productName, 'ar'))
       }
     }
     return list
-  }, [products, searchQuery, companyId, collectionConfig, searchIndices, hiddenProductIds])
+  }, [pageProducts, searchQuery, collectionConfig, searchIndices, hiddenProductIds])
 
   const expandedProduct = expandedId ? filteredProducts.find((p) => p.id === expandedId) ?? null : null
 
@@ -508,6 +518,24 @@ restoreCart,
   }))
 
   const selectedCompanyName = companyContext?.companyName ?? null
+
+  const totalPages = totalCount != null ? Math.max(1, Math.ceil(totalCount / PAGE_SIZE)) : 1
+
+  const pageNumbers = useMemo(() => {
+    const nums: number[] = []
+    const last = totalPages
+    if (last <= 7) {
+      for (let i = 1; i <= last; i++) nums.push(i)
+    } else {
+      const around = [1, last]
+      for (let d = -1; d <= 1; d++) {
+        const n = page + d
+        if (n > 1 && n < last) around.push(n)
+      }
+      nums.push(...Array.from(new Set(around)).sort((a, b) => a - b))
+    }
+    return nums
+  }, [totalPages, page])
 
   return (
     <div className="space-y-4">
@@ -842,7 +870,7 @@ restoreCart,
         />
         {searchQuery.trim() && !loadingProducts && (
           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-text-secondary">
-            {filteredProducts.length} نتيجة
+            {totalCount ?? 0} نتيجة
           </span>
         )}
       </div>
@@ -878,6 +906,39 @@ restoreCart,
       {!loadingProducts && filteredProducts.length === 0 && (
         <div className="text-center py-12 text-text-secondary text-sm">
           لا توجد منتجات متطابقة مع البحث
+        </div>
+      )}
+
+      {!loadingProducts && collectionConfig?.type === 'static' && totalPages > 1 && (
+        <div className="flex items-center justify-center gap-1.5 flex-wrap pb-2" dir="ltr">
+          <button
+            onClick={() => setPage(Math.max(1, page - 1))}
+            disabled={page <= 1}
+            className="px-3 py-1.5 rounded-lg border border-border text-xs text-text disabled:opacity-40 bg-white active:bg-surface"
+          >
+            السابق
+          </button>
+          {pageNumbers.map((n) => (
+            <button
+              key={n}
+              onClick={() => setPage(n)}
+              className={`px-3 py-1.5 rounded-lg border text-xs ${
+                n === page
+                  ? 'bg-primary text-white border-primary font-bold'
+                  : 'border-border text-text bg-white active:bg-surface'
+              }`}
+            >
+              {n}
+            </button>
+          ))}
+          <button
+            onClick={() => setPage(Math.min(totalPages, page + 1))}
+            disabled={page >= totalPages}
+            className="px-3 py-1.5 rounded-lg border border-border text-xs text-text disabled:opacity-40 bg-white active:bg-surface"
+          >
+            التالي
+          </button>
+          <span className="text-[10px] text-text-secondary px-2">إجمالي {totalCount} منتج</span>
         </div>
       )}
 

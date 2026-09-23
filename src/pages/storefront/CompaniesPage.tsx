@@ -13,7 +13,6 @@ import { formatNumber } from '../../utils/numbers'
 import { useGeographicVisibility } from '../../hooks/useGeographicVisibility'
 import { governedCatalog } from '../../services/governedCatalog'
 import { applyGeographicAdjustment } from '../../engine/pricing'
-import { buildSearchIndex, searchProducts as smartSearchProducts, type ProductSearchIndex } from '../../utils/smartSearch'
 import type { ProductWithPrice, ProductUnitPrice, UnitType } from '../../types/storefront'
 
 interface CompanyItem {
@@ -38,10 +37,16 @@ export function CompaniesPage() {
   const [companies, setCompanies] = useState<CompanyItem[]>([])
   const [loading, setLoading] = useState(true)
   const [globalSearch, setGlobalSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [searchProducts, setSearchProducts] = useState<ProductWithPrice[]>([])
   const [searchLoading, setSearchLoading] = useState(false)
   const { hiddenProductIds, hiddenCompanyIds } = useGeographicVisibility()
-  const searchFetchRef = useRef(false)
+  const searchRequestRef = useRef(0)
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(globalSearch.trim()), 300)
+    return () => clearTimeout(t)
+  }, [globalSearch])
 
   useEffect(() => {
     const urlOrderType = searchParams.get('order_type')
@@ -69,16 +74,25 @@ export function CompaniesPage() {
       })
   }, [refreshKey, setStoreCompanies])
 
-  const fetchAllProducts = useCallback(async () => {
-    if (!authToken || searchFetchRef.current) return
-    searchFetchRef.current = true
+  const fetchSearchResults = useCallback(async (query: string) => {
+    if (!authToken || !query) {
+      setSearchProducts([])
+      return
+    }
+    const myRequest = ++searchRequestRef.current
     setSearchLoading(true)
+    const govId = geographicContext?.governorateId ?? null
     const { data, error } = await governedCatalog({
       p_token: authToken,
       p_company_id: null,
       p_active_only: true,
       p_visible_only: true,
+      p_search: query,
+      p_governorate_id: govId,
+      p_page: 1,
+      p_per_page: 30,
     })
+    if (myRequest !== searchRequestRef.current) return
     if (!error && data) {
       const arr = Array.isArray(data) ? data : []
       const mapped: ProductWithPrice[] = arr.map((row: any) => {
@@ -116,37 +130,23 @@ export function CompaniesPage() {
       setSearchProducts(mapped)
     }
     setSearchLoading(false)
-  }, [authToken])
+  }, [authToken, geographicContext?.governorateId])
 
-  const searchIndices = useMemo(() => {
-    return searchProducts.map((p) => ({
-      id: p.id,
-      product: p,
-      index: buildSearchIndex({
-        id: p.id,
-        legacyCode: p.legacyCode,
-        productName: p.productName,
-        companyName: p.companyName,
-      }),
-    }))
-  }, [searchProducts])
-
-  const isSearching = globalSearch.trim().length > 0
+  const isSearching = debouncedSearch.trim().length > 0
 
   const searchResults = useMemo(() => {
     if (!isSearching) return []
-    const q = globalSearch.trim()
-    const indices = searchIndices.filter((si) => si.product.isActive && si.product.isVisible && !hiddenProductIds.has(si.product.id))
-    return smartSearchProducts(q, indices, (si) => si.index).map((si) => si.product)
-  }, [globalSearch, searchIndices, isSearching, hiddenProductIds])
+    return searchProducts.filter((p) => p.isActive && p.isVisible && !hiddenProductIds.has(p.id))
+  }, [searchProducts, isSearching, hiddenProductIds])
 
   useEffect(() => {
     if (isSearching) {
-      fetchAllProducts()
+      void fetchSearchResults(debouncedSearch.trim())
     } else {
-      searchFetchRef.current = false
+      searchRequestRef.current++
+      setSearchProducts([])
     }
-  }, [isSearching, fetchAllProducts])
+  }, [isSearching, debouncedSearch, fetchSearchResults])
 
   useEffect(() => {
     if (searchProducts.length > 0) {

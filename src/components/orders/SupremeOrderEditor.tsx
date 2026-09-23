@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { supabase } from '../../lib/supabase'
-import { governedCatalog } from '../../services/governedCatalog'
+import { governedCatalog, fetchProductsByIds } from '../../services/governedCatalog'
 import { UNIT_LABELS } from '../../types/order-display'
 import { computeProductPrices, computePieceQuantity } from '../../engine/pricing'
 import { formatCurrencyShort } from '../../utils/format'
@@ -88,25 +88,67 @@ export function SupremeOrderEditor({ orderId, initialItems, initialNotes, initia
   const [companies, setCompanies] = useState<any[]>([])
   const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const [debouncedPickQuery, setDebouncedPickQuery] = useState('')
+  const [pickPage, setPickPage] = useState(1)
+  const [pickTotal, setPickTotal] = useState<number | null>(null)
   const [loadingProducts, setLoadingProducts] = useState(true)
+  const [showProductSearch, setShowProductSearch] = useState(false)
   const token = getToken()
 
   useEffect(() => {
     if (!token) return
+    setLoadingProducts(true)
+    // Companies + targeted rows for the EXISTING items only (unit changes and
+    // unit price recalculation in handleUpdateUnit/availableUnits). Picker
+    // pages are fetched on demand via the picker effect below.
     Promise.all([
-      governedCatalog({ p_token: token, p_active_only: true, p_visible_only: true }),
+      fetchProductsByIds(token, Array.from(new Set(initialItems.map(i => i.product_id).filter(Boolean)))),
       supabase.rpc('get_governed_companies', { p_token: token }),
-    ]).then(([prodRes, compRes]) => {
-      if (prodRes.data) {
-        const allProds = prodRes.data.map(mapProduct)
-        setProducts(allProds)
-        if (compRes.data) {
-          setCompanies(compRes.data.filter((c: any) => c.is_visible !== false))
-        }
+    ]).then(([rows, compRes]) => {
+      if (Array.isArray(rows)) setProducts((rows as any[]).map(mapProduct))
+      if (compRes.data) {
+        setCompanies(compRes.data.filter((c: any) => c.is_visible !== false))
       }
       setLoadingProducts(false)
-    })
+    }).catch(() => setLoadingProducts(false))
   }, [token])
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedPickQuery(searchQuery.trim()), 300)
+    return () => clearTimeout(t)
+  }, [searchQuery])
+
+  useEffect(() => {
+    if (!showProductSearch || !selectedCompanyId) return
+    if (!token) return
+    let cancelled = false
+    const base: any = {
+      p_token: token,
+      p_company_id: selectedCompanyId,
+      p_active_only: true,
+      p_visible_only: true,
+      p_search: debouncedPickQuery || null,
+    }
+    governedCatalog({ ...base, p_page: pickPage, p_per_page: 20 })
+      .then((res) => {
+        if (cancelled || res.error || !res.data) return
+        const mapped = (Array.isArray(res.data) ? res.data : []).map(mapProduct)
+        setProducts((prev) => {
+          const byId = new Map(prev.map((p) => [p.id, p]))
+          for (const p of mapped) byId.set(p.id, p)
+          return Array.from(byId.values())
+        })
+      })
+      .catch(() => {})
+    governedCatalog({ ...base, p_count_only: true })
+      .then((res) => {
+        if (cancelled) return
+        const cnt = Array.isArray(res.data) ? null : res.data?.count
+        if (typeof cnt === 'number') setPickTotal(cnt)
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [showProductSearch, selectedCompanyId, debouncedPickQuery, pickPage, token])
 
   const searchIndices = useMemo(() => {
     return products.map((p) => ({
@@ -134,8 +176,6 @@ export function SupremeOrderEditor({ orderId, initialItems, initialNotes, initia
       return a.productName.localeCompare(b.productName, 'ar')
     })
   }, [products, selectedCompanyId, searchQuery, searchIndices])
-
-  const [showProductSearch, setShowProductSearch] = useState(false)
 
   const handleRemoveItem = useCallback((productId: string, unitType: UnitType) => {
     setItems(prev => prev.filter(i => !(i.productId === productId && i.unitType === unitType)))
@@ -300,7 +340,7 @@ export function SupremeOrderEditor({ orderId, initialItems, initialNotes, initia
                 {companies.map(c => (
                   <button
                     key={c.id}
-                    onClick={() => { setSelectedCompanyId(c.id); setSearchQuery('') }}
+                    onClick={() => { setSelectedCompanyId(c.id); setSearchQuery(''); setDebouncedPickQuery(''); setPickPage(1); setPickTotal(null) }}
                     className="bg-white rounded-xl border border-border p-3 flex flex-col items-center gap-2 active:bg-surface transition-colors"
                   >
                     {c.logo_url ? (
@@ -318,7 +358,7 @@ export function SupremeOrderEditor({ orderId, initialItems, initialNotes, initia
           ) : (
             <>
               <button
-                onClick={() => { setSelectedCompanyId(null); setSearchQuery('') }}
+                onClick={() => { setSelectedCompanyId(null); setSearchQuery(''); setDebouncedPickQuery(''); setPickPage(1); setPickTotal(null) }}
                 className="flex items-center gap-1 text-xs text-primary font-semibold"
               >
                 <span>&rarr;</span> جميع الشركات
@@ -361,8 +401,30 @@ export function SupremeOrderEditor({ orderId, initialItems, initialNotes, initia
                     </div>
                   </div>
                 ))}
-                {filteredProducts.length === 0 && !loadingProducts && (
+                {filteredProducts.length === 0 && !loadingProducts && searchQuery && (
                   <p className="text-center text-sm text-text-secondary py-4">لا توجد منتجات متطابقة</p>
+                )}
+                {filteredProducts.length === 0 && !loadingProducts && !searchQuery && (
+                  <p className="text-center text-sm text-text-secondary py-4">اختر شركة لعرض المنتجات</p>
+                )}
+                {typeof pickTotal === 'number' && pickTotal > 20 && (
+                  <div className="flex items-center justify-between border-t border-border pt-2">
+                    <button
+                      onClick={() => setPickPage(p => Math.max(1, p - 1))}
+                      disabled={pickPage === 1}
+                      className="text-xs px-3 py-1.5 rounded-lg border border-border text-text-secondary disabled:opacity-40"
+                    >
+                      &larr; السابق
+                    </button>
+                    <span className="text-xs text-text-secondary">صفحة {pickPage} من {Math.ceil(pickTotal / 20)}</span>
+                    <button
+                      onClick={() => setPickPage(p => p + 1)}
+                      disabled={pickPage >= Math.ceil(pickTotal / 20)}
+                      className="text-xs px-3 py-1.5 rounded-lg border border-border text-text-secondary disabled:opacity-40"
+                    >
+                      التالي &rarr;
+                    </button>
+                  </div>
                 )}
               </div>
             </>
