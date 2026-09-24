@@ -29,7 +29,9 @@ export function AccountPage() {
   useEffect(() => {
     const token = getToken()
     if (!token) { setLoading(false); return }
-    supabase.rpc('get_governed_customers', { p_token: token }).then(({ data }) => {
+    supabase.rpc('get_governed_customers', {
+      p_token: token, p_page: 1, p_per_page: 100, p_count_only: false, p_stats: false,
+    }).then(({ data }) => {
       const d = (data as CustomerData[]) || []
       if (d.length > 0) {
         setCustomers(d)

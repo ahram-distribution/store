@@ -8,18 +8,29 @@ function getToken(): string | null {
 
 export function DataEntryWorkspace() {
   const navigate = useNavigate()
-  const [customers, setCustomers] = useState<any[]>([])
+  const [totalCustomers, setTotalCustomers] = useState(0)
+  const [todayCustomers, setTodayCustomers] = useState(0)
   const [orders, setOrders] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     const token = getToken()
     if (!token) { setLoading(false); return }
+    const today = new Date()
+    const start = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+    const end = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999)
     Promise.all([
-      supabase.rpc('get_governed_customers', { p_token: token }),
+      supabase.rpc('get_governed_customers', { p_token: token, p_page: 1, p_per_page: 1, p_count_only: true, p_stats: false }),
+      supabase.rpc('get_governed_customers', { p_token: token, p_date_from: start.toISOString(), p_date_to: end.toISOString(), p_page: 1, p_per_page: 1, p_count_only: true, p_stats: false }),
       supabase.rpc('get_unified_orders', { p_token: token }),
-    ]).then(([cust, ord]) => {
-      if (cust.data) setCustomers(Array.isArray(cust.data) ? cust.data : [])
+    ]).then(([tot, tod, ord]) => {
+      const parseCount = (res: any): number => {
+        const d = res?.data as any
+        if (d && typeof d === 'object' && 'count' in d) return Number(d.count) || 0
+        return 0
+      }
+      setTotalCustomers(parseCount(tot))
+      setTodayCustomers(parseCount(tod))
       if (ord.data) setOrders(Array.isArray(ord.data) ? ord.data : [])
       setLoading(false)
     })
@@ -28,7 +39,6 @@ export function DataEntryWorkspace() {
   if (loading) return <div className="text-center py-12 text-text-secondary text-sm">جاري التحميل...</div>
 
   const todayOrders = orders.filter((o: any) => o.created_at && new Date(o.created_at).toDateString() === new Date().toDateString())
-  const todayCustomers = customers.filter((c: any) => c.created_at && new Date(c.created_at).toDateString() === new Date().toDateString())
 
   return (
     <div className="space-y-4">
@@ -39,7 +49,7 @@ export function DataEntryWorkspace() {
 
       <div className="grid grid-cols-2 gap-3">
         <button onClick={() => navigate('/customers')} className="bg-white rounded-xl border border-border p-4 text-right active:bg-surface transition-colors">
-          <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center mb-2"><span className="text-white text-lg font-bold">{todayCustomers.length}</span></div>
+          <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center mb-2"><span className="text-white text-lg font-bold">{todayCustomers}</span></div>
           <span className="text-sm font-semibold text-text">عملاء جدد اليوم</span>
         </button>
         <button onClick={() => navigate('/orders')} className="bg-white rounded-xl border border-border p-4 text-right active:bg-surface transition-colors">
@@ -47,7 +57,7 @@ export function DataEntryWorkspace() {
           <span className="text-sm font-semibold text-text">طلبات اليوم</span>
         </button>
         <div className="bg-white rounded-xl border border-border p-4 text-right">
-          <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center mb-2"><span className="text-white text-lg font-bold">{customers.length}</span></div>
+          <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center mb-2"><span className="text-white text-lg font-bold">{totalCustomers}</span></div>
           <span className="text-sm font-semibold text-text">إجمالي العملاء</span>
         </div>
         <div className="bg-white rounded-xl border border-border p-4 text-right">

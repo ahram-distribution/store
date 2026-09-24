@@ -13,6 +13,7 @@ import { ActiveFilters } from '../../components/data-list/ActiveFilters'
 import { CardGrid } from '../../components/data-list/CardGrid'
 import { EmptyState } from '../../components/data-list/EmptyState'
 import { StatusKpiBar } from '../../components/data-list/StatusKpiBar'
+import { PaginationFooter } from '../../components/data-list/PaginationFooter'
 import MultiSelectFilter from '../../components/MultiSelectFilter'
 import { formatTierName } from '../../utils/format'
 import { ORDER_STATUS_LABELS, statusFilterOptions, statusDisplayOrder, visibleStatusLabel } from '../../types/order-display'
@@ -53,6 +54,8 @@ const ORDER_TYPE_OPTIONS = [
   { value: 'ittiman', label: 'ائتمان' },
 ]
 
+const PAGE_SIZE = 30
+
 const STATUS_KPI_GROUPS: Record<string, { dot: string; chip: string; active: string }> = {
   submitted: { dot: 'bg-blue-300', chip: 'bg-blue-50 border-blue-100 text-blue-600', active: 'bg-blue-100 border-blue-300 text-blue-700 ring-1 ring-blue-200' },
   approved: { dot: 'bg-emerald-300', chip: 'bg-emerald-50 border-emerald-100 text-emerald-600', active: 'bg-emerald-100 border-emerald-300 text-emerald-700 ring-1 ring-emerald-200' },
@@ -74,9 +77,13 @@ export function OrdersPage() {
   const unseenOrderIds = useEntityViewsStore((s) => s.unseenOrderIds)
   const fetchUnseenOrders = useEntityViewsStore((s) => s.fetchUnseenOrders)
   const [orders, setOrders] = useState<any[]>([])
-  const [customers, setCustomers] = useState<any[]>([])
+  const [customerFilterCustomer, setCustomerFilterCustomer] = useState<any>(null)
   const [employees, setEmployees] = useState<any[]>([])
   const [governorates, setGovernorates] = useState<{ id: string; name_ar: string }[]>([])
+  const [allTiers, setAllTiers] = useState<any[]>([])
+  const [page, setPage] = useState(1)
+  const reqCounter = useRef(0)
+  const [summary, setSummary] = useState<{ count: number; total_value: number; status_counts: Record<string, number> } | null>(null)
   const [loading, setLoading] = useState(true)
   const [initialLoaded, setInitialLoaded] = useState(false)
   const params = new URLSearchParams(window.location.search)
@@ -110,17 +117,13 @@ export function OrdersPage() {
     [employees]
   )
 
-  const tierOptions = useMemo(() => {
-    const byId = new Map<string, string>()
-    for (const o of orders) {
-      const id = o?.tier_id
-      const name = o?.snapshot_tier_name
-      if (id && name && !byId.has(id)) byId.set(id, name)
-    }
-    return Array.from(byId.entries())
-      .map(([value, label]) => ({ value, label: formatTierName(label) }))
-      .sort((a, b) => a.label.localeCompare(b.label, 'ar'))
-  }, [orders])
+  const tierOptions = useMemo(
+    () => (allTiers || [])
+      .map((t: any) => ({ value: String(t.id ?? ''), label: formatTierName(t.name || '') }))
+      .filter((o) => o.value)
+      .sort((a, b) => a.label.localeCompare(b.label, 'ar')),
+    [allTiers]
+  )
 
   const resolveDateRange = (f: FilterValues): { from: string | null; to: string | null } => {
     if (f.datePreset === 'all') return { from: null, to: null }
@@ -128,7 +131,7 @@ export function OrdersPage() {
     return resolveDateRangeISO(f.datePreset as any)
   }
 
-  const buildRpcParams = useCallback((): Record<string, unknown> | null => {
+  const buildRpcParams = useCallback((pageNum?: number, opts?: { summaryMode?: boolean; perPage?: number }): Record<string, unknown> | null => {
     const token = getToken()
     if (!token) return null
     const range = resolveDateRange(filters)
@@ -138,17 +141,23 @@ export function OrdersPage() {
     if (range.to) rpcParams.p_date_to = range.to
     if (customerFilter) rpcParams.p_customer_id = customerFilter
     if (tab === 'my_orders' && currentUserId) rpcParams.p_created_by = currentUserId
+    if (tab === 'my_invoices' && currentEmpId) rpcParams.p_owner_id = currentEmpId
+    if (statusFilters.length) rpcParams.p_statuses = statusFilters
+    if (orderTypeFilters.length) rpcParams.p_order_types = orderTypeFilters
+    if (tierFilters.length) rpcParams.p_tier_ids = tierFilters
+    if (governorateFilters.length) rpcParams.p_governorate_ids = governorateFilters
+    if (employeeIdFilters.length) rpcParams.p_created_by_ids = employeeIdFilters
     rpcParams.p_include_strict_previous = true
     if (dateSource === 'event') rpcParams.p_date_source = 'event'
+    if (opts?.summaryMode) rpcParams.p_summary = true
+    else if (pageNum != null) {
+      rpcParams.p_page = pageNum
+      rpcParams.p_per_page = opts?.perPage ?? PAGE_SIZE
+    }
     return rpcParams
-  }, [filters, customerFilter, tab, currentUserId, dateSource])
+  }, [filters, customerFilter, tab, currentUserId, currentEmpId, statusFilters, orderTypeFilters, tierFilters, governorateFilters, employeeIdFilters, dateSource])
 
-  const fetchOrders = useCallback(async () => {
-    const rpcParams = buildRpcParams()
-    if (!rpcParams) { setLoading(false); setInitialLoaded(true); return }
-    setLoading(true)
-    const { data } = await supabase.rpc('get_unified_orders', rpcParams)
-    const rows = (Array.isArray(data) ? data : []) as any[]
+  const mergeSnapshots = useCallback(async (rows: any[]) => {
     try {
       const snaps = await discountOptionsService.getOrderDiscountSnapshots(rows.map((r) => r.id).filter(Boolean))
       const byId = new Map(snaps.map((s) => [s.orderId, s]))
@@ -156,10 +165,29 @@ export function OrdersPage() {
     } catch {
       // best-effort merge
     }
-    if (data) setOrders(rows)
-    setLoading(false)
+  }, [])
+
+  const fetchPage = useCallback(async (targetPage: number, opts?: { silent?: boolean }) => {
+    const pageParams = buildRpcParams(targetPage)
+    const summaryParams = buildRpcParams(1, { summaryMode: true })
+    if (!pageParams || !summaryParams) { setLoading(false); setInitialLoaded(true); return }
+    if (!opts?.silent) setLoading(true)
+    const reqId = ++reqCounter.current
+    const [pageRes, summaryRes] = await Promise.all([
+      supabase.rpc('get_unified_orders', pageParams),
+      supabase.rpc('get_unified_orders', summaryParams),
+    ])
+    if (reqId !== reqCounter.current) return
+    const rows = (Array.isArray(pageRes.data) ? pageRes.data : []) as any[]
+    await mergeSnapshots(rows)
+    if (pageRes.data) setOrders(rows)
+    const s = summaryRes.data as any
+    if (s && typeof s === 'object' && typeof s.count === 'number' && typeof s.status_counts === 'object') {
+      setSummary(s)
+    }
+    if (!opts?.silent) setLoading(false)
     setInitialLoaded(true)
-  }, [buildRpcParams])
+  }, [buildRpcParams, mergeSnapshots])
 
   // Live customer data: silently re-query the list on a bounded interval so
   // the order card reflects CURRENT customer info without a manual refresh.
@@ -170,28 +198,25 @@ export function OrdersPage() {
   useEffect(() => {
     const timer = window.setInterval(async () => {
       if (document.hidden || silentRefreshing.current) return
-      const rpcParams = buildRpcParams()
-      if (!rpcParams) return
       silentRefreshing.current = true
       try {
-        const { data } = await supabase.rpc('get_unified_orders', rpcParams)
-        const rows = (Array.isArray(data) ? data : []) as any[]
-        try {
-          const snaps = await discountOptionsService.getOrderDiscountSnapshots(rows.map((r) => r.id).filter(Boolean))
-          const byId = new Map(snaps.map((s) => [s.orderId, s]))
-          for (const row of rows) mergeSnapshotIntoRow(row, byId.get(row.id))
-        } catch {
-          // best-effort merge
-        }
-        if (data) setOrders(rows)
+        await fetchPage(page, { silent: true })
       } finally {
         silentRefreshing.current = false
       }
     }, 60000)
     return () => window.clearInterval(timer)
-  }, [buildRpcParams])
+  }, [fetchPage, page])
 
-  useEffect(() => { fetchOrders() }, [filters, customerFilter, tab, dateSource])
+  // Reset to page 1 whenever any filter changes; changing page preserves the
+  // current filters — only the requested page is fetched from the server.
+  useEffect(() => {
+    setPage(1)
+  }, [filters, customerFilter, tab, dateSource, statusFilters, orderTypeFilters, tierFilters, governorateFilters, employeeIdFilters])
+
+  useEffect(() => {
+    fetchPage(page)
+  }, [page, fetchPage])
 
   useEffect(() => {
     const token = getToken()
@@ -202,56 +227,49 @@ export function OrdersPage() {
     const token = getToken()
     if (!token) return
     Promise.all([
-      supabase.rpc('get_governed_customers', { p_token: token }),
       supabase.rpc('get_governed_employees', { p_token: token }),
+      supabase.rpc('get_governed_tiers', { p_token: token }),
       supabase.from('reference_governorates').select('id, name_ar').order('name_ar', { ascending: true }),
-    ]).then(([custRes, empRes, govRes]) => {
-      if (custRes.data) setCustomers(Array.isArray(custRes.data) ? custRes.data : [])
+    ]).then(([empRes, tiersRes, govRes]) => {
       if (empRes.data) setEmployees(Array.isArray(empRes.data) ? empRes.data : [])
+      if (tiersRes.data) setAllTiers(Array.isArray(tiersRes.data) ? tiersRes.data : [])
       if (govRes.data) setGovernorates(govRes.data || [])
     })
   }, [])
 
+  // Resolve the single filtered customer's name on demand (no full customer list).
+  useEffect(() => {
+    let cancelled = false
+    const token = getToken()
+    if (!token) { setCustomerFilterCustomer(null); return }
+    if (!customerFilter) { setCustomerFilterCustomer(null); return }
+    setCustomerFilterCustomer({ id: customerFilter, company_name: customerFilter })
+    supabase.rpc('get_governed_customer', { p_token: token.trim(), p_id: customerFilter }).then((res) => {
+      if (cancelled) return
+      const d = res.data as any
+      if (d && typeof d === 'object' && d.company_name) setCustomerFilterCustomer(d)
+    })
+    return () => { cancelled = true }
+  }, [customerFilter])
+
   const sorted = useMemo(() => {
-    let list = orders
-    if (tab === 'my_invoices' && currentEmpId) {
-      list = list.filter((o: any) => o.owner_id === currentEmpId)
-    }
-    if (statusFilters.length) {
-      list = list.filter((o: any) => statusFilters.includes(String(o.status || '')))
-    }
-    if (orderTypeFilters.length) {
-      list = list.filter((o: any) => orderTypeFilters.includes((o.order_type || 'cash')))
-    }
-    if (tierFilters.length) {
-      list = list.filter((o: any) => tierFilters.includes(String(o.tier_id || '')))
-    }
-    if (governorateFilters.length) {
-      list = list.filter((o: any) => governorateFilters.includes(String(o.customer_governorate_id || '')))
-    }
-    if (employeeIdFilters.length) {
-      list = list.filter((o: any) => {
-        const ownerId = String(o.created_by || o.created_by_id || o.order_creator_id || '')
-        return employeeIdFilters.includes(ownerId)
-      })
-    }
-    return [...list].sort((a: any, b: any) => {
+    // The grid is ALWAYS the current server page (already filtered + paged) —
+    // no client-side slicing. Sort only to match the RPC ORDER BY within the page.
+    const list = [...orders]
+    list.sort((a: any, b: any) => {
       const keyA = dateSource === 'event' ? (a.last_event_ts || a.created_at || '') : (a.created_at || '')
       const keyB = dateSource === 'event' ? (b.last_event_ts || b.created_at || '') : (b.created_at || '')
       if (keyB !== keyA) return keyB > keyA ? 1 : -1
       return (b.created_at || '') > (a.created_at || '') ? 1 : -1
     })
-  }, [orders, tab, currentEmpId, statusFilters, orderTypeFilters, tierFilters, governorateFilters, employeeIdFilters, dateSource])
-
-  const sortedTotalValue = useMemo(() => {
-    return sorted.reduce((sum: number, o: any) => sum + (Number(o.total_amount) || 0), 0)
-  }, [sorted])
+    return list
+  }, [orders, dateSource])
 
   const tabLabel = tab === 'all' ? 'الطلبات' : tab === 'my_orders' ? 'طلباتي' : 'فواتيري'
 
   const handleRefresh = useCallback(() => {
-    fetchOrders()
-  }, [fetchOrders])
+    fetchPage(page)
+  }, [fetchPage, page])
 
   const handleStatusToggle = useCallback((status: string) => {
     setViewState((prev: any) => {
@@ -304,7 +322,7 @@ export function OrdersPage() {
     }
 
     if (customerFilter) {
-      const cust = customers.find((c: any) => c.id === customerFilter)
+      const cust = customerFilterCustomer
       if (cust) items.push({ id: 'customer', label: 'العميل', value: cust.company_name })
     }
 
@@ -314,37 +332,34 @@ export function OrdersPage() {
     }
 
     return items
-  }, [tab, filters, statusFilters, orderTypeFilters, tierFilters, governorateFilters, employeeIdFilters, customerFilter, smartFilterEmployees, customers, governorates, STATUS_OPTIONS, dateSource, tierOptions])
+  }, [tab, filters, statusFilters, orderTypeFilters, tierFilters, governorateFilters, employeeIdFilters, customerFilter, smartFilterEmployees, customerFilterCustomer, governorates, STATUS_OPTIONS, dateSource, tierOptions])
 
   const kpiChips: KpiChipConfig[] = useMemo(() => {
-    const statusCounts: Record<string, number> = {}
     const orderList = statusDisplayOrder(isUpperManagement)
-    for (const order of sorted) {
-      if (!orderList.includes(order.status)) continue
-      statusCounts[order.status] = (statusCounts[order.status] || 0) + 1
-    }
-    return Object.entries(statusCounts)
-      .filter(([, count]) => count > 0)
-      .sort(([a], [b]) => orderList.indexOf(a) - orderList.indexOf(b))
-      .map(([status, count]) => {
+    const statusCounts = summary?.status_counts || {}
+    return orderList
+      .filter((status) => (statusCounts[status] || 0) > 0)
+      .map((status) => {
         const label = ORDER_STATUS_LABELS[status] || status
         const group = STATUS_KPI_GROUPS[status] || STATUS_KPI_GROUPS.draft
         return {
           id: status,
           label,
-          count,
+          count: statusCounts[status] || 0,
           dotClass: group.dot,
           chipClass: group.chip,
           activeChipClass: group.active,
         }
       })
-  }, [sorted, isUpperManagement])
+  }, [summary, isUpperManagement])
 
   const dateRangeStr = filters.datePreset === 'custom'
     ? (filters.dateFrom || '...') + ' → ' + (filters.dateTo || '...')
     : (filters.datePreset !== 'all' ? datePresetLabels[filters.datePreset] : undefined)
 
   const hasActiveFilters = tab !== 'all' || statusFilters.length > 0 || orderTypeFilters.length > 0 || tierFilters.length > 0 || governorateFilters.length > 0 || employeeIdFilters.length > 0 || !!customerFilter || !!filters.search || filters.datePreset !== 'all'
+
+  const totalPages = Math.max(1, Math.ceil((summary?.count ?? 0) / PAGE_SIZE))
 
   const handleResetAll = useCallback(() => {
     resetViewState()
@@ -365,7 +380,7 @@ export function OrdersPage() {
     tierFilter: tierFilters,
     tiers: tierOptions,
     employees: smartFilterEmployees,
-    customers,
+    customers: customerFilterCustomer ? [customerFilterCustomer] : [],
     governorates,
   })
 
@@ -381,14 +396,28 @@ export function OrdersPage() {
     }
   }
 
-  const handleReportExcel = () => {
-    if (!sorted.length) return
-    exportOrdersReportExcel(buildOrdersReportRows(sorted, governorates), buildReportMeta())
+  // Print/Export is an explicit exception: bypass the 30-row page and retrieve
+  // ALL records matching the currently applied search/filters for this operation
+  // only (no page param -> full filtered result set).
+  const fetchAllMatching = async () => {
+    const rpcParams = buildRpcParams(1, { perPage: 10000 })
+    if (!rpcParams) return []
+    const { data } = await supabase.rpc('get_unified_orders', rpcParams)
+    const rows = (Array.isArray(data) ? data : []) as any[]
+    await mergeSnapshots(rows)
+    return rows
   }
 
-  const handleReportPrint = () => {
-    if (!sorted.length) return
-    printOrdersReport(buildOrdersReportRows(sorted, governorates), buildReportMeta())
+  const handleReportExcel = async () => {
+    const rows = await fetchAllMatching()
+    if (!rows.length) return
+    exportOrdersReportExcel(buildOrdersReportRows(rows, governorates), buildReportMeta())
+  }
+
+  const handleReportPrint = async () => {
+    const rows = await fetchAllMatching()
+    if (!rows.length) return
+    printOrdersReport(buildOrdersReportRows(rows, governorates), buildReportMeta())
   }
 
   return (
@@ -461,8 +490,8 @@ export function OrdersPage() {
       </div>
 
       <ResultsSummary
-        total={sorted.length}
-        totalValue={sortedTotalValue}
+        total={summary?.count ?? 0}
+        totalValue={summary?.total_value ?? 0}
         dateFrom={dateRangeStr}
         filters={[]}
         onRefresh={handleRefresh}
@@ -506,11 +535,16 @@ export function OrdersPage() {
           message={tab === 'my_orders' ? 'لا توجد طلبات لك' : tab === 'my_invoices' ? 'لا توجد فواتير لك' : undefined}
         />
       ) : (
-        <CardGrid>
-          {sorted.map((order: any) => (
-            <OrderCard key={order.id} order={order} orderId={order.id} isUnseen={unseenOrderIds.has(order.id)} />
-          ))}
-        </CardGrid>
+        <>
+          <CardGrid>
+            {sorted.map((order: any) => (
+              <OrderCard key={order.id} order={order} orderId={order.id} isUnseen={unseenOrderIds.has(order.id)} />
+            ))}
+          </CardGrid>
+          {totalPages > 1 && (
+            <PaginationFooter page={page} totalPages={totalPages} onChange={setPage} />
+          )}
+        </>
       )}
     </div>
   )

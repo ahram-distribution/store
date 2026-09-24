@@ -11,20 +11,23 @@ function getToken(): string | null {
 export function SalesDirectorWorkspace() {
   const navigate = useNavigate()
   const [orders, setOrders] = useState<any[]>([])
-  const [visits, setVisits] = useState<any[]>([])
+  const [todayVisits, setTodayVisits] = useState(0)
   const [employees, setEmployees] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     const token = getToken()
     if (!token) { setLoading(false); return }
+    const todayStart = new Date(new Date().setHours(0, 0, 0, 0)).toISOString()
+    const todayEnd = new Date(new Date().setHours(23, 59, 59, 999)).toISOString()
     Promise.all([
       supabase.rpc('get_unified_orders', { p_token: token }),
-      supabase.rpc('get_governed_visits', { p_token: token }),
+      supabase.rpc('get_governed_visits', { p_token: token, p_date_from: todayStart, p_date_to: todayEnd, p_count_only: true }),
       supabase.rpc('get_governed_employees', { p_token: token }),
     ]).then(([ord, vis, emp]) => {
       if (ord.data) setOrders(Array.isArray(ord.data) ? ord.data : [])
-      if (vis.data) setVisits(Array.isArray(vis.data) ? vis.data : [])
+      const vc = vis.data as any
+      if (vc && typeof vc === 'object' && 'count' in vc) setTodayVisits(Number(vc.count))
       if (emp.data) setEmployees(emp.data)
       setLoading(false)
     })
@@ -34,7 +37,6 @@ export function SalesDirectorWorkspace() {
 
   const pendingApproval = orders.filter((o: any) => o.status === 'submitted')
   const readyDispatch = orders.filter((o: any) => o.status === 'approved')
-  const todayVisits = visits.filter((v: any) => v.check_in_at && new Date(v.check_in_at).toDateString() === new Date().toDateString())
   const activeReps = employees.filter(e => e.is_active).length
 
   return (
@@ -54,7 +56,7 @@ export function SalesDirectorWorkspace() {
           <span className="text-sm font-semibold text-text">جاهزة للتوصيل</span>
         </button>
         <button onClick={() => navigate('/visits?filter=today')} className="bg-white rounded-xl border border-border p-4 text-right active:bg-surface transition-colors">
-          <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center mb-2"><span className="text-white text-lg font-bold">{todayVisits.length}</span></div>
+          <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center mb-2"><span className="text-white text-lg font-bold">{todayVisits}</span></div>
           <span className="text-sm font-semibold text-text">زيارات اليوم</span>
         </button>
         <button onClick={() => navigate('/employees')} className="bg-white rounded-xl border border-border p-4 text-right active:bg-surface transition-colors">

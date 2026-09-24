@@ -49,7 +49,14 @@ export function NewFollowUpPage() {
   useEffect(() => {
     if (!token || customerSearch.length < 1) { setCustomerOptions([]); return }
     const debounce = setTimeout(async () => {
-      const { data } = await supabase.rpc('get_governed_customers', { p_token: token, p_search: customerSearch || null })
+      const { data } = await supabase.rpc('get_governed_customers', {
+        p_token: token,
+        p_search: customerSearch || null,
+        p_page: 1,
+        p_per_page: 50,
+        p_count_only: false,
+        p_stats: false,
+      })
       if (Array.isArray(data)) setCustomerOptions(data)
     }, 300)
     return () => clearTimeout(debounce)

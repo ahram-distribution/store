@@ -5,6 +5,7 @@ import { formatCurrencyShort, safeFormatDateTime, toEnglishDigits } from '../../
 import { formatNumber } from '../../utils/numbers'
 import { locationService } from '../../services/location'
 import { VisitCard } from '../../components/visits/VisitCard'
+import { RemoteSearchableSelect } from '../../components/shared/RemoteSearchableSelect'
 import { lifeSignalService } from '../../services/lifeSignalService'
 import { MobileDialog } from '../../components/shared/MobileDialog'
 import { CustomerForm } from '../../components/customers/CustomerForm'
@@ -62,14 +63,11 @@ export default function SalesManagerOperations() {
 
   /* Customer Picker */
   const [showCustomerPicker, setShowCustomerPicker] = useState<'order' | 'visit' | null>(null)
-  const [customerList, setCustomerList] = useState<any[]>([])
-  const [custSearchQuery, setCustSearchQuery] = useState('')
 
   /* Visits List */
   const [visitsList, setVisitsList] = useState<any[]>([])
   const [visitsLoading, setVisitsLoading] = useState(false)
   const [visitsFilter, setVisitsFilter] = useState<'all' | 'active' | 'today'>('all')
-  const [customerMap, setCustomerMap] = useState<Map<string, string>>(new Map())
   const [employeeVisitMap, setEmployeeVisitMap] = useState<Map<string, string>>(new Map())
 
   /* Visit Detail */
@@ -174,37 +172,34 @@ export default function SalesManagerOperations() {
     fetchData()
   }
 
-  const fetchCustomers = useCallback(async () => {
+  const loadCustomerOptions = useCallback(async (query: string) => {
     const t = getToken()
-    if (!t || customerList.length > 0) return
-    const { data } = await supabase.rpc('get_governed_customers', { p_token: t })
-    if (data) setCustomerList(Array.isArray(data) ? data : typeof data === 'object' && data !== null ? [data] : [])
-  }, [customerList.length])
+    if (!t) return []
+    const { data } = await supabase.rpc('get_governed_customers', {
+      p_token: t.trim(), p_search: query || null, p_page: 1, p_per_page: 20,
+    })
+    const rows = Array.isArray(data) ? data : []
+    return rows.map((c: any) => ({ id: c.id, name: c.company_name }))
+  }, [])
 
-  const handlePickCustomer = async (customer: any) => {
+  const resolveCustomerLabel = useCallback(async (id: string) => {
     const t = getToken()
-    if (!t) return
-    if (showCustomerPicker === 'order') {
-      nav(`/orders/new?customer=${customer.id}`)
-    }
-  }
+    if (!t) return null
+    const { data } = await supabase.rpc('get_governed_customer', { p_token: t.trim(), p_id: id })
+    if (!data) return null
+    const row = Array.isArray(data) ? data[0] : data
+    return row && row.company_name ? String(row.company_name) : null
+  }, [])
 
   const fetchVisits = useCallback(async () => {
     setVisitsLoading(true)
     const t = getToken()
     if (!t) { setVisitsLoading(false); return }
-    const [visRes, custRes, empRes] = await Promise.all([
-      supabase.rpc('get_governed_visits', { p_token: t }),
-      supabase.rpc('get_governed_customers', { p_token: t }),
+    const [visRes, empRes] = await Promise.all([
+      supabase.rpc('get_governed_visits', { p_token: t, p_page: 1, p_per_page: 40 }),
       supabase.rpc('get_governed_employees', { p_token: t }),
     ])
     if (visRes.data) setVisitsList(Array.isArray(visRes.data) ? visRes.data : [])
-    if (custRes.data) {
-      const list = Array.isArray(custRes.data) ? custRes.data : []
-      const m = new Map<string, string>()
-      for (const c of list) m.set(c.id, c.company_name)
-      setCustomerMap(m)
-    }
     if (empRes.data) {
       const list = Array.isArray(empRes.data) ? empRes.data : []
       const m = new Map<string, string>()
@@ -253,7 +248,7 @@ export default function SalesManagerOperations() {
 
       {/* Quick Actions Row */}
       <div className="grid grid-cols-2 gap-2 mb-1">
-        <button onClick={() => { setShowCustomerPicker('order'); fetchCustomers() }}
+        <button onClick={() => { setShowCustomerPicker('order') }}
           className="bg-primary/10 text-primary border border-primary/20 py-3 rounded-xl font-bold text-sm active:scale-[0.98] transition-all flex items-center justify-center gap-1.5">
           🛒 إنشاء طلب
         </button>
@@ -338,7 +333,7 @@ export default function SalesManagerOperations() {
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {filtered.map((v: any) => (
                   <VisitCard key={v.id} visit={v}
-                    customerName={customerMap.get(v.customer_id)}
+                    customerName={v.customer_name || v.customer_id}
                     employeeName={employeeVisitMap.get(v.employee_id)}
                     onClick={() => openVisitDetail(v.id)} />
                 ))}
@@ -514,34 +509,20 @@ export default function SalesManagerOperations() {
       {/* Customer Picker Modal */}
       <MobileDialog
         open={!!showCustomerPicker}
-        onClose={() => { setShowCustomerPicker(null); setCustSearchQuery('') }}
+        onClose={() => setShowCustomerPicker(null)}
         title={showCustomerPicker === 'order' ? 'اختيار عميل للطلب' : 'اختيار عميل للزيارة'}
       >
-        <input type="text" value={custSearchQuery} onChange={e => setCustSearchQuery(e.target.value)}
-          placeholder="بحث بالاسم أو الكود..."
-          className="w-full border border-border rounded-lg px-3 py-2 text-sm" />
-        <div className="space-y-1">
-          {customerList.filter((c: any) => {
-            if (!custSearchQuery) return true
-            const q = custSearchQuery.toLowerCase()
-            return c.company_name?.toLowerCase().includes(q) || c.code?.toLowerCase().includes(q)
-          }).length === 0 && (
-            <p className="text-center text-xs text-text-secondary py-4">لا يوجد عملاء</p>
-          )}
-          {customerList.filter((c: any) => {
-            if (!custSearchQuery) return true
-            const q = custSearchQuery.toLowerCase()
-            return c.company_name?.toLowerCase().includes(q) || c.code?.toLowerCase().includes(q)
-          }).map((c: any) => (
-            <button key={c.id} type="button" onClick={() => { handlePickCustomer(c); setCustSearchQuery('') }}
-              className="w-full text-right px-3 py-2 rounded-lg hover:bg-surface transition-colors border border-border/50 flex items-center justify-between">
-              <div>
-                <p className="text-sm font-semibold text-text">{c.company_name}</p>
-                <p className="text-[10px] text-text-secondary">{c.code} {c.responsible_name ? `| ${c.responsible_name}` : ''}</p>
-              </div>
-              <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded">{c.owner_name || ''}</span>
-            </button>
-          ))}
+        <div className="space-y-3">
+          <RemoteSearchableSelect
+            value=""
+            onChange={(id) => {
+              if (showCustomerPicker === 'order' && id) nav(`/orders/new?customer=${id}`)
+              setShowCustomerPicker(null)
+            }}
+            loadOptions={loadCustomerOptions}
+            resolveLabel={resolveCustomerLabel}
+            placeholder="ابحث عن عميل..."
+          />
         </div>
       </MobileDialog>
 

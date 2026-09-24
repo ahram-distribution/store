@@ -3,7 +3,7 @@ import { useEffect, useState, useMemo, useCallback, type ReactNode } from 'react
 import { useCartStore } from '../../store/cart'
 import { useAuthStore } from '../../store/auth'
 import { EmptyCart } from '../../components/storefront/EmptyCart'
-import { SearchableSelect } from '../../components/shared/SearchableSelect'
+import { RemoteSearchableSelect } from '../../components/shared/RemoteSearchableSelect'
 import { CartSummaryBar } from '../../components/storefront/CartSummaryBar'
 import { formatArabicAmountWithCurrency, formatTierName } from '../../utils/format'
 import { formatSmartMoney } from '../../utils/numbers'
@@ -51,7 +51,6 @@ export function CartPage() {
   const { token: authToken, user } = useAuthStore()
   const isDirectCustomer = user?.identity_type === 'customer'
   const [editingCustomer, setEditingCustomer] = useState(false)
-  const [customers, setCustomers] = useState<any[]>([])
   /** Governed inventory cap, cached per productId:unitType after the availability RPC. */
   const [stockMax, setStockMax] = useState<Record<string, number | null>>({})
   /** Inline (non-toast) block notes shown under the +/- stepper, keyed per line. */
@@ -74,23 +73,27 @@ export function CartPage() {
     useCartStore.getState().subscribeToDiscountOptions()
   }, [])
 
-  const fetchCustomers = useCallback(async () => {
-    if (!authToken || customers.length > 0) return
-    const { data } = await supabase.rpc('get_governed_customers', { p_token: authToken })
-    if (!Array.isArray(data)) return
-    setCustomers(data)
-    // Backfill the persisted selected customer's real address (registered_address /
-    // location_address from the governed RPC) — fixes customers selected before the
-    // address field was populated.
-    const selected = useCartStore.getState().selectedCustomer
-    if (selected && !selected.address) {
-      const match = (data as any[]).find((c: any) => c.id === selected.id)
-      const addr = String(match?.registered_address || match?.location_address || '') || undefined
-      if (addr) {
-        useCartStore.getState().setSelectedCustomer({ ...selected, address: addr })
-      }
-    }
-  }, [authToken, customers.length])
+  const loadCustomerOptions = useCallback(async (q: string) => {
+    if (!authToken) return []
+    const { data } = await supabase.rpc('get_governed_customers', {
+      p_token: authToken,
+      p_search: q.trim() || null,
+      p_page: 1,
+      p_per_page: 20,
+      p_count_only: false,
+      p_stats: false,
+    })
+    if (!Array.isArray(data)) return []
+    return data.map((c: any) => ({ id: c.id, name: c.company_name || '' }))
+  }, [authToken])
+
+  const resolveCustomerLabel = useCallback(async (id: string) => {
+    if (!authToken) return id
+    const { data } = await supabase.rpc('get_governed_customer', { p_token: authToken, p_id: id })
+    const c = data as any
+    if (c && typeof c === 'object' && c.company_name) return c.company_name
+    return id
+  }, [authToken])
 
   const {
     items,
@@ -128,6 +131,17 @@ export function CartPage() {
     updateBonusQuantity,
   } = useCartStore()
 
+  const applyCustomer = useCallback((c: any) => {
+    setSelectedCustomer({
+      id: c.id,
+      name: c.company_name || '',
+      phone: c.phone || '',
+      code: c.code || '',
+      address: String(c.registered_address || c.location_address || '') || undefined,
+    })
+    setEditingCustomer(false)
+  }, [setSelectedCustomer])
+
   const selectedTier = getSelectedTier()
   const selectedPaymentMethod = getSelectedPaymentMethod()
   const selectedShippingMethod = getSelectedShippingMethod()
@@ -159,9 +173,28 @@ export function CartPage() {
   useEffect(() => {
     if (hydrated) {
       refreshBonusMode()
-      fetchCustomers()
     }
-  }, [hydrated, refreshBonusMode, fetchCustomers])
+  }, [hydrated, refreshBonusMode])
+
+  // Backfill the persisted selected customer's real address (registered_address /
+  // location_address from the governed RPC) — fixes customers selected before the
+  // address field was populated.
+  useEffect(() => {
+    if (!hydrated || !authToken) return
+    const selected = useCartStore.getState().selectedCustomer
+    if (!selected || selected.address) return
+    supabase.rpc('get_governed_customer', { p_token: authToken, p_id: selected.id }).then(({ data }) => {
+      const c = data as any
+      if (!c || typeof c !== 'object') return
+      const addr = String(c.registered_address || c.location_address || '') || undefined
+      if (addr) {
+        const cur = useCartStore.getState().selectedCustomer
+        if (cur && cur.id === selected.id && !cur.address) {
+          useCartStore.getState().setSelectedCustomer({ ...cur, address: addr })
+        }
+      }
+    })
+  }, [hydrated, authToken])
 
   const productCompanyMap = useMemo(() => {
     const map = new Map<string, { id: string; name: string }>()
@@ -740,29 +773,25 @@ export function CartPage() {
           <div className="flex items-center justify-between">
             <div className="text-xs font-bold text-primary">بيانات العميل</div>
             {!editingCustomer && !isDirectCustomer && (
-              <button type="button" onClick={() => { setEditingCustomer(true); fetchCustomers() }} className="text-xs font-semibold text-primary">
+              <button type="button" onClick={() => setEditingCustomer(true)} className="text-xs font-semibold text-primary">
                 تغيير العميل
               </button>
             )}
           </div>
           {editingCustomer ? (
-            <SearchableSelect
-              items={customers.map((c: any) => ({ id: c.id, name: c.company_name || '' }))}
+            <RemoteSearchableSelect
               value={selectedCustomer?.id || ''}
               onChange={(id) => {
-                const c = customers.find((c: any) => c.id === id)
-                if (c) {
-                  setSelectedCustomer({
-                    id: c.id,
-                    name: c.company_name || '',
-                    phone: c.phone || '',
-                    code: c.code || '',
-                    address: String(c.registered_address || c.location_address || '') || undefined,
-                  })
-                }
-                setEditingCustomer(false)
+                if (!authToken || !id) { setEditingCustomer(false); return }
+                supabase.rpc('get_governed_customer', { p_token: authToken, p_id: id }).then(({ data }) => {
+                  const c = data as any
+                  if (c && typeof c === 'object') applyCustomer(c)
+                })
               }}
+              loadOptions={loadCustomerOptions}
+              resolveLabel={resolveCustomerLabel}
               placeholder="اختر العميل"
+              className="w-full"
             />
           ) : (
             <div className="space-y-1">

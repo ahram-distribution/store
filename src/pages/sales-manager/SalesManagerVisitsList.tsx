@@ -13,9 +13,13 @@ function getToken(): string | null {
 
 const fmt = (n: number) => formatNumber(n)
 
+const PAGE_SIZE = 40
+
 export default function SalesManagerVisitsList() {
   const nav = useNavigate()
   const [visits, setVisits] = useState<any[]>([])
+  const [totalCount, setTotalCount] = useState(0)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [loading, setLoading] = useState(true)
   const [employees, setEmployees] = useState<{ id: string; name: string }[]>([])
   const [viewState, setViewState, resetViewState] = usePersistentViewState('sales-visits', {
@@ -30,23 +34,44 @@ export default function SalesManagerVisitsList() {
     return resolveDateRangeISO(f.datePreset as any)
   }
 
-  const fetchData = useCallback(async () => {
+  const buildParams = useCallback((page: number, perPage: number, countOnly: boolean) => {
     const token = getToken()
-    if (!token) return
-    setLoading(true)
+    if (!token) return null
     const range = resolveDateRange(filters)
-    const { data } = await supabase.rpc('get_governed_visits', {
+    return {
       p_token: token.trim(),
       p_search: filters.search || null,
       p_employee_id: filters.employeeId || null,
       p_date_from: range.from,
       p_date_to: range.to,
-    })
-    if (data) setVisits(Array.isArray(data) ? data : [])
-    setLoading(false)
+      p_page: page,
+      p_per_page: perPage,
+      p_count_only: countOnly,
+    }
   }, [filters])
 
-  useEffect(() => { fetchData() }, [fetchData])
+  const fetchData = useCallback(async (page: number, append: boolean) => {
+    if (!append) setLoading(true)
+    const params = buildParams(page, PAGE_SIZE, false)
+    if (!params) { setLoading(false); return }
+    const proceed = () => { setLoading(false); setLoadingMore(false) }
+    const [rowsRes, countRes] = await Promise.all([
+      supabase.rpc('get_governed_visits', params),
+      supabase.rpc('get_governed_visits', buildParams(1, PAGE_SIZE, true)),
+    ])
+    const rows = Array.isArray(rowsRes.data) ? rowsRes.data : []
+    const count = (countRes.data && typeof countRes.data === 'object' && 'count' in (countRes.data as any)
+      ? Number((countRes.data as any).count)
+      : 0)
+    setVisits((prev) => {
+      const seen = new Set(prev.map((v: any) => v.id))
+      return append ? [...prev, ...rows.filter((r: any) => !seen.has(r.id))] : rows
+    })
+    setTotalCount(count)
+    proceed()
+  }, [buildParams])
+
+  useEffect(() => { fetchData(1, false) }, [fetchData])
 
   // Load team employees for the filter dropdown
   useEffect(() => {
@@ -80,18 +105,29 @@ export default function SalesManagerVisitsList() {
       ) : visits.length === 0 ? (
         <div className="text-center py-12 text-text-secondary text-sm">لا توجد زيارات</div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {visits.map((v: any) => (
-            <VisitCard key={v.id} visit={v}
-              customerName={v.customer_name}
-              employeeName={v.employee_name}
-              onClick={() => nav(`/visits/${v.id}`)} />
-          ))}
-        </div>
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {visits.map((v: any) => (
+              <VisitCard key={v.id} visit={v}
+                customerName={v.customer_name}
+                employeeName={v.employee_name}
+                onClick={() => nav(`/visits/${v.id}`)} />
+            ))}
+          </div>
+          {visits.length < totalCount && (
+            <button
+              onClick={() => { setLoadingMore(true); fetchData(Math.floor(visits.length / PAGE_SIZE) + 1, true) }}
+              disabled={loadingMore}
+              className="w-full bg-white border border-border rounded-xl py-2.5 text-xs font-semibold text-text disabled:opacity-50"
+            >
+              {loadingMore ? 'جاري التحميل...' : `عرض المزيد (${visits.length} من ${totalCount})`}
+            </button>
+          )}
+        </>
       )}
 
       <div className="text-center text-[10px] text-text-secondary pb-4">
-        إجمالي: {fmt(visits.length)} زيارة
+        إجمالي: {fmt(totalCount)} زيارة
       </div>
     </div>
   )

@@ -1,14 +1,16 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useVisitsStore } from '../../store/visits'
 import { StatusBadge } from '../../components/shared/StatusBadge'
 import { VisitCard } from '../../components/visits/VisitCard'
+import { RemoteSearchableSelect } from '../../components/shared/RemoteSearchableSelect'
 import { locationService } from '../../services/location'
 import { getStrictLocation } from '../../services/gpsService'
 import { trackingEngine } from '../../services/trackingEngine'
 import { lifeSignalService } from '../../services/lifeSignalService'
 import SmartFilterBar, { type FilterValues } from '../../components/SmartFilterBar'
+import { PaginationFooter } from '../../components/data-list/PaginationFooter'
 import toast from 'react-hot-toast'
 import { usePersistentViewState } from '../../hooks/usePersistentViewState'
 import { resolveDateRangeISO, cairoDateComponents } from '../../lib/dateRange'
@@ -35,15 +37,19 @@ const STATUS_OPTIONS = [
   { value: 'cancelled', label: 'ملغي' },
 ]
 
+const PAGE_SIZE = 30
+
 export function VisitsPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const filter = searchParams.get('filter')
   const { activeVisit } = useVisitsStore()
   const [visits, setVisits] = useState<any[]>([])
-  const [customers, setCustomers] = useState<any[]>([])
   const [employees, setEmployees] = useState<any[]>([])
   const [governorates, setGovernorates] = useState<{ id: string; name_ar: string }[]>([])
+  const [totalCount, setTotalCount] = useState(0)
+  const [page, setPage] = useState(1)
+  const reqCounter = useRef(0)
   const [loading, setLoading] = useState(true)
   const [viewState, setViewState, resetViewState] = usePersistentViewState('visits-list', {
     statusFilter: filter === 'active' ? 'active' : '',
@@ -58,49 +64,82 @@ export function VisitsPage() {
   const [checkinCustomerId, setCheckinCustomerId] = useState('')
   const [checkinBusy, setCheckinBusy] = useState(false)
 
+  const loadCustomerOptions = useCallback(async (query: string) => {
+    const token = getToken()
+    if (!token) return []
+    const { data } = await supabase.rpc('get_governed_customers', {
+      p_token: token.trim(), p_search: query || null, p_page: 1, p_per_page: 20,
+    })
+    const rows = Array.isArray(data) ? data : []
+    return rows.map((c: any) => ({ id: c.id, name: c.company_name }))
+  }, [])
+
+  const resolveCustomerLabel = useCallback(async (id: string) => {
+    const token = getToken()
+    if (!token) return null
+    const { data } = await supabase.rpc('get_governed_customer', { p_token: token.trim(), p_id: id })
+    if (!data) return null
+    const row = Array.isArray(data) ? data[0] : data
+    return (row && row.company_name) ? String(row.company_name) : null
+  }, [])
+
   const resolveDateRange = (f: FilterValues): { from: string | null; to: string | null } => {
     if (f.datePreset === 'all') return { from: null, to: null }
     if (f.datePreset === 'custom') return resolveDateRangeISO('custom', f.dateFrom || undefined, f.dateTo || undefined)
     return resolveDateRangeISO(f.datePreset as any)
   }
 
-  const fetchVisits = async () => {
+  const buildParams = useCallback((page: number, perPage: number, countOnly: boolean) => {
     const token = getToken()
-    if (!token) { setLoading(false); return }
-    setLoading(true)
+    if (!token) return null
     const range = resolveDateRange(filters)
-    const rpcParams: any = { p_token: token.trim() }
+    const rpcParams: any = { p_token: token.trim(), p_page: page, p_per_page: perPage, p_count_only: countOnly }
     if (filters.search) rpcParams.p_search = filters.search
     if (filters.employeeId) rpcParams.p_employee_id = filters.employeeId
     if (range.from) rpcParams.p_date_from = range.from
     if (range.to) rpcParams.p_date_to = range.to
+    if (statusFilter) rpcParams.p_status = statusFilter
+    if (customerFilter) rpcParams.p_customer_id = customerFilter
+    if (governorateFilter) rpcParams.p_governorate_id = governorateFilter
+    return rpcParams
+  }, [filters, statusFilter, customerFilter, governorateFilter])
 
-    const { data } = await supabase.rpc('get_governed_visits', rpcParams)
-    if (data) setVisits(Array.isArray(data) ? data : [])
+  const fetchVisits = useCallback(async (targetPage: number) => {
+    const params = buildParams(targetPage, PAGE_SIZE, false)
+    if (!params) { setLoading(false); return }
+    setLoading(true)
+    const reqId = ++reqCounter.current
+    const [rowsRes, countRes] = await Promise.all([
+      supabase.rpc('get_governed_visits', params),
+      supabase.rpc('get_governed_visits', buildParams(1, PAGE_SIZE, true)),
+    ])
+    if (reqId !== reqCounter.current) return
+    const rows = Array.isArray(rowsRes.data) ? rowsRes.data : []
+    const count = (countRes.data && typeof countRes.data === 'object' && 'count' in (countRes.data as any)
+      ? Number((countRes.data as any).count)
+      : 0)
+    setVisits(rows)
+    setTotalCount(count)
     setLoading(false)
-  }
+  }, [buildParams])
 
-  useEffect(() => { fetchVisits() }, [filters])
+  // Reset to page 1 whenever any filter changes; the page then re-fetches from
+  // the server with the (server-side) filtered COUNT.
+  useEffect(() => { setPage(1) }, [filters, statusFilter, customerFilter, governorateFilter])
+
+  useEffect(() => { fetchVisits(page) }, [page, fetchVisits])
 
   useEffect(() => {
     const token = getToken()
     if (!token) return
     Promise.all([
-      supabase.rpc('get_governed_customers', { p_token: token }),
       supabase.rpc('get_governed_employees', { p_token: token }),
       supabase.from('reference_governorates').select('id, name_ar').order('name_ar', { ascending: true }),
-    ]).then(([custRes, empRes, govRes]) => {
-      if (custRes.data) setCustomers(Array.isArray(custRes.data) ? custRes.data : [])
+    ]).then(([empRes, govRes]) => {
       if (empRes.data) setEmployees(Array.isArray(empRes.data) ? empRes.data : [])
       if (govRes.data) setGovernorates(govRes.data || [])
     })
   }, [])
-
-  const customerMap = useMemo(() => {
-    const m = new Map<string, string>()
-    for (const c of customers) m.set(c.id, c.company_name)
-    return m
-  }, [customers])
 
   const employeeMap = useMemo(() => {
     const m = new Map<string, string>()
@@ -108,19 +147,7 @@ export function VisitsPage() {
     return m
   }, [employees])
 
-  const customerGovMap = useMemo(() => {
-    const m = new Map<string, string | null>()
-    for (const c of customers) m.set(c.id, c.manual_governorate_id || null)
-    return m
-  }, [customers])
-
-  const filtered = useMemo(() => {
-    let list = visits
-    if (statusFilter) list = list.filter((v: any) => v.status === statusFilter)
-    if (customerFilter) list = list.filter((v: any) => v.customer_id === customerFilter)
-    if (governorateFilter) list = list.filter((v: any) => customerGovMap.get(v.customer_id) === governorateFilter)
-    return list
-  }, [visits, statusFilter, customerFilter, governorateFilter, customerGovMap])
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
 
   const reportContext = () => ({
     datePreset: filters.datePreset,
@@ -132,7 +159,7 @@ export function VisitsPage() {
     customerFilter: customerFilter || '',
     governorateFilter: governorateFilter || '',
     employees: employees.map((e: any) => ({ id: e.id, name: e.full_name })),
-    customers,
+    customers: [] as { id: string; company_name: string }[],
     governorates,
   })
 
@@ -148,14 +175,27 @@ export function VisitsPage() {
     }
   }
 
-  const handleReportExcel = () => {
-    if (!filtered.length) return
-    exportVisitsReportExcel(buildVisitsReportRows(filtered, { customers, employees }), buildReportMeta())
+  const fetchAllMatching = async () => {
+    const params = buildParams(1, 10000, false)
+    if (!params) return []
+    const { data } = await supabase.rpc('get_governed_visits', params)
+    return Array.isArray(data) ? data : []
   }
 
-  const handleReportPrint = () => {
-    if (!filtered.length) return
-    printVisitsReport(buildVisitsReportRows(filtered, { customers, employees }), buildReportMeta())
+  const reportEmployees = () => employees.map((e: any) => ({ id: e.id, name: e.full_name }))
+
+  const handleReportExcel = async () => {
+    if (!totalCount) return
+    const rows = await fetchAllMatching()
+    if (!rows.length) return
+    exportVisitsReportExcel(buildVisitsReportRows(rows, { employees: reportEmployees() }), buildReportMeta())
+  }
+
+  const handleReportPrint = async () => {
+    if (!totalCount) return
+    const rows = await fetchAllMatching()
+    if (!rows.length) return
+    printVisitsReport(buildVisitsReportRows(rows, { employees: reportEmployees() }), buildReportMeta())
   }
 
   async function handleCheckin() {
@@ -207,7 +247,7 @@ export function VisitsPage() {
           <h1 className="text-lg font-bold text-text">{filter && filterLabels[filter] ? filterLabels[filter] : 'الزيارات'}</h1>
         </div>
         <div className="flex gap-2">
-          {!loading && filtered.length > 0 && (
+          {!loading && totalCount > 0 && (
             <>
               <button onClick={handleReportExcel} className="bg-white border border-border rounded-lg text-[11px] px-2.5 py-1.5 font-semibold text-text hover:bg-neutral-50">📊 Excel</button>
               <button onClick={handleReportPrint} className="bg-white border border-border rounded-lg text-[11px] px-2.5 py-1.5 font-semibold text-text hover:bg-neutral-50">🖨️ طباعة</button>
@@ -244,11 +284,13 @@ export function VisitsPage() {
       {showCheckin && (
         <div className="bg-white rounded-lg border border-border p-4 space-y-3">
           <h2 className="text-sm font-bold">تسجيل دخول زيارة</h2>
-          <select value={checkinCustomerId} onChange={(e) => setCheckinCustomerId(e.target.value)}
-            className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-white">
-            <option value="">اختر العميل</option>
-            {customers.map((c: any) => <option key={c.id} value={c.id}>{c.company_name}</option>)}
-          </select>
+          <RemoteSearchableSelect
+            value={checkinCustomerId}
+            onChange={setCheckinCustomerId}
+            loadOptions={loadCustomerOptions}
+            resolveLabel={resolveCustomerLabel}
+            placeholder="اختر العميل"
+          />
           <div className="flex gap-2">
             <button onClick={handleCheckin} disabled={checkinBusy} className="flex-1 bg-success text-white text-xs py-2 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed">
               {checkinBusy ? 'جارٍ تحديد موقعك الحالي...' : 'تسجيل الدخول'}
@@ -265,39 +307,48 @@ export function VisitsPage() {
       />
         <button onClick={() => { resetViewState(); setSfResetKey(k => k + 1) }} className="text-[10px] px-2 py-1 text-danger font-semibold">إعادة تعيين</button>
 
-      <div className="flex gap-2">
-        <select value={statusFilter} onChange={(e) => setViewState({ statusFilter: e.target.value })}
-          className="flex-1 border border-border rounded-lg px-2 py-1.5 text-xs bg-white">
-          {STATUS_OPTIONS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-        </select>
-        <select value={customerFilter} onChange={(e) => setViewState({ customerFilter: e.target.value })}
-          className="flex-1 border border-border rounded-lg px-2 py-1.5 text-xs bg-white">
-          <option value="">كل العملاء</option>
-          {customers.map((c: any) => <option key={c.id} value={c.id}>{c.company_name}</option>)}
-        </select>
-        <select value={governorateFilter} onChange={(e) => setViewState({ governorateFilter: e.target.value })}
-          className="flex-1 border border-border rounded-lg px-2 py-1.5 text-xs bg-white">
-          <option value="">كل المحافظات</option>
-          {governorates.map((g) => <option key={g.id} value={g.id}>{g.name_ar}</option>)}
-        </select>
+      <div className="flex flex-col gap-2">
+        <div className="flex gap-2">
+          <select value={statusFilter} onChange={(e) => setViewState({ statusFilter: e.target.value })}
+            className="flex-1 border border-border rounded-lg px-2 py-1.5 text-xs bg-white">
+            {STATUS_OPTIONS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+          </select>
+          <select value={governorateFilter} onChange={(e) => setViewState({ governorateFilter: e.target.value })}
+            className="flex-1 border border-border rounded-lg px-2 py-1.5 text-xs bg-white">
+            <option value="">كل المحافظات</option>
+            {governorates.map((g) => <option key={g.id} value={g.id}>{g.name_ar}</option>)}
+          </select>
+        </div>
+        <RemoteSearchableSelect
+          value={customerFilter}
+          onChange={(id) => setViewState({ customerFilter: id })}
+          loadOptions={loadCustomerOptions}
+          resolveLabel={resolveCustomerLabel}
+          placeholder="كل العملاء"
+        />
       </div>
 
       {loading ? (
         <div className="text-center py-12 text-text-secondary text-sm">جاري التحميل...</div>
-      ) : filtered.length === 0 ? (
+      ) : visits.length === 0 ? (
         <div className="text-center py-12 text-text-secondary text-sm">لا توجد زيارات</div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {filtered.map((visit: any) => (
-            <VisitCard
-              key={visit.id}
-              visit={visit}
-              customerName={visit.customer_name || customerMap.get(visit.customer_id) || ''}
-              employeeName={employeeMap.get(visit.employee_id) || ''}
-              onClick={() => navigate(`/visits/${visit.id}`)}
-            />
-          ))}
-        </div>
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {visits.map((visit: any) => (
+              <VisitCard
+                key={visit.id}
+                visit={visit}
+                customerName={visit.customer_name || ''}
+                employeeName={employeeMap.get(visit.employee_id) || ''}
+                onClick={() => navigate(`/visits/${visit.id}`)}
+              />
+            ))}
+          </div>
+          {totalPages > 1 && (
+            <PaginationFooter page={page} totalPages={totalPages} onChange={setPage} />
+          )}
+        </>
       )}
     </div>
   )

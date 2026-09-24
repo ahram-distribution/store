@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { lifeSignalService } from '../../services/lifeSignalService'
@@ -19,21 +19,37 @@ export function NewCollectionPage() {
   const navigate = useNavigate()
   const [customerId, setCustomerId] = useState<string | null>(null)
   const [customerName, setCustomerName] = useState('')
-  const [allCustomers, setAllCustomers] = useState<any[]>([])
+  const [customers, setCustomers] = useState<any[]>([])
   const [amount, setAmount] = useState('')
   const [method, setMethod] = useState<string>('')
   const [reference, setReference] = useState('')
   const [notes, setNotes] = useState('')
   const [customerSearchQuery, setCustomerSearchQuery] = useState('')
+  const [debouncedCustomerQuery, setDebouncedCustomerQuery] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
-  useEffect(() => {
+  const searchCustomers = useCallback(async (q: string) => {
     const token = getToken()
     if (!token) return
-    supabase.rpc('get_governed_customers', { p_token: token }).then(({ data }) => {
-      if (data) setAllCustomers(Array.isArray(data) ? data : [data])
+    const { data } = await supabase.rpc('get_governed_customers', {
+      p_token: token.trim(),
+      p_search: q.trim() || null,
+      p_page: 1,
+      p_per_page: 50,
+      p_count_only: false,
+      p_stats: false,
     })
+    if (data) setCustomers(Array.isArray(data) ? data : [data])
   }, [])
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedCustomerQuery(customerSearchQuery.trim()), 300)
+    return () => clearTimeout(t)
+  }, [customerSearchQuery])
+
+  useEffect(() => {
+    searchCustomers(debouncedCustomerQuery)
+  }, [debouncedCustomerQuery, searchCustomers])
 
   const handleSubmit = async () => {
     if (!customerId || !amount || !method) {
@@ -66,9 +82,7 @@ export function NewCollectionPage() {
   }
 
   if (!customerId) {
-    const filtered = customerSearchQuery.trim()
-      ? allCustomers.filter((c: any) => (c.company_name || '').includes(customerSearchQuery))
-      : allCustomers
+    const filtered = customers
 
     return (
       <div className="space-y-4">

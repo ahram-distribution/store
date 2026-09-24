@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import toast from 'react-hot-toast'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
@@ -8,6 +8,7 @@ import { computeDateRange, cairoMidnightISO, cairoDateComponents } from '../../l
 import { usePersistentViewState } from '../../hooks/usePersistentViewState'
 import { useEntityViewsStore } from '../../store/entityViews'
 import SmartFilterBar, { type FilterValues } from '../../components/SmartFilterBar'
+import { PaginationFooter } from '../../components/data-list/PaginationFooter'
 import { CustomerCard } from '../../components/customers/CustomerCard'
 import type { CustomerCardData } from '../../types/customers'
 import {
@@ -33,6 +34,12 @@ function sortCustomersNewestFirst(a: CustomerCardData, b: CustomerCardData): num
   return a.id < b.id ? -1 : a.id > b.id ? 1 : 0
 }
 
+const PAGE_SIZE = 30
+
+interface CustomersStats {
+  total: number; no_orders: number; no_visits: number; no_location: number; needs_correction: number
+}
+
 export function CustomersPage() {
   const navigate = useNavigate()
   const canCreate = useCapability('customers.create')
@@ -40,6 +47,10 @@ export function CustomersPage() {
   const isExactUpperMgmt = userRoles.includes('الإدارة العليا')
   const currentEmpId = useAuthStore((s) => s.user?.employee_id)
   const [customers, setCustomers] = useState<CustomerCardData[]>([])
+  const [totalCount, setTotalCount] = useState(0)
+  const [stats, setStats] = useState<CustomersStats | null>(null)
+  const [page, setPage] = useState(1)
+  const reqCounter = useRef(0)
   const [employees, setEmployees] = useState<{ id: string; name: string }[]>([])
   const [governorates, setGovernorates] = useState<{ id: string; name_ar: string }[]>([])
   const [loading, setLoading] = useState(true)
@@ -97,10 +108,9 @@ export function CustomersPage() {
     }
   }
 
-  const fetchData = async () => {
+  const buildParams = (page: number, perPage: number, countOnly: boolean, statsOnly = false) => {
     const token = getToken()
-    if (!token) { setLoading(false); return }
-    setLoading(true)
+    if (!token) return null
     const range = resolveDateRange(filters)
     const params: any = {
       p_token: token.trim(),
@@ -113,27 +123,53 @@ export function CustomersPage() {
       p_no_location: quickFilters.noLocation || null,
       p_governorate_id: governorateId || null,
       p_needs_address_correction: quickFilters.needsCorrection ? true : null,
+      p_page: page,
+      p_per_page: perPage,
+      p_count_only: countOnly,
+      p_stats: statsOnly,
     }
     if (myOnly && currentEmpId) {
       params.p_employee_id = currentEmpId
     }
+    return params
+  }
 
-    const [custRes, empRes] = await Promise.all([
+  const fetchData = async (targetPage: number) => {
+    const token = getToken()
+    if (!token) { setLoading(false); return }
+    const params = buildParams(targetPage, PAGE_SIZE, false)
+    if (!params) { setLoading(false); return }
+    setLoading(true)
+    const reqId = ++reqCounter.current
+    const [custRes, countRes, statsRes] = await Promise.all([
       supabase.rpc('get_governed_customers', params),
-      supabase.rpc('get_governed_employees', { p_token: token }),
+      supabase.rpc('get_governed_customers', buildParams(1, PAGE_SIZE, true)),
+      targetPage === 1 ? supabase.rpc('get_governed_customers', buildParams(1, PAGE_SIZE, false, true)) : Promise.resolve({ data: null }),
     ])
-    if (empRes.data) {
-      const list = Array.isArray(empRes.data) ? empRes.data : []
-      setEmployees(list.map((e: any) => ({ id: e.id, name: e.full_name })))
-    }
-    if (custRes.data) {
-      const list = Array.isArray(custRes.data) ? custRes.data : []
-      setCustomers([...list].sort(sortCustomersNewestFirst))
+    if (reqId !== reqCounter.current) return
+    const list = Array.isArray(custRes.data) ? custRes.data : []
+    setCustomers([...list].sort(sortCustomersNewestFirst))
+    const c = countRes.data as any
+    if (c && typeof c === 'object' && 'count' in c) setTotalCount(Number(c.count))
+    if (targetPage === 1 && statsRes?.data && typeof statsRes.data === 'object' && 'total' in (statsRes.data as any)) {
+      const s = statsRes.data as any
+      setStats({ total: Number(s.total), no_orders: Number(s.no_orders), no_visits: Number(s.no_visits), no_location: Number(s.no_location), needs_correction: Number(s.needs_correction) })
     }
     setLoading(false)
   }
 
-  useEffect(() => { fetchData() }, [filters, myOnly, quickFilters, governorateId])
+  const fetchAllMatching = async () => {
+    const params = buildParams(1, 10000, false)
+    if (!params) return []
+    const { data } = await supabase.rpc('get_governed_customers', params)
+    return Array.isArray(data) ? data : []
+  }
+
+  // Reset to page 1 whenever any filter changes; page re-fetches the filtered
+  // page + server-side COUNT.
+  useEffect(() => { setPage(1) }, [filters, myOnly, quickFilters, governorateId])
+
+  useEffect(() => { fetchData(page) }, [page, filters, myOnly, quickFilters, governorateId])
 
   useEffect(() => {
     const token = getToken()
@@ -143,8 +179,13 @@ export function CustomersPage() {
   useEffect(() => {
     const token = getToken()
     if (!token) return
-    supabase.from('reference_governorates').select('id, name_ar').order('name_ar', { ascending: true })
-      .then(({ data }) => { if (data) setGovernorates(data) })
+    Promise.all([
+      supabase.rpc('get_governed_employees', { p_token: token }),
+      supabase.from('reference_governorates').select('id, name_ar').order('name_ar', { ascending: true }),
+    ]).then(([empRes, govRes]) => {
+      if (empRes.data) setEmployees((Array.isArray(empRes.data) ? empRes.data : []).map((e: any) => ({ id: e.id, name: e.full_name })))
+      if (govRes.data) setGovernorates(govRes.data)
+    })
   }, [])
 
   const toggleQuickFilter = (key: keyof typeof quickFilters) => {
@@ -152,6 +193,8 @@ export function CustomersPage() {
   }
 
   const hasActiveQuickFilter = quickFilters.noOrders || quickFilters.noVisits || quickFilters.noLocation || quickFilters.needsCorrection
+
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
 
   const reportContext = (): CustomerReportFilterContext => ({
     search: filters.search || '',
@@ -177,23 +220,26 @@ export function CustomersPage() {
     }
   }
 
-  const handleReportExcel = () => {
-    if (!customers.length) return
-    exportCustomersReportExcel(buildCustomerReportRows(customers, governorates), buildReportMeta())
+  const handleReportExcel = async () => {
+    const rows = await fetchAllMatching()
+    if (!rows.length) return
+    exportCustomersReportExcel(buildCustomerReportRows([...rows].sort(sortCustomersNewestFirst), governorates), buildReportMeta())
   }
 
-  const handleReportPrint = () => {
-    if (!customers.length) return
-    printCustomersReport(buildCustomerReportRows(customers, governorates), buildReportMeta())
+  const handleReportPrint = async () => {
+    const rows = await fetchAllMatching()
+    if (!rows.length) return
+    printCustomersReport(buildCustomerReportRows([...rows].sort(sortCustomersNewestFirst), governorates), buildReportMeta())
   }
 
   const handleExportPhone = async () => {
-    if (!customers.length) {
+    const rows = await fetchAllMatching()
+    if (!rows.length) {
       toast.error('لا يوجد عملاء متاحون للتصدير')
       return
     }
     try {
-      const count = await exportCustomersToPhone({ customers, governorates })
+      const count = await exportCustomersToPhone({ customers: [...rows].sort(sortCustomersNewestFirst), governorates })
       toast.success(`تم تصدير ${count} عميل`)
     } catch {
       toast.error('حدث خطأ أثناء التصدير')
@@ -205,7 +251,7 @@ export function CustomersPage() {
       <div className="flex items-center gap-3">
         <button onClick={() => navigate('/dashboard')} className="text-text-secondary text-lg">&larr;</button>
         <h1 className="text-lg font-bold text-text">العملاء</h1>
-        {!loading && customers.length > 0 && isExactUpperMgmt && (
+        {!loading && totalCount > 0 && isExactUpperMgmt && (
           <div className="flex gap-1.5">
             <button onClick={handleExportPhone} className="bg-white border border-border rounded-lg text-[11px] px-2.5 py-1.5 font-semibold text-text hover:bg-neutral-50">📱 تصدير للهاتف</button>
             <button onClick={handleReportExcel} className="bg-white border border-border rounded-lg text-[11px] px-2.5 py-1.5 font-semibold text-text hover:bg-neutral-50">📊 Excel</button>
@@ -245,23 +291,23 @@ export function CustomersPage() {
       </select>
 
       {/* Stats bar */}
-      {!loading && customers.length > 0 && (
+      {!loading && stats && stats.total > 0 && (
         <div className="flex items-center flex-wrap gap-x-3 gap-y-1 text-[11px] bg-white rounded-lg border border-border p-2.5">
-          <span className="text-text font-semibold whitespace-nowrap">👥 <span className="text-text-muted font-medium">المعروض:</span> {customers.length} عميل</span>
+          <span className="text-text font-semibold whitespace-nowrap">👥 <span className="text-text-muted font-medium">المعروض:</span> {stats.total} عميل</span>
           <span className="text-border">|</span>
-          <span className="text-text font-semibold" dir="ltr">{customers.filter(c => (c.previous_order_count ?? 0) > 0).length}</span>
+          <span className="text-text font-semibold" dir="ltr">{stats.total - stats.no_orders}</span>
           <span className="text-text-muted whitespace-nowrap">📦 لديهم طلبات</span>
           <span className="text-border">|</span>
-          <span className="text-text font-semibold" dir="ltr">{customers.filter(c => !c.previous_order_count || c.previous_order_count === 0).length}</span>
+          <span className="text-text font-semibold" dir="ltr">{stats.no_orders}</span>
           <span className="text-text-muted whitespace-nowrap">🚫 بدون طلبات</span>
           <span className="text-border">|</span>
-          <span className="text-text font-semibold" dir="ltr">{customers.filter(c => !c.location_id).length}</span>
+          <span className="text-text font-semibold" dir="ltr">{stats.no_location}</span>
           <span className="text-text-muted whitespace-nowrap">📍 بدون لوكيشن</span>
           <span className="text-border">|</span>
-          <span className="text-text font-semibold" dir="ltr">{customers.filter(c => !c.visit_count || c.visit_count === 0).length}</span>
+          <span className="text-text font-semibold" dir="ltr">{stats.no_visits}</span>
           <span className="text-text-muted whitespace-nowrap">🚗 بدون زيارات</span>
           <span className="text-border">|</span>
-          <span className="text-text font-semibold" dir="ltr">{customers.filter(c => c.needs_address_correction).length}</span>
+          <span className="text-text font-semibold" dir="ltr">{stats.needs_correction}</span>
           <span className="text-text-muted whitespace-nowrap">⚠️ يحتاج تصحيح عنوان</span>
         </div>
       )}
@@ -325,11 +371,16 @@ export function CustomersPage() {
           {myOnly ? 'لا يوجد عملاء تابعين لك' : 'لا يوجد عملاء'}
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
-          {customers.map((c) => (
-            <CustomerCard key={c.id} customer={c} isUnseen={unseenCustomerIds.has(c.id)} />
-          ))}
-        </div>
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
+            {customers.map((c) => (
+              <CustomerCard key={c.id} customer={c} isUnseen={unseenCustomerIds.has(c.id)} />
+            ))}
+          </div>
+          {totalPages > 1 && (
+            <PaginationFooter page={page} totalPages={totalPages} onChange={setPage} />
+          )}
+        </>
       )}
     </div>
   )

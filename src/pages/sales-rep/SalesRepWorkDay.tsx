@@ -39,8 +39,7 @@ export function SalesRepWorkDay() {
   const canCreateCustomer = useCapability('customers.create')
   const [showReportsCenter, setShowReportsCenter] = useState(false)
   const [orders, setOrders] = useState<any[]>([])
-  const [visits, setVisits] = useState<any[]>([])
-  const [customers, setCustomers] = useState<any[]>([])
+  const [summary, setSummary] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -49,12 +48,10 @@ export function SalesRepWorkDay() {
 
     Promise.all([
       supabase.rpc('get_unified_orders', { p_token: token }),
-      supabase.rpc('get_governed_visits', { p_token: token }),
-      supabase.rpc('get_governed_customers', { p_token: token }),
-    ]).then(([ordersRes, visitsRes, custRes]) => {
+      supabase.rpc('get_governed_visit_customer_summary', { p_token: token, p_from: MONTH_START }),
+    ]).then(([ordersRes, summaryRes]) => {
       if (ordersRes.data) setOrders(ordersRes.data as any[])
-      if (visitsRes.data) setVisits(visitsRes.data as any[])
-      if (custRes.data) setCustomers(custRes.data as any[])
+      if (summaryRes.data) setSummary(Array.isArray(summaryRes.data) ? summaryRes.data : [])
       setLoading(false)
     })
   }, [])
@@ -73,9 +70,7 @@ export function SalesRepWorkDay() {
   const opportunities = useMemo<Opportunity[]>(() => {
     const result: Opportunity[] = []
     const customerLastOrder = new Map<string, { date: string; value: number }>()
-    const customerLastVisit = new Map<string, string>()
     const customerOrders = new Map<string, { total: number; count: number }>()
-    const customerVisits = new Map<string, number>()
     for (const o of deliveredOrders) {
       const cid = o.customer_id
       const existing = customerLastOrder.get(cid)
@@ -87,38 +82,30 @@ export function SalesRepWorkDay() {
         customerOrders.set(cid, prev)
       }
     }
-    for (const v of visits) {
-      const cid = v.customer_id || v.customerId
-      const existing = customerLastVisit.get(cid)
-      if (!existing || v.created_at > existing) customerLastVisit.set(cid, v.created_at)
-      if (v.created_at >= MONTH_START) {
-        customerVisits.set(cid, (customerVisits.get(cid) || 0) + 1)
-      }
-    }
     const nowMs = Date.now()
     const THIRTY_DAYS = 30 * 24 * 60 * 60 * 1000
     const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000
-    for (const c of customers) {
-      const cid = c.id
+    for (const c of summary) {
+      const cid = c.customer_id
       const lastOrd = customerLastOrder.get(cid)
-      const lastVisit = customerLastVisit.get(cid)
+      const lastVisit = c.last_visit_at
       const created = c.created_at
       const ord = customerOrders.get(cid) || { total: 0, count: 0 }
-      const vis = customerVisits.get(cid) || 0
+      const vis = Number(c.month_visit_count || 0)
       if (created && (nowMs - new Date(created).getTime()) < SEVEN_DAYS) {
-        result.push({ type: 'new_customer', customerName: c.company_name || c.companyName, customerId: cid, detail: 'عميل جديد', monthlyOrderTotal: Math.round(ord.total), monthlyOrderCount: ord.count, monthlyVisitCount: vis, lastOrderDate: lastOrd?.date || null, lastOrderValue: Math.round(lastOrd?.value || 0) })
+        result.push({ type: 'new_customer', customerName: c.company_name || '', customerId: cid, detail: 'عميل جديد', monthlyOrderTotal: Math.round(ord.total), monthlyOrderCount: ord.count, monthlyVisitCount: vis, lastOrderDate: lastOrd?.date || null, lastOrderValue: Math.round(lastOrd?.value || 0) })
         continue
       }
       if (lastOrd && (nowMs - new Date(lastOrd.date).getTime()) > THIRTY_DAYS) {
-        result.push({ type: 'no_order', customerName: c.company_name || c.companyName, customerId: cid, detail: 'لم يطلب منذ 30 يوماً', monthlyOrderTotal: Math.round(ord.total), monthlyOrderCount: ord.count, monthlyVisitCount: vis, lastOrderDate: lastOrd.date, lastOrderValue: Math.round(lastOrd.value) })
+        result.push({ type: 'no_order', customerName: c.company_name || '', customerId: cid, detail: 'لم يطلب منذ 30 يوماً', monthlyOrderTotal: Math.round(ord.total), monthlyOrderCount: ord.count, monthlyVisitCount: vis, lastOrderDate: lastOrd.date, lastOrderValue: Math.round(lastOrd.value) })
         continue
       }
       if (!lastVisit || (nowMs - new Date(lastVisit).getTime()) > SEVEN_DAYS) {
-        result.push({ type: 'needs_followup', customerName: c.company_name || c.companyName, customerId: cid, detail: 'يحتاج متابعة', monthlyOrderTotal: Math.round(ord.total), monthlyOrderCount: ord.count, monthlyVisitCount: vis, lastOrderDate: lastOrd?.date || null, lastOrderValue: Math.round(lastOrd?.value || 0) })
+        result.push({ type: 'needs_followup', customerName: c.company_name || '', customerId: cid, detail: 'يحتاج متابعة', monthlyOrderTotal: Math.round(ord.total), monthlyOrderCount: ord.count, monthlyVisitCount: vis, lastOrderDate: lastOrd?.date || null, lastOrderValue: Math.round(lastOrd?.value || 0) })
       }
     }
     return result.slice(0, 5)
-  }, [customers, deliveredOrders, visits])
+  }, [summary, deliveredOrders])
 
   // Last activity
   const lastOrder = useMemo(() => {
@@ -127,23 +114,41 @@ export function SalesRepWorkDay() {
   }, [deliveredOrders])
 
   const lastVisitObj = useMemo(() => {
-    const sorted = [...visits].sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''))
-    return sorted[0] || null
-  }, [visits])
+    let best: any = null
+    for (const c of summary) {
+      if (!c.last_visit_at) continue
+      if (!best || c.last_visit_at > best.created_at) {
+        best = { id: c.last_visit_id, created_at: c.last_visit_at, visit_result: c.last_visit_result }
+      }
+    }
+    return best
+  }, [summary])
 
   const lastCustomerObj = useMemo(() => {
-    const sorted = [...customers].sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''))
-    return sorted[0] || null
-  }, [customers])
+    let best: any = null
+    for (const c of summary) {
+      if (!c.created_at) continue
+      if (!best || c.created_at > best.created_at) {
+        best = { id: c.customer_id, created_at: c.created_at, company_name: c.company_name }
+      }
+    }
+    return best
+  }, [summary])
+
+  const summaryCustomerName = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const c of summary) m.set(c.customer_id, c.company_name || '')
+    return m
+  }, [summary])
 
   const lastActivity = useMemo(() => {
     const activities: { type: string; label: string; date: string; id: string; route: string; detail: string; amount?: number; code?: string }[] = []
-    if (lastOrder) activities.push({ type: 'order', label: 'آخر طلب', date: lastOrder.delivered_at || lastOrder.created_at, id: lastOrder.id, route: `/orders/${lastOrder.id}`, detail: customers.find((c) => c.id === lastOrder.customer_id)?.company_name || lastOrder.customer_name || 'عميل', amount: Math.round(Number(lastOrder.total_amount || 0)), code: lastOrder.order_number })
+    if (lastOrder) activities.push({ type: 'order', label: 'آخر طلب', date: lastOrder.delivered_at || lastOrder.created_at, id: lastOrder.id, route: `/orders/${lastOrder.id}`, detail: summaryCustomerName.get(lastOrder.customer_id) || lastOrder.customer_name || 'عميل', amount: Math.round(Number(lastOrder.total_amount || 0)), code: lastOrder.order_number })
     if (lastVisitObj) activities.push({ type: 'visit', label: 'آخر زيارة', date: lastVisitObj.created_at, id: lastVisitObj.id, route: '', detail: lastVisitObj.visit_result || 'نشطة' })
-    if (lastCustomerObj) activities.push({ type: 'customer', label: 'آخر عميل', date: lastCustomerObj.created_at, id: lastCustomerObj.id, route: `/customers/${lastCustomerObj.id}`, detail: lastCustomerObj.company_name || lastCustomerObj.companyName || 'عميل' })
+    if (lastCustomerObj) activities.push({ type: 'customer', label: 'آخر عميل', date: lastCustomerObj.created_at, id: lastCustomerObj.id, route: `/customers/${lastCustomerObj.id}`, detail: lastCustomerObj.company_name || 'عميل' })
     activities.sort((a, b) => (b.date || '').localeCompare(a.date || ''))
     return activities[0] || null
-  }, [lastOrder, lastVisitObj, lastCustomerObj, customers])
+  }, [lastOrder, lastVisitObj, lastCustomerObj, summaryCustomerName])
 
   if (loading) {
     return <div className="text-center py-12 text-text-secondary text-sm">جاري التحميل...</div>

@@ -1,9 +1,10 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { usePersistentViewState } from '../../hooks/usePersistentViewState'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { formatCurrencyShort, formatDate } from '../../utils/format'
 import { useCapability } from '../../hooks/useCapability'
+import { RemoteSearchableSelect } from '../../components/shared/RemoteSearchableSelect'
 import type { CollectionMethod } from '../../types/storefront'
 import toast from 'react-hot-toast'
 
@@ -34,7 +35,7 @@ export function CollectionsPage() {
   const filter = searchParams.get('filter')
   const canApprove = useCapability('collections.approve')
   const [collections, setCollections] = useState<any[]>([])
-  const [customers, setCustomers] = useState<any[]>([])
+  const [customerNames, setCustomerNames] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   const [viewState, setViewState, resetViewState] = usePersistentViewState('collections-list', {
     searchQuery: '',
@@ -49,10 +50,7 @@ export function CollectionsPage() {
   useEffect(() => {
     const token = getToken()
     if (!token) { setLoading(false); return }
-    Promise.all([
-      supabase.rpc('get_governed_collections', { p_token: token }),
-      supabase.rpc('get_governed_customers', { p_token: token }),
-    ]).then(([colRes, custRes]) => {
+    supabase.rpc('get_governed_collections', { p_token: token }).then((colRes) => {
       let result = (colRes.data as any[]) || []
       if (filter === 'pending') result = result.filter((c: any) => c.status === 'pending')
       else if (filter === 'today') {
@@ -62,23 +60,39 @@ export function CollectionsPage() {
         })
       }
       setCollections(result)
-      if (custRes.data) setCustomers(Array.isArray(custRes.data) ? custRes.data : [])
       setLoading(false)
     })
   }, [filter])
 
-  const customerMap = useMemo(() => {
-    const m = new Map<string, string>()
-    for (const c of customers) m.set(c.id, c.company_name)
-    return m
-  }, [customers])
+  // Lazily resolve customer names for loaded rows via the single-customer RPC
+  // (avoids the full governed-customers payload).
+  useEffect(() => {
+    const token = getToken()
+    if (!token) return
+    if (collections.length === 0) return
+    const ids = Array.from(new Set((collections as any[]).map((c: any) => c.customer_id).filter(Boolean)))
+    const missing = ids.filter((id) => !customerNames[id]).slice(0, 100)
+    if (missing.length === 0) return
+    let cancelled = false
+    missing.forEach((id) => {
+      supabase.rpc('get_governed_customer', { p_token: token.trim(), p_id: id }).then(({ data }) => {
+        if (cancelled) return
+        const c = data as any
+        if (c && typeof c === 'object' && c.company_name) {
+          setCustomerNames((prev) => (prev[id] ? prev : { ...prev, [id]: c.company_name }))
+        }
+      })
+    })
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [collections])
 
   const filtered = useMemo(() => {
     let list = collections
     const q = searchQuery.trim().toLowerCase()
     if (q) {
       list = list.filter((c: any) =>
-        (c.customer_name || customerMap.get(c.customer_id) || '').toLowerCase().includes(q) ||
+        (c.customer_name || customerNames[c.customer_id] || '').toLowerCase().includes(q) ||
         (c.code || '').toLowerCase().includes(q) ||
         (c.reference_number || '').toLowerCase().includes(q)
       )
@@ -89,7 +103,31 @@ export function CollectionsPage() {
     if (dateFrom) list = list.filter((c: any) => c.created_at >= dateFrom)
     if (dateTo) list = list.filter((c: any) => c.created_at <= dateTo + 'T23:59:59')
     return list
-  }, [collections, searchQuery, methodFilter, statusFilter, customerFilter, dateFrom, dateTo, customerMap])
+  }, [collections, searchQuery, methodFilter, statusFilter, customerFilter, dateFrom, dateTo, customerNames])
+
+  const loadCustomerOptions = useCallback(async (q: string) => {
+    const token = getToken()
+    if (!token) return []
+    const { data } = await supabase.rpc('get_governed_customers', {
+      p_token: token.trim(),
+      p_search: q.trim() || null,
+      p_page: 1,
+      p_per_page: 20,
+      p_count_only: false,
+      p_stats: false,
+    })
+    if (!Array.isArray(data)) return []
+    return data.map((c: any) => ({ id: c.id, name: c.company_name || '' }))
+  }, [])
+
+  const resolveCustomerLabel = useCallback(async (id: string) => {
+    const token = getToken()
+    if (!token) return id
+    const { data } = await supabase.rpc('get_governed_customer', { p_token: token.trim(), p_id: id })
+    const c = data as any
+    if (c && typeof c === 'object' && c.company_name) return c.company_name
+    return id
+  }, [])
 
   async function handleApprove(id: string) {
     const token = getToken()
@@ -133,11 +171,16 @@ export function CollectionsPage() {
           <option value="approved">معتمد</option>
           <option value="treasury_posted">مرحل للخزينة</option>
         </select>
-        <select value={customerFilter} onChange={(e) => setViewState({ customerFilter: e.target.value })}
-          className="border border-border rounded-lg px-2 py-1.5 text-xs bg-white">
-          <option value="">كل العملاء</option>
-          {customers.map((c: any) => <option key={c.id} value={c.id}>{c.company_name}</option>)}
-        </select>
+        <div className="col-span-2">
+          <RemoteSearchableSelect
+            value={customerFilter}
+            onChange={(id) => setViewState({ customerFilter: id || '' })}
+            loadOptions={loadCustomerOptions}
+            resolveLabel={resolveCustomerLabel}
+            placeholder="كل العملاء"
+            className="w-full"
+          />
+        </div>
         <div className="flex gap-1">
           <input type="date" value={dateFrom} onChange={(e) => setViewState({ dateFrom: e.target.value })}
             className="flex-1 border border-border rounded-lg px-2 py-1.5 text-xs bg-white" />
@@ -153,7 +196,7 @@ export function CollectionsPage() {
       ) : (
         <div className="space-y-2">
           {filtered.map((col: any) => {
-            const cusName = col.customer_name || customerMap.get(col.customer_id) || ''
+            const cusName = col.customer_name || customerNames[col.customer_id] || ''
             return (
               <div key={col.id} className="bg-white rounded-lg border border-border p-3">
                 <div className="flex items-center justify-between mb-1">

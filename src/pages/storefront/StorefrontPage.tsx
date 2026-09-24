@@ -225,18 +225,41 @@ restoreCart,
     subscribeToDiscountOptions()
   }, [authToken, refreshDiscountOptions, subscribeToDiscountOptions])
 
-  const fetchCustomers = useCallback(async () => {
+  const searchCustomers = useCallback(async (q: string) => {
     if (!authToken || user?.identity_type !== 'employee') return
-    const { data } = await supabase.rpc('get_governed_customers', { p_token: authToken })
+    const { data } = await supabase.rpc('get_governed_customers', {
+      p_token: authToken,
+      p_search: q.trim() || null,
+      p_page: 1,
+      p_per_page: 50,
+      p_count_only: false,
+      p_stats: false,
+    })
     if (Array.isArray(data)) setCustomers(data)
   }, [authToken, user])
+
+  // Debounce customer search; server-side search (company / phone / code / address).
+  const [debouncedCustomerQuery, setDebouncedCustomerQuery] = useState('')
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedCustomerQuery(customerSearch.trim()), 300)
+    return () => clearTimeout(t)
+  }, [customerSearch])
+
+  const customerPickerVisible = useMemo(
+    () => customerPickerOpen || (showInitModal && initStep === 'customer'),
+    [customerPickerOpen, showInitModal, initStep]
+  )
+
+  useEffect(() => {
+    if (!customerPickerVisible) return
+    searchCustomers(debouncedCustomerQuery)
+  }, [customerPickerVisible, debouncedCustomerQuery, searchCustomers])
 
   useEffect(() => {
     fetchProducts()
     fetchDiscountOptions()
-    fetchCustomers()
     refreshBonusMode()
-  }, [fetchProducts, fetchDiscountOptions, fetchCustomers, refreshBonusMode])
+  }, [fetchProducts, fetchDiscountOptions, refreshBonusMode])
 
   useEffect(() => {
     if (!editOrderId || !authToken) return

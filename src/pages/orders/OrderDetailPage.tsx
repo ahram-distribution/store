@@ -18,6 +18,7 @@ import { buildSearchIndex, searchProducts } from '../../utils/smartSearch'
 import { formatMixedQuantity } from '../../utils/quantity-format'
 import { SearchHighlight } from '../../components/shared/SearchHighlight'
 import { SearchableSelect } from '../../components/shared/SearchableSelect'
+import { RemoteSearchableSelect } from '../../components/shared/RemoteSearchableSelect'
 import toast from 'react-hot-toast'
 import type { UnifiedOrder, UnifiedOrderItem, InventorySnapshotItem, OrderEventLogItem } from '../../types/unified-order'
 import type { ProductWithPrice, ProductUnitPrice, UnitType } from '../../types/storefront'
@@ -141,7 +142,6 @@ export function OrderDetailPage() {
   const [editTierId, setEditTierId] = useState<string | null>(null)
   const [editCustomerId, setEditCustomerId] = useState<string | null>(null)
   const [editTiers, setEditTiers] = useState<any[]>([])
-  const [editCustomers, setEditCustomers] = useState<any[]>([])
   const [editPaymentId, setEditPaymentId] = useState<string | null>(null)
   const [editShippingId, setEditShippingId] = useState<string | null>(null)
   const [editPaymentOptions, setEditPaymentOptions] = useState<any[]>([])
@@ -437,22 +437,33 @@ export function OrderDetailPage() {
 
   useEffect(() => {
     if (!editMode || editModeType !== 'supreme' || !id) return
-    const token = getToken()
-    if (!token) return
-    Promise.all([
-      discountOptionsService.getAll().catch(() => null),
-      supabase.rpc('get_governed_customers', { p_token: token }),
-    ]).then(([bundle, custRes]) => {
+    discountOptionsService.getAll().then((bundle) => {
       if (bundle) {
         setEditTiers(bundle.tiers.filter((t) => t.isActive !== false))
         setEditPaymentOptions(bundle.paymentMethods.filter((p) => p.isActive !== false))
         setEditShippingOptions(bundle.shippingMethods.filter((s) => s.isActive !== false))
       }
-      if (custRes.data && Array.isArray(custRes.data)) {
-        setEditCustomers(custRes.data)
-      }
-    })
+    }).catch(() => null)
   }, [editMode, editModeType, id])
+
+  const loadEditCustomerOptions = useCallback(async (q: string) => {
+    const token = getToken()
+    if (!token) return []
+    const base: any = { p_token: token.trim() }
+    if (q) base.p_search = q
+    const { data } = await supabase.rpc('get_governed_customers', { ...base, p_page: 1, p_per_page: 20, p_count_only: false, p_stats: false })
+    const rows = Array.isArray(data) ? data : []
+    return rows.map((c: any) => ({ id: c.id, name: [c.company_name, c.code].filter(Boolean).join(' — ') }))
+  }, [])
+
+  const resolveEditCustomerLabel = useCallback(async (id: string) => {
+    const token = getToken()
+    if (!token) return id
+    const { data } = await supabase.rpc('get_governed_customer', { p_token: token.trim(), p_id: id })
+    const c = data as any
+    if (c && typeof c === 'object') return [c.company_name, c.code].filter(Boolean).join(' — ') || id
+    return id
+  }, [])
 
   useEffect(() => {
     if (!transferMode) return
@@ -1061,11 +1072,13 @@ export function OrderDetailPage() {
             {editModeType === 'supreme' && (
               <div className="bg-white rounded-xl border border-[#E5E7EB] p-3 space-y-2">
                 <h3 className="text-sm font-semibold text-[#111827]">تغيير العميل</h3>
-                <SearchableSelect
-                  items={editCustomers.map((c: any) => ({ id: c.id, name: [c.company_name, c.code].filter(Boolean).join(' — ') }))}
+                <RemoteSearchableSelect
                   value={editCustomerId || ''}
                   onChange={(cid) => setEditCustomerId(cid || null)}
+                  loadOptions={loadEditCustomerOptions}
+                  resolveLabel={resolveEditCustomerLabel}
                   placeholder="اختر عميلاً آخر..."
+                  className="w-full"
                 />
               </div>
             )}

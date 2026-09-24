@@ -5,7 +5,6 @@ import { Check, Gift, Loader2, Minus, Plus } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useAuthStore } from '../../store/auth'
 import { useCartStore } from '../../store/cart'
-import { fetchBonusCatalogRows } from '../../services/bonus'
 import { toProductWithPrice } from '../../utils/catalog'
 import { computeBonusCatalogBasePrices } from '../../engine/bonusEligibility'
 import { bonusAddDecision, bonusAvailabilityStatus } from '../../engine/bonusInventory'
@@ -374,59 +373,134 @@ export function BonusCatalogPage() {
   const [error, setError] = useState<string | null>(null)
   const [quantities, setQuantities] = useState<Record<string, number>>({})
   const [activeUnits, setActiveUnits] = useState<Record<string, UnitType[]>>({})
-  const [selectedCompany, setSelectedCompany] = useState<string | null>(null)
+const [selectedCompany, setSelectedCompany] = useState<string | null>(null)
   const [companyLogos, setCompanyLogos] = useState<Record<string, string | null>>({})
   const quantitiesRef = useRef<Record<string, number>>(quantities)
+  const [companies, setCompanies] = useState<{ id: string; name: string; count: number }[]>([])
+  const [companySearch, setCompanySearch] = useState('')
+  const [debouncedCompanySearch, setDebouncedCompanySearch] = useState('')
+  const [companyPage, setCompanyPage] = useState(1)
+  const [companyTotal, setCompanyTotal] = useState(0)
+  const [loadingMore, setLoadingMore] = useState(false)
 
   const governorateId = geographicContext?.governorateId ?? null
 
   const fmtAmount = (n: number): string => formatCurrencyShort(n).replace(' ج.م', '').trim()
 
+  // Absorb one RPC batch of the selected company's Bonus products (per-page).
+  const absorbRows = useCallback((rows: any[]) => {
+    const mapped = (rows as any[]).map((r: any) => toProductWithPrice(r))
+    // Units available for sale are defined by the admin in Products Management
+    // (product_units.is_active). Read that flag DIRECTLY from the raw rows so the
+    // Bonus Store always honors it — even for upper-management accounts, where
+    // resolveConfiguredUnitTypes returns ALL configured units for editing.
+    const activeMap: Record<string, UnitType[]> = {}
+    const pct: Record<string, number> = {}
+    for (const r of rows as any[]) {
+      const arr: any[] = Array.isArray(r.product_units) ? r.product_units : []
+      activeMap[r.id] = arr.filter((u: any) => u.is_active !== false).map((u: any) => u.unit_type) as UnitType[]
+      const n = Number(r.geo_adjustment_percent ?? 0)
+      pct[r.id] = Number.isFinite(n) ? n : 0
+    }
+    setProducts((prev) => {
+      const byId = new Map(prev.map((p) => [p.id, p]))
+      for (const p of mapped) byId.set(p.id, p)
+      return Array.from(byId.values())
+    })
+    setActiveUnits((prev) => ({ ...prev, ...activeMap }))
+    setGeoPct((prev) => ({ ...prev, ...pct }))
+    setQuantities((prev) => Object.fromEntries(mapped.map((p) => [p.id, prev[p.id] ?? 1])))
+    if (mapped.length > 0) {
+      // Same store pattern as the normal Storefront: each loaded batch is merged
+      // into the cart store ONCE (a single notify + single recalculation).
+      const store = useCartStore.getState()
+      store.mergeProducts(mapped)
+      store.ensureGeoItemAdjustments(mapped)
+    }
+  }, [])
+
+  // Level-1 companies via server group-by (never the full bonus catalog).
   useEffect(() => {
     let active = true
-    ;(async () => {
-      if (!token) { setLoading(false); return }
-      const { rows, error } = await fetchBonusCatalogRows(token, { governorateId })
+    if (!token) { setLoading(false); return }
+    setLoading(true)
+    supabase.rpc('get_governed_bonus_products', {
+      p_token: token,
+      p_governorate_id: governorateId,
+      p_page: 1,
+      p_per_page: 100,
+      p_count_only: false,
+      p_group_by_company: true,
+    }).then((res) => {
       if (!active) return
-      if (error) { setError(error); setLoading(false); return }
-      const mapped = (rows as any[]).map((r: any) => toProductWithPrice(r))
-      // Units available for sale are defined by the admin in Products Management
-      // (product_units.is_active). Read that flag DIRECTLY from the raw rows so the
-      // Bonus Store always honors it — even for upper-management accounts, where
-      // resolveConfiguredUnitTypes returns ALL configured units for editing.
-      const activeMap: Record<string, UnitType[]> = {}
-      for (const r of rows as any[]) {
-        const arr: any[] = Array.isArray(r.product_units) ? r.product_units : []
-        activeMap[r.id] = arr.filter((u: any) => u.is_active !== false).map((u: any) => u.unit_type) as UnitType[]
-      }
-      setActiveUnits(activeMap)
-      const pct: Record<string, number> = {}
-      for (const r of rows as any[]) {
-        const n = Number(r.geo_adjustment_percent ?? 0)
-        pct[r.id] = Number.isFinite(n) ? n : 0
-      }
-      setProducts(mapped)
-      setGeoPct(pct)
+      if (res.error) { setError(res.error.message); setLoading(false); return }
+      const rows = Array.isArray(res.data) ? res.data : []
+      setCompanies(rows.map((r: any) => ({
+        id: String(r.company_id ?? ''),
+        name: String(r.company_name ?? '').trim() || 'شركة غير محددة',
+        count: Number(r.count ?? 0),
+      })))
+      setError(null)
       setLoading(false)
-      setQuantities((prev) => Object.fromEntries(mapped.map((p) => [p.id, prev[p.id] ?? 1])))
-      if (mapped.length > 0) {
-        // Same store pattern as the normal Storefront: the catalog is merged into
-        // the cart store ONCE (a single notify + single recalculation) instead of
-        // one per-product syncProduct merge followed by a full recompute each.
-        const store = useCartStore.getState()
-        store.mergeProducts(mapped)
-        store.ensureGeoItemAdjustments(mapped)
-      }
-    })()
+    }).catch((e) => { if (active) { setError(e?.message || 'فشل التحميل'); setLoading(false) } })
     return () => { active = false }
   }, [token, governorateId])
+
+  // Debounce the per-company Bonus products search.
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedCompanySearch(companySearch.trim()), 300)
+    return () => clearTimeout(t)
+  }, [companySearch])
+
+  // Switch company / search → reset to its first page.
+  useEffect(() => {
+    setProducts([])
+    setActiveUnits({})
+    setGeoPct({})
+    setCompanyPage(1)
+    setCompanyTotal(0)
+  }, [selectedCompany, debouncedCompanySearch])
+
+  const BONUS_PAGE_SIZE = 20
+
+  // Level-2: the selected company's Bonus products (paginated + searchable).
+  useEffect(() => {
+    if (!token || !selectedCompany) return
+    let cancelled = false
+    setLoading(companyPage === 1)
+    setLoadingMore(companyPage > 1)
+    const base: any = {
+      p_token: token,
+      p_company_ids: [selectedCompany],
+      p_page: companyPage,
+      p_per_page: BONUS_PAGE_SIZE,
+      p_count_only: false,
+      p_group_by_company: false,
+    }
+    if (debouncedCompanySearch) base.p_search = debouncedCompanySearch
+    supabase.rpc('get_governed_bonus_products', base).then((res) => {
+      if (cancelled) return
+      if (res.error) { if (companyPage === 1) setError(res.error.message); return }
+      const rows = Array.isArray(res.data) ? res.data : []
+      if (companyPage === 1) { setProducts([]); setActiveUnits({}); setGeoPct({}) }
+      absorbRows(rows)
+      setError(null)
+    }).catch((e) => { if (!cancelled && companyPage === 1) setError(e?.message || 'فشل التحميل') })
+      .finally(() => { if (!cancelled) { setLoading(false); setLoadingMore(false) } })
+    supabase.rpc('get_governed_bonus_products', { ...base, p_page: 1, p_per_page: 1, p_count_only: true }).then((res) => {
+      if (cancelled) return
+      const d = res.data as any
+      if (d && typeof d === 'object' && 'count' in d) setCompanyTotal(Number(d.count) || 0)
+    }).catch(() => {})
+    return () => { cancelled = true }
+  }, [token, selectedCompany, debouncedCompanySearch, companyPage, absorbRows])
 
   // Company logos for the Level-1 cards: read-only lookup of companies.logo_url
   // for the companies that actually have Bonus products (same pattern used by the
   // main storefront CompaniesPage). Purely presentational — no business logic.
   useEffect(() => {
     let active = true
-    const ids = Array.from(new Set(products.map((p) => p.companyId).filter((id): id is string => Boolean(id))))
+    const ids = companies.map((c) => c.id).filter((id): id is string => Boolean(id))
     if (ids.length === 0) return
     supabase
       .from('companies')
@@ -441,7 +515,7 @@ export function BonusCatalogPage() {
       .catch(() => { /* logos are optional — cards fall back to the initial */}
       )
     return () => { active = false }
-  }, [products])
+  }, [companies])
 
   const priceMap = useMemo(() => {
     const list = computeBonusCatalogBasePrices(
@@ -470,31 +544,7 @@ export function BonusCatalogPage() {
     return result
   }, [products, activeUnits])
 
-  /** Level-1 companies (only companies that have available Bonus products).
-   *  First-appearance order of the existing catalog query is preserved. */
-  const companies = useMemo(() => {
-    const order: string[] = []
-    const byId = new Map<string, { id: string; name: string; count: number }>()
-    for (const p of products) {
-      const id = p.companyId
-      const name = String(p.companyName ?? '').trim()
-      const display = name.length > 0 ? name : 'شركة غير محددة'
-      const key = id || display
-      if (!byId.has(key)) {
-        byId.set(key, { id: key, name: display, count: 0 })
-        order.push(key)
-      }
-      byId.get(key)!.count += 1
-    }
-    return order.map((key) => byId.get(key)!)
-  }, [products])
-
-  /** Level-2 products: the selected company's Bonus products only. */
-  const selectedProducts = useMemo(() => {
-    if (!selectedCompany) return []
-    return products.filter((p) => (p.companyId || String(p.companyName ?? '').trim() || 'شركة غير محددة') === selectedCompany)
-  }, [products, selectedCompany])
-
+  /** Level-2 products: the selected company's Bonus products (server-paginated). */
   const selectedCompanyName = selectedCompany ? (companies.find((c) => c.id === selectedCompany)?.name ?? null) : null
 
   /** In-cart Bonus quantities by product+unit, derived ONCE from the single
@@ -512,6 +562,7 @@ export function BonusCatalogPage() {
 
   // Opening a company starts at the top of its products.
   const openCompany = (id: string) => {
+    setCompanySearch('')
     setSelectedCompany(id)
     window.scrollTo({ top: 0 })
   }
@@ -622,14 +673,14 @@ export function BonusCatalogPage() {
         </div>
       )}
 
-      {!loading && !error && products.length === 0 && (
+      {!loading && !error && companies.length === 0 && (
         <div className="text-center py-16 bg-white rounded-xl border border-border">
           <Gift className="w-10 h-10 text-violet-300 mx-auto mb-3" />
           <p className="text-sm text-text-secondary font-semibold">{BONUS_COPY.catalogEmpty}</p>
         </div>
       )}
 
-      {!loading && !error && products.length > 0 && bonusMode && !selectedCompany && (
+      {!loading && !error && companies.length > 0 && bonusMode && !selectedCompany && (
         <>
           <div>
             <div className="flex items-center gap-2 mb-2">
@@ -686,14 +737,30 @@ export function BonusCatalogPage() {
         </>
       )}
 
-      {!loading && !error && products.length > 0 && bonusMode && selectedCompany && (
+      {!loading && !error && bonusMode && selectedCompany && (
         <>
           {/* Level 2 — sticky status bar (isolated subscription: catalog cards
               do NOT re-render when its values update). */}
           <BonusStatusBar
-            onBackToCompanies={() => setSelectedCompany(null)}
+            onBackToCompanies={() => { setSelectedCompany(null); setCompanySearch('') }}
             onGoToCart={() => navigate('/cart')}
           />
+
+          {/* Level 2 — per-company Bonus product search (server-side). */}
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={companySearch}
+              onChange={(e) => setCompanySearch(e.target.value)}
+              placeholder="ابحث في منتجات البونص..."
+              className="flex-1 border border-border rounded-lg px-3 py-2 text-sm bg-white placeholder:text-text-secondary"
+            />
+            {companyTotal > 0 && (
+              <span className="text-[10px] text-text-secondary shrink-0 font-semibold">
+                {products.length} من {companyTotal}
+              </span>
+            )}
+          </div>
 
           {/* Level 2 — selected company's Bonus products only. Cards are memoized
               and prop-driven in the normal Storefront ProductCard pattern: the
@@ -701,7 +768,7 @@ export function BonusCatalogPage() {
               in-cart quantity down as a prop; each card performs its own lazy,
               debounced availability check on user interaction only. */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 items-stretch">
-            {selectedProducts.map((p) => (
+            {products.map((p) => (
               <BonusProductCard
                 key={p.id}
                 product={p}
@@ -715,10 +782,20 @@ export function BonusCatalogPage() {
               />
             ))}
           </div>
-          {selectedProducts.length === 0 && (
+          {!loading && products.length === 0 && (
             <div className="text-center py-12 bg-white rounded-xl border border-border">
               <p className="text-sm text-text-secondary font-semibold">لا توجد منتجات بونص متاحة لهذه الشركة</p>
             </div>
+          )}
+          {companyTotal > products.length && (
+            <button
+              type="button"
+              onClick={() => setCompanyPage((p) => p + 1)}
+              disabled={loadingMore}
+              className="w-full bg-white border border-border rounded-xl py-2.5 text-xs font-semibold text-text disabled:opacity-50"
+            >
+              {loadingMore ? 'جاري التحميل...' : `عرض المزيد (${products.length} من ${companyTotal})`}
+            </button>
           )}
         </>
       )}

@@ -1,9 +1,10 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useVisitsStore } from '../../store/visits'
 import { formatDateTime } from '../../utils/format'
 import { StatusBadge } from '../../components/shared/StatusBadge'
+import { RemoteSearchableSelect } from '../../components/shared/RemoteSearchableSelect'
 import { locationService } from '../../services/location'
 import { getStrictLocation } from '../../services/gpsService'
 import { trackingEngine } from '../../services/trackingEngine'
@@ -34,9 +35,8 @@ export function VisitScreen() {
   const token = getToken()
   const { activeVisit: storeActiveVisit, setActiveVisit: setStoreActiveVisit } = useVisitsStore()
   const [step, setStep] = useState<VisitStep>('select_customer')
-  const [customers, setCustomers] = useState<any[]>([])
-  const [selectedCustomer, setSelectedCustomer] = useState<any>(null)
-  const [searchQuery, setSearchQuery] = useState('')
+  const [selectedCustomerId, setSelectedCustomerId] = useState('')
+  const [customerName, setCustomerName] = useState('')
   const [activeVisit, setActiveVisit] = useState<any>(null)
   const [startGps, setStartGps] = useState<{ latitude: number; longitude: number; accuracy: number } | null>(null)
   const [startAddress, setStartAddress] = useState('')
@@ -50,53 +50,59 @@ export function VisitScreen() {
 
   useEffect(() => {
     if (!token) { setLoading(false); return }
-    Promise.all([
-      supabase.rpc('get_governed_customers', { p_token: token }),
-      supabase.rpc('get_governed_visits', { p_token: token }),
-    ]).then(([custRes, visRes]) => {
-      if (custRes.data) setCustomers(custRes.data as any[])
-      const visits = (visRes.data as any[]) || []
+    supabase.rpc('get_governed_visits', { p_token: token, p_status: 'active', p_page: 1, p_per_page: 5 }).then(async ({ data }) => {
+      const visits = Array.isArray(data) ? data : []
       const active = visits.find((v: any) => v.status === 'active')
       if (active) {
         setActiveVisit(active)
         setStoreActiveVisit(active)
+        setCustomerName(active.customer_name || '')
         setStep('active')
         setLoading(false)
         return
       }
-      if (preselectedCustomerId && custRes.data) {
-        const list = Array.isArray(custRes.data) ? custRes.data : [custRes.data]
-        const found = list.find((c: any) => c.id === preselectedCustomerId)
-        if (found) {
-          setSelectedCustomer(found)
+      if (preselectedCustomerId) {
+        const { data: custData } = await supabase.rpc('get_governed_customer', {
+          p_token: token.trim(), p_id: preselectedCustomerId,
+        })
+        const row = Array.isArray(custData) ? custData[0] : custData
+        if (row && row.company_name) {
+          setSelectedCustomerId(preselectedCustomerId)
+          setCustomerName(String(row.company_name))
           setSubmitting(true)
-          startVisit(found).finally(() => setSubmitting(false))
+          await startVisit(row)
+          setSubmitting(false)
         }
       }
       setLoading(false)
     })
   }, [token, preselectedCustomerId])
 
-  const customerMap = useMemo(() => {
-    const m = new Map<string, any>()
-    for (const c of customers) m.set(c.id, c)
-    return m
-  }, [customers])
+  const loadCustomerOptions = useCallback(async (query: string) => {
+    const t = getToken()
+    if (!t) return []
+    const { data } = await supabase.rpc('get_governed_customers', {
+      p_token: t.trim(), p_search: query || null, p_page: 1, p_per_page: 20,
+    })
+    const rows = Array.isArray(data) ? data : []
+    return rows.map((c: any) => ({ id: c.id, name: c.company_name }))
+  }, [])
 
-  const activeCustomer = useMemo(() => {
-    if (selectedCustomer) return selectedCustomer
-    if (activeVisit) return customerMap.get(activeVisit.customer_id) || null
-    return null
-  }, [selectedCustomer, activeVisit, customerMap])
+  const resolveCustomerLabel = useCallback(async (id: string) => {
+    const t = getToken()
+    if (!t) return null
+    const { data } = await supabase.rpc('get_governed_customer', { p_token: t.trim(), p_id: id })
+    if (!data) return null
+    const row = Array.isArray(data) ? data[0] : data
+    return row && row.company_name ? String(row.company_name) : null
+  }, [])
 
-  const filteredCustomers = searchQuery.trim()
-    ? customers.filter((c: any) => (c.company_name || '').includes(searchQuery))
-    : customers
-
-  const handleSelectCustomer = async (c: any) => {
-    setSelectedCustomer(c)
+  const handleStartSelected = async () => {
+    if (!selectedCustomerId || submitting) return
     setSubmitting(true)
-    await startVisit(c)
+    const label = await resolveCustomerLabel(selectedCustomerId).catch(() => null)
+    if (label) setCustomerName(label)
+    await startVisit({ id: selectedCustomerId })
     setSubmitting(false)
   }
 
@@ -239,29 +245,22 @@ export function VisitScreen() {
 
       {step === 'select_customer' && (
         <>
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="ابحث عن عميل..."
-            className="w-full border border-border rounded-lg px-3 py-2.5 text-sm bg-white text-text placeholder:text-text-secondary"
+          <RemoteSearchableSelect
+            value={selectedCustomerId}
+            onChange={setSelectedCustomerId}
+            loadOptions={loadCustomerOptions}
+            resolveLabel={resolveCustomerLabel}
+            placeholder="اختر العميل..."
+            label="العميل"
+            disabled={submitting}
           />
-          <div className="space-y-2">
-            {filteredCustomers.map((c: any) => (
-              <button
-                key={c.id}
-                onClick={() => handleSelectCustomer(c)}
-                disabled={submitting}
-                className="w-full bg-white rounded-xl border border-border p-3 text-right active:bg-surface transition-colors disabled:opacity-50"
-              >
-                <p className="text-sm font-semibold text-text">{c.company_name}</p>
-                {c.owner_name && <p className="text-[10px] text-text-secondary">المسؤول: {c.owner_name}</p>}
-              </button>
-            ))}
-            {filteredCustomers.length === 0 && (
-              <p className="text-center text-sm text-text-secondary py-8">لا يوجد عملاء مطابقون</p>
-            )}
-          </div>
+          <button
+            onClick={handleStartSelected}
+            disabled={!selectedCustomerId || submitting}
+            className="w-full bg-success text-white text-xs py-3 rounded-lg disabled:opacity-40 enabled:active:opacity-90 transition-colors"
+          >
+            + بدء الزيارة
+          </button>
         </>
       )}
 
@@ -278,7 +277,7 @@ export function VisitScreen() {
         <div className="space-y-4">
           <div className="bg-gradient-to-br from-accent to-accent-dark text-white rounded-2xl p-4">
             <p className="text-[11px] opacity-80">زيارة نشطة</p>
-            <p className="text-lg font-bold mt-0.5">{activeCustomer?.company_name || activeVisit.customer_name || activeVisit.customer_id}</p>
+            <p className="text-lg font-bold mt-0.5">{customerName || activeVisit.customer_name || activeVisit.customer_id}</p>
             <p className="text-[11px] opacity-80 mt-1">{activeVisit.code}</p>
             {startGps && (
               <div className="mt-2 text-[10px] opacity-70 space-y-0.5">
@@ -342,7 +341,7 @@ export function VisitScreen() {
           <div className="bg-white rounded-lg border border-border p-3 space-y-1">
             <p className="text-sm">
               <span className="text-text-secondary">العميل: </span>
-              <span className="text-text font-semibold">{activeCustomer?.company_name || ''}</span>
+              <span className="text-text font-semibold">{customerName || activeVisit?.customer_name || ''}</span>
             </p>
             <p className="text-sm">
               <span className="text-text-secondary">بداية الزيارة: </span>
@@ -383,7 +382,8 @@ export function VisitScreen() {
           <div className="flex gap-2">
             <button
               onClick={() => {
-                setSelectedCustomer(null)
+                setSelectedCustomerId('')
+                setCustomerName('')
                 setStartGps(null)
                 setActiveVisit(null)
                 setStartTime('')

@@ -14,7 +14,11 @@ export function SecretaryWorkspace() {
   useEffect(() => {
     const token = getToken()
     if (!token) { setLoading(false); return }
-    supabase.rpc('get_governed_visits', { p_token: token }).then(({ data }) => {
+    const todayStart = new Date(new Date().setHours(0, 0, 0, 0)).toISOString()
+    const todayEnd = new Date(new Date().setHours(23, 59, 59, 999)).toISOString()
+    supabase.rpc('get_governed_visits', {
+      p_token: token, p_date_from: todayStart, p_date_to: todayEnd, p_page: 1, p_per_page: 1000,
+    }).then(({ data }) => {
       if (data) setVisits(Array.isArray(data) ? data : [])
       setLoading(false)
     })

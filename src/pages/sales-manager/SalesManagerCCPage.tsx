@@ -44,8 +44,36 @@ export default function SalesManagerCCPage() {
   const [showCustomerPicker, setShowCustomerPicker] = useState<'order' | 'visit' | null>(null)
   const [customerList, setCustomerList] = useState<any[]>([])
   const [custSearchQuery, setCustSearchQuery] = useState('')
+  const [debouncedCustQuery, setDebouncedCustQuery] = useState('')
+  const [custLoading, setCustLoading] = useState(false)
 
   const token = getToken()
+
+  const searchCustomers = useCallback(async (q: string) => {
+    const t = getToken()
+    if (!t) return
+    setCustLoading(true)
+    const { data } = await supabase.rpc('get_governed_customers', {
+      p_token: t.trim(),
+      p_search: q.trim() || null,
+      p_page: 1,
+      p_per_page: 50,
+      p_count_only: false,
+      p_stats: false,
+    })
+    setCustomerList(Array.isArray(data) ? data : typeof data === 'object' && data !== null ? [data] : [])
+    setCustLoading(false)
+  }, [])
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedCustQuery(custSearchQuery.trim()), 300)
+    return () => clearTimeout(t)
+  }, [custSearchQuery])
+
+  useEffect(() => {
+    if (!showCustomerPicker) return
+    searchCustomers(debouncedCustQuery)
+  }, [showCustomerPicker, debouncedCustQuery, searchCustomers])
 
   const fetchData = useCallback(async () => {
     if (!token) return
@@ -63,16 +91,7 @@ export default function SalesManagerCCPage() {
 
   useEffect(() => { fetchData(); const id = setInterval(fetchData, POLLING_INTERVAL); return () => clearInterval(id) }, [fetchData])
 
-  const fetchCustomers = useCallback(async () => {
-    const t = getToken()
-    if (!t || customerList.length > 0) return
-    const { data } = await supabase.rpc('get_governed_customers', { p_token: t })
-    if (data) setCustomerList(Array.isArray(data) ? data : typeof data === 'object' && data !== null ? [data] : [])
-  }, [customerList.length])
-
   const handlePickCustomer = async (customer: any) => {
-    const t = getToken()
-    if (!t) return
     if (showCustomerPicker === 'order') {
       nav(`/orders/new?customer=${customer.id}`)
     }
@@ -91,7 +110,7 @@ export default function SalesManagerCCPage() {
 
       {/* Quick Actions */}
       <div className="flex gap-2">
-        <button onClick={() => { setShowCustomerPicker('order'); fetchCustomers() }}
+        <button onClick={() => setShowCustomerPicker('order')}
           className="flex-1 bg-primary/10 text-primary border border-primary/20 py-3 rounded-xl font-bold text-sm active:scale-[0.98] transition-all flex items-center justify-center gap-1.5">
           🛒 إنشاء طلب
         </button>
@@ -167,18 +186,13 @@ export default function SalesManagerCCPage() {
           placeholder="بحث بالاسم أو الكود..."
           className="w-full border border-border rounded-lg px-3 py-2 text-sm" />
         <div className="space-y-1">
-          {customerList.filter((c: any) => {
-            if (!custSearchQuery) return true
-            const q = custSearchQuery.toLowerCase()
-            return c.company_name?.toLowerCase().includes(q) || c.code?.toLowerCase().includes(q)
-          }).length === 0 && (
+          {custLoading && customerList.length === 0 && (
+            <p className="text-center text-xs text-text-secondary py-4">جاري البحث...</p>
+          )}
+          {!custLoading && customerList.length === 0 && (
             <p className="text-center text-xs text-text-secondary py-4">لا يوجد عملاء</p>
           )}
-          {customerList.filter((c: any) => {
-            if (!custSearchQuery) return true
-            const q = custSearchQuery.toLowerCase()
-            return c.company_name?.toLowerCase().includes(q) || c.code?.toLowerCase().includes(q)
-          }).map((c: any) => (
+          {customerList.map((c: any) => (
             <button key={c.id} type="button" onClick={() => { handlePickCustomer(c); setCustSearchQuery('') }}
               className="w-full text-right px-3 py-2 rounded-lg hover:bg-surface transition-colors border border-border/50 flex items-center justify-between">
               <div>
