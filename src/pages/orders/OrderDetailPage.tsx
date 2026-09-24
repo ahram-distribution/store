@@ -29,20 +29,6 @@ function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
 }
 
-// Compares only the customer fields that are DISPLAYED on the order view, so a
-// background sync updates the UI only when the customer's visible info changed.
-function customerInfoEqual(a: UnifiedOrder['customer'], b: UnifiedOrder['customer']): boolean {
-  if (!a && !b) return true
-  if (!a || !b) return false
-  const pick = (c: NonNullable<UnifiedOrder['customer']>) => JSON.stringify([
-    c.id, c.code, c.company_name, c.phone,
-    c.address_line1, c.address_line2, c.city, c.governorate,
-    c.display_address, c.address_latitude, c.address_longitude,
-    c.gps_formatted_address, c.gps_latitude, c.gps_longitude, c.gps_accuracy_meters,
-  ])
-  return pick(a) === pick(b)
-}
-
 function isSupremeManagementUser(): boolean {
   const user = useAuthStore.getState().user
   if (!user?.roles) return false
@@ -214,45 +200,10 @@ export function OrderDetailPage() {
 
   useEffect(() => { loadOrder() }, [id])
 
-  // Silent background sync of CURRENT customer data. Unlike loadOrder(), this
-  // never flips the loading state and never replaces the whole order object:
-  // it reuses the authoritative get_unified_order (live customer join) and only
-  // commits a state update when a displayed customer/last-visit field actually
-  // changed. When nothing changed, no state update occurs, so the visible page
-  // (products, company groups, prices, totals, scroll) stays completely stable.
-  const silentRefreshCustomer = useCallback(async () => {
-    if (!id) return
-    const token = getToken()
-    if (!token) return
-    const res = await supabase.rpc('get_unified_order', { p_token: token, p_id: id })
-    if (res.error || res.data?.error || !res.data) return
-    const raw = res.data as UnifiedOrder
-    setData((prev) => {
-      if (!prev) return prev
-      const customerChanged = !customerInfoEqual(prev.customer, raw.customer)
-      const lastVisitChanged = JSON.stringify(prev.last_visit) !== JSON.stringify(raw.last_visit)
-      if (!customerChanged && !lastVisitChanged) return prev
-      return {
-        ...prev,
-        customer: raw.customer,
-        last_visit: lastVisitChanged ? raw.last_visit : prev.last_visit,
-      }
-    })
-  }, [id])
+  // Customer data refreshes ONLY manually (header "تحديث" button → loadOrder())
+  // or on the full load when the order opens/changes (effect in the two lines
+  // directly above). There is no automatic background sync or interval refresh.
 
-  // Live customer data: silent background sync while the view is open, so
-  // customer info changes (phone, name, address) propagate without a visible
-  // refresh. Pauses during edit mode to protect local edits and never
-  // overwrites unsaved form state. Stops on unmount/id change.
-  useEffect(() => {
-    if (!id) return
-    const timer = window.setInterval(() => {
-      if (document.hidden) return
-      if (!editMode) silentRefreshCustomer()
-    }, 120000)
-    return () => window.clearInterval(timer)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, editMode])
 
   useEffect(() => {
     if (!id) return
@@ -1215,6 +1166,10 @@ export function OrderDetailPage() {
         isCustomer ? (
           customerCanEdit ? (
             <div className="flex items-stretch gap-2 flex-wrap">
+              <button onClick={loadOrder} disabled={loading}
+                className="inline-flex items-center gap-1 bg-surface text-text-secondary text-xs px-3 py-2.5 rounded-lg active:opacity-90 shrink-0 disabled:opacity-50">
+                {loading ? 'جاري التحديث...' : 'تحديث'}
+              </button>
               <button onClick={handleReturnToCart} disabled={restoringOrder}
                 className="inline-flex items-center gap-1 bg-accent text-white text-xs px-3 py-2.5 rounded-lg active:opacity-90 shrink-0 disabled:opacity-50">
                 {restoringOrder ? 'جاري استرجاع الطلب...' : 'تعديل الطلب'}
@@ -1223,6 +1178,10 @@ export function OrderDetailPage() {
           ) : undefined
         ) : (
           <div className="flex items-stretch gap-2 flex-wrap">
+            <button onClick={loadOrder} disabled={loading}
+              className="inline-flex items-center gap-1 bg-surface text-text-secondary text-xs px-3 py-2.5 rounded-lg active:opacity-90 shrink-0 disabled:opacity-50">
+              {loading ? 'جاري التحديث...' : 'تحديث'}
+            </button>
             {showEditOrderButton && (
               <button onClick={handleReturnToCart} disabled={restoringOrder}
                 className="inline-flex items-center gap-1 bg-accent text-white text-xs px-3 py-2.5 rounded-lg active:opacity-90 shrink-0 disabled:opacity-50">
