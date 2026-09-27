@@ -64,6 +64,14 @@ function Drawer({ open, onClose, title, children }: DrawerProps) {
   )
 }
 
+function DrillLoading() {
+  return <p className="text-center text-xs text-text-secondary py-6">جاري التحميل...</p>
+}
+
+function DrillEmpty({ text }: { text: string }) {
+  return <p className="text-center text-xs text-text-secondary py-6">{text}</p>
+}
+
 function fmtTime(d: string | null | undefined): string {
   if (!d) return '--'
   try { return new Intl.DateTimeFormat('ar-EG-u-nu-latn', { hour: '2-digit', minute: '2-digit' }).format(new Date(d)) }
@@ -83,14 +91,15 @@ const STATUS_COLORS: Record<string, string> = {
   active: 'text-green-600 bg-green-50',
 }
 
-export function OrdersDrill({ open, onClose, orders, titleOverride }: { open: boolean; onClose: () => void; orders: OrderDrill[]; titleOverride?: string }) {
+export function OrdersDrill({ open, onClose, orders, titleOverride, loading, count }: { open: boolean; onClose: () => void; orders: OrderDrill[]; titleOverride?: string; loading?: boolean; count?: number }) {
   const nav = useNavigate()
   return (
-    <Drawer open={open} onClose={onClose} title={titleOverride || `طلبات اليوم (${orders.length})`}>
+    <Drawer open={open} onClose={onClose} title={titleOverride || `طلبات اليوم (${count ?? orders.length})`}>
+      {loading ? <DrillLoading /> : orders.length === 0 ? (
+        <DrillEmpty text="لا توجد طلبات اليوم" />
+      ) : (
       <div className="space-y-1.5">
-        {orders.length === 0 ? (
-          <p className="text-center text-xs text-text-secondary py-6">لا توجد طلبات اليوم</p>
-        ) : orders.map((o) => (
+        {orders.map((o) => (
           <button key={o.id} type="button" onClick={() => { nav(`/orders/${o.id}`); onClose() }}
             className="w-full text-right bg-surface rounded-lg px-3 py-2 hover:bg-surface/80 transition-colors active:scale-[0.99] border border-border/50">
             <div className="flex items-center justify-between">
@@ -107,18 +116,20 @@ export function OrdersDrill({ open, onClose, orders, titleOverride }: { open: bo
           </button>
         ))}
       </div>
+      )}
     </Drawer>
   )
 }
 
-export function VisitsDrill({ open, onClose, visits }: { open: boolean; onClose: () => void; visits: VisitDrill[] }) {
+export function VisitsDrill({ open, onClose, visits, loading, count }: { open: boolean; onClose: () => void; visits: VisitDrill[]; loading?: boolean; count?: number }) {
   const nav = useNavigate()
   return (
-    <Drawer open={open} onClose={onClose} title={`زيارات اليوم (${visits.length})`}>
+    <Drawer open={open} onClose={onClose} title={`زيارات اليوم (${count ?? visits.length})`}>
+      {loading ? <DrillLoading /> : visits.length === 0 ? (
+        <DrillEmpty text="لا توجد زيارات اليوم" />
+      ) : (
       <div className="space-y-1.5">
-        {visits.length === 0 ? (
-          <p className="text-center text-xs text-text-secondary py-6">لا توجد زيارات اليوم</p>
-        ) : visits.map((v) => (
+        {visits.map((v) => (
           <button key={v.id} type="button" onClick={() => { nav(`/visits/${v.id}`); onClose() }}
             className="w-full text-right bg-surface rounded-lg px-3 py-2 hover:bg-surface/80 transition-colors active:scale-[0.99] border border-border/50">
             <div className="flex items-center justify-between">
@@ -136,18 +147,20 @@ export function VisitsDrill({ open, onClose, visits }: { open: boolean; onClose:
           </button>
         ))}
       </div>
+      )}
     </Drawer>
   )
 }
 
-export function CustomersDrill({ open, onClose, customers }: { open: boolean; onClose: () => void; customers: CustomerDrill[] }) {
+export function CustomersDrill({ open, onClose, customers, loading, count }: { open: boolean; onClose: () => void; customers: CustomerDrill[]; loading?: boolean; count?: number }) {
   const nav = useNavigate()
   return (
-    <Drawer open={open} onClose={onClose} title={`عملاء جدد (${customers.length})`}>
+    <Drawer open={open} onClose={onClose} title={`عملاء جدد (${count ?? customers.length})`}>
+      {loading ? <DrillLoading /> : customers.length === 0 ? (
+        <DrillEmpty text="لا يوجد عملاء جدد اليوم" />
+      ) : (
       <div className="space-y-1.5">
-        {customers.length === 0 ? (
-          <p className="text-center text-xs text-text-secondary py-6">لا يوجد عملاء جدد اليوم</p>
-        ) : customers.map((c) => (
+        {customers.map((c) => (
           <button key={c.id} type="button" onClick={() => { nav(`/customers/${c.id}`); onClose() }}
             className="w-full text-right bg-surface rounded-lg px-3 py-2 hover:bg-surface/80 transition-colors active:scale-[0.99] border border-border/50">
             <div className="flex items-center justify-between">
@@ -158,18 +171,20 @@ export function CustomersDrill({ open, onClose, customers }: { open: boolean; on
           </button>
         ))}
       </div>
+      )}
     </Drawer>
   )
 }
 
-export function CollectionsDrill({ open, onClose, collections }: { open: boolean; onClose: () => void; collections: CollectionDrill[] }) {
+export function CollectionsDrill({ open, onClose, collections, loading, count }: { open: boolean; onClose: () => void; collections: CollectionDrill[]; loading?: boolean; count?: number }) {
   const nav = useNavigate()
   return (
-    <Drawer open={open} onClose={onClose} title={`تحصيلات اليوم (${collections.length})`}>
+    <Drawer open={open} onClose={onClose} title={`تحصيلات اليوم (${count ?? collections.length})`}>
+      {loading ? <DrillLoading /> : collections.length === 0 ? (
+        <DrillEmpty text="لا توجد تحصيلات اليوم" />
+      ) : (
       <div className="space-y-1.5">
-        {collections.length === 0 ? (
-          <p className="text-center text-xs text-text-secondary py-6">لا توجد تحصيلات اليوم</p>
-        ) : collections.map((c) => (
+        {collections.map((c) => (
           <button key={c.id} type="button" onClick={() => { nav('/collections'); onClose() }}
             className="w-full text-right bg-surface rounded-lg px-3 py-2 hover:bg-surface/80 transition-colors active:scale-[0.99] border border-border/50">
             <div className="flex items-center justify-between">
@@ -180,11 +195,12 @@ export function CollectionsDrill({ open, onClose, collections }: { open: boolean
           </button>
         ))}
       </div>
+      )}
     </Drawer>
   )
 }
 
-export function EmployeesDrill({ open, onClose, employees }: { open: boolean; onClose: () => void; employees: EmployeeDrill[] }) {
+export function EmployeesDrill({ open, onClose, employees, count }: { open: boolean; onClose: () => void; employees: EmployeeDrill[]; count?: number }) {
   const conColor = (s: string) =>
     s === 'active' ? 'text-green-600 bg-green-50' :
     s === 'delayed' ? 'text-amber-600 bg-amber-50' :
@@ -192,10 +208,10 @@ export function EmployeesDrill({ open, onClose, employees }: { open: boolean; on
   const conLabel = (s: string) =>
     s === 'active' ? 'متصل' : s === 'delayed' ? 'متأخر' : s === 'lost' ? 'منقطع' : s
   return (
-    <Drawer open={open} onClose={onClose} title={`الموظفون النشطون (${employees.length})`}>
+    <Drawer open={open} onClose={onClose} title={`الموظفون النشطون (${count ?? employees.length})`}>
       <div className="space-y-1.5">
         {employees.length === 0 ? (
-          <p className="text-center text-xs text-text-secondary py-6">لا يوجد موظفون نشطون</p>
+          <DrillEmpty text="لا يوجد موظفون نشطون" />
         ) : employees.map((e) => (
           <div key={e.id} className="bg-surface rounded-lg px-3 py-2 border border-border/50">
             <div className="flex items-center justify-between">

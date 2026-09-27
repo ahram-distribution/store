@@ -64,7 +64,17 @@ interface CollectionDrill {
   id: string; amount: number; employee_name: string; created_at: string
 }
 
-const POLL_INTERVAL = 60000
+type DrillDataset = 'orders' | 'visits' | 'customers' | 'collections'
+
+// Drawer key -> dataset fetched on demand. 'employees' has no entry: its rows
+// already arrive with the initial payload, so opening it costs no extra call.
+const DRAWER_DATASET: Record<string, DrillDataset | undefined> = {
+  orders: 'orders',
+  sales: 'orders',
+  visits: 'visits',
+  customers: 'customers',
+  collections: 'collections',
+}
 
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
@@ -92,6 +102,10 @@ export default function LiveActivityCenterPage() {
   const [todayVisits, setTodayVisits] = useState<VisitDrill[]>([])
   const [todayCustomers, setTodayCustomers] = useState<CustomerDrill[]>([])
   const [todayCollections, setTodayCollections] = useState<CollectionDrill[]>([])
+  const [drillCounts, setDrillCounts] = useState<Partial<Record<DrillDataset, number>>>({})
+  const [drillLoaded, setDrillLoaded] = useState<Partial<Record<DrillDataset, boolean>>>({})
+  const [drillLoading, setDrillLoading] = useState<Partial<Record<DrillDataset, boolean>>>({})
+  const drillInFlight = useRef<Partial<Record<DrillDataset, boolean>>>({})
   const [mapLayer, setMapLayer] = useState<MapLayer>('all')
   const [mapFullscreen, setMapFullscreen] = useState(false)
   const [mapCollapsed, setMapCollapsed] = useState(false)
@@ -99,9 +113,49 @@ export default function LiveActivityCenterPage() {
 
   const [drawer, setDrawer] = useState<string | null>(null)
 
+  const loadDrill = useCallback(async (dataset: DrillDataset, force = false) => {
+    if (!token) return
+    if (!force && (drillLoaded[dataset] || drillInFlight.current[dataset])) return
+    drillInFlight.current[dataset] = true
+    setDrillLoading((prev) => ({ ...prev, [dataset]: true }))
+    const { data, error: err } = await supabase.rpc('get_live_activity_drill', {
+      p_token: token.trim(),
+      p_dataset: dataset,
+    })
+    drillInFlight.current[dataset] = false
+    setDrillLoading((prev) => ({ ...prev, [dataset]: false }))
+    if (err || !data || typeof data !== 'object' || (data as Record<string, unknown>).error) {
+      // Leave the cache empty so the next open retries.
+      setDrillLoaded((prev) => ({ ...prev, [dataset]: false }))
+      return
+    }
+    const d = data as { count?: number; rows?: unknown[] }
+    setDrillCounts((prev) => ({ ...prev, [dataset]: d.count ?? 0 }))
+    setDrillLoaded((prev) => ({ ...prev, [dataset]: true }))
+    if (dataset === 'orders') setTodayOrders((d.rows ?? []) as OrderDrill[])
+    else if (dataset === 'visits') setTodayVisits((d.rows ?? []) as VisitDrill[])
+    else if (dataset === 'customers') setTodayCustomers((d.rows ?? []) as CustomerDrill[])
+    else setTodayCollections((d.rows ?? []) as CollectionDrill[])
+  }, [token, drillLoaded])
+
+  const invalidateDrills = useCallback(() => {
+    setTodayOrders([])
+    setTodayVisits([])
+    setTodayCustomers([])
+    setTodayCollections([])
+    setDrillCounts({})
+    setDrillLoaded({})
+    setDrillLoading({})
+  }, [])
+
+  const openDrawer = useCallback((key: string) => {
+    setDrawer(key)
+    const dataset = DRAWER_DATASET[key]
+    if (dataset) loadDrill(dataset)
+  }, [loadDrill])
+
   const fetchData = useCallback(async () => {
     if (!token) { setLoading(false); return }
-    if (document.hidden) return
     const { data, error: err } = await supabase.rpc('get_live_activity_center', { p_token: token.trim() })
     if (err) { setError(err.message); setLoading(false); return }
     if (!data || typeof data !== 'object' || (data as Record<string, unknown>).error) {
@@ -110,22 +164,25 @@ export default function LiveActivityCenterPage() {
     const d = data as Record<string, unknown>
     if (d.kpis) setKpis(d.kpis as KpiData)
     if (d.employees) setEmployees(d.employees as LiveEmployee[])
-    if (d.activity) setActivity((d.activity as ActivityEvent[]).slice(0, 50))
+    if (d.activity) setActivity(d.activity as ActivityEvent[])
     if (d.anomalies) setAnomalies(d.anomalies as Anomaly[])
     if (d.now_panel) setNowPanel(d.now_panel as NowPanelData)
-    if (d.today_orders) setTodayOrders(d.today_orders as OrderDrill[])
-    if (d.today_visits) setTodayVisits(d.today_visits as VisitDrill[])
-    if (d.today_customers) setTodayCustomers(d.today_customers as CustomerDrill[])
-    if (d.today_collections) setTodayCollections(d.today_collections as CollectionDrill[])
     setLastUpdate(new Date().toLocaleTimeString('ar-EG-u-nu-latn', { hour: '2-digit', minute: '2-digit', second: '2-digit' }))
     setLoading(false)
     setError(null)
   }, [token])
 
+  // Manual refresh only: the 60s polling interval was removed to cut quota.
+  // The drill cache is invalidated so the next drawer open fetches fresh rows.
+  const refreshAll = useCallback(async () => {
+    invalidateDrills()
+    await fetchData()
+    const dataset = drawer ? DRAWER_DATASET[drawer] : undefined
+    if (dataset) loadDrill(dataset, true)
+  }, [fetchData, invalidateDrills, loadDrill, drawer])
+
   useEffect(() => {
     fetchData()
-    const interval = setInterval(fetchData, POLL_INTERVAL)
-    return () => clearInterval(interval)
   }, [fetchData])
 
   useEffect(() => {
@@ -143,11 +200,11 @@ export default function LiveActivityCenterPage() {
       case 'visits':
       case 'employees_working':
       case 'employees_break':
-        setDrawer('employees'); break
+        openDrawer('employees'); break
       case 'orders':
-        setDrawer('orders'); break
+        openDrawer('orders'); break
       case 'collections':
-        setDrawer('collections'); break
+        openDrawer('collections'); break
     }
   }
 
@@ -194,7 +251,7 @@ export default function LiveActivityCenterPage() {
         </div>
         <div className="flex items-center gap-2 text-xs text-text-secondary">
           <span className="hidden sm:inline">{lastUpdate && `آخر تحديث: ${lastUpdate}`}</span>
-          <button type="button" onClick={fetchData} className="text-primary hover:text-primary-dark transition-colors text-sm">⟳</button>
+          <button type="button" onClick={refreshAll} className="text-primary hover:text-primary-dark transition-colors text-sm">⟳</button>
         </div>
       </div>
 
@@ -204,7 +261,7 @@ export default function LiveActivityCenterPage() {
       {/* Row 2: KPI Cards — clickable, drill-down */}
       <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
         {kpiItems.map((k) => (
-          <button key={k.key} type="button" onClick={() => setDrawer(k.key)}
+          <button key={k.key} type="button" onClick={() => openDrawer(k.key)}
             className={`text-center rounded-xl border ${k.bg} ${k.border} p-3 hover:shadow-sm active:scale-[0.97] transition-all min-w-0`}>
             <div className="text-lg mb-0.5">{k.icon}</div>
             <div className={`text-sm font-bold ${k.color} truncate`}>{k.value}</div>
@@ -319,14 +376,14 @@ export default function LiveActivityCenterPage() {
       <div className="text-center text-xs text-text-secondary md:hidden">{lastUpdate && `آخر تحديث: ${lastUpdate}`}</div>
 
       {/* Drawers — fixed overlay above everything (z-40) */}
-      <OrdersDrill open={drawer === 'orders'} onClose={() => setDrawer(null)} orders={todayOrders} />
-      <VisitsDrill open={drawer === 'visits'} onClose={() => setDrawer(null)} visits={todayVisits} />
-      <OrdersDrill open={drawer === 'sales'} onClose={() => setDrawer(null)} orders={todayOrders} titleOverride="تفاصيل مبيعات اليوم" />
-      <CustomersDrill open={drawer === 'customers'} onClose={() => setDrawer(null)} customers={todayCustomers} />
-      <CollectionsDrill open={drawer === 'collections'} onClose={() => setDrawer(null)} collections={todayCollections} />
+      <OrdersDrill open={drawer === 'orders'} onClose={() => setDrawer(null)} orders={todayOrders} loading={!!drillLoading.orders} count={drillCounts.orders} />
+      <VisitsDrill open={drawer === 'visits'} onClose={() => setDrawer(null)} visits={todayVisits} loading={!!drillLoading.visits} count={drillCounts.visits} />
+      <OrdersDrill open={drawer === 'sales'} onClose={() => setDrawer(null)} orders={todayOrders} titleOverride="تفاصيل مبيعات اليوم" loading={!!drillLoading.orders} count={drillCounts.orders} />
+      <CustomersDrill open={drawer === 'customers'} onClose={() => setDrawer(null)} customers={todayCustomers} loading={!!drillLoading.customers} count={drillCounts.customers} />
+      <CollectionsDrill open={drawer === 'collections'} onClose={() => setDrawer(null)} collections={todayCollections} loading={!!drillLoading.collections} count={drillCounts.collections} />
       <EmployeesDrill open={drawer === 'employees'} onClose={() => setDrawer(null)} employees={employees.map(e => ({
         ...e, id: e.employee_id, name: e.name, employee_code: '',
-      }))} />
+      }))} count={employees.length} />
     </div>
   )
 }
