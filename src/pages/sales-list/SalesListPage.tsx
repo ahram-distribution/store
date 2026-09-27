@@ -5,12 +5,17 @@ import { useAuthStore } from '../../store/auth'
 import { useCartStore } from '../../store/cart'
 import { applyGeographicAdjustment, computeTotalDiscountPercent, round2 } from '../../engine/pricing'
 import { normalizeEmployeeRole, type TargetRole } from '../../utils/roleNormalization'
-import { buildSearchIndex, searchProducts, type ProductSearchIndex } from '../../utils/smartSearch'
 import { SearchHighlight } from '../../components/shared/SearchHighlight'
 import { exportToExcel } from '../../services/excelExporter'
 import { discountOptionsService, buildDiscountPricingContext, resolveExceptionLookup, type DiscountPricingContext } from '../../services/discountOptions'
-import { governedCatalog } from '../../services/governedCatalog'
 import type { TierRecord, PaymentMethodOption, ShippingMethodOption } from '../../types/storefront'
+import {
+  fetchSalesListPage,
+  fetchSalesListAll,
+  SALES_LIST_PAGE_SIZE,
+  type SalesListProduct,
+  type SalesListCriteria,
+} from '../../services/salesListCatalog'
 import {
   getGovernorateAdjustmentRows,
   getSectorAdjustmentRows,
@@ -35,20 +40,12 @@ interface SectorItem {
   name: string
 }
 
-interface ProductRow {
+interface CompanyOption {
   id: string
-  product_name: string
-  legacy_code: string
-  company_id: string
   company_name: string
-  is_active: boolean
-  is_visible: boolean
-  is_out_of_stock: boolean
-  carton_price: number
-  carton_quantity: number
-  piece_price: number
-  dozen_price: number
 }
+
+type ProductRow = SalesListProduct
 
 interface CompanyGroup {
   companyName: string
@@ -65,19 +62,9 @@ function formatPrice(val: number): string {
   return stripped ? s.slice(0, dot + 1) + stripped : s.slice(0, dot)
 }
 
-// Product-level availability only — unit availability never hides the product
-// or its prices (piece/carton prices are shown for every active saleable product).
-function isProductAvailable(p: ProductRow): boolean {
-  if (!p.is_active) return false
-  if (p.is_visible === false) return false
-  if (p.is_out_of_stock) return false
-  return !!p.carton_price && Number(p.carton_price) > 0
-}
-
 interface PreviewPrices {
   finalPiece: number
   finalCarton: number
-  finalDozen: number
 }
 
 interface PricePreview {
@@ -93,11 +80,91 @@ function computePreviewFinalPrice(basePrice: number, totalDiscountPercent: numbe
   return round2(basePrice * (1 - Math.min(totalDiscountPercent, 99.99) / 100))
 }
 
+/**
+ * Geographic price adjustments for a row set.
+ * overrideMap !== null ⇒ upper-mgmt regional list (map covers every target id,
+ * defaulting to 0 — the adjustment RPCs do the same). Otherwise the employee's
+ * governed geo context (geoItemAdjustments / region adjustmentPercent).
+ */
+function applyGeoAdjustments(
+  rows: ProductRow[],
+  overrideMap: Record<string, number> | null,
+  geoItemAdjustments: Record<string, number>,
+  adjustPercent: number
+): ProductRow[] {
+  if (rows.length === 0) return rows
+  return rows.map((p) => {
+    const adj = overrideMap !== null ? (overrideMap[p.id] ?? 0) : (geoItemAdjustments[p.id] ?? adjustPercent ?? 0)
+    if (adj === 0) return p
+    return {
+      ...p,
+      piece_price: Math.round(applyGeographicAdjustment(Number(p.piece_price) || 0, adj) * 100) / 100,
+      carton_price: Math.round(applyGeographicAdjustment(Number(p.carton_price) || 0, adj) * 100) / 100,
+    }
+  })
+}
+
+function buildPricePreviewRows(rows: ProductRow[], effectiveTotalFor: (p: ProductRow) => number): Map<string, PreviewPrices> {
+  const map = new Map<string, PreviewPrices>()
+  for (const p of rows) {
+    const effTotal = effectiveTotalFor(p)
+    map.set(p.id, {
+      finalPiece: computePreviewFinalPrice(Number(p.piece_price) || 0, effTotal),
+      finalCarton: computePreviewFinalPrice(Number(p.carton_price) || 0, effTotal),
+    })
+  }
+  return map
+}
+
+function groupProducts(rows: ProductRow[], companyOrder: Record<string, number>, isSearching: boolean): CompanyGroup[] {
+  const map: Record<string, ProductRow[]> = {}
+  for (const p of rows) {
+    const key = p.company_name || 'غير مصنف'
+    if (!map[key]) map[key] = []
+    map[key].push(p)
+  }
+  if (!isSearching) {
+    for (const key of Object.keys(map)) {
+      map[key].sort((a, b) => a.product_name.localeCompare(b.product_name))
+    }
+  }
+  return Object.entries(map)
+    .sort(([a], [b]) => {
+      const ao = companyOrder[a] ?? Infinity
+      const bo = companyOrder[b] ?? Infinity
+      if (ao !== bo) return ao - bo
+      return a.localeCompare(b)
+    })
+    .map(([companyName, prods]) => ({ companyName, products: prods }))
+}
+
+function paginationItems(current: number, totalPages: number): Array<number | '…'> {
+  if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1)
+  const items: Array<number | '…'> = []
+  const start = Math.max(2, current - 1)
+  const end = Math.min(totalPages - 1, current + 1)
+  items.push(1)
+  if (start > 2) items.push('…')
+  for (let p = start; p <= end; p++) items.push(p)
+  if (end < totalPages - 1) items.push('…')
+  items.push(totalPages)
+  return items
+}
+
 function esc(s: string | null | undefined): string {
   if (!s) return ''
   const d = document.createElement('div')
   d.textContent = s
   return d.innerHTML
+}
+
+function printHtml(html: string): void {
+  const win = window.open('', '_blank')
+  if (!win) return
+  win.document.write(html)
+  win.document.close()
+  win.focus()
+  setTimeout(() => { try { win.print() } catch {} }, 500)
 }
 
 function generatePrintHtml(groups: CompanyGroup[], logoUrl: string, regionLabel?: string, preview?: PricePreview): string {
@@ -213,26 +280,23 @@ function generatePrintHtml(groups: CompanyGroup[], logoUrl: string, regionLabel?
 </html>`
 }
 
-function printHtml(html: string): void {
-  const win = window.open('', '_blank')
-  if (!win) return
-  win.document.write(html)
-  win.document.close()
-  win.focus()
-  setTimeout(() => { try { win.print() } catch {} }, 500)
-}
-
 export default function SalesListPage() {
   const navigate = useNavigate()
   const { token: authToken, user } = useAuthStore()
   const { geographicContext, resolveEmployeeGeographicContext, geoItemAdjustments, geoResolveEpoch, ensureGeoItemAdjustments } = useCartStore()
+
   const [products, setProducts] = useState<ProductRow[]>([])
+  const [total, setTotal] = useState(0)
+  const [page, setPage] = useState(1)
   const [companyOrder, setCompanyOrder] = useState<Record<string, number>>({})
+  const [governedCompanies, setGovernedCompanies] = useState<CompanyOption[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const [query, setQuery] = useState('')
   const [companyFilter, setCompanyFilter] = useState('')
   const [pdfLoading, setPdfLoading] = useState(false)
   const [pdfPhase, setPdfPhase] = useState<'idle' | 'preparing' | 'done'>('idle')
+  const [excelLoading, setExcelLoading] = useState(false)
   const [listType, setListType] = useState<'basic' | 'governorate' | 'sector'>('basic')
   const [governorates, setGovernorates] = useState<GovernorateItem[]>([])
   const [sectors, setSectors] = useState<SectorItem[]>([])
@@ -241,6 +305,9 @@ export default function SalesListPage() {
   const [geoOverride, setGeoOverride] = useState<Record<string, number> | null>(null)
   const [geoOverrideRows, setGeoOverrideRows] = useState<GeoAdjustmentRow[]>([])
   const [geoResolving, setGeoResolving] = useState(false)
+  const [overrideHiddenProductIds, setOverrideHiddenProductIds] = useState<Set<string>>(new Set())
+  const [overrideHiddenResolving, setOverrideHiddenResolving] = useState(false)
+  const [regionHiddenLoaded, setRegionHiddenLoaded] = useState(true)
   const [tierOptions, setTierOptions] = useState<TierRecord[]>([])
   const [paymentOptions, setPaymentOptions] = useState<PaymentMethodOption[]>([])
   const [shippingOptions, setShippingOptions] = useState<ShippingMethodOption[]>([])
@@ -255,40 +322,70 @@ export default function SalesListPage() {
   const hasAccess = ALLOWED_ROLES.some((r) => normalizedRoles.includes(r))
   const isUpperMgmt = userRoles.includes('الإدارة العليا')
 
-  const { hiddenProductIds: ctxHiddenProductIds } = useGeographicVisibility()
-  const [overrideHiddenProductIds, setOverrideHiddenProductIds] = useState<Set<string>>(new Set())
-  const [overrideHiddenResolving, setOverrideHiddenResolving] = useState(false)
+  const { hiddenProductIds: ctxHiddenProductIds, isResolving: ctxResolving } = useGeographicVisibility()
 
-  // When a governorate/sector is selected, the RPC geo-scopes the response
-  // (visibility rules enforced server-side) so we never download the full
-  // active+visible catalog for a regional price list.
-  const regionParams = useMemo(() => {
-    if (!isUpperMgmt) return {}
-    if (listType === 'governorate' && selectedGovernorate) return { p_governorate_id: selectedGovernorate }
-    if (listType === 'sector' && selectedSector) return { p_sector_id: selectedSector }
-    return {}
+  // Selected region frame (upper-mgmt governorate/sector list) — drives both
+  // the region params passed to the SalesListPage RPC and the region-scoped
+  // geo-hidden ids derived from the same geographic visibility RPCs.
+  const regionId = useMemo(() => {
+    if (!isUpperMgmt) return ''
+    if (listType === 'governorate') return selectedGovernorate
+    if (listType === 'sector') return selectedSector
+    return ''
   }, [isUpperMgmt, listType, selectedGovernorate, selectedSector])
 
-  useEffect(() => {
-    if (!hasAccess) return
-    if (!authToken) { setLoading(false); return }
-    setLoading(true)
-    governedCatalog({ p_token: authToken, p_active_only: true, p_visible_only: true, ...regionParams })
-      .then(({ data }) => {
-        const arr = Array.isArray(data) ? data : []
-        setProducts(arr)
-      })
-      .finally(() => setLoading(false))
-  }, [hasAccess, authToken, regionParams])
+  const regionParams = useMemo(() => {
+    if (!isUpperMgmt || !regionId) return {}
+    return listType === 'governorate' ? { p_governorate_id: regionId } : { p_sector_id: regionId }
+  }, [isUpperMgmt, regionId, listType])
 
+  const hiddenForList = useMemo(
+    () => (isUpperMgmt && regionId ? overrideHiddenProductIds : ctxHiddenProductIds),
+    [isUpperMgmt, regionId, overrideHiddenProductIds, ctxHiddenProductIds]
+  )
+
+  const geoHiddenResolved = useMemo(() => {
+    if (isUpperMgmt && regionId) return regionHiddenLoaded
+    return !ctxResolving
+  }, [isUpperMgmt, regionId, regionHiddenLoaded, ctxResolving])
+
+  // Governed companies (selector) + display_order (ordering). Only storefront-
+  // visible companies participate in the company filter.
   useEffect(() => {
-    supabase.from('companies').select('company_name, display_order').then(({ data }) => {
-      if (!data) return
-      const map: Record<string, number> = {}
-      for (const c of data) if (c.company_name && typeof c.display_order === 'number') map[c.company_name] = c.display_order
-      setCompanyOrder(map)
-    })
-  }, [])
+    if (!authToken) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const [compRes, ordRes] = await Promise.all([
+          supabase.rpc('get_governed_companies', { p_token: authToken }),
+          supabase.from('companies').select('company_name, display_order'),
+        ])
+        if (cancelled) return
+        const map: Record<string, number> = {}
+        const ordData = ordRes.data as Array<{ company_name?: string; display_order?: number | null }> | null
+        if (ordData) {
+          for (const c of ordData) {
+            if (c.company_name && typeof c.display_order === 'number') map[c.company_name] = c.display_order
+          }
+        }
+        setCompanyOrder(map)
+        const raw = Array.isArray(compRes.data)
+          ? (compRes.data as Array<{ id?: string; company_name?: string; is_visible?: boolean }>).filter((c) => c.is_visible === true)
+          : []
+        const sorted = [...raw].sort(
+          (a, b) =>
+            (map[a.company_name || ''] ?? Infinity) - (map[b.company_name || ''] ?? Infinity) ||
+            (a.company_name || '').localeCompare(b.company_name || '')
+        )
+        setGovernedCompanies(
+          sorted.map((c) => ({ id: String(c.id), company_name: String(c.company_name || '') })).filter((c) => !!c.id && !!c.company_name)
+        )
+      } catch {}
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [authToken])
 
   useEffect(() => {
     if (user?.identity_type !== 'employee' || !user.employee_id) return
@@ -337,66 +434,25 @@ export default function SalesListPage() {
     return () => { cancelled = true }
   }, [authToken])
 
+  // Region-scoped geo-hidden ids (upper-mgmt). Decoupled from the page fetch so
+  // hidden ids resolve once per region and are passed to the RPC for accurate
+  // paging + totals (the server excludes them).
   useEffect(() => {
-    if (!isUpperMgmt) {
-      setGeoOverride(null)
-      setGeoOverrideRows([])
-      setGeoResolving(false)
-      return
-    }
-    const regionId = listType === 'governorate' ? selectedGovernorate : listType === 'sector' ? selectedSector : ''
-    if (!regionId || products.length === 0) {
-      setGeoOverride(null)
-      setGeoOverrideRows([])
-      setGeoResolving(false)
-      return
-    }
-    const targets = products.map((p) => ({ id: p.id, companyId: p.company_id }))
-    setGeoResolving(true)
-    const task = listType === 'governorate'
-      ? getGovernorateAdjustmentRows(regionId, targets)
-      : getSectorAdjustmentRows(regionId, targets)
-    task
-      .then((res) => {
-        setGeoOverride(res.map)
-        setGeoOverrideRows(res.rows)
-      })
-      .catch(() => {
-        setGeoOverride(null)
-        setGeoOverrideRows([])
-      })
-      .finally(() => setGeoResolving(false))
-  }, [isUpperMgmt, listType, selectedGovernorate, selectedSector, products])
-
-  const geoAdjustedProducts = useMemo(() => {
-    if (products.length === 0) return products
-    const overrideActive = isUpperMgmt && geoOverride !== null
-    return products.map(p => {
-      const adj = overrideActive ? (geoOverride?.[p.id] ?? 0) : (geoItemAdjustments[p.id] ?? geographicContext?.adjustmentPercent ?? 0)
-      if (adj === 0) return p
-      return {
-        ...p,
-        piece_price: Math.round(applyGeographicAdjustment(Number(p.piece_price) || 0, adj) * 100) / 100,
-        carton_price: Math.round(applyGeographicAdjustment(Number(p.carton_price) || 0, adj) * 100) / 100,
-        dozen_price: Math.round(applyGeographicAdjustment(Number(p.dozen_price) || 0, adj) * 100) / 100,
-      }
-    })
-  }, [products, geographicContext?.adjustmentPercent, geoItemAdjustments, geoOverride, isUpperMgmt])
-
-  useEffect(() => {
-    const overrideActive = isUpperMgmt && geoOverride !== null
-    if (!overrideActive) {
+    if (!isUpperMgmt || !regionId) {
       setOverrideHiddenProductIds(new Set())
       setOverrideHiddenResolving(false)
+      setRegionHiddenLoaded(true)
       return
     }
     let cancelled = false
     setOverrideHiddenResolving(true)
-    const task = listType === 'governorate' && selectedGovernorate
-      ? getGeographicVisibilityHiddenProducts(selectedGovernorate)
-      : listType === 'sector' && selectedSector
-        ? getGeographicVisibilityHiddenProductsForSector(selectedSector)
-        : Promise.resolve([])
+    setRegionHiddenLoaded(false)
+    const task =
+      listType === 'governorate'
+        ? getGeographicVisibilityHiddenProducts(regionId)
+        : listType === 'sector'
+          ? getGeographicVisibilityHiddenProductsForSector(regionId)
+          : Promise.resolve([])
     task
       .then((rows) => {
         if (cancelled) return
@@ -407,14 +463,105 @@ export default function SalesListPage() {
         setOverrideHiddenProductIds(new Set())
       })
       .finally(() => {
-        if (!cancelled) setOverrideHiddenResolving(false)
+        if (cancelled) return
+        setOverrideHiddenResolving(false)
+        setRegionHiddenLoaded(true)
       })
     return () => { cancelled = true }
-  }, [isUpperMgmt, listType, selectedGovernorate, selectedSector, geoOverride])
+  }, [isUpperMgmt, listType, regionId])
 
-  const hiddenForList = isUpperMgmt && geoOverride !== null ? overrideHiddenProductIds : ctxHiddenProductIds
+  // Region pricing overrides for the CURRENT page only (the adjustment RPCs
+  // resolve per target set). Re-resolved on every page change; final displayed
+  // prices are correct once resolved (see the existing "جارى تحميل تسعير
+  // المنطقة..." indicator).
+  useEffect(() => {
+    if (!isUpperMgmt || !regionId || products.length === 0) {
+      setGeoOverride(null)
+      setGeoOverrideRows([])
+      setGeoResolving(false)
+      return
+    }
+    const targets = products.map((p) => ({ id: p.id, companyId: p.company_id }))
+    setGeoResolving(true)
+    const task =
+      listType === 'governorate' ? getGovernorateAdjustmentRows(regionId, targets) : getSectorAdjustmentRows(regionId, targets)
+    task
+      .then((res) => {
+        setGeoOverride(res.map)
+        setGeoOverrideRows(res.rows)
+      })
+      .catch(() => {
+        setGeoOverride(null)
+        setGeoOverrideRows([])
+      })
+      .finally(() => setGeoResolving(false))
+  }, [isUpperMgmt, listType, regionId, products])
 
-  const saleableProducts = useMemo(() => geoAdjustedProducts.filter((p) => isProductAvailable(p) && !hiddenForList.has(p.id)), [geoAdjustedProducts, hiddenForList])
+  // Debounce the search input; server-side search runs against `query`.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setQuery(search)
+      setPage(1)
+    }, 300)
+    return () => clearTimeout(t)
+  }, [search])
+
+  const totalPages = Math.max(1, Math.ceil(total / SALES_LIST_PAGE_SIZE))
+
+  const goToPage = useCallback(
+    (next: number) => {
+      setPage((cur) => {
+        const clamped = Math.max(1, Math.min(next, totalPages))
+        return clamped === cur ? cur : clamped
+      })
+    },
+    [totalPages]
+  )
+
+  // Server-side paged fetch: search + company filter + eligibility + geo-hidden
+  // exclusion are ALL enforced by get_saleslist_products. The client only ever
+  // receives the current 20-product page.
+  useEffect(() => {
+    if (!hasAccess || !authToken) {
+      setLoading(false)
+      return
+    }
+    if (!geoHiddenResolved) {
+      setLoading(true)
+      return
+    }
+    let cancelled = false
+    setLoading(true)
+    const region = regionParams as { p_governorate_id?: string; p_sector_id?: string }
+    const criteria: SalesListCriteria = {
+      token: authToken,
+      search: query,
+      companyId: companyFilter || undefined,
+      hiddenIds: hiddenForList,
+      governorateId: region.p_governorate_id,
+      sectorId: region.p_sector_id,
+    }
+    fetchSalesListPage(criteria, page)
+      .then((res) => {
+        if (cancelled) return
+        setProducts(res.rows)
+        setTotal(res.total)
+        const maxPage = res.total > 0 ? Math.max(1, Math.ceil(res.total / SALES_LIST_PAGE_SIZE)) : page
+        if (res.rows.length === 0 && page > maxPage) {
+          setPage(maxPage)
+          return
+        }
+      })
+      .catch(() => {
+        if (cancelled) return
+        setProducts([])
+        setTotal(0)
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [hasAccess, authToken, query, companyFilter, page, regionParams, hiddenForList, geoHiddenResolved])
 
   const selectedTier = useMemo(() => tierOptions.find((t) => t.id === selectedTierId) ?? null, [tierOptions, selectedTierId])
   const selectedPayment = useMemo(() => paymentOptions.find((m) => m.id === selectedPaymentId) ?? null, [paymentOptions, selectedPaymentId])
@@ -432,84 +579,26 @@ export default function SalesListPage() {
     return computeTotalDiscountPercent(selectedTier, selectedPayment, selectedShipping, lookup ?? undefined)
   }, [discountContext, selectedTier, selectedPayment, selectedShipping, totalDiscountPercent])
 
-  const pricePreview = useMemo(() => {
-    const map = new Map<string, PreviewPrices>()
-    for (const p of geoAdjustedProducts) {
-      const effTotal = effectiveTotalFor(p)
-      map.set(p.id, {
-        finalPiece: computePreviewFinalPrice(Number(p.piece_price) || 0, effTotal),
-        finalCarton: computePreviewFinalPrice(Number(p.carton_price) || 0, effTotal),
-        finalDozen: computePreviewFinalPrice(Number(p.dozen_price) || 0, effTotal),
-      })
-    }
-    return map
-  }, [geoAdjustedProducts, effectiveTotalFor])
+  const geoAdjustedProducts = useMemo(
+    () =>
+      applyGeoAdjustments(
+        products,
+        isUpperMgmt && geoOverride !== null ? geoOverride : null,
+        geoItemAdjustments,
+        geographicContext?.adjustmentPercent ?? 0
+      ),
+    [products, isUpperMgmt, geoOverride, geoItemAdjustments, geographicContext?.adjustmentPercent]
+  )
 
-  const pricePreviewExport = useMemo<PricePreview>(() => ({
-    totalDiscountPercent,
-    tierLabel: selectedTier ? `${selectedTier.name} (${selectedTier.discountPercent}%)` : 'بدون خصم',
-    paymentLabel: selectedPayment ? `${selectedPayment.name} (${selectedPayment.discountPercent}%)` : 'بدون خصم',
-    shippingLabel: selectedShipping ? `${selectedShipping.name} (${selectedShipping.discountPercent}%)` : 'بدون خصم',
-    finalByProduct: pricePreview,
-  }), [totalDiscountPercent, selectedTier, selectedPayment, selectedShipping, pricePreview])
+  const pricePreview = useMemo(
+    () => buildPricePreviewRows(geoAdjustedProducts, effectiveTotalFor),
+    [geoAdjustedProducts, effectiveTotalFor]
+  )
 
-  const companyNames = useMemo(() => {
-    const names = new Set<string>()
-    for (const p of saleableProducts) {
-      if (p.company_name) names.add(p.company_name)
-    }
-    return Array.from(names).sort((a, b) => a.localeCompare(b))
-  }, [saleableProducts])
-
-  const searchIndices = useMemo(() => {
-    return saleableProducts.map((p) => ({
-      id: p.id,
-      product: p,
-      index: buildSearchIndex({
-        id: p.id,
-        legacyCode: p.legacy_code,
-        productName: p.product_name,
-        companyName: p.company_name,
-      }),
-    }))
-  }, [saleableProducts])
-
-  const smartFiltered = useMemo(() => {
-    let list = saleableProducts
-    if (search.trim()) {
-      const indices = searchIndices.filter((si) => list.includes(si.product))
-      list = searchProducts(search, indices, (si) => si.index).map((si) => si.product)
-    } else {
-      if (companyFilter) {
-        list = list.filter((p) => p.company_name === companyFilter)
-      }
-      list = [...list].sort((a, b) => a.product_name.localeCompare(b.product_name))
-    }
-    return list
-  }, [saleableProducts, search, companyFilter, searchIndices])
-
-  const groupedProducts = useMemo((): CompanyGroup[] => {
-    const isSearching = search.trim().length > 0
-    const map: Record<string, ProductRow[]> = {}
-    for (const p of smartFiltered) {
-      const key = p.company_name || 'غير مصنف'
-      if (!map[key]) map[key] = []
-      map[key].push(p)
-    }
-    if (!isSearching) {
-      for (const key of Object.keys(map)) {
-        map[key].sort((a, b) => a.product_name.localeCompare(b.product_name))
-      }
-    }
-    return Object.entries(map)
-      .sort(([a], [b]) => {
-        const ao = companyOrder[a] ?? Infinity
-        const bo = companyOrder[b] ?? Infinity
-        if (ao !== bo) return ao - bo
-        return a.localeCompare(b)
-      })
-      .map(([companyName, prods]) => ({ companyName, products: prods }))
-  }, [smartFiltered, search, companyOrder])
+  const groupedProducts = useMemo(
+    () => groupProducts(geoAdjustedProducts, companyOrder, query.trim().length > 0),
+    [geoAdjustedProducts, companyOrder, query]
+  )
 
   const regionInfo = useMemo<{ label: string; name: string } | null>(() => {
     if (listType === 'governorate' && selectedGovernorate) {
@@ -529,88 +618,161 @@ export default function SalesListPage() {
     setListType(value as 'basic' | 'governorate' | 'sector')
     setSelectedGovernorate('')
     setSelectedSector('')
+    setPage(1)
   }, [])
 
-  const handleDownloadPdf = useCallback(() => {
-    if (pdfLoading) return
+  const buildPricePreviewExport = useCallback(
+    (rows: ProductRow[]): PricePreview => ({
+      totalDiscountPercent,
+      tierLabel: selectedTier ? `${selectedTier.name} (${selectedTier.discountPercent}%)` : 'بدون خصم',
+      paymentLabel: selectedPayment ? `${selectedPayment.name} (${selectedPayment.discountPercent}%)` : 'بدون خصم',
+      shippingLabel: selectedShipping ? `${selectedShipping.name} (${selectedShipping.discountPercent}%)` : 'بدون خصم',
+      finalByProduct: buildPricePreviewRows(rows, effectiveTotalFor),
+    }),
+    [totalDiscountPercent, selectedTier, selectedPayment, selectedShipping, effectiveTotalFor]
+  )
+
+  // Unbounded slim fetch of ALL rows matching the CURRENT search/filter/region
+  // criteria (server-side eligibility + geo-hidden included) + exact geo price
+  // adjustments for that full set. Used ONLY for Excel / PDF / Print, and ONLY
+  // when the user explicitly requests them.
+  const fetchAllForExport = useCallback(async (): Promise<ProductRow[]> => {
+    if (!authToken) return []
+    const region = regionParams as { p_governorate_id?: string; p_sector_id?: string }
+    const all = await fetchSalesListAll({
+      token: authToken,
+      search: query,
+      companyId: companyFilter || undefined,
+      hiddenIds: hiddenForList,
+      governorateId: region.p_governorate_id,
+      sectorId: region.p_sector_id,
+    })
+    if (all.rows.length === 0) return []
+    const overrideActive = isUpperMgmt && !!regionId
+    if (overrideActive) {
+      const targets = all.rows.map((p) => ({ id: p.id, companyId: p.company_id }))
+      const res =
+        listType === 'governorate'
+          ? await getGovernorateAdjustmentRows(regionId, targets)
+          : await getSectorAdjustmentRows(regionId, targets)
+      return applyGeoAdjustments(all.rows, res.map, geoItemAdjustments, geographicContext?.adjustmentPercent ?? 0)
+    }
+    await ensureGeoItemAdjustments(all.rows.map((p) => ({ id: p.id, companyId: p.company_id })))
+    return applyGeoAdjustments(all.rows, null, geoItemAdjustments, geographicContext?.adjustmentPercent ?? 0)
+  }, [
+    authToken,
+    query,
+    companyFilter,
+    hiddenForList,
+    regionParams,
+    isUpperMgmt,
+    regionId,
+    listType,
+    ensureGeoItemAdjustments,
+    geoItemAdjustments,
+    geographicContext?.adjustmentPercent,
+  ])
+
+  const handleDownloadPdf = useCallback(async () => {
+    if (pdfLoading || !authToken) return
     setPdfLoading(true)
     setPdfPhase('preparing')
     try {
+      const rows = await fetchAllForExport()
+      if (rows.length === 0) return
+      const groups = groupProducts(rows, companyOrder, query.trim().length > 0)
       const logoUrl = window.location.origin + '/store/branding/ahram-logo.png'
-      const html = generatePrintHtml(groupedProducts, logoUrl, regionInfo?.label ?? undefined, pricePreviewExport)
+      const html = generatePrintHtml(groups, logoUrl, regionInfo?.label ?? undefined, buildPricePreviewExport(rows))
       printHtml(html)
       setPdfPhase('done')
     } finally {
       setPdfLoading(false)
       setPdfPhase('idle')
     }
-  }, [pdfLoading, groupedProducts, regionInfo, pricePreviewExport])
+  }, [pdfLoading, authToken, fetchAllForExport, companyOrder, query, regionInfo, buildPricePreviewExport])
 
-  const handleDownloadExcel = useCallback(() => {
-    if (smartFiltered.length === 0) return
-    const columns: { key: string; label: string; format?: 'number' | 'currency' }[] = [
-      { key: 'legacy_code', label: 'كود الصنف' },
-      { key: 'product_name', label: 'اسم الصنف' },
-      { key: 'carton_quantity', label: 'عدد الوحدات', format: 'number' },
-      { key: 'company_name', label: 'اسم الشركة' },
-      { key: 'piece_price', label: 'سعر القطعة', format: 'currency' },
-      { key: 'dozen_price', label: 'سعر الدستة', format: 'currency' },
-      { key: 'carton_price', label: 'سعر الكرتونة', format: 'currency' },
-    ]
-    if (hasDiscount) {
-      columns.push(
-        { key: 'tier_discount', label: 'خصم الشريحة' },
-        { key: 'payment_discount', label: 'خصم وسيلة الدفع' },
-        { key: 'shipping_discount', label: 'خصم طريقة الشحن' },
-        { key: 'total_discount', label: 'إجمالي الخصم' },
-        { key: 'final_piece_price', label: 'سعر القطعة النهائي', format: 'currency' },
-        { key: 'final_dozen_price', label: 'سعر الدستة النهائي', format: 'currency' },
-        { key: 'final_carton_price', label: 'سعر الكرتونة النهائي', format: 'currency' },
-      )
-    }
-    const data: Record<string, unknown>[] = smartFiltered.map((p) => {
-      const row: Record<string, unknown> = {
-        legacy_code: p.legacy_code || '',
-        product_name: p.product_name,
-        carton_quantity: Number(p.carton_quantity) || 0,
-        company_name: p.company_name || '',
-        piece_price: Number(p.piece_price) || 0,
-        dozen_price: Number(p.dozen_price) || 0,
-        carton_price: Number(p.carton_price) || 0,
-      }
+  const handleDownloadExcel = useCallback(async () => {
+    if (!authToken || excelLoading) return
+    setExcelLoading(true)
+    try {
+      const rows = await fetchAllForExport()
+      if (rows.length === 0) return
+      const finals = buildPricePreviewRows(rows, effectiveTotalFor)
+      const columns: { key: string; label: string; format?: 'number' | 'currency' }[] = [
+        { key: 'legacy_code', label: 'كود الصنف' },
+        { key: 'product_name', label: 'اسم الصنف' },
+        { key: 'company_name', label: 'اسم الشركة' },
+        { key: 'piece_price', label: 'سعر القطعة', format: 'currency' },
+        { key: 'carton_price', label: 'سعر الكرتونة', format: 'currency' },
+      ]
       if (hasDiscount) {
-        const finals = pricePreview.get(p.id)
-        row.tier_discount = selectedTier ? `${selectedTier.name} (${selectedTier.discountPercent}%)` : 'بدون'
-        row.payment_discount = selectedPayment ? `${selectedPayment.name} (${selectedPayment.discountPercent}%)` : 'بدون'
-        row.shipping_discount = selectedShipping ? `${selectedShipping.name} (${selectedShipping.discountPercent}%)` : 'بدون'
-        row.total_discount = `${effectiveTotalFor(p)}%`
-        row.final_piece_price = finals?.finalPiece ?? Number(p.piece_price) ?? 0
-        row.final_dozen_price = finals?.finalDozen ?? Number(p.dozen_price) ?? 0
-        row.final_carton_price = finals?.finalCarton ?? Number(p.carton_price) ?? 0
+        columns.push(
+          { key: 'tier_discount', label: 'خصم الشريحة' },
+          { key: 'payment_discount', label: 'خصم وسيلة الدفع' },
+          { key: 'shipping_discount', label: 'خصم طريقة الشحن' },
+          { key: 'total_discount', label: 'إجمالي الخصم' },
+          { key: 'final_piece_price', label: 'سعر القطعة النهائي', format: 'currency' },
+          { key: 'final_carton_price', label: 'سعر الكرتونة النهائي', format: 'currency' },
+        )
       }
-      return row
-    })
-    const filters = [
-      `القائمة: ${regionInfo ? regionInfo.label : 'القائمة الأساسية'}`,
-      `اسم الشركة: ${companyFilter || 'الكل'}`,
-      `نص البحث: ${search.trim() ? `"${search.trim()}"` : 'الكل'}`,
-      `الشريحة: ${selectedTier ? `${selectedTier.name} (${selectedTier.discountPercent}%)` : 'بدون خصم'}`,
-      `وسيلة الدفع: ${selectedPayment ? `${selectedPayment.name} (${selectedPayment.discountPercent}%)` : 'بدون خصم'}`,
-      `طريقة الشحن: ${selectedShipping ? `${selectedShipping.name} (${selectedShipping.discountPercent}%)` : 'بدون خصم'}`,
-    ]
-    if (hasDiscount) filters.push(`إجمالي الخصم المطبق: ${totalDiscountPercent}%`)
-    exportToExcel({
-      title: 'قائمة أسعار البيع',
-      subtitle: regionInfo ? `قائمة أسعار — ${regionInfo.label}` : 'أسعار البيع المعتمدة للمنتجات المتاحة للبيع',
-      columns,
-      data,
-      fileName: regionInfo ? `قائمة_أسعار_${regionInfo.name}` : 'قائمة_أسعار_البيع',
-      summary: [{ label: 'عدد الأصناف', value: data.length, format: 'number' }],
-      filters,
-      columnWidths: hasDiscount ? [16, 38, 13, 24, 13, 13, 13, 24, 24, 24, 12, 15, 15, 15] : [16, 38, 13, 24, 13, 13, 13],
-      presentation: { rtl: true, landscape: true, fitToWidth: true, printTitles: true },
-    })
-  }, [smartFiltered, companyFilter, search, regionInfo, hasDiscount, selectedTier, selectedPayment, selectedShipping, totalDiscountPercent, pricePreview, effectiveTotalFor])
+      const data: Record<string, unknown>[] = rows.map((p) => {
+        const row: Record<string, unknown> = {
+          legacy_code: p.legacy_code || '',
+          product_name: p.product_name,
+          company_name: p.company_name || '',
+          piece_price: Number(p.piece_price) || 0,
+          carton_price: Number(p.carton_price) || 0,
+        }
+        if (hasDiscount) {
+          const f = finals.get(p.id)
+          row.tier_discount = selectedTier ? `${selectedTier.name} (${selectedTier.discountPercent}%)` : 'بدون'
+          row.payment_discount = selectedPayment ? `${selectedPayment.name} (${selectedPayment.discountPercent}%)` : 'بدون'
+          row.shipping_discount = selectedShipping ? `${selectedShipping.name} (${selectedShipping.discountPercent}%)` : 'بدون'
+          row.total_discount = `${effectiveTotalFor(p)}%`
+          row.final_piece_price = f?.finalPiece ?? (Number(p.piece_price) || 0)
+          row.final_carton_price = f?.finalCarton ?? (Number(p.carton_price) || 0)
+        }
+        return row
+      })
+      const filterCompanyName = governedCompanies.find((c) => c.id === companyFilter)?.company_name || companyFilter || 'الكل'
+      const filters = [
+        `القائمة: ${regionInfo ? regionInfo.label : 'القائمة الأساسية'}`,
+        `اسم الشركة: ${filterCompanyName}`,
+        `نص البحث: ${query.trim() ? `"${query.trim()}"` : 'الكل'}`,
+        `الشريحة: ${selectedTier ? `${selectedTier.name} (${selectedTier.discountPercent}%)` : 'بدون خصم'}`,
+        `وسيلة الدفع: ${selectedPayment ? `${selectedPayment.name} (${selectedPayment.discountPercent}%)` : 'بدون خصم'}`,
+        `طريقة الشحن: ${selectedShipping ? `${selectedShipping.name} (${selectedShipping.discountPercent}%)` : 'بدون خصم'}`,
+      ]
+      if (hasDiscount) filters.push(`إجمالي الخصم المطبق: ${totalDiscountPercent}%`)
+      exportToExcel({
+        title: 'قائمة أسعار البيع',
+        subtitle: regionInfo ? `قائمة أسعار — ${regionInfo.label}` : 'أسعار البيع المعتمدة للمنتجات المتاحة للبيع',
+        columns,
+        data,
+        fileName: regionInfo ? `قائمة_أسعار_${regionInfo.name}` : 'قائمة_أسعار_البيع',
+        summary: [{ label: 'عدد الأصناف', value: data.length, format: 'number' }],
+        filters,
+        columnWidths: hasDiscount ? [16, 38, 24, 13, 13, 24, 24, 24, 12, 15, 15] : [16, 38, 24, 13, 13],
+        presentation: { rtl: true, landscape: true, fitToWidth: true, printTitles: true },
+      })
+    } finally {
+      setExcelLoading(false)
+    }
+  }, [
+    authToken,
+    excelLoading,
+    fetchAllForExport,
+    effectiveTotalFor,
+    hasDiscount,
+    selectedTier,
+    selectedPayment,
+    selectedShipping,
+    governedCompanies,
+    companyFilter,
+    regionInfo,
+    query,
+    totalDiscountPercent,
+  ])
 
   if (!hasAccess) {
     return (
@@ -631,19 +793,31 @@ export default function SalesListPage() {
           <div className="flex items-center gap-2">
             {isUpperMgmt && (
               <button
-                onClick={handleDownloadExcel}
-                disabled={smartFiltered.length === 0}
+                onClick={() => { void handleDownloadExcel() }}
+                disabled={excelLoading || total === 0 || loading}
                 className="flex items-center gap-2 bg-white border border-border hover:bg-neutral-50 disabled:bg-text-muted disabled:text-white text-text text-xs px-4 py-2 rounded-lg font-semibold transition-colors shadow-sm"
               >
-                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                Excel
+                {excelLoading ? (
+                  <>
+                    <svg className="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                    جاري تجهيز البيانات...
+                  </>
+                ) : (
+                  <>
+                    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Excel
+                  </>
+                )}
               </button>
             )}
             <button
-              onClick={handleDownloadPdf}
-              disabled={pdfLoading || smartFiltered.length === 0}
+              onClick={() => { void handleDownloadPdf() }}
+              disabled={pdfLoading || total === 0 || loading}
               className="flex items-center gap-2 bg-primary hover:bg-primary-dark disabled:bg-text-muted text-white text-xs px-4 py-2 rounded-lg font-semibold transition-colors shadow-sm"
             >
               {pdfLoading ? (
@@ -685,7 +859,10 @@ export default function SalesListPage() {
                 <label className="text-[10px] font-semibold text-text-secondary">المحافظة</label>
                 <select
                   value={selectedGovernorate}
-                  onChange={(e) => setSelectedGovernorate(e.target.value)}
+                  onChange={(e) => {
+                    setSelectedGovernorate(e.target.value)
+                    setPage(1)
+                  }}
                   className="border border-border rounded-lg px-2 py-1.5 text-xs bg-card shrink-0 focus:outline-none focus:ring-2 focus:ring-primary"
                 >
                   <option value="">اختر المحافظة...</option>
@@ -700,7 +877,10 @@ export default function SalesListPage() {
                 <label className="text-[10px] font-semibold text-text-secondary">القطاع</label>
                 <select
                   value={selectedSector}
-                  onChange={(e) => setSelectedSector(e.target.value)}
+                  onChange={(e) => {
+                    setSelectedSector(e.target.value)
+                    setPage(1)
+                  }}
                   className="border border-border rounded-lg px-2 py-1.5 text-xs bg-card shrink-0 focus:outline-none focus:ring-2 focus:ring-primary"
                 >
                   <option value="">اختر القطاع...</option>
@@ -733,15 +913,18 @@ export default function SalesListPage() {
             />
             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted text-sm">&#x1F50D;</span>
           </div>
-          {companyNames.length > 1 && (
+          {governedCompanies.length > 1 && (
             <select
               value={companyFilter}
-              onChange={(e) => setCompanyFilter(e.target.value)}
+              onChange={(e) => {
+                setCompanyFilter(e.target.value)
+                setPage(1)
+              }}
               className="border border-border rounded-lg px-2 py-2 text-sm bg-card shrink-0 focus:outline-none focus:ring-2 focus:ring-primary"
             >
               <option value="">كل الشركات</option>
-              {companyNames.map((name) => (
-                <option key={name} value={name}>{name}</option>
+              {governedCompanies.map((c) => (
+                <option key={c.id} value={c.id}>{c.company_name}</option>
               ))}
             </select>
           )}
@@ -797,7 +980,7 @@ export default function SalesListPage() {
 
         {loading ? (
           <div className="text-center py-16 text-text-muted text-sm">جاري تحميل المنتجات...</div>
-        ) : smartFiltered.length === 0 ? (
+        ) : products.length === 0 ? (
           <div className="text-center py-16 text-text-muted text-sm">
             {search || companyFilter ? 'لا توجد نتائج مطابقة للبحث' : 'لا توجد منتجات متاحة للبيع'}
           </div>
@@ -839,7 +1022,7 @@ export default function SalesListPage() {
                             {p.legacy_code || '---'}
                           </td>
                           <td className="px-3 py-1.5 text-right text-xs text-text align-middle">
-                            <SearchHighlight text={p.product_name} query={search} />
+                            <SearchHighlight text={p.product_name} query={query} />
                           </td>
                           <td className="px-1.5 py-1.5 text-center align-middle">
                             {Number(p.piece_price) > 0 ? (
@@ -876,6 +1059,46 @@ export default function SalesListPage() {
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {!loading && hasAccess && total > 0 && (
+          <div className="mt-3 flex flex-wrap items-center justify-center gap-1.5 bg-card rounded-lg border border-border px-3 py-2">
+            <span className="text-[10px] text-text-muted mx-2">عدد النتائج: {total}</span>
+            {totalPages > 1 && (
+              <>
+                <button
+                  onClick={() => goToPage(page - 1)}
+                  disabled={page <= 1}
+                  className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-card border border-border text-text disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  السابق
+                </button>
+                {paginationItems(page, totalPages).map((item, idx) =>
+                  item === '…' ? (
+                    <span key={`ellipsis-${idx}`} className="px-1 text-text-muted text-xs">…</span>
+                  ) : (
+                    <button
+                      key={item}
+                      onClick={() => goToPage(item)}
+                      className={`min-w-[28px] h-8 px-2 rounded-lg text-xs font-semibold border ${
+                        item === page ? 'bg-primary text-white border-primary' : 'bg-card border-border text-text hover:bg-neutral-50'
+                      }`}
+                    >
+                      {item}
+                    </button>
+                  )
+                )}
+                <button
+                  onClick={() => goToPage(page + 1)}
+                  disabled={page >= totalPages}
+                  className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-card border border-border text-text disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  التالي
+                </button>
+                <span className="text-[10px] text-text-muted mx-2">الصفحة {page} من {totalPages}</span>
+              </>
+            )}
           </div>
         )}
       </div>
