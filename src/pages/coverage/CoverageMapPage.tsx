@@ -341,7 +341,10 @@ export default function CoverageMapPage() {
     if (isInitial) setLoading(false)
   }, [token])
 
-  useEffect(() => { fetchData(true); const id = setInterval(() => fetchData(false), 3600000); return () => clearInterval(id) }, [fetchData])
+  // No automatic background refresh: the coverage map is fetched once when the
+  // screen opens (mount) and on browser refresh. No interval/polling while the
+  // screen stays open.
+  useEffect(() => { fetchData(true) }, [fetchData])
 
   const allPoints: [number, number][] = [
     ...(layer !== 'employees' ? filteredCustomers.filter(c => c.latitude && c.longitude).map(c => [c.latitude, c.longitude] as [number, number]) : []),
