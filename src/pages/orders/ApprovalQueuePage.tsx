@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { OrderStatusManager } from '../../components/orders/OrderStatusManager'
@@ -6,32 +6,63 @@ import { useCapability } from '../../hooks/useCapability'
 import toast from 'react-hot-toast'
 import { formatCurrencyShort } from '../../utils/format'
 import { OrderOwnershipInfo } from '../../components/orders/OrderOwnershipInfo'
+import { PaginationFooter } from '../../components/data-list/PaginationFooter'
 
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
 }
 
+const PAGE_SIZE = 30
+
 export function ApprovalQueuePage() {
   const navigate = useNavigate()
   const [orders, setOrders] = useState<any[]>([])
+  const [totalCount, setTotalCount] = useState(0)
+  const [page, setPage] = useState(1)
   const [loading, setLoading] = useState(true)
+  const reqCounter = useRef(0)
 
   const canReview = useCapability('orders.review')
   const canApprove = useCapability('orders.approve')
   const canManage = useCapability('orders.manage')
 
-  const loadOrders = useCallback(async () => {
+  // Server-side status filter + server-side pagination: the request returns only
+  // the requested page of 'submitted' orders (never the full order dataset).
+  const loadOrders = useCallback(async (targetPage: number) => {
     const token = getToken()
     if (!token) { setLoading(false); return }
-    const { data } = await supabase.rpc('get_unified_orders', { p_token: token })
-    if (data) {
-      const submitted = (Array.isArray(data) ? data : []).filter((o: any) => o.status === 'submitted')
-      setOrders(submitted)
+    setLoading(true)
+    const reqId = ++reqCounter.current
+    const [pageRes, countRes] = await Promise.all([
+      supabase.rpc('get_unified_orders', {
+        p_token: token,
+        p_status: 'submitted',
+        p_page: targetPage,
+        p_per_page: PAGE_SIZE,
+      }),
+      supabase.rpc('get_unified_orders', {
+        p_token: token,
+        p_status: 'submitted',
+        p_count_only: true,
+      }),
+    ])
+    if (reqId !== reqCounter.current) return
+    const rows = Array.isArray(pageRes.data) ? pageRes.data : []
+    setOrders(rows)
+    const c = countRes.data as any
+    const total = c && typeof c === 'object' && 'count' in c ? Number(c.count) || 0 : 0
+    setTotalCount(total)
+    // Self-correct if the last row of the final page was just actioned.
+    if (targetPage > 1 && rows.length === 0 && total > 0) {
+      const lastPage = Math.max(1, Math.ceil(total / PAGE_SIZE))
+      if (targetPage > lastPage) { setPage(lastPage); setLoading(false); return }
     }
     setLoading(false)
   }, [])
 
-  useEffect(() => { loadOrders() }, [loadOrders])
+  useEffect(() => { loadOrders(page) }, [loadOrders, page])
+
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
 
   const getAge = (createdAt: string) => {
     const diff = Date.now() - new Date(createdAt).getTime()
@@ -96,7 +127,7 @@ export function ApprovalQueuePage() {
                   referenceNumber={o.reference_number}
                   onSuccess={() => {
                     toast.success('تم تحديث حالة الطلب')
-                    setOrders((prev) => prev.filter((x) => x.id !== o.id))
+                    loadOrders(page)
                   }}
                   onError={(err) => toast.error(err)}
                 />
@@ -111,6 +142,8 @@ export function ApprovalQueuePage() {
           ))}
         </div>
       )}
+
+      <PaginationFooter page={page} totalPages={totalPages} onChange={setPage} />
     </div>
   )
 }

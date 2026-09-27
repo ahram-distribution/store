@@ -46,8 +46,14 @@ export function SalesRepWorkDay() {
     const token = getToken()
     if (!token) return
 
+    // Status filter moves to the server: only 'delivered' orders are ever used
+    // here (deliveredOrders below), so every other status used to be downloaded
+    // for nothing. This stays unpaginated on purpose — the opportunity cards
+    // aggregate per-customer totals over the rep's whole delivered history
+    // (last order ever + this month's totals), so truncating to one page would
+    // change which follow-ups are detected.
     Promise.all([
-      supabase.rpc('get_unified_orders', { p_token: token }),
+      supabase.rpc('get_unified_orders', { p_token: token, p_status: 'delivered' }),
       supabase.rpc('get_governed_visit_customer_summary', { p_token: token, p_from: MONTH_START }),
     ]).then(([ordersRes, summaryRes]) => {
       if (ordersRes.data) setOrders(ordersRes.data as any[])

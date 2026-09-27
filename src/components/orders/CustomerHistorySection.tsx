@@ -13,6 +13,9 @@ type Panel =
   | { kind: 'orders'; title: string; highlightLatest: boolean }
   | { kind: 'visits' }
 
+// Panel drill-down cap — matches the sibling visits panel (p_limit: 50).
+const HISTORY_LIMIT = 50
+
 interface CustomerHistorySectionProps {
   customer: UnifiedOrder['customer']
   lastVisit: UnifiedOrder['last_visit']
@@ -49,14 +52,18 @@ export function CustomerHistorySection({ customer, lastVisit, currentOrderId }: 
     try {
       const token = getToken()
       if (!token) throw new Error('no-session')
+      // Server-side customer scope + a bounded page of the newest orders. The
+      // RPC already orders by created_at DESC, id, so no browser sort is needed;
+      // the current order is still excluded (the RPC has no exclude-id filter).
       const { data, error: rpcError } = await supabase.rpc('get_unified_orders', {
         p_token: token,
         p_customer_id: customer.id,
+        p_page: 1,
+        p_per_page: HISTORY_LIMIT,
       })
       if (rpcError) throw rpcError
       const rows = (Array.isArray(data) ? data : [])
         .filter((o: any) => String(o.id) !== String(currentOrderId))
-        .sort((a: any, b: any) => String(b.created_at || '') > String(a.created_at || '') ? 1 : -1)
       setRecords(rows)
     } catch {
       setError('تعذر تحميل السجل. حاول مرة أخرى.')

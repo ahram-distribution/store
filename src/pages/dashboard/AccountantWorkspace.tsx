@@ -11,18 +11,25 @@ function getToken(): string | null {
 export function AccountantWorkspace() {
   const navigate = useNavigate()
   const [collections, setCollections] = useState<any[]>([])
-  const [orders, setOrders] = useState<any[]>([])
+  const [deliveredOrders, setDeliveredOrders] = useState<any[]>([])
+  const [deliveredTotal, setDeliveredTotal] = useState(0)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     const token = getToken()
     if (!token) { setLoading(false); return }
+    // The order panel shows a heading count plus at most 5 rows, so fetch the
+    // count and the first 5 'delivered' orders server-side instead of the whole
+    // order dataset.
     Promise.all([
       supabase.rpc('get_governed_collections', { p_token: token }),
-      supabase.rpc('get_unified_orders', { p_token: token }),
-    ]).then(([col, ord]) => {
+      supabase.rpc('get_unified_orders', { p_token: token, p_status: 'delivered', p_page: 1, p_per_page: 5 }),
+      supabase.rpc('get_unified_orders', { p_token: token, p_status: 'delivered', p_count_only: true }),
+    ]).then(([col, ord, cnt]) => {
       if (col.data) setCollections(Array.isArray(col.data) ? col.data : [])
-      if (ord.data) setOrders(Array.isArray(ord.data) ? ord.data : [])
+      if (ord.data) setDeliveredOrders(Array.isArray(ord.data) ? ord.data : [])
+      const c = cnt.data as any
+      if (c && typeof c === 'object' && 'count' in c) setDeliveredTotal(Number(c.count) || 0)
       setLoading(false)
     })
   }, [])
@@ -33,7 +40,6 @@ export function AccountantWorkspace() {
   const todayCol = collections.filter((c: any) => c.collected_at && new Date(c.collected_at).toDateString() === new Date().toDateString())
   const todayColTotal = todayCol.reduce((s, c) => s + Number(c.amount || 0), 0)
   const pendingTotal = pendingCol.reduce((s, c) => s + Number(c.amount || 0), 0)
-  const deliveredNotCollected = orders.filter((o: any) => o.status === 'delivered')
 
   return (
     <div className="space-y-4">
@@ -61,11 +67,11 @@ export function AccountantWorkspace() {
         </div>
       </div>
 
-      {deliveredNotCollected.length > 0 && (
+      {deliveredTotal > 0 && (
         <div className="bg-white rounded-xl border border-border p-4">
-          <h3 className="text-sm font-semibold text-text mb-3">طلبات تم تسليمها (بانتظار التحصيل) — {deliveredNotCollected.length}</h3>
+          <h3 className="text-sm font-semibold text-text mb-3">طلبات تم تسليمها (بانتظار التحصيل) — {deliveredTotal}</h3>
           <div className="space-y-1.5 max-h-40 overflow-y-auto">
-            {deliveredNotCollected.slice(0, 5).map((o: any) => (
+            {deliveredOrders.slice(0, 5).map((o: any) => (
               <button key={o.id} onClick={() => navigate(`/orders/${o.id}`)} className="w-full text-xs py-1.5 border-b border-border last:border-0 text-right">
                 <div className="flex justify-between items-center">
                   <span className="text-text font-semibold">{o.order_number || o.id?.slice(0, 8)}</span>

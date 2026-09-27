@@ -1,15 +1,18 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../store/auth'
 import { returnService, type ReturnItemInput } from '../../services/returns'
 import { formatCurrencyShort } from '../../utils/format'
 import { UNIT_LABELS } from '../../types/order-display'
+import { PaginationFooter } from '../../components/data-list/PaginationFooter'
 import toast from 'react-hot-toast'
 
 function getToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
 }
+
+const PAGE_SIZE = 30
 
 interface OrderItemRow {
   id: string
@@ -28,6 +31,8 @@ export function ReturnNewPage() {
   const isCustomer = user?.identity_type === 'customer'
 
   const [orders, setOrders] = useState<any[]>([])
+  const [totalCount, setTotalCount] = useState(0)
+  const [page, setPage] = useState(1)
   const [loadingOrders, setLoadingOrders] = useState(true)
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null)
   const [orderItems, setOrderItems] = useState<OrderItemRow[]>([])
@@ -36,16 +41,43 @@ export function ReturnNewPage() {
   const [notes, setNotes] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
-  useEffect(() => {
+  // Server-side status filter + server-side pagination: only the requested page
+  // of 'delivered' orders is fetched (the picker used to download every order
+  // in scope and then filter 'delivered' in the browser).
+  const loadOrders = useCallback(async (targetPage: number) => {
     const token = getToken()
     if (!token) { setLoadingOrders(false); return }
-    supabase.rpc('get_unified_orders', { p_token: token }).then(({ data }) => {
-      let result = (data as any[]) || []
-      result = result.filter((o: any) => o.status === 'delivered')
-      setOrders(result)
-      setLoadingOrders(false)
-    })
+    const [pageRes, countRes] = await Promise.all([
+      supabase.rpc('get_unified_orders', {
+        p_token: token,
+        p_status: 'delivered',
+        p_page: targetPage,
+        p_per_page: PAGE_SIZE,
+      }),
+      supabase.rpc('get_unified_orders', {
+        p_token: token,
+        p_status: 'delivered',
+        p_count_only: true,
+      }),
+    ])
+    setOrders(Array.isArray(pageRes.data) ? pageRes.data : [])
+    const c = countRes.data as any
+    if (c && typeof c === 'object' && 'count' in c) setTotalCount(Number(c.count) || 0)
+    setLoadingOrders(false)
   }, [])
+
+  useEffect(() => { loadOrders(page) }, [loadOrders, page])
+
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
+
+  // Changing page clears the selection so the picked order always belongs to
+  // the rows currently rendered (submit resolves it from `orders`).
+  const handlePageChange = (next: number) => {
+    setSelectedOrderId(null)
+    setOrderItems([])
+    setReturnItems({})
+    setPage(next)
+  }
 
   useEffect(() => {
     if (!selectedOrderId) { setOrderItems([]); return }
@@ -137,6 +169,8 @@ export function ReturnNewPage() {
               ))}
             </div>
           </div>
+
+          <PaginationFooter page={page} totalPages={totalPages} onChange={handlePageChange} />
 
           {selectedOrderId && (
             <>

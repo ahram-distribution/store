@@ -10,7 +10,9 @@ function getToken(): string | null {
 
 export function SalesDirectorWorkspace() {
   const navigate = useNavigate()
-  const [orders, setOrders] = useState<any[]>([])
+  const [pendingOrders, setPendingOrders] = useState<any[]>([])
+  const [pendingTotal, setPendingTotal] = useState(0)
+  const [approvedTotal, setApprovedTotal] = useState(0)
   const [todayVisits, setTodayVisits] = useState(0)
   const [employees, setEmployees] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -20,12 +22,21 @@ export function SalesDirectorWorkspace() {
     if (!token) { setLoading(false); return }
     const todayStart = new Date(new Date().setHours(0, 0, 0, 0)).toISOString()
     const todayEnd = new Date(new Date().setHours(23, 59, 59, 999)).toISOString()
+    // Orders are needed only as two counters plus at most 5 'submitted' rows, so
+    // the status filters/counts run server-side instead of downloading every
+    // order and filtering in the browser. The employees call is unchanged.
     Promise.all([
-      supabase.rpc('get_unified_orders', { p_token: token }),
+      supabase.rpc('get_unified_orders', { p_token: token, p_status: 'submitted', p_page: 1, p_per_page: 5 }),
+      supabase.rpc('get_unified_orders', { p_token: token, p_status: 'submitted', p_count_only: true }),
+      supabase.rpc('get_unified_orders', { p_token: token, p_status: 'approved', p_count_only: true }),
       supabase.rpc('get_governed_visits', { p_token: token, p_date_from: todayStart, p_date_to: todayEnd, p_count_only: true }),
       supabase.rpc('get_governed_employees', { p_token: token }),
-    ]).then(([ord, vis, emp]) => {
-      if (ord.data) setOrders(Array.isArray(ord.data) ? ord.data : [])
+    ]).then(([ord, pendCnt, apprCnt, vis, emp]) => {
+      if (ord.data) setPendingOrders(Array.isArray(ord.data) ? ord.data : [])
+      const pc = pendCnt.data as any
+      if (pc && typeof pc === 'object' && 'count' in pc) setPendingTotal(Number(pc.count) || 0)
+      const ac = apprCnt.data as any
+      if (ac && typeof ac === 'object' && 'count' in ac) setApprovedTotal(Number(ac.count) || 0)
       const vc = vis.data as any
       if (vc && typeof vc === 'object' && 'count' in vc) setTodayVisits(Number(vc.count))
       if (emp.data) setEmployees(emp.data)
@@ -35,8 +46,9 @@ export function SalesDirectorWorkspace() {
 
   if (loading) return <div className="text-center py-12 text-text-secondary text-sm">جاري التحميل...</div>
 
-  const pendingApproval = orders.filter((o: any) => o.status === 'submitted')
-  const readyDispatch = orders.filter((o: any) => o.status === 'approved')
+  const pendingApproval = pendingOrders
+  const pendingApprovalCount = pendingTotal
+  const readyDispatchCount = approvedTotal
   const activeReps = employees.filter(e => e.is_active).length
 
   return (
@@ -48,11 +60,11 @@ export function SalesDirectorWorkspace() {
 
       <div className="grid grid-cols-2 gap-3">
         <button onClick={() => navigate('/orders?filter=submitted')} className="bg-white rounded-xl border border-border p-4 text-right active:bg-surface transition-colors">
-          <div className="w-10 h-10 rounded-xl bg-accent flex items-center justify-center mb-2"><span className="text-white text-lg font-bold">{pendingApproval.length}</span></div>
+          <div className="w-10 h-10 rounded-xl bg-accent flex items-center justify-center mb-2"><span className="text-white text-lg font-bold">{pendingApprovalCount}</span></div>
           <span className="text-sm font-semibold text-text">بانتظار الاعتماد</span>
         </button>
         <button onClick={() => navigate('/orders?filter=approved')} className="bg-white rounded-xl border border-border p-4 text-right active:bg-surface transition-colors">
-          <div className="w-10 h-10 rounded-xl bg-success flex items-center justify-center mb-2"><span className="text-white text-lg font-bold">{readyDispatch.length}</span></div>
+          <div className="w-10 h-10 rounded-xl bg-success flex items-center justify-center mb-2"><span className="text-white text-lg font-bold">{readyDispatchCount}</span></div>
           <span className="text-sm font-semibold text-text">جاهزة للتوصيل</span>
         </button>
         <button onClick={() => navigate('/visits?filter=today')} className="bg-white rounded-xl border border-border p-4 text-right active:bg-surface transition-colors">
@@ -65,9 +77,9 @@ export function SalesDirectorWorkspace() {
         </button>
       </div>
 
-      {pendingApproval.length > 0 && (
+      {pendingApprovalCount > 0 && (
         <div className="bg-white rounded-xl border border-border p-4">
-          <h3 className="text-sm font-semibold text-text mb-3">بانتظار الاعتماد ({pendingApproval.length})</h3>
+          <h3 className="text-sm font-semibold text-text mb-3">بانتظار الاعتماد ({pendingApprovalCount})</h3>
           <div className="space-y-1.5 max-h-40 overflow-y-auto">
               {pendingApproval.slice(0, 5).map((o: any) => (
               <button key={o.id} onClick={() => navigate(`/orders/${o.id}`)} className="w-full text-xs py-1.5 border-b border-border last:border-0 text-right">

@@ -10,7 +10,8 @@ export function DataEntryWorkspace() {
   const navigate = useNavigate()
   const [totalCustomers, setTotalCustomers] = useState(0)
   const [todayCustomers, setTodayCustomers] = useState(0)
-  const [orders, setOrders] = useState<any[]>([])
+  const [totalOrders, setTotalOrders] = useState(0)
+  const [todayOrders, setTodayOrders] = useState(0)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -19,11 +20,15 @@ export function DataEntryWorkspace() {
     const today = new Date()
     const start = new Date(today.getFullYear(), today.getMonth(), today.getDate())
     const end = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999)
+    // This workspace renders order counters only — no order row is listed — so
+    // the two counters come from count-only requests instead of a full order
+    // dataset that was previously downloaded just to read .length.
     Promise.all([
       supabase.rpc('get_governed_customers', { p_token: token, p_page: 1, p_per_page: 1, p_count_only: true, p_stats: false }),
       supabase.rpc('get_governed_customers', { p_token: token, p_date_from: start.toISOString(), p_date_to: end.toISOString(), p_page: 1, p_per_page: 1, p_count_only: true, p_stats: false }),
-      supabase.rpc('get_unified_orders', { p_token: token }),
-    ]).then(([tot, tod, ord]) => {
+      supabase.rpc('get_unified_orders', { p_token: token, p_count_only: true }),
+      supabase.rpc('get_unified_orders', { p_token: token, p_date_from: start.toISOString(), p_date_to: end.toISOString(), p_count_only: true }),
+    ]).then(([tot, tod, ordTot, ordTod]) => {
       const parseCount = (res: any): number => {
         const d = res?.data as any
         if (d && typeof d === 'object' && 'count' in d) return Number(d.count) || 0
@@ -31,14 +36,13 @@ export function DataEntryWorkspace() {
       }
       setTotalCustomers(parseCount(tot))
       setTodayCustomers(parseCount(tod))
-      if (ord.data) setOrders(Array.isArray(ord.data) ? ord.data : [])
+      setTotalOrders(parseCount(ordTot))
+      setTodayOrders(parseCount(ordTod))
       setLoading(false)
     })
   }, [])
 
   if (loading) return <div className="text-center py-12 text-text-secondary text-sm">جاري التحميل...</div>
-
-  const todayOrders = orders.filter((o: any) => o.created_at && new Date(o.created_at).toDateString() === new Date().toDateString())
 
   return (
     <div className="space-y-4">
@@ -53,7 +57,7 @@ export function DataEntryWorkspace() {
           <span className="text-sm font-semibold text-text">عملاء جدد اليوم</span>
         </button>
         <button onClick={() => navigate('/orders')} className="bg-white rounded-xl border border-border p-4 text-right active:bg-surface transition-colors">
-          <div className="w-10 h-10 rounded-xl bg-accent flex items-center justify-center mb-2"><span className="text-white text-lg font-bold">{todayOrders.length}</span></div>
+          <div className="w-10 h-10 rounded-xl bg-accent flex items-center justify-center mb-2"><span className="text-white text-lg font-bold">{todayOrders}</span></div>
           <span className="text-sm font-semibold text-text">طلبات اليوم</span>
         </button>
         <div className="bg-white rounded-xl border border-border p-4 text-right">
@@ -61,7 +65,7 @@ export function DataEntryWorkspace() {
           <span className="text-sm font-semibold text-text">إجمالي العملاء</span>
         </div>
         <div className="bg-white rounded-xl border border-border p-4 text-right">
-          <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center mb-2"><span className="text-white text-lg font-bold">{orders.length}</span></div>
+          <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center mb-2"><span className="text-white text-lg font-bold">{totalOrders}</span></div>
           <span className="text-sm font-semibold text-text">إجمالي الطلبات</span>
         </div>
       </div>
