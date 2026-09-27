@@ -189,24 +189,9 @@ export function OrdersPage() {
     setInitialLoaded(true)
   }, [buildRpcParams, mergeSnapshots])
 
-  // Live customer data: silently re-query the list on a bounded interval so
-  // the order card reflects CURRENT customer info without a manual refresh.
-  // Reuses the same get_unified_orders params (live join, single query for the
-  // whole list — no per-order requests). Pauses while the tab is hidden and
-  // only re-fetches when the previous request has settled.
-  const silentRefreshing = useRef(false)
-  useEffect(() => {
-    const timer = window.setInterval(async () => {
-      if (document.hidden || silentRefreshing.current) return
-      silentRefreshing.current = true
-      try {
-        await fetchPage(page, { silent: true })
-      } finally {
-        silentRefreshing.current = false
-      }
-    }, 60000)
-    return () => window.clearInterval(timer)
-  }, [fetchPage, page])
+  // No automatic background refresh — the list is (re)loaded on open, on explicit
+  // page navigation/filter change, or via the manual "تحديث" button only.
+  // Server-side paging/search/filters: the page fetches exactly the rows it shows.
 
   // Reset to page 1 whenever any filter changes; changing page preserves the
   // current filters — only the requested page is fetched from the server.
