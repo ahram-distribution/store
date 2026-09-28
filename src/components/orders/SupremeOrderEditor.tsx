@@ -103,7 +103,10 @@ export function SupremeOrderEditor({ orderId, initialItems, initialNotes, initia
     // pages are fetched on demand via the picker effect below.
     Promise.all([
       fetchProductsByIds(token, Array.from(new Set(initialItems.map(i => i.product_id).filter(Boolean)))),
-      supabase.rpc('get_governed_companies', { p_token: token }),
+      // Light contract: this grid only renders id / company_name / logo_url
+      // and filters on is_visible. The heavy get_governed_companies computes a
+      // per-company product COUNT(*) that this screen never reads.
+      supabase.rpc('get_governed_companies_light', { p_token: token }),
     ]).then(([rows, compRes]) => {
       if (Array.isArray(rows)) setProducts((rows as any[]).map(mapProduct))
       if (compRes.data) {

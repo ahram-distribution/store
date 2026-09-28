@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
+import { fetchAllMatchingPaged, type PagedExportResult } from '../../services/pagedExport'
 import { useVisitsStore } from '../../store/visits'
 import { StatusBadge } from '../../components/shared/StatusBadge'
 import { VisitCard } from '../../components/visits/VisitCard'
@@ -37,7 +38,7 @@ const STATUS_OPTIONS = [
   { value: 'cancelled', label: 'ملغي' },
 ]
 
-const PAGE_SIZE = 30
+const PAGE_SIZE = 20
 
 export function VisitsPage() {
   const navigate = useNavigate()
@@ -175,25 +176,48 @@ export function VisitsPage() {
     }
   }
 
-  const fetchAllMatching = async () => {
-    const params = buildParams(1, 10000, false)
-    if (!params) return []
-    const { data } = await supabase.rpc('get_governed_visits', params)
-    return Array.isArray(data) ? data : []
+  // Export/Print is an explicit user action, so it is NOT page-limited. It
+  // walks the same server-side page/count contract until every matching visit
+  // is collected. This replaces the previous single `p_per_page: 10000`
+  // request, which silently truncated any result set larger than 10,000 and
+  // then reported the truncated length as the "total" in the produced file.
+  const fetchAllMatching = async (): Promise<PagedExportResult> => {
+    const fetchPage = async (page: number, perPage: number) => {
+      const params = buildParams(page, perPage, false)
+      if (!params) return []
+      const { data } = await supabase.rpc('get_governed_visits', params)
+      return Array.isArray(data) ? data : []
+    }
+    const fetchCount = async (page: number, perPage: number) => {
+      const params = buildParams(page, perPage, true)
+      if (!params) return null
+      const { data } = await supabase.rpc('get_governed_visits', params)
+      const c = data as any
+      return c && typeof c === 'object' && 'count' in c ? { count: Number(c.count) } : null
+    }
+    return fetchAllMatchingPaged(fetchPage, fetchCount, PAGE_SIZE)
   }
 
   const reportEmployees = () => employees.map((e: any) => ({ id: e.id, name: e.full_name }))
 
   const handleReportExcel = async () => {
     if (!totalCount) return
-    const rows = await fetchAllMatching()
+    const { rows, truncated, reason } = await fetchAllMatching()
+    if (truncated) {
+      toast.error(reason || 'تعذر تصدير جميع السجلات — تم إيقاف التصدير')
+      return
+    }
     if (!rows.length) return
     exportVisitsReportExcel(buildVisitsReportRows(rows, { employees: reportEmployees() }), buildReportMeta())
   }
 
   const handleReportPrint = async () => {
     if (!totalCount) return
-    const rows = await fetchAllMatching()
+    const { rows, truncated, reason } = await fetchAllMatching()
+    if (truncated) {
+      toast.error(reason || 'تعذر تصدير جميع السجلات — تم إيقاف التصدير')
+      return
+    }
     if (!rows.length) return
     printVisitsReport(buildVisitsReportRows(rows, { employees: reportEmployees() }), buildReportMeta())
   }

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import toast from 'react-hot-toast'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
+import { fetchAllMatchingPaged, type PagedExportResult } from '../../services/pagedExport'
 import { useAuthStore } from '../../store/auth'
 import { useCapability } from '../../hooks/useCapability'
 import { computeDateRange, cairoMidnightISO, cairoDateComponents } from '../../lib/dateRange'
@@ -34,7 +35,7 @@ function sortCustomersNewestFirst(a: CustomerCardData, b: CustomerCardData): num
   return a.id < b.id ? -1 : a.id > b.id ? 1 : 0
 }
 
-const PAGE_SIZE = 30
+const PAGE_SIZE = 20
 
 interface CustomersStats {
   total: number; no_orders: number; no_visits: number; no_location: number; needs_correction: number
@@ -158,11 +159,27 @@ export function CustomersPage() {
     setLoading(false)
   }
 
-  const fetchAllMatching = async () => {
-    const params = buildParams(1, 10000, false)
-    if (!params) return []
-    const { data } = await supabase.rpc('get_governed_customers', params)
-    return Array.isArray(data) ? data : []
+  // Export/Print/Phone is an explicit user action, so it is NOT page-limited.
+  // It walks the same server-side page/count contract until every row matching
+  // the current criteria is collected. This replaces the previous single
+  // `p_per_page: 10000` request, which silently truncated any result set
+  // larger than 10,000 and then reported the truncated length as the "total"
+  // inside the produced file / toast.
+  const fetchAllMatching = async (): Promise<PagedExportResult> => {
+    const fetchPage = async (page: number, perPage: number) => {
+      const params = buildParams(page, perPage, false)
+      if (!params) return []
+      const { data } = await supabase.rpc('get_governed_customers', params)
+      return Array.isArray(data) ? data : []
+    }
+    const fetchCount = async (page: number, perPage: number) => {
+      const params = buildParams(page, perPage, true)
+      if (!params) return null
+      const { data } = await supabase.rpc('get_governed_customers', params)
+      const c = data as any
+      return c && typeof c === 'object' && 'count' in c ? { count: Number(c.count) } : null
+    }
+    return fetchAllMatchingPaged(fetchPage, fetchCount, PAGE_SIZE)
   }
 
   // Reset to page 1 whenever any filter changes; page re-fetches the filtered
@@ -221,19 +238,31 @@ export function CustomersPage() {
   }
 
   const handleReportExcel = async () => {
-    const rows = await fetchAllMatching()
+    const { rows, truncated, reason } = await fetchAllMatching()
+    if (truncated) {
+      toast.error(reason || 'تعذر تصدير جميع السجلات — تم إيقاف التصدير')
+      return
+    }
     if (!rows.length) return
     exportCustomersReportExcel(buildCustomerReportRows([...rows].sort(sortCustomersNewestFirst), governorates), buildReportMeta())
   }
 
   const handleReportPrint = async () => {
-    const rows = await fetchAllMatching()
+    const { rows, truncated, reason } = await fetchAllMatching()
+    if (truncated) {
+      toast.error(reason || 'تعذر تصدير جميع السجلات — تم إيقاف التصدير')
+      return
+    }
     if (!rows.length) return
     printCustomersReport(buildCustomerReportRows([...rows].sort(sortCustomersNewestFirst), governorates), buildReportMeta())
   }
 
   const handleExportPhone = async () => {
-    const rows = await fetchAllMatching()
+    const { rows, truncated, reason } = await fetchAllMatching()
+    if (truncated) {
+      toast.error(reason || 'تعذر تصدير جميع السجلات — تم إيقاف التصدير')
+      return
+    }
     if (!rows.length) {
       toast.error('لا يوجد عملاء متاحون للتصدير')
       return

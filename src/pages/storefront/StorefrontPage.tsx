@@ -10,11 +10,9 @@ import { CartSummaryBar } from '../../components/storefront/CartSummaryBar'
 import { computeProductPrices } from '../../engine/pricing'
 import { resolveExceptionLookup } from '../../services/discountOptions'
 import { DiscountOptionSelector, type SelectableDiscountOption } from '../../components/storefront/DiscountOptionSelector'
-import { buildSearchIndex, searchProducts, type ProductSearchIndex } from '../../utils/smartSearch'
 import type { ProductWithPrice, ProductUnitPrice, UnitType } from '../../types/storefront'
 import { DYNAMIC_COLLECTIONS, loadCollection, type CollectionStrategy } from '../../config/dynamicCollections'
 import { resolveConfiguredUnitTypes } from '../../utils/catalog'
-import { useGeographicVisibility } from '../../hooks/useGeographicVisibility'
 import { governedCatalog, fetchProductsByIds } from '../../services/governedCatalog'
 
 const UNIT_PRIORITY: UnitType[] = ['carton', 'dozen', 'piece']
@@ -138,8 +136,6 @@ restoreCart,
   const geoAdjustForProduct = (productId: string) =>
     geoItemAdjustments[productId] ?? geographicContext?.adjustmentPercent ?? undefined
 
-  const { hiddenProductIds } = useGeographicVisibility()
-
   const collectionConfig = useMemo<{ type: 'static' } | { type: 'dynamic'; strategy: CollectionStrategy } | null>(() => {
     if (!companyId || !companyContext) return null
     const config = DYNAMIC_COLLECTIONS[companyContext.legacyCode]
@@ -163,10 +159,28 @@ restoreCart,
     let total: number | null = null
 
     if (collectionConfig?.type === 'dynamic') {
-      const result = await loadCollection(collectionConfig.strategy, authToken)
-      data = result.data
-      error = result.error
-      if (Array.isArray(data)) total = data.length
+      // Dynamic collections paginate/search on the server through the same
+      // governed contract as static ones. The previous call used the
+      // single-argument get_recently_available_products, which had no
+      // LIMIT/OFFSET and therefore downloaded the entire collection.
+      const dynArgs = {
+        token: authToken,
+        page,
+        perPage: PAGE_SIZE,
+        search: debouncedQuery.trim() || null,
+        governorateId: govId,
+      }
+      const [pageRes, countRes] = await Promise.all([
+        loadCollection(collectionConfig.strategy, { ...dynArgs, countOnly: false }),
+        loadCollection(collectionConfig.strategy, { ...dynArgs, countOnly: true }),
+      ])
+      if (myVersion !== requestVersionRef.current) return
+      data = pageRes.data
+      error = pageRes.error
+      if (!error) {
+        const cnt = Array.isArray(countRes.data) ? null : (countRes.data?.count ?? null)
+        total = typeof cnt === 'number' ? cnt : (Array.isArray(data) ? data.length : null)
+      }
     } else if (collectionConfig?.type === 'static') {
       const opts = {
         p_token: authToken,
@@ -225,11 +239,30 @@ restoreCart,
     subscribeToDiscountOptions()
   }, [authToken, refreshDiscountOptions, subscribeToDiscountOptions])
 
+  // Minimum query length before the customer picker contacts the server.
+  //
+  // An empty or 1-character query makes get_governed_customers return an
+  // arbitrary FIRST PAGE of 50 rows ordered by something unrelated to what
+  // the user is typing. That is a wasted 50-row round trip and is not a
+  // search at all — the user would have to scan an arbitrary slice. Two
+  // characters is the smallest term that meaningfully narrows company name /
+  // phone / code / address.
+  //
+  // This only changes WHEN the request is sent. It does not change WHICH
+  // rows a matching query may return: permissions, the RPC signature, the
+  // 50-row page size and the server-side search are all untouched.
+  const CUSTOMER_SEARCH_MIN = 2
+
   const searchCustomers = useCallback(async (q: string) => {
     if (!authToken || user?.identity_type !== 'employee') return
+    const term = q.trim()
+    if (term.length < CUSTOMER_SEARCH_MIN) {
+      setCustomers([])
+      return
+    }
     const { data } = await supabase.rpc('get_governed_customers', {
       p_token: authToken,
-      p_search: q.trim() || null,
+      p_search: term,
       p_page: 1,
       p_per_page: 50,
       p_count_only: false,
@@ -249,6 +282,10 @@ restoreCart,
     () => customerPickerOpen || (showInitModal && initStep === 'customer'),
     [customerPickerOpen, showInitModal, initStep]
   )
+
+  // Drives the "type at least N characters" hint instead of a misleading
+  // "no customers" message while the query is still too short to search.
+  const customerSearchTooShort = customerSearch.trim().length < CUSTOMER_SEARCH_MIN
 
   useEffect(() => {
     if (!customerPickerVisible) return
@@ -424,32 +461,21 @@ restoreCart,
     return keys
   }, [items])
 
-  const searchIndices = useMemo(() => {
-    return pageProducts.map((p) => ({
-      id: p.id,
-      product: p,
-      index: buildSearchIndex({
-        id: p.id,
-        legacyCode: p.legacyCode,
-        productName: p.productName,
-        companyName: p.companyName,
-      }),
-    }))
-  }, [pageProducts])
-
+  // The server is now the single authority for WHAT rows are visible:
+  //  - is_active / is_visible are enforced by the catalog RPCs
+  //  - governorate visibility is enforced server-side
+  //  - search is executed server-side (see `debouncedQuery` above)
+  // Re-filtering `pageProducts` here was a second, redundant pass that could
+  // only ever hide rows the server had already decided to send, and it made
+  // the total shown in the footer disagree with the rows actually returned.
+  // What remains is presentation ordering only:
+  //  - static collections are sorted alphabetically by product name
+  //  - dynamic collections keep the server's business order
+  //    (recently_available_at DESC) and must NOT be re-sorted
   const filteredProducts = useMemo(() => {
-    let list = pageProducts.filter((p) => p.isActive && p.isVisible && !hiddenProductIds.has(p.id))
-    if (searchQuery.trim()) {
-      const indices = searchIndices.filter((si) => list.includes(si.product))
-      const matched = new Set(searchProducts(searchQuery, indices, (si) => si.index).map((si) => si.product.id))
-      list = list.filter((p) => matched.has(p.id))
-    } else {
-      if (collectionConfig?.type !== 'dynamic') {
-        list = [...list].sort((a, b) => a.productName.localeCompare(b.productName, 'ar'))
-      }
-    }
-    return list
-  }, [pageProducts, searchQuery, collectionConfig, searchIndices, hiddenProductIds])
+    if (collectionConfig?.type === 'dynamic') return pageProducts
+    return [...pageProducts].sort((a, b) => a.productName.localeCompare(b.productName, 'ar'))
+  }, [pageProducts, collectionConfig])
 
   const expandedProduct = expandedId ? filteredProducts.find((p) => p.id === expandedId) ?? null : null
 
@@ -642,14 +668,13 @@ restoreCart,
             {/* List */}
             <div className="flex-1 overflow-y-auto px-4 pb-4">
               {customers.length === 0 && (
-                <div className="text-center text-text-secondary text-sm py-8">لا يوجد عملاء</div>
+                <div className="text-center text-text-secondary text-sm py-8">
+                  {customerSearchTooShort
+                    ? `اكتب ${CUSTOMER_SEARCH_MIN} أحرف على الأقل للبحث`
+                    : 'لا يوجد عملاء'}
+                </div>
               )}
               {customers
-                .filter((c: any) => {
-                  if (!customerSearch.trim()) return true
-                  const q = customerSearch.trim().toLowerCase()
-                  return (c.company_name?.toLowerCase().includes(q) || c.phone?.includes(q))
-                })
                 .map((c: any) => (
                   <button
                     key={c.id}
@@ -775,14 +800,13 @@ restoreCart,
                     </div>
                     <div className="grid grid-cols-1 gap-2">
                       {customers.length === 0 && (
-                        <div className="text-center text-text-secondary text-sm py-8">لا يوجد عملاء</div>
+                        <div className="text-center text-text-secondary text-sm py-8">
+                          {customerSearchTooShort
+                            ? `اكتب ${CUSTOMER_SEARCH_MIN} أحرف على الأقل للبحث`
+                            : 'لا يوجد عملاء'}
+                        </div>
                       )}
                       {customers
-                        .filter((c: any) => {
-                          if (!customerSearch.trim()) return true
-                          const q = customerSearch.trim().toLowerCase()
-                          return (c.company_name?.toLowerCase().includes(q) || c.phone?.includes(q))
-                        })
                         .map((c: any) => (
                           <button
                             key={c.id}
@@ -932,7 +956,7 @@ restoreCart,
         </div>
       )}
 
-      {!loadingProducts && collectionConfig?.type === 'static' && totalPages > 1 && (
+      {!loadingProducts && totalPages > 1 && (
         <div className="flex items-center justify-center gap-1.5 flex-wrap pb-2" dir="ltr">
           <button
             onClick={() => setPage(Math.max(1, page - 1))}

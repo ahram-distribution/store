@@ -122,7 +122,8 @@ export function OrderEditPage() {
 
     Promise.all([
       supabase.rpc('get_unified_order', { p_token: token, p_id: id }),
-      supabase.rpc('get_governed_companies', { p_token: token }),
+      // Light contract: reads id / company_name / logo_url + is_visible only.
+      supabase.rpc('get_governed_companies_light', { p_token: token }),
       supabase.rpc('get_governed_tiers', { p_token: token }),
       dailyDealService.getActive().catch(() => [] as DailyDealRecord[]),
       flashOfferService.getActive().catch(() => [] as FlashOfferRecord[]),

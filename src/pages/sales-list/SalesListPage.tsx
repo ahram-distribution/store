@@ -357,7 +357,10 @@ export default function SalesListPage() {
     ;(async () => {
       try {
         const [compRes, ordRes] = await Promise.all([
-          supabase.rpc('get_governed_companies', { p_token: authToken }),
+          // Minimal contract: hard-projected to { id, company_name } below
+          // after an is_visible filter. This screen never draws a logo, and
+          // logo_url is ~89% of the payload (inline base64 data URIs).
+          supabase.rpc('get_governed_companies_minimal', { p_token: authToken }),
           supabase.from('companies').select('company_name, display_order'),
         ])
         if (cancelled) return

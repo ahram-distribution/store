@@ -191,7 +191,10 @@ export function ProductManagerPage() {
     Promise.all([
       governedCatalog({ ...base, p_page: Math.max(1, page), p_per_page: PAGE_SIZE }),
       governedCatalog({ ...base, p_count_only: true }),
-      supabase.rpc('get_governed_companies', { p_token: token }),
+      // Minimal contract: this screen re-projects every company to
+      // { id, company_name } before use, so it needs neither logo_url
+      // (the 89% payload share) nor product_count.
+      supabase.rpc('get_governed_companies_minimal', { p_token: token }),
       supabase.rpc('get_governed_tiers', { p_token: token }),
       supabase.rpc('get_inventory_policies', { p_token: token }),
     ])

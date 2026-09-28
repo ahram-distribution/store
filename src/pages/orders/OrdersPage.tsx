@@ -2,7 +2,9 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { usePersistentViewState } from '../../hooks/usePersistentViewState'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
+import toast from 'react-hot-toast'
 import { discountOptionsService, mergeSnapshotIntoRow } from '../../services/discountOptions'
+import { fetchAllMatchingPaged, type PagedExportResult } from '../../services/pagedExport'
 import { useAuthStore } from '../../store/auth'
 import { useEntityViewsStore } from '../../store/entityViews'
 import { resolveDateRangeISO, cairoDateComponents } from '../../lib/dateRange'
@@ -54,7 +56,7 @@ const ORDER_TYPE_OPTIONS = [
   { value: 'ittiman', label: 'ائتمان' },
 ]
 
-const PAGE_SIZE = 30
+const PAGE_SIZE = 20
 
 const STATUS_KPI_GROUPS: Record<string, { dot: string; chip: string; active: string }> = {
   submitted: { dot: 'bg-blue-300', chip: 'bg-blue-50 border-blue-100 text-blue-600', active: 'bg-blue-100 border-blue-300 text-blue-700 ring-1 ring-blue-200' },
@@ -381,26 +383,49 @@ export function OrdersPage() {
     }
   }
 
-  // Print/Export is an explicit exception: bypass the 30-row page and retrieve
-  // ALL records matching the currently applied search/filters for this operation
-  // only (no page param -> full filtered result set).
-  const fetchAllMatching = async () => {
-    const rpcParams = buildRpcParams(1, { perPage: 10000 })
-    if (!rpcParams) return []
-    const { data } = await supabase.rpc('get_unified_orders', rpcParams)
-    const rows = (Array.isArray(data) ? data : []) as any[]
-    await mergeSnapshots(rows)
-    return rows
+  // Print/Export is an explicit user action, so it is NOT page-limited: it
+  // walks the same server-side page/count contract until every row matching
+  // the current criteria has been collected. This replaces the previous
+  // single `p_per_page: 10000` request, which silently truncated any result
+  // set larger than 10,000 and then reported the truncated length as the
+  // "total" inside the produced file.
+  const fetchAllMatching = async (): Promise<PagedExportResult> => {
+    const fetchPage = async (page: number, perPage: number) => {
+      const rpcParams = buildRpcParams(page, { perPage })
+      if (!rpcParams) return []
+      const { data } = await supabase.rpc('get_unified_orders', rpcParams)
+      return Array.isArray(data) ? (data as any[]) : []
+    }
+    // The server exposes its total through the p_summary envelope, not a
+    // p_count_only flag, so reuse the same summary call the screen makes.
+    const fetchCount = async () => {
+      const summaryParams = buildRpcParams(1, { summaryMode: true })
+      if (!summaryParams) return null
+      const { data } = await supabase.rpc('get_unified_orders', summaryParams)
+      const s = data as any
+      return s && typeof s === 'object' && typeof s.count === 'number' ? { count: s.count } : null
+    }
+    const result = await fetchAllMatchingPaged(fetchPage, fetchCount, PAGE_SIZE)
+    await mergeSnapshots(result.rows)
+    return result
   }
 
   const handleReportExcel = async () => {
-    const rows = await fetchAllMatching()
+    const { rows, truncated, reason } = await fetchAllMatching()
+    if (truncated) {
+      toast.error(reason || 'تعذر تصدير جميع السجلات — تم إيقاف التصدير')
+      return
+    }
     if (!rows.length) return
     exportOrdersReportExcel(buildOrdersReportRows(rows, governorates), buildReportMeta())
   }
 
   const handleReportPrint = async () => {
-    const rows = await fetchAllMatching()
+    const { rows, truncated, reason } = await fetchAllMatching()
+    if (truncated) {
+      toast.error(reason || 'تعذر تصدير جميع السجلات — تم إيقاف التصدير')
+      return
+    }
     if (!rows.length) return
     printOrdersReport(buildOrdersReportRows(rows, governorates), buildReportMeta())
   }

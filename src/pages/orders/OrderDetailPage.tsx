@@ -341,7 +341,9 @@ export function OrderDetailPage() {
     if (!token) return
     // Companies only — the product panel is loaded targeted (edit items via
     // startEdit, picker pages via the picker effect), never the full catalog.
-    supabase.rpc('get_governed_companies', { p_token: token }).then((compRes) => {
+      // Light contract: the tile grid reads id / company_name / logo_url and
+      // filters on is_visible only — it never needs product_count.
+      supabase.rpc('get_governed_companies_light', { p_token: token }).then((compRes) => {
       if (compRes.data) {
         setCompanies(compRes.data.filter((c: any) => c.is_visible !== false))
       }
