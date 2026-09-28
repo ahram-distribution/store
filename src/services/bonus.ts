@@ -5,29 +5,19 @@ function getSessionToken(): string | null {
   try { return localStorage.getItem('session_token') } catch { return null }
 }
 
-function extractError(data: unknown): string | null {
-  if (data && typeof data === 'object' && 'error' in data && (data as { error: unknown }).error) {
-    return String((data as { error: unknown }).error)
-  }
-  return null
-}
-
-/** Bonus catalog (design D.1 #3): active + visible + eligible products only. */
-export async function fetchBonusCatalogRows(
-  token?: string | null,
-  opts?: { governorateId?: string | null }
-): Promise<{ rows: any[]; error?: string }> {
-  const t = token ?? getSessionToken()
-  if (!t) return { rows: [] }
-  const { data, error } = await supabase.rpc('get_governed_bonus_products', {
-    p_token: t,
-    p_governorate_id: opts?.governorateId || null,
-  })
-  if (error) return { rows: [], error: error.message }
-  const rpcError = extractError(data)
-  if (rpcError) return { rows: [], error: rpcError }
-  return { rows: Array.isArray(data) ? data : [] }
-}
+/**
+ * Removed: fetchBonusCatalogRows (2027-11-30).
+ *
+ * It called get_governed_bonus_products with NO p_page / p_per_page, which the
+ * RPC previously answered with a 1,000,000-row default — a full Bonus catalog
+ * download in one request (measured 568 rows / 1,214,756 B JSON /
+ * 624,963 B gzip). It had no importers anywhere in src, so deleting it cannot
+ * regress a caller. The RPC now also REFUSES a data-mode call without
+ * pagination (returns {error: 'PAGINATION_REQUIRED'}) and clamps p_per_page to
+ * 200, so the unbounded read is structurally unreachable.
+ *
+ * The two admin mutation helpers below do not read the catalog and are kept.
+ */
 
 /** Admin: toggle products.bonus_enabled via the governed superset (products.manage). */
 export async function setProductBonusEnabled(id: string, enabled: boolean): Promise<{ error?: string }> {

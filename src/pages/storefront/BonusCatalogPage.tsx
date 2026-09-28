@@ -11,6 +11,7 @@ import { bonusAddDecision, bonusAvailabilityStatus } from '../../engine/bonusInv
 import { checkCartAvailability, buildBusinessStatusCard } from '../../utils/cart-availability'
 import type { AvailabilityResult } from '../../utils/cart-availability'
 import { BusinessStatusCard } from '../../components/storefront/BusinessStatusCard'
+import { PaginationFooter } from '../../components/data-list/PaginationFooter'
 import { BONUS_COPY } from '../../constants/bonusCopy'
 import { formatCurrencyShort } from '../../utils/format'
 import { UNIT_LABELS } from '../../types/order-display'
@@ -381,13 +382,19 @@ const [selectedCompany, setSelectedCompany] = useState<string | null>(null)
   const [debouncedCompanySearch, setDebouncedCompanySearch] = useState('')
   const [companyPage, setCompanyPage] = useState(1)
   const [companyTotal, setCompanyTotal] = useState(0)
-  const [loadingMore, setLoadingMore] = useState(false)
 
   const governorateId = geographicContext?.governorateId ?? null
 
   const fmtAmount = (n: number): string => formatCurrencyShort(n).replace(' ج.م', '').trim()
 
-  // Absorb one RPC batch of the selected company's Bonus products (per-page).
+  // Absorb exactly ONE server page of the selected company's Bonus products.
+  //
+  // The page dataset is REPLACED, never accumulated. The previous implementation
+  // merged rows into the existing list by id, which was correct only for the old
+  // "load more" append UX: it kept every row ever fetched (so the array grew
+  // without bound), and it made the visible count drift away from the server
+  // total. Numbered pagination requires the client to hold at most the 20 rows
+  // of the current page.
   const absorbRows = useCallback((rows: any[]) => {
     const mapped = (rows as any[]).map((r: any) => toProductWithPrice(r))
     // Units available for sale are defined by the admin in Products Management
@@ -402,14 +409,14 @@ const [selectedCompany, setSelectedCompany] = useState<string | null>(null)
       const n = Number(r.geo_adjustment_percent ?? 0)
       pct[r.id] = Number.isFinite(n) ? n : 0
     }
-    setProducts((prev) => {
-      const byId = new Map(prev.map((p) => [p.id, p]))
-      for (const p of mapped) byId.set(p.id, p)
-      return Array.from(byId.values())
-    })
-    setActiveUnits((prev) => ({ ...prev, ...activeMap }))
-    setGeoPct((prev) => ({ ...prev, ...pct }))
-    setQuantities((prev) => Object.fromEntries(mapped.map((p) => [p.id, prev[p.id] ?? 1])))
+    setProducts(mapped)
+    setActiveUnits(activeMap)
+    setGeoPct(pct)
+    // Pending stepper values are kept in a ref keyed by product id, so replacing
+    // the page dataset does NOT wipe a quantity the user already typed on another
+    // page. Only the 20 rows of the current page are held in `products`.
+    quantitiesRef.current = { ...quantitiesRef.current, ...Object.fromEntries(mapped.map((p) => [p.id, quantitiesRef.current[p.id] ?? 1])) }
+    setQuantities(quantitiesRef.current)
     if (mapped.length > 0) {
       // Same store pattern as the normal Storefront: each loaded batch is merged
       // into the cart store ONCE (a single notify + single recalculation).
@@ -462,13 +469,25 @@ const [selectedCompany, setSelectedCompany] = useState<string | null>(null)
   }, [selectedCompany, debouncedCompanySearch])
 
   const BONUS_PAGE_SIZE = 20
+  const totalPages = Math.max(1, Math.ceil(companyTotal / BONUS_PAGE_SIZE))
 
-  // Level-2: the selected company's Bonus products (paginated + searchable).
+  // Human-readable slice of the result set currently on screen, e.g. "1-20".
+  // The previous counter showed `products.length` which, with a paged dataset,
+  // was misleading once the user was past the first page.
+  const pageRangeLabel = useMemo(() => {
+    if (companyTotal === 0) return ''
+    const first = (companyPage - 1) * BONUS_PAGE_SIZE + 1
+    const last = Math.min(companyTotal, first + BONUS_PAGE_SIZE - 1)
+    return `${first}-${last}`
+  }, [companyPage, companyTotal])
+
+  // Level-2: the selected company's Bonus products — one server page, exactly 20
+  // rows. p_page/p_per_page are always sent, so a page change replaces the
+  // dataset instead of appending to it.
   useEffect(() => {
     if (!token || !selectedCompany) return
     let cancelled = false
-    setLoading(companyPage === 1)
-    setLoadingMore(companyPage > 1)
+    setLoading(true)
     const base: any = {
       p_token: token,
       p_company_ids: [selectedCompany],
@@ -480,20 +499,48 @@ const [selectedCompany, setSelectedCompany] = useState<string | null>(null)
     if (debouncedCompanySearch) base.p_search = debouncedCompanySearch
     supabase.rpc('get_governed_bonus_products', base).then((res) => {
       if (cancelled) return
-      if (res.error) { if (companyPage === 1) setError(res.error.message); return }
+      if (res.error) { setError(res.error.message); setLoading(false); return }
       const rows = Array.isArray(res.data) ? res.data : []
-      if (companyPage === 1) { setProducts([]); setActiveUnits({}); setGeoPct({}) }
       absorbRows(rows)
       setError(null)
-    }).catch((e) => { if (!cancelled && companyPage === 1) setError(e?.message || 'فشل التحميل') })
-      .finally(() => { if (!cancelled) { setLoading(false); setLoadingMore(false) } })
-    supabase.rpc('get_governed_bonus_products', { ...base, p_page: 1, p_per_page: 1, p_count_only: true }).then((res) => {
+    }).catch((e) => { if (!cancelled) setError(e?.message || 'فشل التحميل') })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [token, selectedCompany, debouncedCompanySearch, companyPage, absorbRows])
+
+  // Server-side total for the current criteria. Deliberately keyed on the
+  // criteria ONLY — not on companyPage — so paging through the catalog does not
+  // re-issue a count request for every page.
+  //
+  // p_governorate_id is intentionally NOT sent here, matching the product-grid
+  // request above. Bonus geographic pricing is a pre-existing gap (the grid has
+  // never passed the governorate, so geo_adjustment_percent is always null);
+  // wiring it up would change displayed prices, which is out of scope for this
+  // payload/pagination change. Tracked as a remaining issue instead.
+  useEffect(() => {
+    if (!token || !selectedCompany) return
+    let cancelled = false
+    supabase.rpc('get_governed_bonus_products', {
+      p_token: token,
+      p_company_ids: [selectedCompany],
+      p_search: debouncedCompanySearch || null,
+      p_page: 1,
+      p_per_page: 1,
+      p_count_only: true,
+      p_group_by_company: false,
+    }).then((res) => {
       if (cancelled) return
       const d = res.data as any
       if (d && typeof d === 'object' && 'count' in d) setCompanyTotal(Number(d.count) || 0)
     }).catch(() => {})
     return () => { cancelled = true }
-  }, [token, selectedCompany, debouncedCompanySearch, companyPage, absorbRows])
+  }, [token, selectedCompany, debouncedCompanySearch])
+
+  // Keep the page number inside the available range (e.g. a search that returns
+  // fewer rows than the current page number).
+  useEffect(() => {
+    if (companyPage > totalPages) setCompanyPage(totalPages)
+  }, [companyPage, totalPages])
 
   // Company logos for the Level-1 cards: read-only lookup of companies.logo_url
   // for the companies that actually have Bonus products (same pattern used by the
@@ -757,7 +804,7 @@ const [selectedCompany, setSelectedCompany] = useState<string | null>(null)
             />
             {companyTotal > 0 && (
               <span className="text-[10px] text-text-secondary shrink-0 font-semibold">
-                {products.length} من {companyTotal}
+                {pageRangeLabel} من {companyTotal}
               </span>
             )}
           </div>
@@ -787,15 +834,11 @@ const [selectedCompany, setSelectedCompany] = useState<string | null>(null)
               <p className="text-sm text-text-secondary font-semibold">لا توجد منتجات بونص متاحة لهذه الشركة</p>
             </div>
           )}
-          {companyTotal > products.length && (
-            <button
-              type="button"
-              onClick={() => setCompanyPage((p) => p + 1)}
-              disabled={loadingMore}
-              className="w-full bg-white border border-border rounded-xl py-2.5 text-xs font-semibold text-text disabled:opacity-50"
-            >
-              {loadingMore ? 'جاري التحميل...' : `عرض المزيد (${products.length} من ${companyTotal})`}
-            </button>
+          {/* Level 2 — numbered server-side pagination. Replaces the previous
+              "load more" append control: السابق / 1 2 3 ... N / التالي, 20 rows
+              per page, with the page dataset replaced rather than accumulated. */}
+          {totalPages > 1 && (
+            <PaginationFooter page={companyPage} totalPages={totalPages} onChange={setCompanyPage} />
           )}
         </>
       )}
