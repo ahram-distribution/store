@@ -7,10 +7,10 @@ import { BONUS_COPY } from '../../constants/bonusCopy'
 
 interface ProductCardProps {
   product: any
-  onEdit: () => void
-  onToggleActive: () => void
-  onDelete: () => void
-  onViewDetails: () => void
+  onEdit: (product: any) => void
+  onToggleActive: (product: any) => void
+  onDelete: (product: any) => void
+  onViewDetails: (product: any) => void
   onToggleVisibility: (product: any) => void
   onToggleBonus?: (product: any) => void
   toggling?: boolean
