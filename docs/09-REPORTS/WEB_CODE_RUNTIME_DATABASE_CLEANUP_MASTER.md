@@ -12,14 +12,15 @@
 | **Local repository** | `D:\Projects\store` — branch `main`, remote `https://github.com/ahram-distribution/store.git` |
 | **Published Web** | `https://ahram-distribution.github.io/store/` |
 | **Initial audit date** | 2026-09-30 |
-| **Current status** | **IN PROGRESS** — 1 of 96 initial findings fixed (RPC-001), pending deployment for live verification |
+| **Current status** | **IN PROGRESS** — RPC-001 is **committed, pushed and deployed to production**, but live end-to-end verification is **BLOCKED on credentials**. 1 of 96 initial findings deployed. |
 | **Current phase** | **Phase 1 — Live Web Errors** — started. 1 of 22 Phase 1 findings addressed. Phase 1 is **not** complete. |
-| **Last updated** | 2026-09-30 (post RPC-001 remediation) |
-| **Current HEAD** | `bed38d7f28af9584f4d9a127c2dfe7ebf05849dc` (`bed38d7`, 2026-09-28) — unchanged; RPC-001 fix is **uncommitted in the working tree** |
+| **Last updated** | 2026-10-01 (RPC-001 committed, deployed, live verification attempted) |
+| **Current HEAD** | `2a9c5cea310cffc2eda45dbfda275e3474fab408` (`2a9c5ce`, 2026-10-01) — the RPC-001 fix |
 
 **Findings registered:** 97 (96 from the audit + 1 new, RPC-006, discovered during RPC-001 remediation)
-**Findings fixed locally, pending deployment:** 1
+**Findings deployed to production:** 1 (RPC-001)
 **Findings closed:** 0
+**Findings blocked on verification:** 1 (RPC-001 — needs a valid Web login)
 **Phases started:** 1 of 7 (Phase 1, partially)
 
 ---
@@ -178,8 +179,8 @@ All statuses are **OPEN**. Nothing has been remediated.
 | DBG-004 | DB Debris | `ping`, `set_limit`, `show_limit`, `__tztest` are leftover diagnostic functions | D | P1 | `pg_proc.prosrc` | OPEN | 3 | PLANNED — owner authorization required | NOT VERIFIED | `set_limit`/`show_limit` are pg_trgm passthroughs |
 | SAHL-001 | DB Debris | `generate_sahl_quote_number` and `generate_sahl_sale_number` still exist after SAHL removal | D | P1 | `pg_proc` ILIKE `%sahl%` → 2 rows | OPEN | 3 | PLANNED — owner authorization required | NOT VERIFIED | No SAHL tables/views/types remain; only these 2 functions |
 | SAHL-002 | Drift | Migration manifest declares `schemaVersion: 27` yet contains migration `0028_remove_sahl_module.sql` | G | P2 | `desktop/main/db/migrations/manifest.json` | OPEN | 2 | PLANNED | NOT VERIFIED | Schema version numbering is not trustworthy |
-| RPC-001 | Live Error | `get_employee_daily_tracking` does not exist in production; called by a live nav-linked page | F | P1 | PGRST202; `src/pages/reports/ActivityReportsPage.tsx:615`; route `/reports/activity` | **FIXED — PENDING DEPLOY** | 1 | FIXED | LOCAL VERIFIED | Missing RPC call removed. See §10.1 for the full fix and verification record. |
-| RPC-006 | Drift | `get_employee_day_timeline` buckets events by UTC date while the business day is Cairo; events between 00:00–02:00 Cairo are attributed to the previous business day | G | P1 | 103 of 3,519 union events (2.927%) fall in the divergent window; `src/pages/reports/ManagerReportsPage.tsx` also consumes this RPC | OPEN | 2 | AWAITING OWNER DECISION | NOT VERIFIED | **Discovered during RPC-001 remediation.** Correcting it requires changing a shared RPC that `ManagerReportsPage` also uses, so it was deliberately left untouched and registered here instead. |
+| RPC-001 | Live Error | `get_employee_daily_tracking` does not exist in production; called by a live nav-linked page | F | P1 | PGRST202; `src/pages/reports/ActivityReportsPage.tsx:615`; route `/reports/activity` | **DEPLOYED — NOT VERIFIED** | 1 | FIXED | DEPLOY-PROVEN, E2E BLOCKED | Commit `2a9c5ce` deployed via run `36848647982`. Published bundle has **0** references to the missing RPC. Live authenticated day-view check is blocked: no valid Web credential is available. See §8 and §10.1. |
+| RPC-006 | Drift | `get_employee_day_timeline` buckets events by UTC date while the business day is Cairo; events between 00:00–02:00 Cairo are attributed to the previous business day | G | P1 | 103 of 3,519 union events (2.927%) fall in the divergent window; `src/pages/reports/ManagerReportsPage.tsx` also consumes this RPC | OPEN | 2 | AWAITING OWNER DECISION | NOT VERIFIED | **Discovered during RPC-001 remediation.** Correcting it requires changing a shared RPC that `ManagerReportsPage` also uses, so it was deliberately left untouched and registered here instead. **Untouched by the 2026-10-01 deployment** — `get_employee_day_timeline` was not modified. |
 | RPC-002 | Live Error | `governed_approve_return` called with `p_id`; production signature is `(p_token, p_return_id)` | F | P1 | PGRST202; `src/services/returns.ts:76` | OPEN | 1 | PLANNED | NOT VERIFIED | `governed_reject_return` uses the correct name — the pair is inconsistent |
 | RPC-003 | Live Error | `governed_update_check_status` does not exist in production | F | P3 | PGRST202 | OPEN | 1 | PLANNED | NOT VERIFIED | Only caller is dead code (`LegacyCollectionProvider`) |
 | RPC-004 | Build | 138 TypeScript errors ship to production because the Vite/esbuild build performs no typecheck | F | P1 | `tsc --noEmit` exit code 2, 138 errors | OPEN | 1 | PLANNED | NOT VERIFIED | `npm run build` strips types without checking them |
@@ -398,6 +399,22 @@ Chronological record of remediation activity.
 ```
 
 ```
+### 2026-10-01 — Phase 1
+- Finding: RPC-001 (deployment and live-verification attempt)
+- Action: Reviewed the working-tree diff and confirmed it was limited to the three approved files plus this tracker. Re-ran the build and the typecheck baseline. Committed only those four files as `2a9c5cea310cffc2eda45dbfda275e3474fab408` and pushed to `origin/main`. The push triggered `.github/workflows/deploy.yml` ("Deploy to GitHub Pages"), which runs `npm ci` + `npm run build` only — no migrations, no Desktop build. Then drove the published site with Playwright.
+- Result: **Deployment succeeded.** The production build manifest now serves `build_id` `2a9c5ce` / `commit_hash` `2a9c5cea310cffc2eda45dbfda275e3474fab408`, and the deployed `ActivityReportsPage-BK5GJVQr.js` contains **0** occurrences of `get_employee_daily_tracking` and **1** occurrence of `get_employee_day_timeline`. The 38 pre-existing unrelated working-tree entries were left untouched and are not in the commit.
+- Verification (live, against `https://ahram-distribution.github.io/store`):
+  - Workflow run `36848647982` finished with conclusion **success**. Its own gate confirms production serves the expected `build_id`, so a stale-CDN outcome would have failed the run.
+  - `GET /store/build-manifest.json` → HTTP 200, `build_id` = `2a9c5ce`.
+  - Published chunk `assets/ActivityReportsPage-BK5GJVQr.js`: `get_employee_daily_tracking` **0**, `get_employee_day_timeline` **1**, `visit_start` **3**, `visit_end` **3**, `visit_id` **4**. No `getCurrentPosition`, `watchPosition`, `setInterval`, `geolocation`, `heartbeat`, or `presence` in the chunk.
+  - Live PostgREST probe of the exact endpoint the browser calls: `POST /rest/v1/rpc/get_employee_daily_tracking` → **HTTP 404 PGRST202** (confirmed the RPC genuinely does not exist); `POST /rest/v1/rpc/get_employee_day_timeline` → **HTTP 200** with `{"error":"INVALID_SESSION"}` (confirmed the RPC exists and is correctly session-gated).
+  - Playwright load of `https://ahram-distribution.github.io/store/#/reports/activity` → HTTP 200, title `الأهرام - نظام التوزيع المتكامل`, served the new `index-CqObAO-9.js`, **zero console errors and zero page errors**, and redirected to `#/login` as an unauthenticated visitor should.
+- Verification **FAILED to complete** — live authenticated test of the day view. `ProtectedRoute employeeOnly` gates `/reports/activity`, so selecting an employee and day requires a real login. The two credentials hard-coded in the repository's own e2e specs — `01066197010 / 123321` (`e2e/manager-reports-verify.spec.ts`) and `01004466887 / 262006` — both returned `{"success": false, "error": "INVALID_CREDENTIALS"}` from the live `login` RPC, although both identities exist and are `is_active = true` in production. The 12 "role test accounts" listed in `docs/archive/project-state/MASTER_PROJECT_STATE.md` §18 do not exist in `public.identities` at all. Passwords were not guessed and no real employee's session token was borrowed. Therefore the following remain **unconfirmed in a live browser**: that an employee/day selection loads day activity, that events render with correct timestamps, and that visit markers appear on the map.
+- Status: **DEPLOYED, NOT VERIFIED.** The deployment and the code-level evidence are proven; the end-to-end authenticated check is blocked on a valid Web credential. This is deliberately **not** recorded as `VERIFIED`.
+- Collateral finding: **RPC-006** remains OPEN and untouched. `get_employee_day_timeline` was not modified by commit `2a9c5ce`; only the three Web files listed in §10.1 changed.
+```
+
+```
 ### YYYY-MM-DD — Phase X
 - Finding: F-XXX
 - Action: ...
@@ -437,7 +454,22 @@ Phase 1 shows 21 open rather than 22 because RPC-001 is no longer open; it is tr
 All 15 Phase 3 findings require explicit owner authorization before any action; none may be bundled into a code-fix phase.
 
 ### IN PROGRESS
-- **RPC-001** — fixed in the working tree, build and data-contract verified, awaiting deployment and a live browser check of `/reports/activity`. No commit has been made.
+None.
+
+### BLOCKED
+
+**RPC-001 — awaiting a valid Web credential for the authenticated screen test.**
+
+The fix is committed (`2a9c5ce`), pushed, and deployed to production; the published bundle no longer references the missing RPC. What is blocked is the last verification step: `/reports/activity` sits behind `ProtectedRoute employeeOnly`, so the day view cannot be exercised without logging in. Both credentials committed in the repository's e2e specs return `INVALID_CREDENTIALS`, and the documented test accounts do not exist in production.
+
+To close this out, the owner needs to supply a login that can reach `/reports/activity` and that holds the `attendance.view_timeline` capability. Once that is done, the remaining checks are: select an employee and a day, confirm events render with correct timestamps, and confirm visit markers appear.
+
+Also blocked:
+
+- `MIG-012`, `OPS-001` — service-role key returns 401, so the authoritative PostgREST schema cannot be enumerated.
+- `MIG-002` — without `supabase_migrations.schema_migrations`, applied-migration order is unknowable, blocking version-accurate diffing.
+- `MIG-011` — no `cron` schema, so scheduled-job inventory is impossible.
+- `OPS-003` — Recycle Bin items are outside project scope; read-only rules forbid restoration.
 
 ### MANUAL REVIEW
 Items that cannot be actioned by code evidence alone and require a human or owner judgement:
@@ -446,12 +478,6 @@ Items that cannot be actioned by code evidence alone and require a human or owne
 - `FED-002`, `FED-005`, `FED-007`, `FED-010` — reachability vs manual-use judgement
 - `DBX-001` through `DBX-012` — dead-object confirmation under §2 rule 5
 - `DOC-011` — open owner questions
-
-### BLOCKED
-- `MIG-012`, `OPS-001` — service-role key returns 401, so the authoritative PostgREST schema cannot be enumerated.
-- `MIG-002` — without `supabase_migrations.schema_migrations`, applied-migration order is unknowable, blocking version-accurate diffing.
-- `MIG-011` — no `cron` schema, so scheduled-job inventory is impossible.
-- `OPS-003` — Recycle Bin items are outside project scope; read-only rules forbid restoration.
 
 ---
 
@@ -476,15 +502,19 @@ Items that cannot be actioned by code evidence alone and require a human or owne
 
 **Verification.** Build passes (`✓ built in 20.14s`, exit 0). `tsc --noEmit` remains at exactly 138 pre-existing errors, none in the changed files. `get_employee_daily_tracking` no longer appears anywhere under `src/`. A read-only production replay of the RPC's event CTE, piped through the new mapping function, produced 4 correctly-formed visit markers with 0 invalid coordinates, all events timestamped, and all visit pairs correctly matched.
 
-**Remaining step.** Deploy and confirm `/reports/activity` renders the day view in a browser. Until that happens this item is FIXED, not VERIFIED.
+**Deployment (2026-10-01).** Committed as `2a9c5cea310cffc2eda45dbfda275e3474fab408` together with this tracker and nothing else, pushed to `origin/main`, and deployed by workflow run `36848647982` (conclusion: **success**) to `https://ahram-distribution.github.io/store`. Production serves `build_id` `2a9c5ce`. The deployed `ActivityReportsPage-BK5GJVQr.js` contains **0** references to `get_employee_daily_tracking`. A live probe confirms `POST /rest/v1/rpc/get_employee_daily_tracking` returns **404 PGRST202** while `POST /rest/v1/rpc/get_employee_day_timeline` returns **200** — so the screen can no longer raise PGRST202 from this call. The app boots on the published host with no console or page errors.
+
+**Outstanding.** The authenticated half of the test could not be run: `/reports/activity` is behind `ProtectedRoute employeeOnly`, and every credential available in the repository returns `INVALID_CREDENTIALS`. Day selection, event timestamps, and map markers are therefore confirmed by code and data-contract evidence but **not yet observed rendering in a live browser**. A working Web login is required to finish this; see §9.
+
+Because of that gap this item is deliberately recorded as **DEPLOYED, NOT VERIFIED** rather than `VERIFIED`.
 
 ### VERIFIED
 No remediation has been fully verified. The `VERIFIED` list in §7 records **audit findings**, not completed remediations; it must not be read as remediation progress.
 
-RPC-001 is listed under FIXED rather than here because its verification is local (build plus a production data-contract replay). Live browser verification is still outstanding.
+RPC-001 is listed under FIXED rather than here because its deployment is proven but its authenticated screen check is blocked. Live browser verification is still outstanding.
 
 ### CLOSED
-None. No finding has met the §2 closure rule yet, because RPC-001 has not been deployed and re-verified against the live page.
+None. No finding has met the §2 closure rule yet, because RPC-001 has not been re-verified against the live authenticated page.
 
 ---
 
@@ -502,7 +532,7 @@ The missing `get_employee_daily_tracking` RPC had to be replaced by something. T
 
 **Accepted trade-off.** The day view will no longer draw a movement path, and will no longer show distance, long stops, or GPS point counts. In exchange, no new tracking data is collected and no database change is needed. Attendance, breaks, visits, orders, collections, and customer events still appear on the timeline with their real timestamps, and visits still appear on the map using the location recorded at check-in — which is location the system already legitimately holds.
 
-**Still owed by the owner:** deploy, then confirm `/reports/activity` renders correctly in a browser, which is what promotes RPC-001 from FIXED to VERIFIED.
+**Owner decisions still required:** a Web credential that can reach `/reports/activity`, so RPC-001's final verification can be completed. See §9 BLOCKED.
 
 Required format:
 
@@ -544,13 +574,13 @@ This program is not complete. It may be marked `CLOSED` only when every requirem
 | 2 | All P1 findings resolved or explicitly accepted in writing by the owner | NOT MET |
 | 3 | All remediation changes verified, with evidence recorded in §8 | NOT MET |
 | 4 | Local source and Published Web aligned | NOT MET — local `dist` is stale (OPS-002) |
-| 5 | Web RPC contracts aligned with the production database | NOT MET — RPC-001 fixed locally but not deployed; RPC-002, MIG-001, RPC-006 open |
+| 5 | Web RPC contracts aligned with the production database | NOT MET — RPC-001 deployed but its authenticated check is blocked; RPC-002, MIG-001, RPC-006 open |
 | 6 | Migration truth reconciled (all production objects reproducible from the repository) | NOT MET — MIG-001, MIG-002 |
 | 7 | Dead-code cleanup completed where approved | NOT MET — Phase 4 not started |
 | 8 | Dead-database-object cleanup completed where approved | NOT MET — Phase 5 not started |
 | 9 | Security findings resolved or explicitly accepted | NOT MET — Phase 3 not started |
 | 10 | Documentation reconciled to a single source of truth | NOT MET — Phase 6 not started |
-| 11 | No known broken live routes | NOT MET — RPC-001 fixed locally, still broken in production until deployed; RPC-002, RPC-006 open |
+| 11 | No known broken live routes | NOT MET — RPC-001 is deployed and the missing-RPC call is gone from the published bundle, but the route has not been re-verified in an authenticated browser; RPC-002, RPC-006 open |
 | 12 | Build/typecheck gate prevents regression | NOT MET — TSC-014 |
 | 13 | Final regression and build verification completed | NOT MET — Phase 7 not started |
 | 14 | All cleanup decisions documented in §11 | NOT MET |
@@ -607,6 +637,30 @@ Verification performed at creation time of this file, then updated after the RPC
 | Git change from this task | The new untracked file `docs/09-REPORTS/WEB_CODE_RUNTIME_DATABASE_CLEANUP_MASTER.md` — nothing else |
 
 **Pre-existing working-tree state (NOT caused by this task):** 38 entries consisting of 16 tracked deletions and 22 untracked destination files, all resulting from an earlier, separately authorized root-documentation cleanup. This task neither created nor altered any of them. Git was therefore already dirty before this file was written, and remains dirty for the same 38 entries plus this one new file.
+
+### 14.3 After RPC-001 deployment and live-verification attempt (2026-10-01)
+
+| Check | Result |
+|---|---|
+| Commit | `2a9c5cea310cffc2eda45dbfda275e3474fab408` (`2a9c5ce`) |
+| Commit contents | Exactly 4 files: the three approved Web sources plus this tracker. No unrelated changes. |
+| Unrelated working-tree entries | 38, all still present and untouched; none included in the commit |
+| Push | `bed38d7..2a9c5ce  main -> main`, exit 0 |
+| Deployment workflow | `.github/workflows/deploy.yml` — "Deploy to GitHub Pages" |
+| Workflow run | `36848647982`, conclusion **success** |
+| Deployment target | `https://ahram-distribution.github.io/store` |
+| Production `build_id` | `2a9c5ce`, matching the commit |
+| Published bundle check | `ActivityReportsPage-BK5GJVQr.js`: `get_employee_daily_tracking` **0**, `get_employee_day_timeline` **1** |
+| Live RPC probe | missing RPC → **404 PGRST202**; new RPC → **200** (session-gated) |
+| Published app boot | HTTP 200, no console errors, no page errors, unauthenticated redirect to `#/login` correct |
+| Tracking introduced | **None.** No `getCurrentPosition`, `watchPosition`, `setInterval`, `geolocation`, `heartbeat`, or `presence` in the changed or deployed chunks. |
+| `get_employee_day_timeline` modified | **No** — RPC-006 deliberately untouched |
+| Desktop / Electron touched | **No** |
+| Migrations created or run | **No** |
+| Pre-existing TypeScript errors touched | **No** — still exactly 138 |
+| **Authenticated live verification** | **BLOCKED** — no valid Web credential; both repo e2e credentials return `INVALID_CREDENTIALS` |
+| RPC-001 final status | **DEPLOYED, NOT VERIFIED** |
+| RPC-006 status | **OPEN**, untouched |
 
 ### 14.2 After RPC-001 remediation (2026-09-30)
 
