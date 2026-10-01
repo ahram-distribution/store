@@ -12,13 +12,13 @@
 | **Local repository** | `D:\Projects\store` — branch `main`, remote `https://github.com/ahram-distribution/store.git` |
 | **Published Web** | `https://ahram-distribution.github.io/store/` |
 | **Initial audit date** | 2026-09-30 |
-| **Current status** | **IN PROGRESS** — RPC-001 is **committed, pushed and deployed to production**, but live end-to-end verification is **BLOCKED on credentials**. 1 of 96 initial findings deployed. |
+| **Current status** | **IN PROGRESS** — RPC-001 is **committed, pushed and deployed to production**, but live end-to-end verification is **BLOCKED on credentials**. The sales Returns module has since been removed from the Web application and its Returns-only RPCs retired from production. |
 | **Current phase** | **Phase 1 — Live Web Errors** — started. 1 of 22 Phase 1 findings addressed. Phase 1 is **not** complete. |
-| **Last updated** | 2026-10-01 (RPC-001 committed, deployed, live verification attempted) |
-| **Current HEAD** | `2a9c5cea310cffc2eda45dbfda275e3474fab408` (`2a9c5ce`, 2026-10-01) — the RPC-001 fix |
+| **Last updated** | 2026-10-01 (sales Returns module removed from Web; Returns-only RPCs dropped in production) |
+| **Current HEAD** | `eb2af43` — `refactor(web): remove sales Returns module and its exclusive RPCs` (2026-10-01). Previous: `2a9c5cea310cffc2eda45dbfda275e3474fab408` (`2a9c5ce`, the RPC-001 fix) |
 
-**Findings registered:** 97 (96 from the audit + 1 new, RPC-006, discovered during RPC-001 remediation)
-**Findings deployed to production:** 1 (RPC-001)
+**Findings registered:** 99 (96 from the audit + RPC-006 from RPC-001 remediation + DBX-013 and RPC-007 from the Returns cleanup)
+**Findings deployed to production:** 2 (RPC-001; the Returns cleanup, which includes a real database migration)
 **Findings closed:** 0
 **Findings blocked on verification:** 1 (RPC-001 — needs a valid Web login)
 **Phases started:** 1 of 7 (Phase 1, partially)
@@ -69,7 +69,7 @@ Remediate defects that are currently breaking or degrading the live Web applicat
 
 Initial targets:
 - `get_employee_daily_tracking` — missing in production, breaks a nav-linked live page
-- `governed_approve_return` parameter mismatch — return approval is broken
+- `governed_approve_return` parameter mismatch — return approval is broken — **SUPERSEDED 2026-10-01:** the Returns module, including the only caller that passed `p_id`, was removed. The RPC itself is retained unchanged by owner decision; see RPC-002 and RPC-007.
 - Live-page TypeScript errors — ~40 errors sit in routed, user-facing pages and ship undetected
 
 **Status: OPEN**
@@ -180,8 +180,10 @@ All statuses are **OPEN**. Nothing has been remediated.
 | SAHL-001 | DB Debris | `generate_sahl_quote_number` and `generate_sahl_sale_number` still exist after SAHL removal | D | P1 | `pg_proc` ILIKE `%sahl%` → 2 rows | OPEN | 3 | PLANNED — owner authorization required | NOT VERIFIED | No SAHL tables/views/types remain; only these 2 functions |
 | SAHL-002 | Drift | Migration manifest declares `schemaVersion: 27` yet contains migration `0028_remove_sahl_module.sql` | G | P2 | `desktop/main/db/migrations/manifest.json` | OPEN | 2 | PLANNED | NOT VERIFIED | Schema version numbering is not trustworthy |
 | RPC-001 | Live Error | `get_employee_daily_tracking` does not exist in production; called by a live nav-linked page | F | P1 | PGRST202; `src/pages/reports/ActivityReportsPage.tsx:615`; route `/reports/activity` | **DEPLOYED — NOT VERIFIED** | 1 | FIXED | DEPLOY-PROVEN, E2E BLOCKED | Commit `2a9c5ce` deployed via run `36848647982`. Published bundle has **0** references to the missing RPC. Live authenticated day-view check is blocked: no valid Web credential is available. See §8 and §10.1. |
-| RPC-006 | Drift | `get_employee_day_timeline` buckets events by UTC date while the business day is Cairo; events between 00:00–02:00 Cairo are attributed to the previous business day | G | P1 | 103 of 3,519 union events (2.927%) fall in the divergent window; `src/pages/reports/ManagerReportsPage.tsx` also consumes this RPC | OPEN | 2 | AWAITING OWNER DECISION | NOT VERIFIED | **Discovered during RPC-001 remediation.** Correcting it requires changing a shared RPC that `ManagerReportsPage` also uses, so it was deliberately left untouched and registered here instead. **Untouched by the 2026-10-01 deployment** — `get_employee_day_timeline` was not modified. |
-| RPC-002 | Live Error | `governed_approve_return` called with `p_id`; production signature is `(p_token, p_return_id)` | F | P1 | PGRST202; `src/services/returns.ts:76` | OPEN | 1 | PLANNED | NOT VERIFIED | `governed_reject_return` uses the correct name — the pair is inconsistent |
+| RPC-006 | Drift | `get_employee_day_timeline` buckets events by UTC date while the business day is Cairo; events between 00:00–02:00 Cairo are attributed to the previous business day | G | P1 | 103 of 3,519 union events (2.927%) fall in the divergent window; `src/pages/reports/ManagerReportsPage.tsx` also consumes this RPC | OPEN | 2 | AWAITING OWNER DECISION | NOT VERIFIED | **Discovered during RPC-001 remediation.** Correcting it requires changing a shared RPC that `ManagerReportsPage` also uses, so it was deliberately left untouched and registered here instead. **Untouched by the 2026-10-01 deployment** — `get_employee_day_timeline` was not modified. Also untouched by the 2026-10-01 Returns cleanup. |
+| DBX-013 | Dead DB Object | The four sales-Returns tables `returns`, `return_items`, `return_inspection`, `return_status_history` are now orphaned from the Web — the entire Returns feature was removed on 2026-10-01 — but cannot be dropped | H | P2 | 16 retained functions read or write them; all four tables hold **0 rows** | OPEN | 5 | BLOCKED — owner decision required | NOT VERIFIED | **Blocked by dependency, not by uncertainty.** Retained dependents: `governed_approve_return`, `get_unified_order`, `governed_delete_order`, `governed_supreme_delete_cancelled_order`, `governed_delete_employee_with_transfer`, `get_dashboard_management`, `get_command_center_v2`, `get_governed_target_performance`, `get_kpi_contributors`, `get_team_members_kpis`, 7 × `governed_deletion_*`, `sync_get_table_allowlist`. Dropping the tables would break order deletion, employee transfer, dashboards, KPI/target attainment (which subtract `return_deduction` and `full_returns` from delivered sales), the Data Deletion Center and mobile sync — all outside this task's scope. Empty tables are not proof of safe deletion. Retiring them requires refactoring those 16 functions first. |
+| RPC-007 | Dead DB Object | `governed_approve_return` is retained in production with no caller after the Returns module was removed on 2026-10-01 | D | P2 | `pg_proc` 1 overload; signature `(p_token uuid, p_return_id uuid)` unchanged; body still `UPDATE`s `public.returns` | OPEN | 5 | **RETAINED BY OWNER EXCEPTION** | NOT VERIFIED | Explicit owner instruction: retain unchanged, do not repair. Not dropped by `20271202_remove_returns_module_rpcs.sql`. Its only caller (`src/services/returns.ts`) is deleted, so it is unreachable from the Web but still granted EXECUTE to `anon`/`authenticated`. It also blocks DBX-013 because it depends on `public.returns`. Removing it is a **separate owner decision** and is the first step of any future DBX-013 cleanup. |
+| RPC-002 | Live Error | `governed_approve_return` called with `p_id`; production signature is `(p_token, p_return_id)` | F | P1 | PGRST202; `src/services/returns.ts:76` (file deleted 2026-10-01) | **SUPERSEDED — NOT REACHABLE** | 1 | NO ACTION — owner exception | NOT VERIFIED | The only caller, `src/services/returns.ts`, was deleted with the Returns module on 2026-10-01, so the mismatch can no longer occur at runtime. The defect is **deliberately not fixed**: `governed_approve_return` is an explicit owner exception and was retained unchanged. See **RPC-007**. |
 | RPC-003 | Live Error | `governed_update_check_status` does not exist in production | F | P3 | PGRST202 | OPEN | 1 | PLANNED | NOT VERIFIED | Only caller is dead code (`LegacyCollectionProvider`) |
 | RPC-004 | Build | 138 TypeScript errors ship to production because the Vite/esbuild build performs no typecheck | F | P1 | `tsc --noEmit` exit code 2, 138 errors | OPEN | 1 | PLANNED | NOT VERIFIED | `npm run build` strips types without checking them |
 | RPC-005 | Live Error | ~40 TypeScript errors are located in live, routed, user-facing pages (not tests) | F | P1 | `tsc --noEmit` grouped by file | OPEN | 1 | PLANNED | NOT VERIFIED | Includes `ProductCard`, `OrderDetailPage`, `OrderEditPage`, `EmployeeWorkdayDetailPage`, `HierarchyTargetPage`, `TargetSeedTool`, `EmployeeAnalysisPage`, `RepDistributionScreen`, `AttendanceRuntimePage`, `LiveActivityCenterPage`, `ExecutiveOperationsWorkspace`, `ProductManagerPage`, `TargetsWeightsTab` |
@@ -415,6 +417,23 @@ Chronological record of remediation activity.
 ```
 
 ```
+### 2026-10-01 — Phase 4 / Phase 5 (sales Returns module)
+- Findings: the Returns module removal itself, plus **DBX-013** (orphaned Returns tables, blocked) and **RPC-007** (owner-exempt `governed_approve_return`). **RPC-002** became superseded because its only caller was deleted.
+- Action: Read-only discovery first, then the owner decision in §11 D-002. Deleted the Returns pages, `src/services/returns.ts`, `OrderReturnsSection.tsx`, the 3 routes, the 3 `pageHealthCheck` manifest entries and every Returns entry point across `AccountPage`, `StorefrontPage`, `AccountantWorkspace`, `ModuleLauncherPage`, `ManagementDashboard`, `CommandCenterPage` and `ModuleWorkspacePage`; removed `UnifiedOrder.returns`, `UnifiedReturnSummary`, the `OrderDetailView` render, the `order-detail.utils.ts` Returns timeline entries and the stale `returns: []` test fixture. Wrote `supabase/migrations/20271202_remove_returns_module_rpcs.sql` and applied it to production `fpsepeuykcioelcmkuup`.
+- Result: The Returns feature no longer exists anywhere in the Web. 8 Returns-only RPCs dropped. **Nothing else was dropped**: the 4 Returns tables stay because 16 retained functions depend on them, and `governed_approve_return` stays because the owner exempted it. The 5 name-similar `governed_return_*` functions and the `purchase_returns` tables were confirmed to belong to Delivery, Warehouse, Orders and Purchasing and were left alone. The 38 pre-existing unrelated working-tree entries were untouched and none were staged. Committed as `eb2af43` (20 files, 6 deletions).
+- Verification (production, read-only, inside `default_transaction_read_only = on`):
+  - Migration dry-run in a rolled-back transaction first; only then applied. Post-apply, all 8 targets absent from `pg_proc`.
+  - `governed_approve_return` present at `(p_token uuid, p_return_id uuid)`, body still references `public.returns` — **unchanged, as instructed**.
+  - All 13 other keepers present: the 5 `governed_return_*` verbs, `generate_purchase_return_number`, `get_unified_order`, `get_dashboard_management`, `get_command_center`, `get_command_center_v2`, `get_governed_target_performance`, `get_kpi_contributors`, `get_team_members_kpis`, `sync_get_table_allowlist`.
+  - All 6 return-named tables present. `sync_get_table_allowlist()` returned 73 entries still including `returns`, `return_items`, `return_inspection`, `return_status_history`.
+  - Pre-apply scan proved each drop target had no other database caller and no `pg_depend` object; the only internal edge was `_return_qty_to_pieces` ← `governed_create_return`, dropped together.
+  - `npm run build` → `✓ built in 18.07s`, exit 0. `tsc --noEmit` → **exactly 138** errors, identical to baseline, none in any touched file (the 2 that matched touched files were confirmed pre-existing against `HEAD`).
+  - All 14 emitted chunks scanned: **0** occurrences of any Returns-only symbol, of `/returns` and of `/command-center/modules/returns`; shared `governed_return_*` verbs and unrelated routes survive; the 3 remaining Arabic "returns" strings are governance labels in `EmployeesPage` and `DataDeletionCenter`.
+- Status: **PRODUCTION APPLIED, NOT DEPLOYED.** The database change and the build are verified. The published bundle has **not** been inspected, so under §2 rule 4 this is not `VERIFIED`. `DBX-013` and `RPC-007` remain OPEN and owner-blocked.
+- Collateral findings: none new beyond DBX-013 and RPC-007. **RPC-006 remains OPEN and untouched.** No pre-existing TypeScript error was fixed. No Desktop/Electron file, RLS policy, or security setting was touched.
+```
+
+```
 ### YYYY-MM-DD — Phase X
 - Finding: F-XXX
 - Action: ...
@@ -435,21 +454,21 @@ Rules for this log:
 
 Counters only. Detail lives in §5.
 
-### OPEN — 96
-Of 97 registered findings, 1 (RPC-001) is fixed locally and awaiting deployment. Breakdown by phase:
+### OPEN — 97
+Of 99 registered findings, RPC-001 is fixed and deployed but unverified, RPC-002 is superseded (its only caller was deleted), and RPC-007 is retained by owner exception. Breakdown by phase:
 
 | Phase | Open | Blocked by decision | Blocked by manual review |
 |---|---|---|---|
-| Phase 1 | 21 | 3 | 1 |
+| Phase 1 | 20 | 3 | 1 |
 | Phase 2 | 15 | 4 | 4 |
 | Phase 3 | 15 | 15 | 0 |
 | Phase 4 | 12 | 4 | 0 |
-| Phase 5 | 13 | 1 | 12 |
+| Phase 5 | 15 | 3 | 12 |
 | Phase 6 | 18 | 12 | 1 |
 | Phase 7 | 2 | 1 | 0 |
-| **Total** | **96** | **40** | **18** |
+| **Total** | **97** | **42** | **18** |
 
-Phase 1 shows 21 open rather than 22 because RPC-001 is no longer open; it is tracked under IN PROGRESS below until it is deployed and verified. Phase 2 gained RPC-006. Phase 2's decision-blocked count rose from 3 to 4 because RPC-006 touches a shared RPC and needs an owner decision on scope.
+Phase 1 shows 20 open rather than 22 because RPC-001 is no longer open (tracked under BLOCKED until verified) and RPC-002 is superseded — its only caller, `src/services/returns.ts`, was deleted on 2026-10-01, so the `p_id`/`p_return_id` mismatch it described can no longer occur. Phase 2 gained RPC-006. Phase 2's decision-blocked count rose from 3 to 4 because RPC-006 touches a shared RPC and needs an owner decision on scope. Phase 5 gained **DBX-013** and **RPC-007** from the Returns cleanup, both owner-decision items: the orphaned `returns` tables (16 retained dependents must be refactored first) and the owner-exempt `governed_approve_return`. Both are decision-blocked rather than manual-review, so Phase 5's decision-blocked count rose from 1 to 3 while its manual-review count stayed at 12.
 
 All 15 Phase 3 findings require explicit owner authorization before any action; none may be bundled into a code-fix phase.
 
@@ -457,6 +476,16 @@ All 15 Phase 3 findings require explicit owner authorization before any action; 
 None.
 
 ### BLOCKED
+
+**DBX-013 — the four orphaned sales-Returns tables cannot be dropped without an owner decision.**
+
+The Returns feature is fully gone from the Web, so `returns`, `return_items`, `return_inspection` and `return_status_history` now have no user-facing path. All four hold **0 rows**, so nothing would be lost — but they are still written by 16 retained functions: `get_unified_order`, `governed_delete_order`, `governed_supreme_delete_cancelled_order`, `governed_delete_employee_with_transfer`, `get_dashboard_management`, `get_command_center_v2`, `get_governed_target_performance`, `get_kpi_contributors`, `get_team_members_kpis`, 7 × `governed_deletion_*`, `sync_get_table_allowlist`, and the owner-exempt `governed_approve_return`. Two of those matter beyond housekeeping: `get_governed_target_performance` subtracts `return_deduction` and `full_returns` from delivered sales, so target attainment is currently computed net of returns; and the `governed_deletion_*` cascades are the Data Deletion Center's compliance path.
+
+Dropping the tables would therefore break order deletion, employee transfer, dashboards, KPI/target numbers, the Data Deletion Center and mobile sync — every one of them explicitly outside this task's scope. They were left untouched. To retire them the owner must first authorise refactoring those 16 functions, starting with **RPC-007** (`governed_approve_return`), which is both the owner exception and the last hard dependency on `public.returns`.
+
+**RPC-007 — `governed_approve_return` retained unchanged by explicit owner instruction.**
+
+It is unreachable from the Web now that `src/services/returns.ts` is deleted, but it still holds EXECUTE grants for `anon` and `authenticated` and still `UPDATE`s `public.returns`. The owner directed that it be left exactly as-is and that the known RPC-002 parameter mismatch not be repaired, so no further action was taken. Removing it is a separate decision.
 
 **RPC-001 — awaiting a valid Web credential for the authenticated screen test.**
 
@@ -478,6 +507,8 @@ Items that cannot be actioned by code evidence alone and require a human or owne
 - `FED-002`, `FED-005`, `FED-007`, `FED-010` — reachability vs manual-use judgement
 - `DBX-001` through `DBX-012` — dead-object confirmation under §2 rule 5
 - `DOC-011` — open owner questions
+
+Two further items need owner judgement but are counted as decision-blocked, not manual-review: **DBX-013** (authorising the refactor of 16 retained dependents so the orphaned Returns tables can be dropped) and **RPC-007** (whether to retire the owner-exempt `governed_approve_return`). Both are described under BLOCKED above.
 
 ---
 
@@ -508,10 +539,31 @@ Items that cannot be actioned by code evidence alone and require a human or owne
 
 Because of that gap this item is deliberately recorded as **DEPLOYED, NOT VERIFIED** rather than `VERIFIED`.
 
+#### 10.2 Sales Returns module — Web removal and RPC retirement (2026-10-01)
+
+**Problem.** The sales Returns module was a complete, user-facing feature (3 pages, 3 routes, a dedicated RPC service, an order-detail section, and entry points in 7 screens) whose entire backend surface was `returns` plus 8 RPCs, with `governed_approve_return` named as an explicit owner exception.
+
+**Decision (D-002).** The dependency check contradicted the task's premise: the `returns` table is not Returns-isolated. Sixteen retained functions read or write it, including `governed_approve_return` itself, `get_unified_order` (which embeds a `returns` array in every order payload), `governed_delete_order`, `governed_delete_employee_with_transfer`, `get_dashboard_management`, `get_command_center_v2`, `get_governed_target_performance` (which subtracts `return_deduction` and `full_returns` from delivered sales), `get_kpi_contributors`, `get_team_members_kpis`, the 7 `governed_deletion_*` cascades, and `sync_get_table_allowlist`. "Retain `governed_approve_return` unchanged" and "drop the Returns tables" are mutually exclusive.
+
+The owner was shown this dependency map and chose **Web + Returns-only RPCs, keep the tables**. That option satisfies the exception without breaking anything outside scope. The alternatives — editing the 16 dependents, or also dropping `governed_approve_return` — would both have violated an explicit instruction.
+
+**What changed.**
+- **Deleted:** `src/pages/returns/{ReturnsPage,ReturnDetailPage,ReturnNewPage}.tsx`, `src/pages/returns/index.ts`, `src/services/returns.ts`, `src/components/orders/OrderReturnsSection.tsx`.
+- **Routes:** `/returns`, `/returns/new`, `/returns/:id` removed from `src/routes/index.tsx`, plus the three `ROUTE_MANIFEST` entries in `src/utils/pageHealthCheck.ts`.
+- **Navigation and entry points removed from:** `AccountPage`, `StorefrontPage`, `AccountantWorkspace`, `ModuleLauncherPage`, `ManagementDashboard` (the pending-returns KPI tile), `CommandCenterPage` (`MODULE_ROUTES`, `MODULE_EMOJI`, `MODULE_TIERS.secondary`), `ModuleWorkspacePage` (module block + quick operation).
+- **Orders:** removed `returns` from `UnifiedOrder`, deleted `UnifiedReturnSummary`, removed the `<OrderReturnsSection>` render, removed the Returns entries from the `order-detail.utils.ts` timeline, and dropped the now-stale `returns: []` field from the legacy adapter test fixture.
+- **Database:** `supabase/migrations/20271202_remove_returns_module_rpcs.sql` drops the 8 RPCs that had no remaining caller — `get_governed_returns`, `get_governed_return`, `get_governed_return_items`, `governed_create_return`, `governed_reject_return`, `governed_update_return`, `generate_sales_return_number`, and `_return_qty_to_pieces` (the helper's only caller was the create RPC dropped alongside it). Their `anon`/`authenticated` EXECUTE grants disappear with them, closing the dead PostgREST surface. **Applied to production** `fpsepeuykcioelcmkuup`.
+
+**Explicitly not done.** `governed_approve_return` untouched — signature, body and grants unchanged, and the RPC-002 `p_id`/`p_return_id` mismatch deliberately **not** repaired. All four sales-Returns tables untouched. `governed_return_delivery`, `governed_return_journey`, `governed_return_to_preparation`, `governed_return_order_for_revision` and `governed_return_deferred` untouched — name similarity only; they operate on Delivery, Warehouse and Orders and reference no returns table. `purchase_returns`, `purchase_return_items` and `generate_purchase_return_number` untouched — Purchasing, foreign-keyed to suppliers. `sync_get_table_allowlist` untouched. The `transferred.returns` label in the employee-transfer and Data Deletion Center screens kept, because it reports counts from retained governance RPCs rather than Returns UI.
+
+**Verification.** The migration was dry-run inside a rolled-back transaction before it was applied. Post-apply, read-only: all 8 target functions absent; `governed_approve_return` present at `(p_token uuid, p_return_id uuid)` with `public.returns` still referenced; all 13 other keepers present; all 6 return-named tables present; `sync_get_table_allowlist()` returns 73 entries still including the 4 Returns tables; `get_unified_order`, `get_dashboard_management`, `get_command_center`, `get_command_center_v2`, `get_governed_target_performance`, `get_kpi_contributors` and `get_team_members_kpis` all intact. `npm run build` succeeded (`✓ built in 18.07s`). `tsc --noEmit` is still exactly 138 errors, unchanged from baseline, with none in any touched file — the two that matched touched files (`OrderCollectionsSection` importing the non-existent `UnifiedOrderCollection`, and the missing `vitest` module) were confirmed pre-existing against `HEAD`. Bundle scan of all 14 emitted chunks: **0** occurrences of any Returns-only symbol, of `/returns`, or of `/command-center/modules/returns`; the shared `governed_return_*` verbs and unrelated routes survive; the 3 remaining Arabic "returns" strings are governance labels in `EmployeesPage` and `DataDeletionCenter`. All 38 pre-existing unrelated working-tree entries were left untouched and none were staged.
+
+**Outstanding.** Not closed under §2 rule 4 until the deployed bundle is inspected. DBX-013 and RPC-007 remain open — see §9 BLOCKED. No `vitest` in the project, so no test suite could be run; the legacy adapter fixture was validated by `tsc` only.
+
 ### VERIFIED
 No remediation has been fully verified. The `VERIFIED` list in §7 records **audit findings**, not completed remediations; it must not be read as remediation progress.
 
-RPC-001 is listed under FIXED rather than here because its deployment is proven but its authenticated screen check is blocked. Live browser verification is still outstanding.
+RPC-001 is listed under FIXED rather than here because its deployment is proven but its authenticated screen check is blocked. The Returns cleanup (10.2) is listed there for the same reason: its production database change is verified, but the published bundle has not been inspected yet. Live browser verification is still outstanding.
 
 ### CLOSED
 None. No finding has met the §2 closure rule yet, because RPC-001 has not been re-verified against the live authenticated page.
@@ -533,6 +585,21 @@ The missing `get_employee_daily_tracking` RPC had to be replaced by something. T
 **Accepted trade-off.** The day view will no longer draw a movement path, and will no longer show distance, long stops, or GPS point counts. In exchange, no new tracking data is collected and no database change is needed. Attendance, breaks, visits, orders, collections, and customer events still appear on the timeline with their real timestamps, and visits still appear on the map using the location recorded at check-in — which is location the system already legitimately holds.
 
 **Owner decisions still required:** a Web credential that can reach `/reports/activity`, so RPC-001's final verification can be completed. See §9 BLOCKED.
+
+**D-002 — 2026-10-01 — Sales Returns module: how far to go given that `returns` is depended on by 16 retained functions.**
+
+The task asked for the Returns tables to be removed, and separately for `governed_approve_return` to be left exactly as it is. These are incompatible: the retained function does `UPDATE public.returns SET status='approved'`, so preserving it requires preserving the table. Beyond that function, 15 others read or write `returns` or `return_items`, and several of them serve modules that were explicitly out of scope — `governed_delete_order` (Orders), `governed_delete_employee_with_transfer` (Employees), `get_dashboard_management` and `get_command_center_v2` (dashboards), `get_governed_target_performance` / `get_kpi_contributors` / `get_team_members_kpis` (KPIs and target attainment), 7 × `governed_deletion_*` (Data Deletion Center) and `sync_get_table_allowlist` (mobile sync).
+
+Four options were put to the owner:
+
+1. **Web + Returns-only RPCs, keep the tables.** Adopted.
+2. Drop the tables and rewrite the 16 dependents to remove their Returns logic. Rejected — violates the `governed_approve_return` exception and edits modules the task placed out of scope.
+3. Drop the tables and drop `governed_approve_return` too. Rejected — directly contradicts the explicit retention instruction.
+4. Web only, leave every database object in place. Rejected — leaves 6 publicly granted RPCs with no caller.
+
+**Accepted trade-off.** The Returns feature is gone from every user-facing surface, and its RPC surface is retired, but 4 empty tables and 1 unreachable RPC remain in production. Nothing can regress, because nothing user-facing can reach them; the cost is database surface area only. The residue is recorded as **DBX-013** and **RPC-007** rather than deleted, because deleting it is a change to Orders, KPIs, dashboards and compliance behaviour and therefore the owner's call, not a cleanup detail.
+
+**Owner decisions still required:** whether to authorise refactoring the 16 retained dependents so the four Returns tables can be dropped, and whether to retire `governed_approve_return`. See §9 BLOCKED.
 
 Required format:
 
@@ -637,6 +704,36 @@ Verification performed at creation time of this file, then updated after the RPC
 | Git change from this task | The new untracked file `docs/09-REPORTS/WEB_CODE_RUNTIME_DATABASE_CLEANUP_MASTER.md` — nothing else |
 
 **Pre-existing working-tree state (NOT caused by this task):** 38 entries consisting of 16 tracked deletions and 22 untracked destination files, all resulting from an earlier, separately authorized root-documentation cleanup. This task neither created nor altered any of them. Git was therefore already dirty before this file was written, and remains dirty for the same 38 entries plus this one new file.
+
+### 14.4 After the sales Returns removal (2026-10-01)
+
+| Check | Result |
+|---|---|
+| Commit | `eb2af43` — `refactor(web): remove sales Returns module and its exclusive RPCs` |
+| Commit contents | 20 paths: 13 Returns-related Web sources, 6 deletions, and the new migration. Tracker committed separately. No unrelated changes. |
+| Unrelated working-tree entries | All pre-existing entries still present and untouched; none included in the commit |
+| Web files deleted | `src/pages/returns/` (4), `src/services/returns.ts`, `src/components/orders/OrderReturnsSection.tsx` |
+| Routes removed | `/returns`, `/returns/new`, `/returns/:id` |
+| Nav entries removed | AccountPage, StorefrontPage, AccountantWorkspace, ModuleLauncherPage, ManagementDashboard, CommandCenterPage, ModuleWorkspacePage, pageHealthCheck |
+| Migration created | `supabase/migrations/20271202_remove_returns_module_rpcs.sql` — **Yes** (first migration of this program) |
+| Migration applied | **Yes** — production `fpsepeuykcioelcmkuup`. Old project `gbcbejejgpvltuhbztbx` never queried. |
+| Migration dry-run | Passed inside a rolled-back transaction before applying |
+| RPCs dropped (8) | `get_governed_returns`, `get_governed_return`, `get_governed_return_items`, `governed_create_return`, `governed_reject_return`, `governed_update_return`, `generate_sales_return_number`, `_return_qty_to_pieces` |
+| `governed_approve_return` | **RETAINED UNCHANGED** — `(p_token uuid, p_return_id uuid)`, still `UPDATE`s `public.returns`; RPC-002 mismatch deliberately not repaired |
+| Returns tables | **ALL 4 RETAINED** — `returns`, `return_items`, `return_inspection`, `return_status_history`, all 0 rows, blocked by 16 retained dependents |
+| `governed_return_*` siblings | All 5 retained and untouched — Delivery / Warehouse / Orders, not Returns |
+| `purchase_returns` + `generate_purchase_return_number` | Retained — Purchasing |
+| Pre-migration dependency proof | No other DB caller and no `pg_depend` object for any drop target; only `_return_qty_to_pieces` ← `governed_create_return`, dropped together |
+| Post-migration re-verification | 8 targets absent; 13 keepers present; `sync_get_table_allowlist()` = 73 entries incl. the 4 Returns tables; `get_unified_order`, `get_dashboard_management`, `get_command_center`, `get_command_center_v2`, `get_governed_target_performance`, `get_kpi_contributors`, `get_team_members_kpis` intact |
+| New TypeScript errors | **None** — `tsc --noEmit` still exactly 138, the 2 matching touched files confirmed pre-existing against `HEAD` |
+| Build verification | `npm run build` exit 0, `✓ built in 18.07s` |
+| Bundle scan (14 chunks) | Returns-only symbols **0**, `/returns` **0**, `/command-center/modules/returns` **0**; shared `governed_return_*` verbs and unrelated routes present |
+| Tests | **Not run** — the project has no `test` script and `vitest` is not installed; the legacy adapter fixture was validated by `tsc` only |
+| Security / RLS / grants | **Not touched** — only the EXECUTE grants that vanished with the 8 dropped functions |
+| Desktop / Electron touched | **No** |
+| Deployment performed | **No** — push and deploy are separate steps |
+| `DBX-013` / `RPC-007` | Registered, OPEN, owner-blocked — see §9 BLOCKED |
+| `RPC-006` status | **OPEN**, untouched |
 
 ### 14.3 After RPC-001 deployment and live-verification attempt (2026-10-01)
 
