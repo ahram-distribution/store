@@ -59,7 +59,7 @@ interface CompanyInfo {
   is_locked: boolean
 }
 
-interface PerformanceData {
+export interface PerformanceData {
   has_target: boolean
   company: CompanyInfo | null
   employees: EmployeePerfRow[]
@@ -74,7 +74,7 @@ interface HierarchyKpiValue {
   pct: number | null
 }
 
-interface HierarchyKpis {
+export interface HierarchyKpis {
   sales: HierarchyKpiValue
   visits: HierarchyKpiValue
   orders: HierarchyKpiValue
@@ -83,7 +83,7 @@ interface HierarchyKpis {
   attendance: HierarchyKpiValue
 }
 
-interface HierarchyTeamSummary {
+export interface HierarchyTeamSummary {
   team_target: Record<string, number>
   team_actual: Record<string, number>
   team_achievement_pct: Record<string, number | null>
@@ -91,7 +91,7 @@ interface HierarchyTeamSummary {
   team_member_count: number
 }
 
-interface HierarchyMember {
+export interface HierarchyMember {
   employee_id: string
   employee_code: string
   employee_name: string
@@ -104,7 +104,7 @@ interface HierarchyMember {
   kpis: HierarchyKpis
 }
 
-interface HierarchyManager {
+export interface HierarchyManager {
   manager_id: string
   manager_code: string
   manager_name: string
