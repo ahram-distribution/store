@@ -21,6 +21,7 @@ declare module 'zustand/middleware' {
 
 declare module '@supabase/supabase-js' {
   export function createClient(supabaseUrl: string, supabaseAnonKey: string, options?: any): any
+  export type RealtimeChannel = any
 }
 
 declare module 'react-hot-toast' {

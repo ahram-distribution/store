@@ -42,9 +42,11 @@ export class MockSalesOrderProvider implements ISalesOrderProvider, IProvider {
     if (id === 'nonexistent') return null
     return {
       id,
+      orderNumber: 'MOCK-0001',
       companyId: 'comp-1',
       customerId: 'cust-1',
       customerName: 'Mock Customer',
+      ownerName: 'Mock Customer',
       salesRepId: 'emp-1',
       status: OrderStatus.Submitted,
       lines: [],

@@ -51,7 +51,7 @@ class TrackingEngine {
   private _flushInterval: ReturnType<typeof setInterval> | null = null
   private _onlineHandler: (() => void) | null = null
   private _visibilityHandler: (() => void) | null = null
-  private _lastPosition: { latitude: number; longitude: number; accuracy: number } | null = null
+  private _lastPosition: { latitude: number; longitude: number; accuracy: number; altitude: number | null; heading: number | null; speed: number | null } | null = null
   private _lastCapturedCoords: { latitude: number; longitude: number } | null = null
   private _authStored = false
   private _nativeService = false
@@ -582,6 +582,12 @@ class TrackingEngine {
 
   getLastSeen() {
     return lastSeenTracker.getFull()
+  }
+
+  getLastPosition(): { latitude: number; longitude: number } | null {
+    return this._lastPosition
+      ? { latitude: this._lastPosition.latitude, longitude: this._lastPosition.longitude }
+      : null
   }
 }
 

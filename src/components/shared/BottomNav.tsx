@@ -1,8 +1,8 @@
 import { useLocation, Link } from 'react-router-dom'
 import { useAuthStore } from '../../store/auth'
-import { normalizeEmployeeRole, isDeliveryStaffUser, isCustomerFollowUpAgentUser } from '../../utils/roleNormalization'
+import { normalizeEmployeeRole, isDeliveryStaffUser, isCustomerFollowUpAgentUser, type TargetRole } from '../../utils/roleNormalization'
 
-const SALES_LIST_ROLES = ['الإدارة العليا', 'مدير بيع', 'مندوب مبيعات']
+const SALES_LIST_ROLES: TargetRole[] = ['الإدارة العليا', 'مدير بيع', 'مندوب مبيعات']
 
 function useNavItems() {
   const { user } = useAuthStore()

@@ -4,7 +4,7 @@ import { SearchableSelect } from '../../components/shared/SearchableSelect'
 import { useCapability } from '../../hooks/useCapability'
 import { supabase } from '../../lib/supabase'
 import toast from 'react-hot-toast'
-import type { EmployeeGeographicAssignment, SectorGovernorate } from '../../types/sectors'
+import type { EmployeeGeographicAssignment, Sector } from '../../types/sectors'
 
 interface Employee {
   id: string
@@ -23,7 +23,7 @@ export function RepDistributionScreen() {
 
   const [employees, setEmployees] = useState<Employee[]>([])
   const [governorates, setGovernorates] = useState<{ id: string; name_ar: string }[]>([])
-  const [sectors, setSectors] = useState<SectorGovernorate[]>([])
+  const [sectors, setSectors] = useState<Sector[]>([])
   const [assignments, setAssignments] = useState<Record<string, EmployeeGeographicAssignment[]>>({})
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -92,7 +92,12 @@ export function RepDistributionScreen() {
 
   const sectorByGovId = useMemo(() => {
     const map = new Map<string, string>()
-    sectors.forEach(s => map.set(s.governorate_id, s.sector_name))
+    sectors.forEach(s => {
+      const row = s as unknown as { governorate_id?: string; sector_name?: string }
+      if (typeof row.governorate_id === 'string' && typeof row.sector_name === 'string') {
+        map.set(row.governorate_id, row.sector_name)
+      }
+    })
     return map
   }, [sectors])
 

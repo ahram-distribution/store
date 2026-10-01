@@ -52,6 +52,7 @@ export class CreateOrderHandler implements ICommandHandler<CreateOrderCommand> {
       command.companyId,
       command.customerId,
       command.customerName,
+      '',
       command.salesRepId,
       domainLines,
       discount,

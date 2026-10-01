@@ -262,7 +262,7 @@ export default function LiveActivityCenterPage() {
       <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
         {kpiItems.map((k) => (
           <button key={k.key} type="button" onClick={() => openDrawer(k.key)}
-            className={`text-center rounded-xl border ${k.bg} ${k.border} p-3 hover:shadow-sm active:scale-[0.97] transition-all min-w-0`}>
+            className={`text-center rounded-xl border ${k.bg} p-3 hover:shadow-sm active:scale-[0.97] transition-all min-w-0`}>
             <div className="text-lg mb-0.5">{k.icon}</div>
             <div className={`text-sm font-bold ${k.color} truncate`}>{k.value}</div>
             <div className="text-xs text-text-secondary leading-tight truncate">{k.label}</div>

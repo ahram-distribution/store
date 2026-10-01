@@ -226,7 +226,7 @@ export default function EmployeeWorkdayDetailPage() {
         route: routePoints_raw ?? [],
         total_points: routePoints_raw?.length ?? 0,
         total_distance_meters: (raw.total_distance_meters as number) ?? 0,
-        total_distance_km: (raw.total_distance_km as string) ?? '0',
+        total_distance_km: (raw.total_distance_km as number) ?? 0,
         visit_locations: (raw.visit_locations as VisitLocation[]) ?? [],
         long_stops: (raw.long_stops as LongStop[]) ?? [],
         long_stops_count: (raw.long_stops_count as number) ?? 0,
@@ -418,7 +418,7 @@ export default function EmployeeWorkdayDetailPage() {
 
             {/* ===== TARGET LAST 7 DAYS ===== */}
             {targetWeek.length > 0 && (
-              <Section title="📊 المستهدف آخر 7 أيام" expandedKey="targetWeek" expanded={expandedSections.targetWeek} onToggle={() => toggle('targetWeek')}>
+              <Section title="📊 المستهدف آخر 7 أيام" expanded={expandedSections.targetWeek} onToggle={() => toggle('targetWeek')}>
                 <div className="flex items-center gap-2 overflow-x-auto pb-1">
                   {targetWeek.map((d, i) => {
                     const pct = d.target_hours > 0 ? Math.round((d.net_hours / d.target_hours) * 100) : 0
@@ -441,7 +441,7 @@ export default function EmployeeWorkdayDetailPage() {
 
             {/* ===== WEEK HISTORY ===== */}
             {historySessions.length > 1 && (
-              <Section title="📅 سجل الأيام (آخر 7 أيام)" expandedKey="weekHistory" expanded={expandedSections.weekHistory} onToggle={() => toggle('weekHistory')}>
+              <Section title="📅 سجل الأيام (آخر 7 أيام)" expanded={expandedSections.weekHistory} onToggle={() => toggle('weekHistory')}>
                 <div className="overflow-x-auto">
                   <table className="w-full text-[10px] border-collapse">
                     <thead>
@@ -492,7 +492,7 @@ export default function EmployeeWorkdayDetailPage() {
 
             {/* ===== 1. ROUTE MAP (only if hasViewTimeline) ===== */}
             {hasViewTimeline && (
-              <Section title="🗺️ خريطة المسار" expandedKey="map" expanded={expandedSections.map} onToggle={() => toggle('map')}>
+              <Section title="🗺️ خريطة المسار" expanded={expandedSections.map} onToggle={() => toggle('map')}>
                 {routePoints.length > 0 ? (
                   <>
                     <div className="flex flex-wrap gap-1.5 mb-2">
@@ -532,7 +532,7 @@ export default function EmployeeWorkdayDetailPage() {
 
             {/* ===== 2. TIMELINE (only if hasViewTimeline) ===== */}
             {hasViewTimeline && (
-              <Section title="⏳ الخط الزمني" expandedKey="timeline" expanded={expandedSections.timeline} onToggle={() => toggle('timeline')}>
+              <Section title="⏳ الخط الزمني" expanded={expandedSections.timeline} onToggle={() => toggle('timeline')}>
                 {(!timeline?.events || timeline.events.length === 0) ? (
                   <div className="text-center py-6 text-gray-400"><p className="text-xs">لا توجد أحداث</p></div>
                 ) : (
@@ -562,7 +562,7 @@ export default function EmployeeWorkdayDetailPage() {
 
             {/* ===== 3. TRACKING POINTS (only if hasViewTimeline) ===== */}
             {hasViewTimeline && (
-              <Section title="📡 نقاط التتبع" expandedKey="tracking" expanded={expandedSections.tracking} onToggle={() => toggle('tracking')}>
+              <Section title="📡 نقاط التتبع" expanded={expandedSections.tracking} onToggle={() => toggle('tracking')}>
                 <div className="grid grid-cols-2 gap-2 mb-2">
                   <StatBox label="إجمالي النقاط" value={String(mapData?.total_points ?? 0)} />
                   <StatBox label="المسافة" value={mapData ? `${mapData.total_distance_km} كم` : '--'} />
@@ -614,7 +614,7 @@ export default function EmployeeWorkdayDetailPage() {
 
             {/* ===== 4. LONG STOPS (only if hasViewTimeline) ===== */}
             {hasViewTimeline && (
-              <Section title="⏸️ التوقفات الطويلة" expandedKey="stops" expanded={expandedSections.stops} onToggle={() => toggle('stops')}>
+              <Section title="⏸️ التوقفات الطويلة" expanded={expandedSections.stops} onToggle={() => toggle('stops')}>
                 {(!mapData?.long_stops || mapData.long_stops.length === 0) ? (
                   <div className="text-center py-4 text-gray-400"><p className="text-xs">لا توجد توقفات طويلة</p></div>
                 ) : (
@@ -645,7 +645,7 @@ export default function EmployeeWorkdayDetailPage() {
             )}
 
             {/* ===== 5. WORK HOURS LEDGER ===== */}
-            <Section title={isField ? '📋 سجل التواجد' : '📋 سجل ساعات العمل'} expandedKey="ledger" expanded={expandedSections.ledger} onToggle={() => toggle('ledger')}>
+            <Section title={isField ? '📋 سجل التواجد' : '📋 سجل ساعات العمل'} expanded={expandedSections.ledger} onToggle={() => toggle('ledger')}>
               {(!ledgerData?.ledger || ledgerData.ledger.length === 0) ? (
                 <div className="text-center py-4 text-gray-400"><p className="text-xs">لا توجد بيانات</p></div>
               ) : (
@@ -704,7 +704,7 @@ export default function EmployeeWorkdayDetailPage() {
 
             {/* ===== 6. BREAK HISTORY DETAILED — fixed_shift only ===== */}
             {isFixed && (
-              <Section title="☕ سجل الاستراحات (تفصيلي)" expandedKey="breakHistory" expanded={expandedSections.breakHistory} onToggle={() => toggle('breakHistory')}>
+              <Section title="☕ سجل الاستراحات (تفصيلي)" expanded={expandedSections.breakHistory} onToggle={() => toggle('breakHistory')}>
                 <div className="grid grid-cols-3 gap-2 mb-3">
                   <StatBox label="عدد الاستراحات" value={String(session.break_count)} />
                   <StatBox label="إجمالي وقت الاستراحة" value={fmtMin(session.break_minutes)} />

@@ -76,11 +76,13 @@ export function App() {
   }, [loading])
 
   useEffect(() => {
-    const unsub = useAuthStore.subscribe((state, prev) => {
+    let prev = useAuthStore.getState()
+    const unsub = useAuthStore.subscribe((state) => {
       if (prev.token && !state.token) {
         useNotificationStore.getState().reset()
         useEntityViewsStore.getState().reset()
       }
+      prev = state
     })
     return unsub
   }, [])

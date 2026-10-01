@@ -5,7 +5,7 @@ import { useCartStore } from '../store/cart'
 import { ErrorBoundary } from '../components/shared/ErrorBoundary'
 import { useLocation, useNavigate, Link } from 'react-router-dom'
 import { NotificationBell } from '../components/notifications/NotificationBell'
-import { normalizeEmployeeRole, isDeliveryStaffUser, isUpperManagement, isCustomerFollowUpAgentUser } from '../utils/roleNormalization'
+import { normalizeEmployeeRole, isDeliveryStaffUser, isUpperManagement, isCustomerFollowUpAgentUser, type TargetRole } from '../utils/roleNormalization'
 import { SyncStatusPanel } from '../desktop/components/SyncStatusPanel'
 import { AppUpdater } from '../desktop/components/AppUpdater'
 
@@ -13,7 +13,7 @@ interface DesktopAppLayoutProps {
   children: ReactNode
 }
 
-const SALES_LIST_ROLES = ['الإدارة العليا', 'مدير بيع', 'مندوب مبيعات']
+const SALES_LIST_ROLES: TargetRole[] = ['الإدارة العليا', 'مدير بيع', 'مندوب مبيعات']
 
 function useDesktopNavItems() {
   const { user } = useAuthStore()

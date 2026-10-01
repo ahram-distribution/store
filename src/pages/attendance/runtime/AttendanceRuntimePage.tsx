@@ -154,7 +154,7 @@ export default function AttendanceRuntimePage() {
 
     const handleBeforeUnload = () => {
       if (st !== 'active' && st !== 'inactive_warning') return
-      const lastLoc = trackingEngine.getLastSeen()?.lastGps
+      const lastLoc = trackingEngine.getLastPosition()
       fetch(`${import.meta.env.VITE_SUPABASE_URL}/rest/v1/rpc/end_workday`, {
         method: 'POST',
         keepalive: true,

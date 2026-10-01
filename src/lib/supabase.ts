@@ -1,5 +1,4 @@
 import { createClient } from '@supabase/supabase-js'
-import type { Database } from '../types/database'
 import { createDesktopSupabase } from './desktopSupabase'
 
 const isDesktop = typeof navigator !== 'undefined' && navigator.userAgent.includes('Electron')
@@ -14,7 +13,7 @@ if (isDesktop && (window as any).api?.db) {
   if (!supabaseUrl || !supabaseAnonKey) {
     throw new Error('Missing Supabase environment variables')
   }
-  supabase = createClient<Database>(supabaseUrl, supabaseAnonKey)
+  supabase = createClient(supabaseUrl, supabaseAnonKey)
 }
 
 export { supabase }

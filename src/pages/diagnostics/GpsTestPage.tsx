@@ -15,7 +15,7 @@ function getToken(): string | null {
 
 function detectPWA(): boolean {
   return window.matchMedia('(display-mode: standalone)').matches
-    || (window.navicator as any)?.standalone === true
+    || (window.navigator as any)?.standalone === true
 }
 
 interface DeviceInfo {

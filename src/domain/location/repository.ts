@@ -2,7 +2,8 @@ import { supabase } from '../../lib/supabase'
 import type { Governorate, City, LocationRecord, GpsLocation, CoverageMapData, GeocodeResult, EnrichLocationInput } from './types'
 
 export class LocationRepository {
-  constructor(private token: string) {}
+  private token: string
+  constructor(token: string) { this.token = token }
 
   // ============================================================
   // Reference Data

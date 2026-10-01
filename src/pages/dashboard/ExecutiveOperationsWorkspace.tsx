@@ -44,7 +44,9 @@ interface QueueItem {
   has_collections: boolean
   collected_amount: number
   owner_name: string | null
+  owner_id?: string | null
   created_by_name: string | null
+  created_by_id?: string | null
   item_count: number
   customer_owner_name: string | null
   customer_owner_role: string | null

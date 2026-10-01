@@ -1,3 +1,4 @@
+/// <reference lib="webworker" />
 const BUILD_ID = typeof __BUILD_ID__ !== 'undefined' ? __BUILD_ID__ : 'dev'
 const CACHE_NAME = `ahram-${BUILD_ID}`
 const SUPABASE_URL = self.__VITE_SUPABASE_URL__ || ''
@@ -9,6 +10,8 @@ declare const self: ServiceWorkerGlobalScope & {
   __BUILD_ID__?: string
   __WB_MANIFEST: Array<{ url: string; revision: string | null }>
 }
+
+declare const clients: Clients
 
 // ---- IndexedDB helpers ----
 
@@ -325,16 +328,16 @@ self.addEventListener('push', (event) => {
   const tag = data.tag || 'notification'
   const url = data.url || '/'
 
-  event.waitUntil(
-    self.registration.showNotification(title, {
-      body,
-      icon,
-      badge: '/icons/icon-192x192.png',
-      tag,
-      renotify: true,
-      data: { url },
-    })
-  )
+  const options: NotificationOptions & { renotify?: boolean } = {
+    body,
+    icon,
+    badge: '/icons/icon-192x192.png',
+    tag,
+    renotify: true,
+    data: { url },
+  }
+
+  event.waitUntil(self.registration.showNotification(title, options))
 })
 
 self.addEventListener('notificationclick', (event) => {

@@ -1,8 +1,14 @@
 import { formatCurrencyShort, formatDateTime } from '../../utils/format'
-import type { UnifiedOrderCollection } from '../../types/unified-order'
+import type { UnifiedCollectionSummary } from '../../types/unified-order'
+
+type OrderCollectionRow = UnifiedCollectionSummary & {
+  created_at?: string
+  collector_name?: string
+  notes?: string
+}
 
 interface OrderCollectionsSectionProps {
-  collections: UnifiedOrderCollection[]
+  collections: OrderCollectionRow[]
 }
 
 export function OrderCollectionsSection({ collections }: OrderCollectionsSectionProps) {

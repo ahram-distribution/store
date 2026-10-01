@@ -100,7 +100,7 @@ export default function EmployeeAnalysisPage() {
       targetService.getKpiContributors('new_customers', month, year, token),
       targetService.getKpiContributors('collections', month, year, token),
     ])
-    const empList: any[] = !empResult.error ? (empResult.data || []) : []
+    const empList: any[] = !empResult.error ? ((empResult.data as any[]) || []) : []
     const buildMap = (data: any[]) => {
       const m: Record<string, { actual: number; target: number }> = {}
       for (const c of data || []) m[c.employee_id] = { actual: c.actual || 0, target: c.target || 0 }
