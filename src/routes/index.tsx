@@ -17,7 +17,6 @@ import { CompanyCreatePage } from '../pages/companies/CompanyCreatePage'
 import { CompanyEditPage } from '../pages/companies/CompanyEditPage'
 import { VisitsPage, VisitDetailPage, VisitScreen, NewVisitPage } from '../pages/visits'
 import { CollectionsPage, NewCollectionPage } from '../pages/collections'
-import { ReturnsPage, ReturnDetailPage, ReturnNewPage } from '../pages/returns'
 import { LiveActivityCenterPage } from '../pages/live-activity'
 import { ProductProfilePage } from '../pages/products'
 import { DealsPage } from '../pages/deals'
@@ -157,9 +156,6 @@ export function AppRoutes() {
       <Route path="/analytics/customers/intelligence" element={<ProtectedRoute employeeOnly><CustomerIntelligenceOverviewPage /></ProtectedRoute>} />
       <Route path="/collections" element={<ProtectedRoute requireCapability="collections.read"><CollectionsPage /></ProtectedRoute>} />
       <Route path="/collections/new" element={<ProtectedRoute requireCapability="collections.create"><NewCollectionPage /></ProtectedRoute>} />
-      <Route path="/returns" element={<ProtectedRoute><ReturnsPage /></ProtectedRoute>} />
-      <Route path="/returns/new" element={<ProtectedRoute><ReturnNewPage /></ProtectedRoute>} />
-      <Route path="/returns/:id" element={<ProtectedRoute><ReturnDetailPage /></ProtectedRoute>} />
       <Route path="/products/:id" element={<ProtectedRoute employeeOnly><ProductProfilePage /></ProtectedRoute>} />
       <Route path="/deals" element={<ProtectedRoute employeeOnly><DealsPage /></ProtectedRoute>} />
       <Route path="/daily-deals" element={<ProtectedRoute><DailyDealsPage /></ProtectedRoute>} />

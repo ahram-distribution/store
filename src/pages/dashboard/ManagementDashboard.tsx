@@ -44,7 +44,6 @@ export function ManagementDashboard() {
   const secondaryWidgets = [
     { label: 'زيارات نشطة', value: data?.active_visits ?? 0, color: 'bg-success', path: '/visits?filter=active' },
     { label: 'تحصيلات معلقة', value: data?.pending_collections ?? 0, color: 'bg-accent', path: '/collections?filter=pending' },
-    { label: 'مرتجعات معلقة', value: data?.pending_returns ?? 0, color: 'bg-warning', path: '/returns?filter=pending' },
     { label: 'طلبات اليوم', value: data?.today_orders ?? 0, color: 'bg-primary', path: '/orders?filter=today' },
     { label: 'زيارات اليوم', value: data?.today_visits ?? 0, color: 'bg-success', path: '/visits?filter=today' },
   ]

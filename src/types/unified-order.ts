@@ -34,7 +34,6 @@ export interface UnifiedOrder {
   current_delivery: UnifiedDeliveryTracking | null
   delivery_history: UnifiedDeliveryTracking[]
   preparation: UnifiedPreparationRecord | null
-  returns: UnifiedReturnSummary[]
   collections: UnifiedCollectionSummary[]
   last_visit: UnifiedVisitSummary | null
 }
@@ -199,15 +198,6 @@ export interface UnifiedPreparationRecord {
   cancelled_by: string | null
   cancelled_at: string | null
   notes: string | null
-}
-
-export interface UnifiedReturnSummary {
-  id: string
-  code: string
-  status: string
-  credit_note_amount: number | null
-  notes: string | null
-  created_at: string
 }
 
 export interface UnifiedCollectionSummary {

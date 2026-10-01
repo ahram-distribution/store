@@ -208,15 +208,6 @@ export function buildTimelineEvents(data: UnifiedOrder): TimelineEvent[] {
     }
   }
 
-  for (const r of data.returns) {
-    events.push({
-      id: `ret-${r.id}`,
-      label: `إنشاء مرتجع ${r.code}`,
-      timestamp: r.created_at,
-      color: 'orange',
-    })
-  }
-
   for (const m of data.modification_history || []) {
     const changes = computeItemChanges(m, data.items)
     const itemChanges: ItemChange[] = changes.length > 0 ? changes : undefined

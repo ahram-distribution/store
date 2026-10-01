@@ -69,7 +69,6 @@ const sampleUnifiedOrder = () => ({
   current_delivery: null,
   delivery_history: [],
   preparation: null,
-  returns: [],
 })
 
 const sampleProductRow = () => ({

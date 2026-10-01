@@ -8,7 +8,6 @@ import { StatusBadge } from '../shared/StatusBadge'
 import { OrderProductsSection } from './OrderProductsSection'
 import { OrderDeliverySection } from './OrderDeliverySection'
 import { OrderCollectionsSection } from './OrderCollectionsSection'
-import { OrderReturnsSection } from './OrderReturnsSection'
 import { OrderTimelineSection } from './OrderTimelineSection'
 import { OrderEventLogSection } from './OrderEventLogSection'
 import { formatDateTime, formatCurrencyShort, formatTierName } from '../../utils/format'
@@ -410,9 +409,6 @@ export function OrderDetailView({ data, actions, onBack, editMode, editItems, on
       {collections && collections.length > 0 && (
         <OrderCollectionsSection collections={collections} />
       )}
-
-      {/* Returns */}
-      <OrderReturnsSection returns={data.returns} />
 
       {/* Quick Actions */}
       <div className="bg-white rounded-lg border border-[#E5E7EB] shadow-sm p-4">

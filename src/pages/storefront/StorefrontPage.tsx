@@ -866,11 +866,6 @@ restoreCart,
           >
             طلباتي
           </button>
-          <button onClick={() => navigate('/returns')}
-            className="flex-1 bg-white text-text text-sm py-2 rounded-lg border border-border active:bg-surface transition-colors"
-          >
-            مرتجعاتي
-          </button>
         </div>
       )}
 

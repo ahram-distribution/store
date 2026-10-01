@@ -25,7 +25,6 @@ const MODULE_CONFIGS: Record<string, ModuleConfig> = {
       { icon: '\u{1F4C4}', label: 'فواتيري', path: '/orders?my_invoices=1' },
       { icon: '\u{1F50D}', label: 'متابعة الطلبات', path: '/orders/approval-queue' },
       { icon: '\u{1F69A}', label: 'التسليم', path: '/delivery' },
-      { icon: '\u{1F504}', label: 'المرتجعات', path: '/returns' },
       { icon: '\u{1F4E6}', label: 'تجهيز المخزن', path: '/warehouse' },
     ],
   },
@@ -77,14 +76,6 @@ const MODULE_CONFIGS: Record<string, ModuleConfig> = {
       { icon: '\u{1F4B0}', label: 'كل التحصيلات', path: '/collections' },
       { icon: '\u{2795}', label: 'تحصيل جديد', path: '/collections/new' },
       { icon: '\u{1F50D}', label: 'متابعة التحصيل', path: '/collections/followup' },
-    ],
-  },
-  returns: {
-    title: 'المرتجعات',
-    icon: '\u{1F4CB}',
-    operations: [
-      { icon: '\u{1F4CB}', label: 'كل المرتجعات', path: '/returns' },
-      { icon: '\u{2795}', label: 'مرتجع جديد', path: '/returns/new' },
     ],
   },
   delivery: {

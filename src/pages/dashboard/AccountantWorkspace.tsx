@@ -104,7 +104,6 @@ export function AccountantWorkspace() {
           <button onClick={() => navigate('/collections')} className="bg-primary text-white text-xs py-2.5 rounded-lg">التحصيلات</button>
           <button onClick={() => navigate('/collections/new')} className="bg-primary text-white text-xs py-2.5 rounded-lg">تسجيل تحصيل</button>
           <button onClick={() => navigate('/orders')} className="bg-surface text-text text-xs py-2.5 rounded-lg border border-border">الطلبات</button>
-          <button onClick={() => navigate('/returns')} className="bg-surface text-text text-xs py-2.5 rounded-lg border border-border">المرتجعات</button>
         </div>
       </div>
     </div>

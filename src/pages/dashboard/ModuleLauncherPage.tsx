@@ -16,7 +16,6 @@ const MODULE_ICONS: Record<string, { title: string; icons: LauncherIcon[] }> = {
       { icon: '📋', label: 'كل الطلبات', path: '/orders' },
       { icon: '➕', label: 'إنشاء طلب', path: '/orders/new' },
       { icon: '🚚', label: 'التسليم', path: '/delivery' },
-      { icon: '🔄', label: 'المرتجعات', path: '/returns' },
       { icon: '🔍', label: 'متابعة الطلبات', path: '/orders/approval-queue' },
       { icon: '📦', label: 'تجهيز المخزن', path: '/warehouse' },
       { icon: '📄', label: 'طلباتي', path: '/orders?my=1' },
