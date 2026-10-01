@@ -35,7 +35,6 @@ import { DashboardPage, ExecutiveOperationsWorkspace } from '../pages/dashboard'
 import PerformanceAnalysisPage from '../pages/dashboard/PerformanceAnalysisPage'
 import EmployeeAnalysisPage from '../pages/dashboard/EmployeeAnalysisPage'
 import ActivityScreen from '../pages/dashboard/ActivityScreen'
-import PerformancePage from '../pages/dashboard/PerformancePage'
 import { ModuleLauncherPage } from '../pages/dashboard/ModuleLauncherPage'
 import { AnalyticsListPage } from '../pages/analytics/AnalyticsListPage'
 import { CustomerAnalyticsPage } from '../pages/analytics/CustomerAnalyticsPage'
@@ -60,7 +59,6 @@ import { CompanyProfilePage as SettingsCompanyProfilePage } from '../pages/setti
 import ActivityPage from '../pages/activity/ActivityPage'
 
 import { CommandCenterPage, ModuleWorkspacePage } from '../pages/command-center'
-import HierarchyTargetPage from '../pages/target-runtime/HierarchyTargetPage'
 import {
   AttendanceSettingsPage,
   TeamMapPage,
@@ -129,7 +127,6 @@ export function AppRoutes() {
       <Route path="/dashboard/employee-analysis" element={<ProtectedRoute employeeOnly><EmployeeAnalysisPage /></ProtectedRoute>} />
 
       <Route path="/dashboard/activity" element={<ProtectedRoute employeeOnly><ActivityScreen /></ProtectedRoute>} />
-      <Route path="/dashboard/activity-target" element={<ProtectedRoute employeeOnly><PerformancePage /></ProtectedRoute>} />
 
       <Route path="/storefront" element={<ProtectedRoute><CompaniesPage /></ProtectedRoute>} />
       <Route path="/storefront/products" element={<ProtectedRoute><StorefrontPage /></ProtectedRoute>} />
@@ -189,7 +186,6 @@ export function AppRoutes() {
       <Route path="/employees" element={<ProtectedRoute requireCapability="employees.manage"><EmployeeManagementPage /></ProtectedRoute>} />
       <Route path="/employees/:id" element={<ProtectedRoute employeeOnly><EmployeeProfilePage /></ProtectedRoute>} />
       <Route path="/hierarchy" element={<ProtectedRoute requireCapability="employees.manage"><HierarchyPage /></ProtectedRoute>} />
-      <Route path="/targets/hierarchy" element={<ProtectedRoute employeeOnly><HierarchyTargetPage /></ProtectedRoute>} />
       <Route path="/companies/:id" element={<ProtectedRoute><CompanyProfilePage /></ProtectedRoute>} />
       <Route path="/reports" element={<ProtectedRoute employeeOnly><ReportsPage /></ProtectedRoute>} />
       <Route path="/reports/manager" element={<Navigate to="/launcher/reports" replace />} />
