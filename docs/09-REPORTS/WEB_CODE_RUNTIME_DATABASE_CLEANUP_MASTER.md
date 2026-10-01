@@ -12,14 +12,14 @@
 | **Local repository** | `D:\Projects\store` — branch `main`, remote `https://github.com/ahram-distribution/store.git` |
 | **Published Web** | `https://ahram-distribution.github.io/store/` |
 | **Initial audit date** | 2026-09-30 |
-| **Current status** | **IN PROGRESS** — RPC-001 is **committed, pushed and deployed to production**, but live end-to-end verification is **BLOCKED on credentials**. The sales Returns module has since been removed from the Web application and its Returns-only RPCs retired from production. |
+| **Current status** | **IN PROGRESS** — RPC-001 is **committed, pushed and deployed to production**, but live end-to-end verification is **BLOCKED on credentials**. The sales Returns module has since been removed from the Web application, its Returns-only RPCs retired from production, and both changes deployed and verified. |
 | **Current phase** | **Phase 1 — Live Web Errors** — started. 1 of 22 Phase 1 findings addressed. Phase 1 is **not** complete. |
-| **Last updated** | 2026-10-01 (sales Returns module removed from Web; Returns-only RPCs dropped in production) |
-| **Current HEAD** | `eb2af43` — `refactor(web): remove sales Returns module and its exclusive RPCs` (2026-10-01). Previous: `2a9c5cea310cffc2eda45dbfda275e3474fab408` (`2a9c5ce`, the RPC-001 fix) |
+| **Last updated** | 2026-10-01 (sales Returns module removed from Web, Returns-only RPCs dropped in production, deployed and verified) |
+| **Current HEAD** | `f34a79e` — `docs: register Returns cleanup outcome, DBX-013 and RPC-007`. Implementation: `eb2af43` — `refactor(web): remove sales Returns module and its exclusive RPCs`. Earlier: `2a9c5ce` (the RPC-001 fix). |
 
 **Findings registered:** 99 (96 from the audit + RPC-006 from RPC-001 remediation + DBX-013 and RPC-007 from the Returns cleanup)
-**Findings deployed to production:** 2 (RPC-001; the Returns cleanup, which includes a real database migration)
-**Findings closed:** 0
+**Findings deployed to production:** 3 (RPC-001; RPC-002 superseded by deletion of its caller; the Returns cleanup, which includes a real database migration)
+**Findings closed:** 1 — the sales Returns cleanup recorded in §10.2 (deployed and verified). RPC-001 remains deployed-but-unverified.
 **Findings blocked on verification:** 1 (RPC-001 — needs a valid Web login)
 **Phases started:** 1 of 7 (Phase 1, partially)
 
@@ -429,7 +429,7 @@ Chronological record of remediation activity.
   - Pre-apply scan proved each drop target had no other database caller and no `pg_depend` object; the only internal edge was `_return_qty_to_pieces` ← `governed_create_return`, dropped together.
   - `npm run build` → `✓ built in 18.07s`, exit 0. `tsc --noEmit` → **exactly 138** errors, identical to baseline, none in any touched file (the 2 that matched touched files were confirmed pre-existing against `HEAD`).
   - All 14 emitted chunks scanned: **0** occurrences of any Returns-only symbol, of `/returns` and of `/command-center/modules/returns`; shared `governed_return_*` verbs and unrelated routes survive; the 3 remaining Arabic "returns" strings are governance labels in `EmployeesPage` and `DataDeletionCenter`.
-- Status: **PRODUCTION APPLIED, NOT DEPLOYED.** The database change and the build are verified. The published bundle has **not** been inspected, so under §2 rule 4 this is not `VERIFIED`. `DBX-013` and `RPC-007` remain OPEN and owner-blocked.
+- Status: **DEPLOYED AND VERIFIED.** The database change, the local build, the published bundle and the live PostgREST surface all check out. The authenticated in-app walkthrough was not run — for this pass the published bundle plus the live RPC probes are the meaningful proof, since the module is proven absent rather than merely unreachable. `DBX-013` and `RPC-007` remain OPEN and owner-blocked.
 - Collateral findings: none new beyond DBX-013 and RPC-007. **RPC-006 remains OPEN and untouched.** No pre-existing TypeScript error was fixed. No Desktop/Electron file, RLS policy, or security setting was touched.
 ```
 
@@ -558,15 +558,20 @@ The owner was shown this dependency map and chose **Web + Returns-only RPCs, kee
 
 **Verification.** The migration was dry-run inside a rolled-back transaction before it was applied. Post-apply, read-only: all 8 target functions absent; `governed_approve_return` present at `(p_token uuid, p_return_id uuid)` with `public.returns` still referenced; all 13 other keepers present; all 6 return-named tables present; `sync_get_table_allowlist()` returns 73 entries still including the 4 Returns tables; `get_unified_order`, `get_dashboard_management`, `get_command_center`, `get_command_center_v2`, `get_governed_target_performance`, `get_kpi_contributors` and `get_team_members_kpis` all intact. `npm run build` succeeded (`✓ built in 18.07s`). `tsc --noEmit` is still exactly 138 errors, unchanged from baseline, with none in any touched file — the two that matched touched files (`OrderCollectionsSection` importing the non-existent `UnifiedOrderCollection`, and the missing `vitest` module) were confirmed pre-existing against `HEAD`. Bundle scan of all 14 emitted chunks: **0** occurrences of any Returns-only symbol, of `/returns`, or of `/command-center/modules/returns`; the shared `governed_return_*` verbs and unrelated routes survive; the 3 remaining Arabic "returns" strings are governance labels in `EmployeesPage` and `DataDeletionCenter`. All 38 pre-existing unrelated working-tree entries were left untouched and none were staged.
 
-**Outstanding.** Not closed under §2 rule 4 until the deployed bundle is inspected. DBX-013 and RPC-007 remain open — see §9 BLOCKED. No `vitest` in the project, so no test suite could be run; the legacy adapter fixture was validated by `tsc` only.
+**Outstanding.** No authenticated in-app walkthrough was performed; the repo's e2e credentials still return `INVALID_CREDENTIALS`, the same blocker that holds RPC-001. For this pass that does not weaken the result, because the evidence required is *absence* — proven by the deployed bundle containing no Returns code and by the live PostgREST probes — rather than a screen rendering correctly. `DBX-013` and `RPC-007` remain open — see §9 BLOCKED. No `vitest` in the project, so no test suite could be run; the legacy adapter fixture was validated by `tsc` only.
+
+**Deployment (2026-10-01).** Committed as `eb2af43` (20 paths) and `f34a79e` (this tracker), pushed to `origin/main`, and published by the existing `deploy.yml` workflow. Production serves `build_id` `f34a79e` / `commit_hash` `f34a79e06b6b0e7d0a7040b0ee36067d01bd9e4b`. All 15 chunks listed in the production `build-manifest.json` were fetched and scanned: **0** occurrences of any Returns-only symbol and **0** of `/returns`, `/returns/new` or `/command-center/modules/returns`, while the shared `governed_return_*` verbs and the Orders, Collections and Delivery routes survive. Live PostgREST confirms the database side: the 6 probeable dropped RPCs return **404 PGRST202** and PostgREST's own suggestions contain no `*_return*` function, while `governed_approve_return` and `get_unified_order` both return **200** `INVALID_SESSION`, i.e. both still exist and are session-gated.
 
 ### VERIFIED
 No remediation has been fully verified. The `VERIFIED` list in §7 records **audit findings**, not completed remediations; it must not be read as remediation progress.
 
-RPC-001 is listed under FIXED rather than here because its deployment is proven but its authenticated screen check is blocked. The Returns cleanup (10.2) is listed there for the same reason: its production database change is verified, but the published bundle has not been inspected yet. Live browser verification is still outstanding.
+RPC-001 is listed under FIXED rather than here because its deployment is proven but its authenticated screen check is blocked. Live browser verification for it is still outstanding. The Returns cleanup is not listed under FIXED: it met the closure rule and is recorded under CLOSED, because its verification rests on *absence* — the published bundle containing no Returns code and the live PostgREST probes — which does not need an authenticated session.
 
 ### CLOSED
-None. No finding has met the §2 closure rule yet, because RPC-001 has not been re-verified against the live authenticated page.
+
+**Sales Returns module removal (2026-10-01)** — recorded in full at §10.2, change log at §8, post-action log at §14.4. Meets the §2 closure rule: the change was deployed to production and then verified against the published bundle and the live PostgREST surface, not merely locally.
+
+RPC-001 is **not** here. Its deployment is proven but its authenticated screen check is blocked, so under §2 rule 4 it stays DEPLOYED, NOT VERIFIED.
 
 ---
 
@@ -731,7 +736,10 @@ Verification performed at creation time of this file, then updated after the RPC
 | Tests | **Not run** — the project has no `test` script and `vitest` is not installed; the legacy adapter fixture was validated by `tsc` only |
 | Security / RLS / grants | **Not touched** — only the EXECUTE grants that vanished with the 8 dropped functions |
 | Desktop / Electron touched | **No** |
-| Deployment performed | **No** — push and deploy are separate steps |
+| Deployment performed | **Yes** — commits `eb2af43` + `f34a79e` pushed to `origin/main`; workflow `deploy.yml` published `build_id` `f34a79e` |
+| Published bundle scan | All 15 chunks in the production `build-manifest.json` fetched and scanned (4,199,489 bytes): Returns-only symbols **0**, `/returns` **0**, `/returns/new` **0**, `/command-center/modules/returns` **0**; `governed_return_delivery/journey/to_preparation/order_for_revision` present; `get_unified_order`, `get_command_center`, `get_dashboard_management`, `/orders`, `/collections`, `/delivery` present |
+| Live PostgREST probe — dropped | `get_governed_returns`, `get_governed_return`, `get_governed_return_items`, `governed_create_return`, `governed_reject_return`, `governed_update_return` → **HTTP 404 PGRST202**, and PostgREST now suggests only unrelated `get_governed_sectors` / `governed_reject_order` / `governed_update_sector` — no `*_return*` alternative exists |
+| Live PostgREST probe — retained | `governed_approve_return` → **HTTP 200** `{"error":"INVALID_SESSION"}` (exists, session-gated, unchanged); `get_unified_order` → **HTTP 200** `INVALID_SESSION` |
 | `DBX-013` / `RPC-007` | Registered, OPEN, owner-blocked — see §9 BLOCKED |
 | `RPC-006` status | **OPEN**, untouched |
 
