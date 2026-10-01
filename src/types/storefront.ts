@@ -125,6 +125,7 @@ export interface ProductWithPrice {
   unitPrices: ProductUnitPrice[]
   availableUnitTypes: UnitType[]
   recentlyAvailableAt?: string
+  salesBlocked?: boolean
 }
 
 export interface ComputedPrices {

@@ -12,15 +12,15 @@
 | **Local repository** | `D:\Projects\store` — branch `main`, remote `https://github.com/ahram-distribution/store.git` |
 | **Published Web** | `https://ahram-distribution.github.io/store/` |
 | **Initial audit date** | 2026-09-30 |
-| **Current status** | **IN PROGRESS** — RPC-001 is **committed, pushed and deployed to production**, but live end-to-end verification is **BLOCKED on credentials**. The sales Returns module has since been removed from the Web application, its Returns-only RPCs retired from production, and both changes deployed and verified. |
-| **Current phase** | **Phase 1 — Live Web Errors** — started. 1 of 22 Phase 1 findings addressed. Phase 1 is **not** complete. |
-| **Last updated** | 2026-10-01 (TSC-001 fixed and verified locally; NOT deployed. Previously: sales Returns module removed from Web, Returns-only RPCs dropped in production, deployed and verified) |
-| **Current HEAD** | `f34a79e` — `docs: register Returns cleanup outcome, DBX-013 and RPC-007`. Implementation: `eb2af43` — `refactor(web): remove sales Returns module and its exclusive RPCs`. Earlier: `2a9c5ce` (the RPC-001 fix). |
+| **Current status** | **IN PROGRESS** — RPC-001 is **committed, pushed and deployed to production**, but live end-to-end verification is **BLOCKED on credentials**. The sales Returns module was removed from the Web application, its Returns-only RPCs retired from production, and both changes deployed and verified. **TSC-001 is now also fixed, committed, deployed and verified in production.** |
+| **Current phase** | **Phase 1 — Live Web Errors** — started. **3 of 22** Phase 1 findings addressed (RPC-001, TSC-001, TSC-002). Phase 1 is **not** complete. |
+| **Last updated** | 2026-10-01 (TSC-001 **fixed, committed, deployed and verified** — commit `c18046c`, production build_id `c18046c`. Previously: sales Returns module removed from Web, Returns-only RPCs dropped in production, deployed and verified) |
+| **Current HEAD** | `c18046c` — `fix(web): resolve ProductCard TypeScript errors` (**TSC-001**, deployed and verified). Earlier: `ccd1107`/`f34a79e` (Returns cleanup tracker + deployment verification), `eb2af43` (Returns module removal), `2a9c5ce` (the RPC-001 fix). |
 
 **Findings registered:** 99 (96 from the audit + RPC-006 from RPC-001 remediation + DBX-013 and RPC-007 from the Returns cleanup)
-**Findings deployed to production:** 3 (RPC-001; RPC-002 superseded by deletion of its caller; the Returns cleanup, which includes a real database migration)
-**Findings closed:** 1 — the sales Returns cleanup recorded in §10.2 (deployed and verified). RPC-001 remains deployed-but-unverified.
-**Findings fixed but not yet deployed:** 1 (TSC-001)
+**Findings deployed to production:** **5** (RPC-001; TSC-001; **TSC-002**; RPC-002 superseded by deletion of its caller; the Returns cleanup, which includes a real database migration)
+**Findings closed:** **3** — **TSC-002**, **TSC-001** (both deployed and verified) and the sales Returns cleanup recorded in §10.2 (deployed and verified). RPC-001 remains deployed-but-unverified.
+**Findings fixed but not yet deployed:** 0
 **Findings blocked on verification:** 1 (RPC-001 — needs a valid Web login)
 **Phases started:** 1 of 7 (Phase 1, partially)
 
@@ -186,10 +186,10 @@ All statuses are **OPEN**. Nothing has been remediated.
 | RPC-007 | Dead DB Object | `governed_approve_return` is retained in production with no caller after the Returns module was removed on 2026-10-01 | D | P2 | `pg_proc` 1 overload; signature `(p_token uuid, p_return_id uuid)` unchanged; body still `UPDATE`s `public.returns` | OPEN | 5 | **RETAINED BY OWNER EXCEPTION** | NOT VERIFIED | Explicit owner instruction: retain unchanged, do not repair. Not dropped by `20271202_remove_returns_module_rpcs.sql`. Its only caller (`src/services/returns.ts`) is deleted, so it is unreachable from the Web but still granted EXECUTE to `anon`/`authenticated`. It also blocks DBX-013 because it depends on `public.returns`. Removing it is a **separate owner decision** and is the first step of any future DBX-013 cleanup. |
 | RPC-002 | Live Error | `governed_approve_return` called with `p_id`; production signature is `(p_token, p_return_id)` | F | P1 | PGRST202; `src/services/returns.ts:76` (file deleted 2026-10-01) | **SUPERSEDED — NOT REACHABLE** | 1 | NO ACTION — owner exception | NOT VERIFIED | The only caller, `src/services/returns.ts`, was deleted with the Returns module on 2026-10-01, so the mismatch can no longer occur at runtime. The defect is **deliberately not fixed**: `governed_approve_return` is an explicit owner exception and was retained unchanged. See **RPC-007**. |
 | RPC-003 | Live Error | `governed_update_check_status` does not exist in production | F | P3 | PGRST202 | OPEN | 1 | PLANNED | NOT VERIFIED | Only caller is dead code (`LegacyCollectionProvider`) |
-| RPC-004 | Build | 130 TypeScript errors ship to production because the Vite/esbuild build performs no typecheck | F | P1 | `tsc --noEmit` exit code 2, 130 errors (was 138; TSC-001 removed 8 on 2026-10-01) | OPEN | 1 | PLANNED | NOT VERIFIED | `npm run build` strips types without checking them |
+| RPC-004 | Build | 121 TypeScript errors ship to production because the Vite/esbuild build performs no typecheck | F | P1 | `tsc --noEmit` exit code 2, 121 errors (was 138; TSC-001 removed 8 and TSC-002 removed 9 on 2026-10-01) | OPEN | 1 | PLANNED | NOT VERIFIED | `npm run build` strips types without checking them |
 | RPC-005 | Live Error | ~40 TypeScript errors are located in live, routed, user-facing pages (not tests) | F | P1 | `tsc --noEmit` grouped by file | OPEN | 1 | PLANNED | NOT VERIFIED | Includes `ProductCard`, `OrderDetailPage`, `OrderEditPage`, `EmployeeWorkdayDetailPage`, `HierarchyTargetPage`, `TargetSeedTool`, `EmployeeAnalysisPage`, `RepDistributionScreen`, `AttendanceRuntimePage`, `LiveActivityCenterPage`, `ExecutiveOperationsWorkspace`, `ProductManagerPage`, `TargetsWeightsTab` |
-| TSC-001 | TypeScript | `ProductCard.tsx` — 4 × `TS2554: Expected 0 arguments, but got 1` | F | P1 | lines 166, 172, 176, 180 | **FIXED** | 1 | Prop contract corrected: the 4 handlers are typed `(product: any)` | VERIFIED | Stale prop types in `src/components/products/ProductCard.tsx` declared `onEdit/onToggleActive/onDelete/onViewDetails` as `() => void` while the JSX calls them with `product`. Widened those 4 to `(product: any)`, matching the caller's 6 handlers and the already-correct `onToggleVisibility`/`onToggleBonus`. Type-only change — zero emitted-JS difference. |
-| TSC-002 | TypeScript | `OrderDetailPage.tsx` / `OrderEditPage.tsx` — `salesBlocked` does not exist on `ProductWithPrice` | F | P1 | lines 61, 855, 856 / 66, 303, 304 | OPEN | 1 | PLANNED | NOT VERIFIED | Order screens |
+| TSC-001 | TypeScript | `ProductCard.tsx` — 4 × `TS2554: Expected 0 arguments, but got 1` | F | P1 | lines 166, 172, 176, 180 | **CLOSED — DEPLOYED** | 1 | Prop contract corrected: the 4 handlers are typed `(product: any)` | **VERIFIED IN PRODUCTION** | Stale prop types in `src/components/products/ProductCard.tsx` declared `onEdit/onToggleActive/onDelete/onViewDetails` as `() => void` while the JSX calls them with `product`. Widened those 4 to `(product: any)`, matching the caller's 6 handlers and the already-correct `onToggleVisibility`/`onToggleBonus`. Type-only change — zero emitted-JS difference. Committed as `c18046c` and deployed 2026-10-01; production serves build_id `c18046c`. |
+| TSC-002 | TypeScript | `salesBlocked` does not exist on `ProductWithPrice` | F | P1 | `OrderDetailPage.tsx` 61, 855, 856; `OrderEditPage.tsx` 66, 303, 304; **also `SupremeOrderEditor.tsx` 38, 176, 177** (tracker undercounted — 9 errors, not 6) | **CLOSED — DEPLOYED** | 1 | Type-contract correction only: added `salesBlocked?: boolean` to `ProductWithPrice`; renamed stale write-only `outOfStock` → `isOutOfStock` and added the missing `isVisible` in all 3 mappers | **VERIFIED IN PRODUCTION** | `salesBlocked` is real runtime data (both pages sort with `!a.salesBlocked`), so it was preserved, not removed. Fixing only the excess-property error masked a deeper defect: TypeScript reports just the *first* excess property, so `salesBlocked` + `outOfStock` were hiding that the 3 `mapProduct()` functions never set `isOutOfStock`/`isVisible` (would have surfaced 3 × TS2739). `outOfStock` had **zero read sites** in `src` — write-only dead name. `isVisible` sourced from the canonical `toProductWithPrice`: `row.is_visible ?? true`. No runtime behavior changed. |
 | TSC-003 | TypeScript | `HierarchyTargetPage.tsx` imports 5 non-existent exports from `./TargetRuntimePage` | F | P1 | lines 3.15, 3.32, 3.50, 3.67, 3.82 | OPEN | 1 | PLANNED | NOT VERIFIED | `PerformanceData, HierarchyManager, HierarchyMember, HierarchyKpis, HierarchyTeamSummary` |
 | TSC-004 | TypeScript | `src/lib/supabase.ts:17` — `TS2558 Expected 0 type arguments, but got 1` | F | P1 | sole runtime `createClient` site | OPEN | 1 | PLANNED | NOT VERIFIED | Touches the central client |
 | TSC-005 | TypeScript | `src/sw.ts` — 5 errors, `ServiceWorkerGlobalScope` and `clients` unresolved | F | P1 | lines 6.21, 240.19, 346.5, 354.11, 354.38 | OPEN | 1 | PLANNED | NOT VERIFIED | Service worker; separate tsconfig context may be correct |
@@ -448,8 +448,32 @@ Chronological record of remediation activity.
   - Type-only change: emitted JavaScript is unaffected (props are erased at compile time); the built bundle still wires `onEdit`/`onToggleActive`/`onDelete`/`onViewDetails` and ProductCard still renders its Arabic stock/status strings. **No runtime, pricing, discount, inventory, cart, permission, or UI behaviour altered.**
   - No `any` cast, `@ts-ignore`, `@ts-expect-error`, or `eslint-disable` was introduced at the error sites; the `(product: any)` parameter matches the file's existing convention for `product` and its two sibling handler props.
   - Line endings (CRLF) and BOM state of the edited file preserved; `git diff` shows exactly 4 changed lines in 1 file.
-- Status: **FIXED, VERIFIED.** Not yet deployed — see Commit status.
+- Deployment (2026-10-01): committed as **`c18046c`** (`fix(web): resolve ProductCard TypeScript errors`), pushed to `origin/main`, and published by the `Deploy to GitHub Pages` workflow. Workflow run **36861398000** concluded **`success`** for head_sha `c18046c967bb655eda81e31684576cc0075dd8d1`.
+- Production verification (independent of the workflow's own verify step):
+  - `https://ahram-distribution.github.io/store/build-manifest.json` serves `"build_id": "c18046c"` and `commit_hash` `c18046c967bb655eda81e31684576cc0075dd8d1`.
+  - Live main bundle `/store/assets/index-Se8rdoJk.js` (3,044,718 bytes) embeds build_id `c18046c`.
+  - ProductCard is present in the deployed bundle: `onEdit`, `onToggleActive`, `onDelete`, `onViewDetails`, `onToggleVisibility`, `onToggleBonus` all wired, and its Arabic stock/status strings intact.
+- Status: **CLOSED — FIXED, DEPLOYED AND VERIFIED IN PRODUCTION.**
 - Scope: one source file. No shared type, API, or data contract changed. No database, migration, RPC, Returns, Desktop/Electron, or other finding touched.
+### 2026-10-01 — Phase 1 (TSC-002)
+- Finding: **TSC-002** — `salesBlocked` does not exist on `ProductWithPrice`. **9 diagnostics, not the 6 the audit recorded.** The tracker undercounted: the identical defect also exists in `src/components/orders/SupremeOrderEditor.tsx` (38, 176, 177), which was outside the original scope and had to be authorized separately.
+- Root cause: `ProductWithPrice` (`src/types/storefront.ts`) did not declare `salesBlocked`, but three separate `mapProduct()` functions build that shape and two of them read the field back for sorting (`!a.salesBlocked ? 0 : 1`), so it is real runtime data, not a dead type-only field.
+- Second, deeper defect found only after the first was fixed: TypeScript reports only the **first** excess property on an object literal (verified with an isolated probe), so the `salesBlocked` excess error was **masking** a missing-required-property error. Adding only the two properties produced 9 errors removed but **3 new TS2739 errors** — all three mappers emit a stale `outOfStock` key instead of the interface's `isOutOfStock`, and never set `isVisible` at all.
+- Evidence gathered before deciding:
+  - `outOfStock` has **zero read sites** anywhere in `src` — it is written in all 3 mappers and read by nothing, so the stale name is dead.
+  - `isOutOfStock` is read in 20+ live sites (cart, checkout, storefront, cart store), confirming the interface spelling is the real contract.
+  - `src/utils/catalog.ts`'s `toProductWithPrice` is the canonical builder and sets `isVisible: row.is_visible ?? true`. **The task brief suggested `row.is_visible !== false`; that was verified as incorrect and the canonical `?? true` form was used instead.** All other builders (`StorefrontPage`, `CompaniesPage`, `discountOptions`, `tiers`) use the same `?? true`.
+- Action (4 source files, no logic changes):
+  - `src/types/storefront.ts` — added `salesBlocked?: boolean` to `ProductWithPrice` (optional, so the many existing builders that omit it stay valid; narrowest correct type).
+  - All three mappers — renamed `outOfStock:` → `isOutOfStock:` keeping each original expression **byte-for-byte** (`row.is_out_of_stock === true && row.is_active !== false` in two, literal `false` in `OrderEditPage`), and added `isVisible: row.is_visible ?? true`.
+- Verification:
+  - `npx tsc --noEmit`: **130 → 121** (−9). Exact before/after list diff: **9 removed, 0 introduced.** All 9 TSC-002 diagnostics gone; **0** `salesBlocked`/`ProductWithPrice` errors remain.
+  - `npm run build` → exit **0**.
+  - No `any` cast, `@ts-ignore`, `@ts-expect-error` or suppression added; the only added lines are the four assignments and one interface field.
+  - Line endings normalized to the repo's CRLF convention in `OrderDetailPage.tsx` (the edit introduced 2 bare LFs); diff content unchanged.
+- Behavior preserved: `salesBlocked` values and the sorting that consumes them are untouched; stock expressions are identical; `isVisible` uses the canonical expression and previously did not exist on these objects, so nothing could regress by it becoming present.
+- Scope note: the initial authorization named 2 page files. It was **stopped and escalated** rather than half-fixed, because fixing only those two would have left `SupremeOrderEditor.tsx` emitting the stale name and still missing `isOutOfStock`/`isVisible` — trading 6 removed errors for 1 new one.
+- Status: **CLOSED — FIXED, DEPLOYED AND VERIFIED IN PRODUCTION.**
 ### YYYY-MM-DD — Phase X
 - Finding: F-XXX
 - Action: ...
@@ -470,21 +494,21 @@ Rules for this log:
 
 Counters only. Detail lives in §5.
 
-### OPEN — 96
-Of 99 registered findings, TSC-001 is fixed and verified but not yet deployed, RPC-001 is fixed and deployed but unverified, RPC-002 is superseded (its only caller was deleted), and RPC-007 is retained by owner exception. Breakdown by phase:
+### OPEN — 95
+Of 99 registered findings, TSC-002 is closed (deployed and verified 2026-10-01) and TSC-001 is closed (deployed and verified 2026-10-01), RPC-001 is fixed and deployed but unverified, RPC-002 is superseded (its only caller was deleted), and RPC-007 is retained by owner exception. Breakdown by phase:
 
 | Phase | Open | Blocked by decision | Blocked by manual review |
 |---|---|---|---|
-| Phase 1 | 19 | 3 | 1 |
+| Phase 1 | 18 | 3 | 1 |
 | Phase 2 | 15 | 4 | 4 |
 | Phase 3 | 15 | 15 | 0 |
 | Phase 4 | 12 | 4 | 0 |
 | Phase 5 | 15 | 3 | 12 |
 | Phase 6 | 18 | 12 | 1 |
 | Phase 7 | 2 | 1 | 0 |
-| **Total** | **96** | **42** | **18** |
+| **Total** | **95** | **42** | **18** |
 
-Phase 1 shows 19 open rather than 22 because TSC-001 is no longer open (fixed and verified 2026-10-01, awaiting deployment) and RPC-001 is no longer open (tracked under BLOCKED until verified) and RPC-002 is superseded — its only caller, `src/services/returns.ts`, was deleted on 2026-10-01, so the `p_id`/`p_return_id` mismatch it described can no longer occur. Phase 2 gained RPC-006. Phase 2's decision-blocked count rose from 3 to 4 because RPC-006 touches a shared RPC and needs an owner decision on scope. Phase 5 gained **DBX-013** and **RPC-007** from the Returns cleanup, both owner-decision items: the orphaned `returns` tables (16 retained dependents must be refactored first) and the owner-exempt `governed_approve_return`. Both are decision-blocked rather than manual-review, so Phase 5's decision-blocked count rose from 1 to 3 while its manual-review count stayed at 12.
+Phase 1 shows 18 open rather than 22 because TSC-002 and TSC-001 are no longer open (fixed, deployed and verified 2026-10-01) and RPC-001 is no longer open (tracked under BLOCKED until verified) and RPC-002 is superseded — its only caller, `src/services/returns.ts`, was deleted on 2026-10-01, so the `p_id`/`p_return_id` mismatch it described can no longer occur. Phase 2 gained RPC-006. Phase 2's decision-blocked count rose from 3 to 4 because RPC-006 touches a shared RPC and needs an owner decision on scope. Phase 5 gained **DBX-013** and **RPC-007** from the Returns cleanup, both owner-decision items: the orphaned `returns` tables (16 retained dependents must be refactored first) and the owner-exempt `governed_approve_return`. Both are decision-blocked rather than manual-review, so Phase 5's decision-blocked count rose from 1 to 3 while its manual-review count stayed at 12.
 
 All 15 Phase 3 findings require explicit owner authorization before any action; none may be bundled into a code-fix phase.
 
