@@ -11,7 +11,7 @@ import { exportToPdf, tableToHtml, kpiGridToHtml } from '../../services/pdfExpor
 import type { FilterState } from '../../types/filters'
 import type { ReportIdentity as IdentityData, KpiCardData } from '../../types/reports'
 import type { EntityType } from '../../modules/types'
-import type { ActivityViewModel, ActivityDailyRow, DayDetailData, WorkdaySessionSource } from '../../types/reports'
+import type { ActivityViewModel, ActivityDailyRow, DayDetailData, DayTimelineEvent, WorkdaySessionSource } from '../../types/reports'
 import { cairoDateComponents, toCairoDate } from '../../lib/dateRange'
 import { formatCurrencyShort } from '../../utils/format'
 import { formatNumber, formatInteger } from '../../utils/numbers'
@@ -606,57 +606,81 @@ export function ActivityReportsPage() {
           const tok = getToken()
           if (!tok) return { timeline: null, mapData: null }
 
-          const [timelineRes, trackingRes] = await Promise.all([
-            supabase.rpc('get_employee_day_timeline', {
-              p_token: tok,
-              p_employee_id: selectedEmployee.employee_id,
-              p_date: date,
-            }),
-            supabase.rpc('get_employee_daily_tracking', {
-              p_token: tok,
-              p_employee_id: selectedEmployee.employee_id,
-              p_date_from: date,
-              p_date_to: date,
-            }),
-          ])
+          // Daily employee activity is read from operational events the system already
+          // records: workday start/end, breaks, visit check-in/out, order creation,
+          // collections and new customers. get_employee_day_timeline is the existing
+          // governed RPC that returns them with their own timestamps and per-event
+          // locations, so it is reused as the single source instead of a new RPC.
+          //
+          // Continuous movement data is deliberately NOT requested: no route, no
+          // distance, no GPS point count, no heartbeat/presence polling.
+          const timelineRes = await supabase.rpc('get_employee_day_timeline', {
+            p_token: tok,
+            p_employee_id: selectedEmployee.employee_id,
+            p_date: date,
+          })
 
-          let timeline = null
-          if (timelineRes.data && !timelineRes.error) {
-            const t = timelineRes.data as any
-            timeline = {
+          if (timelineRes.error || !timelineRes.data) {
+            return { timeline: null, mapData: null }
+          }
+
+          const t = timelineRes.data as any
+
+          const events: DayTimelineEvent[] = (t.events ?? []).map((e: any) => ({
+            time: e.time ?? '',
+            type: e.type ?? '',
+            title: e.title ?? '',
+            description: e.description ?? '',
+            latitude: e.latitude ?? null,
+            longitude: e.longitude ?? null,
+            metadata: e.metadata ?? null,
+          }))
+
+          // Visit markers come from the visit check-in / check-out operational events,
+          // which legitimately store a location for that visit. Pairing the two events
+          // keeps check-in and check-out on a single marker.
+          const visitEndById = new Map<string, DayTimelineEvent>()
+          for (const ev of events) {
+            if (ev.type !== 'visit_end') continue
+            const id = ev.metadata?.visit_id
+            if (typeof id === 'string' && id) visitEndById.set(id, ev)
+          }
+
+          const visit_locations = events
+            .filter((ev) => ev.type === 'visit_start' && ev.latitude != null && ev.longitude != null)
+            .map((ev) => {
+              const id = typeof ev.metadata?.visit_id === 'string' ? ev.metadata.visit_id : ''
+              const end = id ? visitEndById.get(id) : undefined
+              return {
+                visit_id: id,
+                customer_id: typeof ev.metadata?.customer_id === 'string' ? ev.metadata.customer_id : '',
+                customer_name:
+                  (typeof ev.metadata?.customer_name === 'string' ? ev.metadata.customer_name : '') ||
+                  ev.description ||
+                  '',
+                latitude: Number(ev.latitude),
+                longitude: Number(ev.longitude),
+                check_in_at: ev.time,
+                check_out_at: end?.time ?? null,
+                visit_result: typeof end?.metadata?.visit_result === 'string' ? end.metadata.visit_result : '',
+              }
+            })
+
+          return {
+            timeline: {
               session: { start_time: t.session?.start_time ?? '', end_time: t.session?.end_time ?? null },
-              events: (t.events ?? []).map((e: any) => ({
-                time: e.time ?? '', type: e.type ?? '', title: e.title ?? '',
-                description: e.description ?? '', latitude: e.latitude ?? null, longitude: e.longitude ?? null,
-              })),
-            }
+              events,
+            },
+            // Operational event locations only. Route, distance and point counts stay
+            // empty because continuous movement tracking is intentionally not collected.
+            mapData: {
+              route: [],
+              visit_locations,
+              long_stops: [],
+              total_distance_km: 0,
+              total_points: 0,
+            },
           }
-
-          let mapData = null
-          if (trackingRes.data && !trackingRes.error) {
-            const m = trackingRes.data as any
-            mapData = {
-              route: (m.route ?? []).map((r: any) => ({
-                latitude: Number(r.latitude), longitude: Number(r.longitude),
-                time: r.time ?? '', type: r.type ?? '',
-              })),
-              visit_locations: (m.visit_locations ?? []).map((v: any) => ({
-                visit_id: v.visit_id ?? '', customer_id: v.customer_id ?? '',
-                customer_name: v.customer_name ?? '', latitude: Number(v.latitude),
-                longitude: Number(v.longitude), check_in_at: v.check_in_at ?? '',
-                check_out_at: v.check_out_at ?? null, visit_result: v.visit_result ?? '',
-              })),
-              long_stops: (m.long_stops ?? []).map((s: any) => ({
-                start_time: s.start_time ?? '', end_time: s.end_time ?? '',
-                duration_minutes: Number(s.duration_minutes) || 0,
-                latitude: Number(s.latitude), longitude: Number(s.longitude),
-              })),
-              total_distance_km: Number(m.total_distance_km) || 0,
-              total_points: Number(m.total_points) || 0,
-            }
-          }
-
-          return { timeline, mapData }
         }
 
         if (!cancelled) {

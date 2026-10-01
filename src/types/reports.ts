@@ -76,6 +76,8 @@ export interface DayTimelineEvent {
   description: string
   latitude?: string | null
   longitude?: string | null
+  /** Authoritative event payload returned by get_employee_day_timeline (e.g. visit_id, customer_id, customer_name, visit_result). */
+  metadata?: Record<string, unknown> | null
 }
 
 export interface DayDetailData {

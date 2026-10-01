@@ -43,6 +43,15 @@ export default function TrackingExplorerModal({ open, onClose, employeeName, emp
     return mapData.route.map((p) => [p.latitude, p.longitude])
   }, [mapData])
 
+  // When no continuous route exists, frame the recorded operational event locations
+  // (visits) instead, so the map is not left on the default centre.
+  const fitPoints: [number, number][] = useMemo(() => {
+    if (routePoints.length > 0) return routePoints
+    return (mapData?.visit_locations ?? [])
+      .filter((v) => Number.isFinite(v.latitude) && Number.isFinite(v.longitude))
+      .map((v) => [v.latitude, v.longitude])
+  }, [routePoints, mapData])
+
   const durationMinutes = useMemo(() => {
     if (!sessionStart || !sessionEnd) return null
     const s = new Date(sessionStart).getTime()
@@ -82,8 +91,8 @@ export default function TrackingExplorerModal({ open, onClose, employeeName, emp
 
         {hasMapData ? (
           <div className="rounded-lg overflow-hidden mx-4 mb-4" style={{ height: 350 }}>
-            <MapContainer center={routePoints[0] || [30.0, 31.0]} zoom={13} style={{ height: '100%', width: '100%' }} scrollWheelZoom={true}>
-              <MapFitBounds points={routePoints} />
+            <MapContainer center={routePoints[0] || fitPoints[0] || [30.0, 31.0]} zoom={13} style={{ height: '100%', width: '100%' }} scrollWheelZoom={true}>
+              <MapFitBounds points={fitPoints} />
               <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
               {routePoints.length > 1 && (
                 <Polyline positions={routePoints} pathOptions={{ color: '#3b82f6', weight: 3, opacity: 0.7 }} />
@@ -129,11 +138,13 @@ export default function TrackingExplorerModal({ open, onClose, employeeName, emp
 
         {hasMapData && (
           <div className="px-4 pb-2 flex flex-wrap gap-3 text-[10px] text-text-secondary">
+            {routePoints.length > 0 && (<>
             <span><span className="inline-block w-3 h-3 rounded-full bg-green-500 align-middle ml-1" />بداية المسار{mapData?.route?.[0]?.time ? `: ${fmtTime(mapData.route[0].time)}` : ''}</span>
             <span><span className="inline-block w-3 h-3 rounded-full bg-red-500 align-middle ml-1" />نهاية المسار{mapData?.route?.[mapData.route.length - 1]?.time ? `: ${fmtTime(mapData.route[mapData.route.length - 1].time)}` : ''}</span>
-            <span><span className="ml-1">📍</span>زيارة</span>
-            <span><span className="ml-1">⏸️</span>توقف طويل</span>
-            <span><span className="inline-block w-3 h-0.5 bg-blue-500 align-middle ml-1" />المسار</span>
+            </>)}
+            {(mapData?.visit_locations?.length ?? 0) > 0 && (<span><span className="ml-1">📍</span>زيارة</span>)}
+            {(mapData?.long_stops?.length ?? 0) > 0 && (<span><span className="ml-1">⏸️</span>توقف طويل</span>)}
+            {routePoints.length > 1 && (<span><span className="inline-block w-3 h-0.5 bg-blue-500 align-middle ml-1" />المسار</span>)}
           </div>
         )}
 
