@@ -245,7 +245,7 @@ describe('E. Deals / Flash excluded from credit, added to payable', () => {
     assert.equal(totals.bonusCredit, 2340)
     assert.equal(totals.dealTotal, 3500)
     assert.equal(totals.netTotal, 55500)
-    assert.equal(totals.bonusSummary?.bonusCredit ?? totals.bonusCredit, 2340)
+    assert.equal(totals.bonusSummary?.totalBonusCredit ?? totals.bonusCredit, 2340)
   })
 
   it('OFF mode keeps deals in computeCartTotals unchanged', () => {
@@ -409,6 +409,6 @@ describe('K. Zero-discount OFF == Bonus-mode ON totals', () => {
     const totals = computeBonusModeTotals(items, tier)
     assert.equal(totals.bonusCredit, summary.totalBonusCredit)
     assert.equal(totals.bonusUnused, summary.bonusUnused)
-    assert.equal(totals.finalPayable ?? totals.netTotal, summary.finalPayable)
+    assert.equal(totals.netTotal, summary.finalPayable)
   })
 })
