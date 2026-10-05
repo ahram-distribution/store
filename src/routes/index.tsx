@@ -226,7 +226,7 @@ export function AppRoutes() {
       <Route path="/sales-manager/customers-list" element={<ProtectedRoute employeeOnly><SalesManagerCustomersList /></ProtectedRoute>} />
       <Route path="/sales-manager/orders-list" element={<ProtectedRoute employeeOnly><SalesManagerOrdersList /></ProtectedRoute>} />
       <Route path="/sales-effort" element={<Navigate to="/launcher/reports" replace />} />
-      <Route path="/sales-list" element={<ProtectedRoute employeeOnly><SalesListPage /></ProtectedRoute>} />
+      <Route path="/sales-list" element={<ProtectedRoute><SalesListPage /></ProtectedRoute>} />
       <Route path="/sales-analytics" element={<ProtectedRoute employeeOnly><SalesAnalyticsPage /></ProtectedRoute>} />
 
 

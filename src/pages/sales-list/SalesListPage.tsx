@@ -283,7 +283,7 @@ function generatePrintHtml(groups: CompanyGroup[], logoUrl: string, regionLabel?
 export default function SalesListPage() {
   const navigate = useNavigate()
   const { token: authToken, user } = useAuthStore()
-  const { geographicContext, resolveEmployeeGeographicContext, geoItemAdjustments, geoResolveEpoch, ensureGeoItemAdjustments } = useCartStore()
+  const { geographicContext, resolveEmployeeGeographicContext, geoItemAdjustments, geoResolveEpoch, ensureGeoItemAdjustments, resolveGeographicPricing } = useCartStore()
 
   const [products, setProducts] = useState<ProductRow[]>([])
   const [total, setTotal] = useState(0)
@@ -319,7 +319,8 @@ export default function SalesListPage() {
 
   const userRoles = user?.roles || []
   const normalizedRoles = userRoles.map(normalizeEmployeeRole)
-  const hasAccess = ALLOWED_ROLES.some((r) => normalizedRoles.includes(r))
+  const isCustomer = user?.identity_type === 'customer'
+  const hasAccess = isCustomer || ALLOWED_ROLES.some((r) => normalizedRoles.includes(r))
   const isUpperMgmt = userRoles.includes('الإدارة العليا')
 
   const { hiddenProductIds: ctxHiddenProductIds, isResolving: ctxResolving } = useGeographicVisibility()
@@ -391,9 +392,25 @@ export default function SalesListPage() {
   }, [authToken])
 
   useEffect(() => {
+    if (user?.identity_type === 'customer' && user?.customer_id && authToken) {
+      // Canonical customer geo context — identical source the storefront uses for
+      // a direct customer (get_governed_customer -> fn_customer_default_address).
+      // customer_addresses has no client grant, so this RPC is the only path.
+      supabase
+        .rpc('get_governed_customer', { p_token: authToken, p_id: user.customer_id })
+        .then(({ data, error }) => {
+          if (error || !data) return
+          const c = Array.isArray(data) ? data[0] : data
+          const govId = c?.governorate_id
+          if (!govId) return
+          resolveGeographicPricing(govId, undefined, undefined)
+        })
+        .catch(() => {})
+      return
+    }
     if (user?.identity_type !== 'employee' || !user.employee_id) return
     resolveEmployeeGeographicContext(user.employee_id)
-  }, [user?.identity_type, user?.employee_id, resolveEmployeeGeographicContext])
+  }, [user?.identity_type, user?.employee_id, user?.customer_id, authToken, resolveEmployeeGeographicContext, resolveGeographicPricing])
 
   useEffect(() => {
     if (products.length > 0) {

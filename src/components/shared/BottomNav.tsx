@@ -12,6 +12,7 @@ function useNavItems() {
     return [
       { label: 'المتجر', path: '/storefront', icon: 'S' },
       { label: 'الطلبات', path: '/orders', icon: 'O' },
+      { label: 'قائمة المبيعات', path: '/sales-list', icon: 'L' },
     ]
   }
 
