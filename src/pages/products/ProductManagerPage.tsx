@@ -108,8 +108,9 @@ export function ProductManagerPage() {
     companyFilter: '',
     statusFilter: 'all' as 'all' | 'active' | 'out_of_stock' | 'inactive' | 'no_price',
     dataFilter: 'all' as 'all' | 'no_image' | 'no_price' | 'no_stock',
+    cartonFilter: '' as string,
   })
-  const { searchQuery, companyFilter, statusFilter, dataFilter } = viewState
+  const { searchQuery, companyFilter, statusFilter, dataFilter, cartonFilter } = viewState
   const [searchInput, setSearchInput] = useState(searchQuery)
 
   // Debounce search: sync searchInput to viewState after 200ms of no typing
@@ -143,6 +144,7 @@ export function ProductManagerPage() {
     if (dataFilter === 'no_image') params.p_no_image = true
     if (dataFilter === 'no_stock') params.p_no_stock = true
     if (selectedCompanyId) params.p_company_id = selectedCompanyId
+    if (cartonFilter) params.p_carton_quantity = Number(cartonFilter)
     const q = searchQuery.trim()
     if (q) params.p_search = q
     return params
@@ -151,6 +153,24 @@ export function ProductManagerPage() {
   const PAGE_SIZE = 20
   const [page, setPage] = useState(1)
   const [totalFiltered, setTotalFiltered] = useState(0)
+
+  // Distinct pieces-per-carton values that exist server-side — the options of
+  // the "عدد القطع داخل الكرتونة" filter. Fetched once (server-cached).
+  const [cartonOptions, setCartonOptions] = useState<number[]>([])
+  useEffect(() => {
+    const token = getToken()
+    if (!token) return
+    let cancelled = false
+    governedCatalog({ p_token: token, p_carton_quantities_only: true })
+      .then((res) => {
+        if (cancelled) return
+        if (Array.isArray(res.data)) {
+          setCartonOptions((res.data as any[]).filter((n) => typeof n === 'number'))
+        }
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [])
 
   // The grid is ALWAYS the current server page (already filtered + paged) —
   // stored products are replaced on every fetch. Sorted by name to match the
@@ -180,7 +200,7 @@ export function ProductManagerPage() {
   // Reset to page 1 whenever any filter changes.
   useEffect(() => {
     setPage(1)
-  }, [searchQuery, companyFilter, statusFilter, dataFilter])
+  }, [searchQuery, companyFilter, statusFilter, dataFilter, cartonFilter])
 
   useEffect(() => {
     const token = getToken()
@@ -210,7 +230,7 @@ export function ProductManagerPage() {
       .catch(() => {})
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
-  }, [searchQuery, companyFilter, statusFilter, dataFilter, page])
+  }, [searchQuery, companyFilter, statusFilter, dataFilter, cartonFilter, page])
 
   useEffect(() => {
     discountOptionsService.getAll().catch(() => null).then((opts) => {
@@ -1030,11 +1050,22 @@ export function ProductManagerPage() {
               <option value="">كل الشركات</option>
               {companyNames.map((n) => <option key={n} value={n}>{n}</option>)}
             </select>
+            <select
+              value={cartonFilter}
+              onChange={(e) => setViewState({ cartonFilter: e.target.value })}
+              className="px-2 py-1.5 rounded-lg border border-border text-xs bg-surface"
+              aria-label="عدد القطع داخل الكرتونة"
+            >
+              <option value="">عدد القطع داخل الكرتونة (الكل)</option>
+              {cartonOptions.map((n) => (
+                <option key={n} value={String(n)}>{n} قطعة في الكرتونة</option>
+              ))}
+            </select>
           </div>
 
           <div className="flex gap-2 text-[11px] text-text-secondary pt-0.5">
             <span>{filtered.length} من {totalFiltered} منتج</span>
-            {(searchQuery || companyFilter || statusFilter !== 'all' || dataFilter !== 'all') && (
+            {(searchQuery || companyFilter || statusFilter !== 'all' || dataFilter !== 'all' || cartonFilter) && (
               <button
                 onClick={resetViewState}
                 className="text-primary font-semibold"
@@ -1053,7 +1084,7 @@ export function ProductManagerPage() {
         ) : filtered.length === 0 ? (
           <div className="text-center py-16">
             <p className="text-sm text-text-secondary">لا توجد منتجات</p>
-            {!searchQuery && !companyFilter && statusFilter === 'all' && dataFilter === 'all' && canManage && (
+            {!searchQuery && !companyFilter && statusFilter === 'all' && dataFilter === 'all' && !cartonFilter && canManage && (
               <button onClick={() => setShowAdd(true)} className="mt-3 text-xs text-primary font-semibold">
                 + إضافة أول منتج
               </button>

@@ -36,6 +36,7 @@ const BOOLEAN_PARAMS = new Set([
   'p_no_price',
   'p_no_image',
   'p_no_stock',
+  'p_carton_quantities_only',
 ])
 
 function canonicalValue(key: string, value: unknown): { drop: boolean; value?: unknown } {
