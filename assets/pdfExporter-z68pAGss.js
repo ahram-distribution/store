@@ -1,4 +1,4 @@
-import{g}from"./index-CeGY7049.js";function x(){return`
+import{g}from"./index-DRC2R8X2.js";function x(){return`
     @page { size: A4; margin: 18mm 15mm }
     * { box-sizing: border-box; }
     body {
