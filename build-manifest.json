@@ -1,0 +1,24 @@
+{
+  "build_id": "553d432e97ac163634dd1891ddc8cdd3f7763092",
+  "commit_hash": "553d432e97ac163634dd1891ddc8cdd3f7763092",
+  "build_date": "2026-11-07T14:12:24.585Z",
+  "app_version": "1.0.0",
+  "required_schema_version": 27,
+  "assets": {
+    "ActivityReportsPage-B1dkOv-Y.js": "af545f1579adc2ca6eea65a18517c7fb46abe113529042414545dd402ea19b8b",
+    "ExecutiveEmployeeDetailPage-CyAVChvB.js": "be1d881adacdf95787cac5f34505110160eaeded1afb68db3b1845dde7bf2f30",
+    "ManagerReportsPage-BcgHGtFR.js": "f6a77836cf6b99885912b58e4bece26b388c4ec76f2d903bfc7fb4d323fcdb8a",
+    "TrackingExplorerModal-EygMFW0-.js": "ce0cfbb4283b34cef37d4e6d4b71cb6ce5e1a627c57a0559fef7953a50beb5e1",
+    "executiveFormat-DmfmlTfA.js": "9e81c2375486832d7c0719ed8e13805a87eb2d0bfe3a87b07016369fb445dd05",
+    "html2canvas.esm-CBrSDip1.js": "b4f3add809a6d59f46260e8fd56cab240f3153def977386b230a839e8cb0b281",
+    "index-BtcnhSsh.js": "8481625fb3511c10b2a60941f0670d3ddd5f0f421cf6fe59f8eddc7819905f71",
+    "index-K9fsFPc5.css": "c43ff303c7685a669bbbbad17fb03a0d0b56bfe8c5731238ba91c75542936e86",
+    "index-bDt5OwqQ.js": "5cfee04da07e37b4bbe87df6bed04bcd92ff259d2fe3bc051be2a078ea3858c6",
+    "index.es-43sA0S1U.js": "4b70c5ed188543afb20c9c9c421db5ca626b8a9cc459e6aa717166407bb12d09",
+    "jspdf.es.min-CR8iimGh.js": "3623c4288a603e2e57a0a906c62ea4925dacac5ea5de9f4abc7918a3e0795790",
+    "pdfExporter-BbrQWvYx.js": "17c9feaaffed285f9b2e764585f57dfccc5072cc79835b4976bd30ce31f56c9b",
+    "purify.es-Csrj9YNg.js": "c738df0811efaeb9919557980f3e1660aacd8bbdd480f548b5aeebf1a481eb45",
+    "tracking-service-nCjoqSYa.js": "2da16d34312aa931c81d6104cf0cc54c20013343a51147f4a5da10e23ed4d2cf",
+    "tracking-service.web-C6FsSjHz.js": "4f9f2f1b09af90275e345fe112759fcac040e82de91ee975b18cd05ffd98375a"
+  }
+}

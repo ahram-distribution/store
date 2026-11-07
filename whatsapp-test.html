@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>اختبار فتح واتساب</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', Tahoma, Arial, sans-serif; background: #f5f5f5; padding: 16px; color: #222; }
+h1 { font-size: 18px; margin-bottom: 4px; }
+.sub { font-size: 12px; color: #666; margin-bottom: 16px; }
+.card { background: #fff; border-radius: 12px; border: 1px solid #e0e0e0; padding: 16px; margin-bottom: 12px; }
+.card-title { font-size: 13px; font-weight: 700; margin-bottom: 8px; color: #333; }
+label { font-size: 12px; font-weight: 600; color: #555; display: block; margin-bottom: 4px; }
+input, textarea { width: 100%; border: 1px solid #ddd; border-radius: 8px; padding: 10px; font-size: 14px; margin-bottom: 10px; }
+textarea { resize: vertical; min-height: 80px; }
+.btn { display: block; width: 100%; padding: 12px; border: none; border-radius: 10px; font-size: 14px; font-weight: 700; cursor: pointer; margin-bottom: 8px; transition: opacity 0.2s; }
+.btn:active { opacity: 0.7; }
+.btn-a { background: #075e54; color: #fff; }
+.btn-b { background: #128c7e; color: #fff; }
+.btn-c { background: #dcf8c6; color: #075e54; }
+.btn-test { background: #25d366; color: #fff; }
+.log { background: #f0f0f0; border-radius: 8px; padding: 10px; font-size: 11px; font-family: monospace; direction: ltr; text-align: left; white-space: pre-wrap; max-height: 300px; overflow-y: auto; margin-top: 8px; }
+.log-header { font-size: 12px; font-weight: 600; color: #333; margin-bottom: 4px; }
+.note { font-size: 11px; color: #888; margin-bottom: 8px; padding: 8px; background: #fff3cd; border-radius: 6px; border: 1px solid #ffeeba; }
+.success { color: #155724; background: #d4edda; padding: 8px; border-radius: 6px; font-size: 12px; }
+.danger { color: #721c24; background: #f8d7da; padding: 8px; border-radius: 6px; font-size: 12px; }
+.back-link { display: inline-block; margin-top: 16px; color: #075e54; font-size: 13px; text-decoration: none; padding: 8px 0; }
+.gps-status { font-size: 11px; color: #666; margin-bottom: 8px; padding: 6px; background: #e8f5e9; border-radius: 6px; }
+hr { border: none; border-top: 1px solid #eee; margin: 12px 0; }
+</style>
+</head>
+<body>
+
+<h1>🔬 اختبار فتح واتساب</h1>
+<div class="sub">Variant A vs Variant B — اختبار على جهاز حقيقي</div>
+
+<div class="card">
+  <div class="card-title">📞 رقم الهاتف</div>
+  <input type="text" id="phoneInput" value="20104088002" placeholder="رقم واتساب">
+  <label for="msgInput">نص الرسالة</label>
+  <textarea id="msgInput">طلب شراء رقم: ORD-2026-000050
+
+المندوب:
+أحمد علي - 0104088002
+
+العميل:
+متجر النور - 0104088002
+
+━━━━━━━━━━━━━━
+بيان الطلب
+━━━━━━━━━━━━━━
+
+فاتيكا لوشن بيبي ترطيب 100مل
+
+كود: 1459
+الوحدة: قطعة
+الكمية: 100
+السعر: 33.00
+الإجمالي: 3300.00
+
+━━━━━━━━━━━━━━
+
+إجمالي الطلب:
+3300.00 جنيه
+
+━━━━━━━━━━━━━━
+موقع إرسال الطلب:
+https://maps.google.com/?q=30.0444,31.2357
+الدقة: 8m
+وقت الإرسال: 2026-06-07 15:30</textarea>
+</div>
+
+<div class="card">
+  <div class="card-title">🧪 الاختبارات</div>
+  <div class="note">
+    <strong>التعليمات:</strong><br>
+    1. اضغط على زر Variant A — سجّل هل فتح واتساب أم لا<br>
+    2. ارجع للصفحة (زر الرجوع في المتصفح)<br>
+    3. هل الصفحة ما زالت موجودة أم اختفت؟<br>
+    4. كرر مع Variant B<br>
+    <br>
+    <strong>⚠️ Variant B:</strong> تمت إضافة <code>setTimeout(..., 0)</code> لتجنب حظر الـ Popup داخل الـ Promise callback.
+  </div>
+
+  <button class="btn btn-a" onclick="variantA()">🔵 Variant A — window.location.href</button>
+  <button class="btn btn-b" onclick="variantB()">🟢 Variant B — a.click() target=_blank</button>
+  <button class="btn btn-c" onclick="variantC()">⚪ Variant C — a.click() بدون target</button>
+  <button class="btn btn-test" onclick="testAll()">▶️ تشغيل الثلاثة متتالياً</button>
+</div>
+
+<div class="card">
+  <div class="card-title">📋 سجل النتائج</div>
+  <div class="log" id="log">— لا توجد نتائج بعد —</div>
+</div>
+
+<div class="card">
+  <div class="card-title">📸 خطوات التوثيق المطلوبة</div>
+  <div class="note" style="background:#e3f2fd;border-color:#90caf9;">
+    1️⃣ صور أو فيديو لكل Variant يظهر:<br>
+    - هل فتح واتساب (أو واتساب Business)؟<br>
+    - هل الرسالة تحتوي النص الصحيح؟<br>
+    - بعد الرجوع: هل صفحة الاختبار ما زالت موجودة؟<br>
+    - هل زر PDF يعمل بعد الرجوع؟ (في التطبيق الحقيقي)<br>
+    <br>
+    2️⃣ سجّل أي Toast "Popup blocked" يظهر<br>
+    3️⃣ اختبر على Chrome Android مع واتساب وواتساب Business إن أمكن
+  </div>
+</div>
+
+<a class="back-link" href="javascript:history.back()">← العودة للصفحة السابقة</a>
+<a class="back-link" href="/" style="margin-right:16px">🏠 الصفحة الرئيسية</a>
+
+<script>
+const WA_URL = 'https://wa.me/'
+let logLines = ['📋 بدء الاختبار: ' + new Date().toLocaleString('ar-EG')]
+
+function addLog(msg, type) {
+  const t = new Date().toLocaleTimeString('ar-EG')
+  const line = '[' + t + '] ' + msg
+  logLines.push(line)
+  document.getElementById('log').textContent = logLines.join('\n')
+  console.log(line)
+}
+
+function getUrl() {
+  const phone = document.getElementById('phoneInput').value.trim()
+  const msg = document.getElementById('msgInput').value.trim()
+  const encoded = encodeURIComponent(msg)
+  return { phone, msg, url: WA_URL + phone + '?text=' + encoded }
+}
+
+function variantA() {
+  const { phone, url } = getUrl()
+  addLog('═══════════════════════════════════')
+  addLog('🔵 Variant A: window.location.href')
+  addLog('الرابط: ' + url)
+  addLog('⚠️ سيغادر الصفحة الآن...')
+  setTimeout(() => {
+    window.location.href = url
+  }, 100)
+}
+
+function variantB() {
+  const { phone, url } = getUrl()
+  addLog('═══════════════════════════════════')
+  addLog('🟢 Variant B: a.click() target=_blank')
+  addLog('الرابط: ' + url)
+  addLog('محاولة الفتح في تبويب جديد...')
+  try {
+    const a = document.createElement('a')
+    a.href = url
+    a.target = '_blank'
+    a.rel = 'noopener noreferrer'
+    // بعض المتصفحات تحجب الـ Popup خارج حدث المستخدم المباشر
+    // نستخدم setTimeout(0) لنقل التنفيذ بعد الحدث
+    setTimeout(() => {
+      a.click()
+      addLog('✅ تم استدعاء a.click() — تحقق من فتح التبويب')
+      addLog('ℹ️ إذا لم يفتح: المتصفح حجب الـ Popup')
+    }, 0)
+  } catch (err) {
+    addLog('❌ خطأ: ' + err.message)
+  }
+}
+
+function variantC() {
+  const { phone, url } = getUrl()
+  addLog('═══════════════════════════════════')
+  addLog('⚪ Variant C: a.click() بدون target')
+  addLog('الرابط: ' + url)
+  addLog('محاولة الفتح في نفس التبويب...')
+  try {
+    const a = document.createElement('a')
+    a.href = url
+    a.rel = 'noopener noreferrer'
+    setTimeout(() => {
+      a.click()
+      addLog('✅ تم استدعاء a.click() — سيغادر الصفحة')
+    }, 0)
+  } catch (err) {
+    addLog('❌ خطأ: ' + err.message)
+  }
+}
+
+function testAll() {
+  addLog('═══════════════════════════════════')
+  addLog('▶️ تشغيل الاختبارات الثلاثة متتالياً')
+  addLog('═══════════════════════════════════')
+  
+  // الأول: B (يفتح تبويب ولا يكسر الصفحة)
+  const { url } = getUrl()
+  
+  setTimeout(() => {
+    addLog('(1/3) 🟢 Variant B...')
+    const a = document.createElement('a')
+    a.href = url
+    a.target = '_blank'
+    a.rel = 'noopener noreferrer'
+    a.click()
+    addLog('✅ Variant B تم')
+  }, 500)
+
+  setTimeout(() => {
+    addLog('(2/3) ⚪ Variant C...')
+    const a = document.createElement('a')
+    a.href = url
+    a.rel = 'noopener noreferrer'
+    a.click()
+    addLog('✅ Variant C تم — سيغادر الصفحة')
+  }, 1000)
+
+  setTimeout(() => {
+    addLog('(3/3) 🔵 Variant A...')
+    addLog('⚠️ سيغادر الصفحة الآن نهائياً')
+    setTimeout(() => {
+      window.location.href = url
+    }, 500)
+  }, 1500)
+}
+
+addLog('✅ الصفحة جاهزة للاختبار')
+addLog('WA_URL: ' + WA_URL)
+</script>
+
+</body>
+</html>
