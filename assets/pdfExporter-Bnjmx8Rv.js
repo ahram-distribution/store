@@ -1,4 +1,4 @@
-import{g}from"./index-D1BPpYER.js";function x(){return`
+import{g}from"./index-BgFUXmDB.js";function x(){return`
     @page { size: A4; margin: 18mm 15mm }
     * { box-sizing: border-box; }
     body {
