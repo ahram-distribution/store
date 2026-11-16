@@ -1,4 +1,4 @@
-import{g}from"./index-DFOSKm4v.js";function x(){return`
+import{g}from"./index-Domt8-WE.js";function x(){return`
     @page { size: A4; margin: 18mm 15mm }
     * { box-sizing: border-box; }
     body {
